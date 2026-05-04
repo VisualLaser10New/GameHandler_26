@@ -24,6 +24,7 @@ Il sistema gestisce una piattaforma di giochi da tavolo o da bar. Il sistema è 
 - MQTT per la comunicazione tra end-point e server locale
 - Framework di sviluppo web (ad esempio Spring Boot) per la creazione dell'interfaccia
 - Docker per la containerizzazione dei componenti del sistema
+- TLS per crittografare le comunicazioni
 
 In futuro potrebbero servire anche:
 - componenti fisici per i giochi (ad esempio sensori, display, ecc.) che si interfacciano con i client software
@@ -32,3 +33,12 @@ In futuro potrebbero servire anche:
 ## Architettura
 
 Il sistema deve essere composto da microservizi.
+
+
+## Scelte
+
+- Usare il tls anche per mqtt
+- Il local server ogni 5 minuti controlla se gli endpoint sono attivi, se non lo sono termina le partite in esecuzione, segnala il problema
+- gli stati dei giochi vengono salvati in locale e utilizzati in locale per generare le statistiche (tra cui anche l'elenco delle partite completate e in corso), i dati delle statistiche vengono inviati al sistema centrale.
+- Il local server, si sincronizza ogni 5 minuti i dati con il centrale, se non è connesso, alla ripristino della connessione vengono inviati i dati in backlog.
+- poichè il sistema deve essere in grado di gestire diversi giochi, sarebbe utile implementare una serie di interfacce che dipendono da una interfaccia comune (generalissima), che definiscono i diversi stati e le diverse azioni che possono essere eseguite sui giochi (ad es. start, stop, pause, resume, ecc.).
