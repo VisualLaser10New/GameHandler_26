@@ -143,13 +143,16 @@ central-system/src/main/java/com/gameplatform/central/
     │       │   │   ├── UserRepositoryAdapter.java         (class)
     │       │   │   ├── StatisticsRepositoryAdapter.java   (class)
     │       │   │   ├── ProcessedEventRepositoryAdapter.java (class)
-    │       │   │   └── OutboxEventRepositoryAdapter.java  (class)
+    │       │   │   ├── OutboxEventRepositoryAdapter.java  (class)
+    │       │   │   └── LocalServerRepositoryAdapter.java  (class)
     │       │   └── mapper/
     │       │       ├── UserMapper.java                    (class)
     │       │       ├── StatisticsMapper.java              (class)
     │       │       └── OutboxEventMapper.java             (class)
-    │       └── rest/
-    │           └── LocalServerRestAdapter.java    (class)
+    │       ├── rest/
+    │       │   └── LocalServerRestAdapter.java    (class)
+    │       └── registry/
+    │           └── LocalServerRegistryAdapter.java   (class)
     ├── config/
     │   ├── SecurityConfig.java                    (class)
     │   ├── JwtConfig.java                         (class)
@@ -472,14 +475,17 @@ game-client-emulator/src/main/java/com/gameplatform/client/
 | `AggregatedStatisticsJpaEntity` | class | `@Entity`. Mappa tabella `aggregated_statistics`. | — |
 | `ProcessedEventJpaEntity` | class | `@Entity`. Mappa tabella `processed_events`. | — |
 | `OutboxEventJpaEntity` | class | `@Entity`. Mappa tabella `outbox_events`. | — |
+| `RegisteredLocalServerJpaEntity` | class | `@Entity`. Mappa tabella `local_servers (id, building_id, base_url, last_seen_at, is_active)`. Persistenza del registry dei Local Server registrati. | — |
 | `UserJpaRepository` | interface | `extends JpaRepository<UserJpaEntity, String>`. Query: `findByUsername()`. | `UserJpaEntity` |
 | `StatisticsJpaRepository` | interface | `extends JpaRepository`. Query: `findByBuildingIdAndGameType()`. | `AggregatedStatisticsJpaEntity` |
 | `ProcessedEventJpaRepository` | interface | `extends JpaRepository`. Query: `existsById()`. | `ProcessedEventJpaEntity` |
 | `OutboxEventJpaRepository` | interface | `extends JpaRepository`. Query: `findByStatusOrderByCreatedAt()`. | `OutboxEventJpaEntity` |
+| `LocalServerJpaRepository` | interface | `extends JpaRepository<RegisteredLocalServerJpaEntity, String>`. Query: `findByIsActiveTrue()`. | `RegisteredLocalServerJpaEntity` |
 | `UserRepositoryAdapter` | class | `@Component`. Implementa `UserRepository` (porta di dominio). Usa `UserJpaRepository` + `UserMapper`. | `UserRepository`, `UserJpaRepository`, `UserMapper` |
 | `StatisticsRepositoryAdapter` | class | `@Component`. Implementa `StatisticsRepository`. | `StatisticsRepository`, `StatisticsJpaRepository`, `StatisticsMapper` |
 | `ProcessedEventRepositoryAdapter` | class | `@Component`. Implementa `ProcessedEventRepository`. | `ProcessedEventRepository` |
 | `OutboxEventRepositoryAdapter` | class | `@Component`. Implementa `OutboxEventRepository`. | `OutboxEventRepository` |
+| `LocalServerRegistryAdapter` | class | `@Component`. Implementa `LocalServerRegistryPort`. Usa `LocalServerJpaRepository` per leggere i Local Server attivi. Al boot di ogni Local Server, questo viene aggiornato tramite `POST /internal/register` (protetto da API Key). | `LocalServerRegistryPort`, `LocalServerJpaRepository` |
 | `UserMapper` | class | `@Component`. Metodi di istanza `toDomain(UserJpaEntity): User` e `toEntity(User): UserJpaEntity`. Iniettato nei `RepositoryAdapter` via costruttore. | `User`, `UserJpaEntity` |
 | `StatisticsMapper` | class | `@Component`. Metodi di istanza. Converte tra `AggregatedStatistics` e `AggregatedStatisticsJpaEntity`. | — |
 | `OutboxEventMapper` | class | `@Component`. Metodi di istanza. Converte tra `OutboxEvent` e `OutboxEventJpaEntity`. | — |
@@ -527,7 +533,7 @@ game-client-emulator/src/main/java/com/gameplatform/client/
 | `GetReservationsUseCase` | interface | `List<Reservation> getByUser(UserId)`, `List<Reservation> getByGame(GameId)`. | `Reservation` |
 | `UpdateGameStateUseCase` | interface | `void updateState(GameId, GameMachineStatus)`. | `GameId`, `GameMachineStatus` |
 | `GetAvailableGamesUseCase` | interface | `List<Game> getAvailable()`, `List<Game> getAll()`. | `Game` |
-| `StartGameSessionUseCase` | interface | `GameSession start(GameId, GameType, List<UserId>)`. | `GameSession`, `GameId`, `GameType`, `UserId` |
+| `StartGameSessionUseCase` | interface | `GameSession start(GameId, GameType, List<UserId>, ReservationId reservationId)`. Il `reservationId` è opzionale (nullable): se presente, il service verifica che la prenotazione sia valida (`userId`, `gameId`, `status IN (PENDING, CONFIRMED)`) prima di creare la sessione. Se assente, la sessione è avviata in modalità walk-in senza prenotazione. | `GameSession`, `GameId`, `GameType`, `UserId`, `ReservationId` |
 | `EndGameSessionUseCase` | interface | `void end(GameSessionId, GameResult)`. | `GameSessionId`, `GameResult` |
 | `PauseGameSessionUseCase` | interface | `void pause(GameSessionId)`. | `GameSessionId` |
 | `ResumeGameSessionUseCase` | interface | `void resume(GameSessionId)`. | `GameSessionId` |
@@ -556,7 +562,7 @@ game-client-emulator/src/main/java/com/gameplatform/client/
 | `ReservationExpirationService` | class | `@Transactional`. Job `@Scheduled(fixedRate=60000)`. Ogni minuto invoca `ReservationRepository.findExpired(Instant.now(clock))` per trovare tutte le prenotazioni con `status IN (PENDING, CONFIRMED)` e `end_time < NOW()`. Per ciascuna: (1) imposta `status = EXPIRED` tramite `Reservation.expire()`, (2) rilascia la macchina associata a `AVAILABLE` tramite `Game.release()`, (3) pubblica il nuovo stato macchina via MQTT. Previene il blocco indefinito delle macchine prenotate e mai utilizzate. | `ReservationRepository`, `GameRepository`, `PublishGameStatePort`, `Clock` |
 | `GameStateService` | class | `@Transactional`. Implementa `UpdateGameStateUseCase`, `GetAvailableGamesUseCase`. Aggiorna stato macchina, pubblica su MQTT. | `GameRepository`, `PublishGameStatePort` |
 | `GameSessionService` | class | `@Transactional`. Implementa `StartGameSessionUseCase`, `EndGameSessionUseCase`, `PauseGameSessionUseCase`, `ResumeGameSessionUseCase`. Gestisce ciclo di vita sessione, calcola durata, serializza GameResult in JSON, crea OutboxEvent nella stessa transazione. L'`EndGameSessionUseCase` accetta anche sessioni in stato `ABORTED` (late arrival) per preservare il risultato se il client lo invia dopo che l'health check ha già marcato la sessione come abortita: in tal caso la sessione viene aggiornata a `COMPLETED` con i dati del risultato. | `GameSessionRepository`, `GameRepository`, `OutboxEventRepository`, `PublishGameStatePort` |
-| `SessionRecoveryService` | class | Implementa `SmartLifecycle` (Spring). All'avvio del Local Server, scansiona tutte le `GameSession` con `status = IN_PROGRESS` o `PAUSED` nel DB. Per ciascuna, invia un heartbeat MQTT al client associato con un timeout di 30 secondi. Se il client risponde, la sessione rimane attiva. Se non risponde, la sessione viene marcata come `ABORTED` con motivo `SERVER_RESTART`, la macchina viene rilasciata a `AVAILABLE`, e viene generato un `OutboxEvent`. Previene sessioni zombie dopo un riavvio del server. | `GameSessionRepository`, `GameRepository`, `OutboxEventRepository`, `PublishGameStatePort`, `PublishAlertPort` |
+| `SessionRecoveryService` | class | Implementa `SmartLifecycle` (Spring). **`@DependsOn("mqttClient")`** per garantire che il broker MQTT sia connesso prima dell'inizio del recovery (evita terminazione errata di sessioni attive). All'avvio del Local Server, scansiona tutte le `GameSession` con `status = IN_PROGRESS` o `PAUSED` nel DB. Per ciascuna, invia un heartbeat MQTT al client associato con un timeout di 30 secondi. Se il client risponde, la sessione rimane attiva. Se non risponde, la sessione viene marcata come `ABORTED` con motivo `SERVER_RESTART`, la macchina viene rilasciata a `AVAILABLE`, e viene generato un `OutboxEvent`. Previene sessioni zombie dopo un riavvio del server. | `GameSessionRepository`, `GameRepository`, `OutboxEventRepository`, `PublishGameStatePort`, `PublishAlertPort` |
 | `StatisticsService` | class | Implementa `GetStatisticsUseCase`. Genera aggregazioni locali da `GameSessionRepository`. | `GameSessionRepository` |
 | `LocalAuthService` | class | Implementa `AuthenticateLocalUserUseCase`. Verifica BCrypt hash da `replicated_users`, **firma e genera JWT con la chiave privata RSA locale** (`JwtTokenProvider`). Funziona identicamente sia online che offline: non dipende dalla connettività al Central. | `UserRepository`, `JwtTokenProvider` |
 | `UserSyncService` | class | Implementa `SyncUsersUseCase`. Riceve lista utenti dal Central (sia nuovi che aggiornati), salva/aggiorna in `replicated_users` tramite upsert. Gestisce sia `USER_REGISTERED` che `USER_UPDATED`. | `UserRepository` |
@@ -672,8 +678,8 @@ game-client-emulator/src/main/java/com/gameplatform/client/
 | **shared-domain** | 0 | 6 | 13 | 6 | **25** |
 | **shared-dto** | 0 | 0 | 14 | 0 | **14** |
 | **shared-mqtt** | 2 | 0 | 7 | 0 | **9** |
-| **central-system** | 23 | 11 | 0 | 0 | **34** |
+| **central-system** | 26 | 12 | 0 | 0 | **38** |
 | **local-server** | 38 | 17 | 0 | 0 | **55** |
 | **game-client-emulator** | 17 | 0 | 0 | 1 | **18** |
-| **TOTALE** | **80** | **34** | **34** | **7** | **155** |
+| **TOTALE** | **83** | **35** | **34** | **7** | **159** |
 

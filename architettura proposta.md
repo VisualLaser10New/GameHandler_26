@@ -65,7 +65,7 @@ Se un endpoint non risponde per **3 cicli consecutivi**:
 
 ### 2.4 Session Recovery all'Avvio
 
-Al riavvio del Local Server, il `SessionRecoveryService` (implementa `SmartLifecycle`) esegue una scansione di tutte le `GameSession` con `status = IN_PROGRESS` o `PAUSED` nel database. Per ciascuna sessione orfana:
+Al riavvio del Local Server, il `SessionRecoveryService` (implementa `SmartLifecycle`) esegue una scansione di tutte le `GameSession` con `status = IN_PROGRESS` o `PAUSED` nel database. Il servizio è annotato con `@DependsOn("mqttClient")` per garantire che il broker MQTT sia connesso **prima** che il recovery inizi — altrimenti i heartbeat sarebbero inviati su un canale non disponibile, portando alla terminazione errata di sessioni attive. Per ciascuna sessione orfana:
 
 1. Invia un heartbeat MQTT al client associato con un timeout di **30 secondi**.
 2. Se il client risponde, la sessione rimane attiva e il normale ciclo di vita prosegue.
@@ -153,6 +153,15 @@ Gli endpoint con prefisso `/internal/**` sono destinati esclusivamente alla comu
 *   Se l'header è assente o il valore non corrisponde, il filtro risponde con `401 Unauthorized`.
 
 Questa separazione garantisce che un utente con JWT valido (`ROLE_USER` o `ROLE_ADMIN`) non possa invocare direttamente gli endpoint di sincronizzazione interna.
+
+#### 3.2.3 Separazione dei Trust Domain JWT
+
+I JWT emessi dal Central System e quelli emessi da un Local Server **non sono intercambiabili**:
+
+*   Il **Game Client JavaFX** esegue login sul Local Server e riceve un JWT locale. Usa questo JWT esclusivamente per le chiamate verso quel Local Server (`/api/**`).
+*   Il **Central System** emette JWT per accesso alla propria web interface (statistiche globali). Questi JWT sono validi solo sul Central System.
+*   I Local Server **non accettano JWT del Central** (chiavi RSA distinte). Il Central **non accetta JWT locali**.
+*   La comunicazione Local Server ↔ Central avviene sempre tramite **API Key** (`X-Internal-Api-Key`), mai tramite JWT utente.
 
 ### 3.3 Flusso di Autenticazione
 
@@ -326,8 +335,9 @@ public class Reservation {
     // Clock passato come parametro dal service (non iniettato nel domain)
     // per garantire testabilità deterministica
     public boolean canBeCancelled(Clock clock) {
+        // Annullabile se la prenotazione è PENDING e manca almeno 1 ora all'inizio
         return status == ReservationStatus.PENDING &&
-               createdAt.isAfter(Instant.now(clock).minus(Duration.ofHours(24)));
+               startTime.isAfter(Instant.now(clock).plus(Duration.ofHours(1)));
     }
 }
 
@@ -379,13 +389,14 @@ Gli stati dei giochi vengono **salvati in locale** e utilizzati **in locale** pe
 
 ### 8.2 Flusso
 
-1. Il Game Client pubblica su MQTT `building/{id}/game/{gameId}/session/start` all'inizio di una partita.
-2. Il Local Server riceve l'evento, crea una `GameSession` nel DB locale con `status = IN_PROGRESS`.
-3. Durante la partita, gli aggiornamenti di stato transitano via MQTT.
-4. A fine partita, il Game Client pubblica su `session/end` con il `result_data` specifico del gioco.
-5. Il Local Server aggiorna la `GameSession`: `status = COMPLETED`, `ended_at`, `duration_s`, `winner_id`, `result_data`.
-6. Il `StatisticsService` locale genera aggregazioni: partite per tipo, durata media, win rate per utente, preferenze.
-7. Le statistiche aggregate vengono inserite nell'`outbox_events` e inviate al Central System al prossimo ciclo di sync.
+1. Il Game Client pubblica su MQTT `building/{id}/game/{gameId}/session/start` all'inizio di una partita. Il payload include un `reservationId` opzionale.
+2. Il Local Server riceve l'evento e, se presente, verifica che la prenotazione sia valida: `reservation.userId == userId`, `reservation.gameId == gameId`, `reservation.status IN (PENDING, CONFIRMED)`. Se la verifica fallisce, pubblica un errore sul topic `building/{id}/alerts`. Se non è presente `reservationId`, la sessione è avviata direttamente (modalità walk-in).
+3. Il Local Server crea una `GameSession` nel DB locale con `status = IN_PROGRESS` e, se era presente una prenotazione, la transiziona a `CONFIRMED`.
+4. Durante la partita, gli aggiornamenti di stato transitano via MQTT.
+5. A fine partita, il Game Client pubblica su `session/end` con il `result_data` specifico del gioco.
+6. Il Local Server aggiorna la `GameSession`: `status = COMPLETED`, `ended_at`, `duration_s`, `winner_id`, `result_data`.
+7. Il `StatisticsService` locale genera aggregazioni: partite per tipo, durata media, win rate per utente, preferenze.
+8. Le statistiche aggregate vengono inserite nell'`outbox_events` e inviate al Central System al prossimo ciclo di sync.
 
 ---
 
@@ -476,20 +487,31 @@ Ogni gioco produce un tipo di risultato diverso. Tutti implementano `GameResult`
     @JsonSubTypes.Type(value = RiskResult.class,     name = "RISK"),
 })
 public interface GameResult {
-    UserId getWinnerId();              // Value Object tipizzato, non String
+    UserId getWinnerId();              // Vincitore primario (es. capitano squadra)
+    List<UserId> getWinnerIds();       // Tutti i vincitori (es. entrambi i giocatori del Team Red)
     WinCondition getWinCondition();
 }
 
 // Esempi di implementazione (record Java) — winnerId è UserId, non String
-public record FoosballResult(UserId winnerId, Map<String, Integer> finalScores,
-                              WinCondition winCondition) implements GameResult {}
+public record FoosballResult(UserId winnerId, List<UserId> winnerIds,
+                              Map<String, Integer> finalScores,
+                              WinCondition winCondition) implements GameResult {
+    // winnerId  = primo membro del team vincente (compatibilita' colonna winner_id)
+    // winnerIds = tutti i componenti del team (statistiche win-rate corrette)
+}
 
-public record ChessResult(UserId winnerId, String terminationReason,
+public record ChessResult(UserId winnerId, List<UserId> winnerIds,
+                           String terminationReason,
                            String finalFenState, WinCondition winCondition) implements GameResult {}
 
-public record MonopolyResult(UserId winnerId, Map<String, Integer> finalMoney,
+public record MonopolyResult(UserId winnerId, List<UserId> winnerIds,
+                              Map<String, Integer> finalMoney,
                               Map<String, List<String>> ownedProperties,
                               WinCondition winCondition) implements GameResult {}
+
+public record RiskResult(UserId winnerId, List<UserId> winnerIds,
+                         Map<String, Map<String, Integer>> territoriesAtEnd,
+                         int totalRounds, WinCondition winCondition) implements GameResult {}
 ```
 
 ---
@@ -553,7 +575,8 @@ CREATE TABLE reservations (
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_game (game_id),
     INDEX idx_user (user_id),
-    INDEX idx_expiration (status, end_time)
+    INDEX idx_expiration (status, end_time),
+    INDEX idx_availability (game_id, status, start_time, end_time)  -- query disponibilità
 );
 
 CREATE TABLE game_sessions (
@@ -622,6 +645,31 @@ CREATE TABLE processed_events (
     event_id    VARCHAR(36) PRIMARY KEY,
     processed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- =============== TABELLE CENTRAL SYSTEM — REGISTRY ===============
+
+CREATE TABLE local_servers (
+    id           VARCHAR(36) PRIMARY KEY,
+    building_id  VARCHAR(36) UNIQUE NOT NULL,
+    base_url     VARCHAR(255) NOT NULL,   -- es. https://local-server-1:8080
+    last_seen_at DATETIME,
+    is_active    BOOLEAN DEFAULT TRUE,
+    INDEX idx_active (is_active)
+);
+-- Popolata al boot di ogni Local Server via POST /internal/register (API Key protetto).
+
+-- =============== TABELLE LOCAL SERVER — CACHE STATISTICHE ===============
+
+CREATE TABLE local_statistics_cache (
+    id          VARCHAR(36) PRIMARY KEY,
+    game_type   VARCHAR(50) NOT NULL,
+    period      DATE NOT NULL,
+    data        JSON,              -- statistiche aggregate (totalSessions, avgDuration, etc.)
+    computed_at DATETIME NOT NULL,
+    UNIQUE KEY uk_type_period (game_type, period)
+);
+-- Aggiornata da StatisticsService al termine di ogni partita e al boot.
+-- Evita ricalcoli O(n) su tutte le game_sessions ad ogni GET /api/statistics.
 ```
 
 ### 10.3 Esempi di `result_data` JSON
@@ -658,8 +706,13 @@ public class GameSessionMapper {
     public GameSession toDomain(GameSessionJpaEntity entity) {
         GameResult result = null;
         if (entity.getResultData() != null) {
-            result = objectMapper.readValue(entity.getResultData(), GameResult.class);
-            // Jackson usa @JsonTypeInfo.property="type" per istanziare il sottotipo corretto
+            try {
+                result = objectMapper.readValue(entity.getResultData(), GameResult.class);
+                // Jackson usa @JsonTypeInfo.property="type" per istanziare il sottotipo corretto
+            } catch (JsonProcessingException e) {
+                // result_data corrotto o tipo non registrato: session leggibile ma senza risultato
+                log.warn("Cannot deserialize result_data for session {}: {}", entity.getId(), e.getMessage());
+            }
         }
         return new GameSession(
             new GameSessionId(entity.getId()),
@@ -825,11 +878,15 @@ services:
       dockerfile: Dockerfile
     depends_on:
       - mqtt-broker-1
+      - local-server-1
     environment:
       - GAME_ID=game-foosball-1
       - GAME_TYPE=FOOSBALL
       - BUILDING_ID=building-1
       - MQTT_BROKER_URL=ssl://mqtt-broker-1:8883
+      - LOCAL_SERVER_URL=http://local-server-1:8080
+      - MQTT_USERNAME=client-foosball-1
+      - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
     networks:
       - local-net-1
 
@@ -839,17 +896,29 @@ services:
       dockerfile: Dockerfile
     depends_on:
       - mqtt-broker-1
+      - local-server-1
     environment:
       - GAME_ID=game-chess-1
       - GAME_TYPE=CHESS
       - BUILDING_ID=building-1
       - MQTT_BROKER_URL=ssl://mqtt-broker-1:8883
+      - LOCAL_SERVER_URL=http://local-server-1:8080
+      - MQTT_USERNAME=client-chess-1
+      - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
     networks:
       - local-net-1
 
 volumes:
   central-db-data:
   local-db-1-data:
+  mqtt-broker-1-data:     # Persistenza messaggi MQTT (QoS 1 in-flight al crash del broker)
+
+# Nota: il file mosquitto.conf deve includere:
+#   persistence true
+#   persistence_location /mosquitto/data/
+#   max_inflight_messages 20
+#   max_queued_messages 1000
+# Il container mqtt-broker-1 monta il volume mqtt-broker-1-data su /mosquitto/data/
 
 networks:
   central-net:
