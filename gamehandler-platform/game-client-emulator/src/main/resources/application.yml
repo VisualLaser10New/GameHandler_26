@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: game-client-emulator
+
+app:
+  game-id: ${GAME_ID:game-1}
+  game-type: ${GAME_TYPE:FOOSBALL}
+  building-id: ${BUILDING_ID:building-1}
+  local-server-url: ${LOCAL_SERVER_URL:http://localhost:8081}
+
+mqtt:
+  broker-url: ${MQTT_BROKER_URL:tcp://localhost:1883}
+  username: ${MQTT_USERNAME:client}
+  password: ${MQTT_PASSWORD:password}

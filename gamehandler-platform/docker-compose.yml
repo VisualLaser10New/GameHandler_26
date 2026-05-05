@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # INFRASTRUTTURA CENTRALE
+  # ============================================
+  central-db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${CENTRAL_DB_PASSWORD:-root}
+      MYSQL_DATABASE: central_db
+    volumes:
+      - ./infrastructure/mysql-central/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - central-db-data:/var/lib/mysql
+    networks:
+      - central-net
+
+  central-system:
+    build:
+      context: ./central-system
+      dockerfile: Dockerfile
+    depends_on:
+      - central-db
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://central-db:3306/central_db
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=${CENTRAL_DB_PASSWORD:-root}
+      - JWT_PRIVATE_KEY_PATH=/certs/private.pem
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+    volumes:
+      - ./infrastructure/tls:/certs:ro
+    networks:
+      - central-net
+      - integration-net
+
+  # ============================================
+  # INFRASTRUTTURA LOCALE (Edificio 1)
+  # ============================================
+  local-db-1:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${LOCAL_DB_PASSWORD:-root}
+      MYSQL_DATABASE: local_db
+    volumes:
+      - ./infrastructure/mysql-local/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - local-db-1-data:/var/lib/mysql
+    networks:
+      - local-net-1
+
+  mqtt-broker-1:
+    image: eclipse-mosquitto:2.0
+    volumes:
+      - ./infrastructure/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./infrastructure/mosquitto/certs:/mosquitto/certs:ro
+      - ./infrastructure/mosquitto/password_file:/mosquitto/config/password_file
+    ports:
+      - "8883:8883"
+    networks:
+      - local-net-1
+
+  local-server-1:
+    build:
+      context: ./local-server
+      dockerfile: Dockerfile
+    depends_on:
+      - local-db-1
+      - mqtt-broker-1
+    ports:
+      - "8081:8080"
+    environment:
+      - BUILDING_ID=building-1
+      - SPRING_DATASOURCE_URL=jdbc:mysql://local-db-1:3306/local_db
+      - MQTT_BROKER_URL=ssl://mqtt-broker-1:8883
+      - CENTRAL_SYSTEM_URL=https://central-system:8080
+      - SYNC_INTERVAL_MS=300000
+      - HEALTHCHECK_INTERVAL_MS=300000
+      - JWT_LOCAL_PRIVATE_KEY_PATH=/certs/local-private.pem
+      - JWT_LOCAL_PUBLIC_KEY_PATH=/certs/local-public.pem
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+    volumes:
+      - ./infrastructure/tls:/certs:ro
+    networks:
+      - local-net-1
+      - integration-net
+
+  # ============================================
+  # EMULATORI CLIENT (Endpoint)
+  # ============================================
+  game-client-1:
+    build:
+      context: ./game-client-emulator
+      dockerfile: Dockerfile
+    depends_on:
+      - mqtt-broker-1
+      - local-server-1
+    environment:
+      - GAME_ID=game-foosball-1
+      - GAME_TYPE=FOOSBALL
+      - BUILDING_ID=building-1
+      - MQTT_BROKER_URL=ssl://mqtt-broker-1:8883
+      - LOCAL_SERVER_URL=http://local-server-1:8080
+      - MQTT_USERNAME=client-foosball-1
+      - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
+    networks:
+      - local-net-1
+
+  game-client-2:
+    build:
+      context: ./game-client-emulator
+      dockerfile: Dockerfile
+    depends_on:
+      - mqtt-broker-1
+      - local-server-1
+    environment:
+      - GAME_ID=game-chess-1
+      - GAME_TYPE=CHESS
+      - BUILDING_ID=building-1
+      - MQTT_BROKER_URL=ssl://mqtt-broker-1:8883
+      - LOCAL_SERVER_URL=http://local-server-1:8080
+      - MQTT_USERNAME=client-chess-1
+      - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
+    networks:
+      - local-net-1
+
+volumes:
+  central-db-data:
+  local-db-1-data:
+  mqtt-broker-1-data:     # Persistenza messaggi MQTT (QoS 1 in-flight al crash del broker)
+
+networks:
+  central-net:
+  local-net-1:
+  integration-net:
