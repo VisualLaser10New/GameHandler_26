@@ -53,11 +53,36 @@ Il sistema implementa il **Pattern Hub-and-Spoke** combinato con il **Pattern Pu
 
 ### 2.3 Health Check degli Endpoint
 
-Il Local Server esegue un **health check periodico ogni 5 minuti** sugli endpoint connessi tramite MQTT (ping/pong su topic dedicato). Se un endpoint non risponde:
+Il Local Server esegue un **health check periodico ogni 5 minuti** sugli endpoint connessi tramite MQTT (ping/pong su topic dedicato). Per evitare falsi positivi causati da jitter di rete, il sistema adotta un **grace period di 3 cicli consecutivi mancati** (15 minuti totali). Un singolo heartbeat mancato viene loggato come warning ma non attiva alcuna azione distruttiva.
+
+Se un endpoint non risponde per **3 cicli consecutivi**:
 
 1. Le partite in esecuzione su quell'endpoint vengono terminate con stato `ABORTED` e motivo `ENDPOINT_UNREACHABLE`.
 2. Lo stato del gioco fisico associato torna a `AVAILABLE`.
 3. Viene generato un evento di allarme persistito nel DB locale e sincronizzato al Central System.
+
+**Late arrival del risultato:** Se un client che era stato dichiarato irraggiungibile torna online e invia il `session/end` con il `GameResult`, il `GameSessionService` accetta la transizione da `ABORTED` a `COMPLETED`, preservando il risultato della partita.
+
+### 2.4 Session Recovery all'Avvio
+
+Al riavvio del Local Server, il `SessionRecoveryService` (implementa `SmartLifecycle`) esegue una scansione di tutte le `GameSession` con `status = IN_PROGRESS` o `PAUSED` nel database. Per ciascuna sessione orfana:
+
+1. Invia un heartbeat MQTT al client associato con un timeout di **30 secondi**.
+2. Se il client risponde, la sessione rimane attiva e il normale ciclo di vita prosegue.
+3. Se il client non risponde, la sessione viene marcata come `ABORTED` con motivo `SERVER_RESTART`, la macchina viene rilasciata a `AVAILABLE`, e viene generato un `OutboxEvent`.
+
+Questo meccanismo previene le sessioni "zombie" che rimarrebbero `IN_PROGRESS` indefinitamente dopo un crash o un riavvio del server.
+
+### 2.5 Scadenza Automatica delle Prenotazioni
+
+Il `ReservationExpirationService` esegue un job `@Scheduled` **ogni minuto** per verificare le prenotazioni scadute. Il job:
+
+1. Invoca `ReservationRepository.findExpired(Instant.now())` per trovare tutte le prenotazioni con `status IN (PENDING, CONFIRMED)` e `end_time < NOW()`.
+2. Per ciascuna prenotazione scaduta: imposta `status = EXPIRED` tramite `Reservation.expire()`.
+3. Rilascia la macchina di gioco associata a `AVAILABLE` tramite `Game.release()`.
+4. Pubblica il nuovo stato macchina via MQTT affinché tutti i client aggiornino la propria UI.
+
+Questo previene il blocco indefinito delle macchine fisiche quando una prenotazione non viene utilizzata.
 
 ---
 
@@ -74,22 +99,73 @@ Il Local Server esegue un **health check periodico ogni 5 minuti** sugli endpoin
 ### 3.2 Autenticazione e Autorizzazione
 
 *   **Password:** Hashing con **BCrypt** nel Central System. L'hash viene replicato ai Local Server per consentire il login offline.
-*   **Token:** **JWT** firmato con chiave asimmetrica (RSA-256). Il Central System detiene la chiave privata e firma i token; i Local Server detengono la chiave pubblica e validano i token offline.
+*   **Token:** **JWT** firmato con chiave asimmetrica (RSA-256). Ogni nodo (Central System e ciascun Local Server) possiede la **propria coppia di chiavi RSA** (privata + pubblica). Il Central System firma i propri JWT con la sua chiave privata; ogni Local Server firma i propri JWT con la sua chiave privata locale e li valida con la corrispondente chiave pubblica. Questo consente l'emissione autonoma di JWT anche in assenza di connettività con il Central, garantendo il login offline.
 *   **JWT Claims:** `{ sub: userId, buildingId, roles: [...], exp: timestamp }`.
 *   **MQTT Auth:** Username/password per ogni Game Client, configurati nel broker Mosquitto tramite `password_file`.
+
+#### 3.2.1 Modello RBAC (Role-Based Access Control)
+
+Il sistema implementa un controllo d'accesso basato sui ruoli tramite Spring Security `@EnableMethodSecurity` e annotazioni `@PreAuthorize` su tutti i controller.
+
+**Ruoli definiti:**
+
+| Ruolo | Descrizione |
+|---|---|
+| `ROLE_USER` | Utente standard. Può effettuare prenotazioni, partecipare a sessioni di gioco, visualizzare statistiche proprie. |
+| `ROLE_ADMIN` | Amministratore. Può gestire utenti, visualizzare tutte le statistiche, mettere macchine in manutenzione. |
+
+**Matrice di accesso — Central System:**
+
+| Endpoint | Metodo | Ruolo Richiesto |
+|---|---|---|
+| `POST /api/users` | Registrazione | Pubblico |
+| `POST /api/auth/login` | Login | Pubblico |
+| `PUT /api/users/{id}` | Aggiornamento utente | `ROLE_ADMIN` |
+| `GET /api/statistics` | Statistiche globali | `ROLE_ADMIN` |
+| `POST /internal/sync/receive` | Ricezione sync | API Key (service-to-service) |
+
+**Matrice di accesso — Local Server:**
+
+| Endpoint | Metodo | Ruolo Richiesto |
+|---|---|---|
+| `POST /api/auth/login` | Login locale | Pubblico |
+| `POST /api/reservations` | Crea prenotazione | `ROLE_USER` |
+| `DELETE /api/reservations/{id}` | Cancella prenotazione | `ROLE_USER` (proprietario) |
+| `GET /api/reservations` | Lista prenotazioni | `ROLE_USER` |
+| `GET /api/games` | Lista giochi | `ROLE_USER` |
+| `GET /api/games/available` | Giochi disponibili | `ROLE_USER` |
+| `POST /api/sessions/start` | Avvia sessione | `ROLE_USER` |
+| `POST /api/sessions/{id}/end` | Termina sessione | `ROLE_USER` |
+| `POST /api/sessions/{id}/pause` | Pausa sessione | `ROLE_USER` |
+| `POST /api/sessions/{id}/resume` | Riprendi sessione | `ROLE_USER` |
+| `GET /api/statistics` | Statistiche locali | `ROLE_USER` |
+| `PUT /internal/users/sync` | Ricezione utenti | API Key (service-to-service) |
+
+Il `JwtAuthenticationFilter` estrae i ruoli dal claim `roles` del JWT e li mappa a `GrantedAuthority` di Spring Security, rendendo disponibili le verifiche `@PreAuthorize("hasRole('USER')")` e `@PreAuthorize("hasRole('ADMIN')")` su ogni endpoint.
+
+#### 3.2.2 Autenticazione Server-to-Server (Endpoint Interni)
+
+Gli endpoint con prefisso `/internal/**` sono destinati esclusivamente alla comunicazione tra microservizi e sono **esclusi dal filtro JWT**. La loro protezione è affidata a un meccanismo separato basato su **API Key pre-condivisa**:
+
+*   Il Central System e ogni Local Server condividono un segreto (`INTERNAL_API_KEY`) caricato da variabile d'ambiente.
+*   Ogni richiesta verso `/internal/**` deve includere l'header `X-Internal-Api-Key` con il valore corretto.
+*   Un filtro dedicato `InternalApiKeyFilter` (registrato in `SecurityConfig`) valida l'header prima di consentire l'accesso.
+*   Se l'header è assente o il valore non corrisponde, il filtro risponde con `401 Unauthorized`.
+
+Questa separazione garantisce che un utente con JWT valido (`ROLE_USER` o `ROLE_ADMIN`) non possa invocare direttamente gli endpoint di sincronizzazione interna.
 
 ### 3.3 Flusso di Autenticazione
 
 ```
 Login Online:
-  Client → POST /auth/login → Local Server → verifica BCrypt → emette JWT locale
+  Client → POST /auth/login → Local Server → verifica BCrypt → firma JWT con chiave privata locale → emette JWT
   Local Server → (se online) valida anche con Central System
 
 Login Offline:
-  Client → POST /auth/login → Local Server → verifica BCrypt da tabella replicated_users → emette JWT
+  Client → POST /auth/login → Local Server → verifica BCrypt da tabella replicated_users → firma JWT con chiave privata locale → emette JWT
 
 Accesso Risorsa:
-  Client → GET /games (Header: Authorization: Bearer <JWT>) → Local Server → validazione firma + scadenza
+  Client → GET /games (Header: Authorization: Bearer <JWT>) → Local Server → validazione firma (chiave pubblica locale) + scadenza
 ```
 
 ---
@@ -108,7 +184,6 @@ building/{buildingId}/game/{gameId}/session/pause  → Pausa sessione
 building/{buildingId}/game/{gameId}/session/resume → Ripresa sessione
 building/{buildingId}/game/{gameId}/heartbeat      → Ping dal client (per health check)
 building/{buildingId}/game/{gameId}/heartbeat/ack  → Pong dal server
-building/{buildingId}/users/sync                   → Replicazione utenti dal Central System
 building/{buildingId}/alerts                       → Allarmi (endpoint irraggiungibile, errori)
 ```
 
@@ -117,7 +192,6 @@ building/{buildingId}/alerts                       → Allarmi (endpoint irraggi
 *   Il **Game Client** pubblica su `building/{id}/game/{gameId}/state` e `session/*` per notificare cambiamenti di stato.
 *   Il **Local Server** si sottoscrive a `building/{id}/game/+/state` e `building/{id}/game/+/session/#` per aggiornare il DB locale e generare statistiche.
 *   Il **Local Server** pubblica su `building/{id}/game/{gameId}/heartbeat/ack` in risposta ai ping.
-*   Il **Local Server** pubblica su `building/{id}/users/sync` quando riceve nuovi dati utente dal Central System.
 *   I **Game Client** si sottoscrivono a `building/{id}/game/+/state` per aggiornare la propria UI in tempo reale (es. vedere che un altro gioco è diventato "in uso").
 
 ### 4.3 QoS e Retained Messages
@@ -136,6 +210,8 @@ Per evitare duplicazioni di codice tra microservizi, il progetto adotta un **Mav
 
 ### 5.2 Struttura delle Cartelle
 
+Per le classi riferirsi al file **architettura_classi.md**
+
 ```text
 boardgame-platform/
 │
@@ -149,46 +225,18 @@ boardgame-platform/
 │   │   ├── pom.xml
 │   │   └── src/main/java/com/gameplatform/shared/domain/
 │   │       ├── model/
-│   │       │   ├── UserId.java          ← Value Object (record Java)
-│   │       │   ├── GameId.java
-│   │       │   ├── BuildingId.java
-│   │       │   ├── GameSessionId.java
-│   │       │   ├── ReservationId.java
-│   │       │   ├── GameType.java        ← Enum: CHESS, FOOSBALL, DARTS, MONOPOLY, RISK
-│   │       │   ├── GameStatus.java      ← Enum: WAITING, IN_PROGRESS, PAUSED, COMPLETED, ABORTED
-│   │       │   ├── WinCondition.java    ← Enum: WIN, DRAW, ABANDONED, TIMEOUT
-│   │       │   └── StopReason.java      ← Enum: COMPLETED, ABORTED, TIMEOUT
 │   │       ├── game/
-│   │       │   ├── GameLifecycle.java    ← Interfaccia radice (start, stop, pause, resume)
-│   │       │   ├── TurnBasedGame.java   ← Estensione per giochi a turni
-│   │       │   ├── ScoredGame.java      ← Estensione per giochi a punteggio
-│   │       │   ├── ResourceBasedGame.java ← Estensione per giochi a risorse
-│   │       │   └── BoardGame.java       ← Estensione per giochi con board
 │   │       ├── result/
-│   │       │   ├── GameResult.java      ← Interfaccia (@JsonTypeInfo)
-│   │       │   ├── FoosballResult.java  ← record
-│   │       │   ├── ChessResult.java
-│   │       │   ├── DartsResult.java
-│   │       │   ├── MonopolyResult.java
-│   │       │   └── RiskResult.java
 │   │       └── events/
-│   │           ├── UserRegisteredEvent.java
-│   │           ├── ReservationCreatedEvent.java
-│   │           └── GameStateChangedEvent.java
 │   │
 │   ├── shared-dto/                      ← DTO / Contratti API REST
 │   │   ├── pom.xml                      ← dipende da shared-domain
 │   │   └── src/main/java/com/gameplatform/shared/dto/
-│   │       ├── UserDto.java
-│   │       ├── ReservationDto.java
-│   │       ├── GameStateDto.java
-│   │       └── GameSessionDto.java
 │   │
 │   └── shared-mqtt/                     ← Costanti topic e payload tipizzati
 │       ├── pom.xml                      ← dipende da shared-dto
 │       └── src/main/java/com/gameplatform/shared/mqtt/
-│           ├── MqttTopics.java          ← Costanti statiche dei topic
-│           └── MqttPayload.java         ← Record per payload tipizzati
+│           └── payload/
 │
 ├── central-system/                      ← Microservizio 1
 │   ├── pom.xml                          ← dipende da shared-domain, shared-dto
@@ -210,10 +258,15 @@ boardgame-platform/
 │   ├── pom.xml                          ← dipende da shared-domain, shared-dto, shared-mqtt
 │   ├── Dockerfile
 │   └── src/main/java/com/gameplatform/client/
-│       ├── domain/                      ← Implementazioni concrete dei giochi
-│       ├── ui/                          ← JavaFX Scene Graph
+│       ├── domain/
+│       │   ├── games/                   ← Implementazioni concrete dei giochi
 │       ├── application/
-│       └── infrastructure/mqtt/
+│       │   └── service/
+│       └── infrastructure/
+│           ├── mqtt/
+│           ├── ui/                      ← JavaFX Scene Graph
+│           │   └── components/
+│           └── config/
 │
 ├── infrastructure/
 │   ├── mysql-central/init.sql
@@ -253,76 +306,6 @@ shared-mqtt     ← dipende da shared-dto (i payload sono i DTO)
 
 All'interno di ogni microservizio il codice è rigorosamente diviso secondo l'**Architettura Esagonale** per rispettare il *Dependency Inversion Principle (DIP)*. Nessuna logica di business dipende da Spring Boot, JPA o MySQL.
 
-### 6.2 Struttura Completa del Local Server
-
-```
-local-server/src/main/java/com/gameplatform/local/
-│
-├── domain/                              ← ZERO dipendenze da Spring/JPA
-│   ├── model/
-│   │   ├── Reservation.java            ← Rich Domain Model
-│   │   ├── Game.java                   ← Macchina fisica + stato
-│   │   ├── User.java                   ← Replica locale (dati essenziali)
-│   │   ├── GameSession.java            ← Sessione di gioco con GameResult
-│   │   └── OutboxEvent.java            ← Evento in coda per sync
-│   ├── ports/
-│   │   ├── in/                          ← Use Case Interfaces
-│   │   │   ├── CreateReservationUseCase.java
-│   │   │   ├── CancelReservationUseCase.java
-│   │   │   ├── UpdateGameStateUseCase.java
-│   │   │   ├── GetAvailableGamesUseCase.java
-│   │   │   ├── StartGameSessionUseCase.java
-│   │   │   └── EndGameSessionUseCase.java
-│   │   └── out/                         ← Infrastructure Interfaces
-│   │       ├── ReservationRepository.java
-│   │       ├── GameRepository.java
-│   │       ├── UserRepository.java
-│   │       ├── GameSessionRepository.java
-│   │       ├── OutboxEventRepository.java
-│   │       ├── SyncCentralSystemPort.java
-│   │       └── PublishGameStatePort.java
-│   └── exception/
-│       ├── GameNotAvailableException.java
-│       └── UserNotFoundException.java
-│
-├── application/
-│   └── service/
-│       ├── ReservationService.java      ← Implementa CreateReservation/CancelReservation
-│       ├── GameStateService.java        ← Implementa UpdateGameState
-│       ├── GameSessionService.java      ← Implementa Start/EndGameSession
-│       ├── StatisticsService.java       ← Genera statistiche locali
-│       ├── SyncSchedulerService.java    ← Job @Scheduled: legge outbox, invia al Central
-│       └── HealthCheckService.java      ← Job @Scheduled ogni 5 min: verifica endpoint
-│
-└── infrastructure/
-    ├── adapters/
-    │   ├── in/
-    │   │   ├── rest/
-    │   │   │   ├── ReservationController.java
-    │   │   │   ├── GameController.java
-    │   │   │   ├── StatisticsController.java
-    │   │   │   └── InternalSyncController.java  ← Riceve sync dal Central
-    │   │   └── mqtt/
-    │   │       ├── GameStateListener.java
-    │   │       ├── GameSessionListener.java
-    │   │       ├── HeartbeatListener.java
-    │   │       └── UserSyncListener.java
-    │   └── out/
-    │       ├── mysql/
-    │       │   ├── entity/              ← @Entity JPA (separate dal domain model)
-    │       │   ├── repository/          ← extends JpaRepository
-    │       │   └── adapter/             ← Implementa porte di dominio (mapper incluso)
-    │       ├── rest/
-    │       │   └── CentralSystemRestAdapter.java
-    │       └── mqtt/
-    │           └── MqttPublisherAdapter.java
-    └── config/
-        ├── MqttConfig.java
-        ├── SecurityConfig.java
-        ├── TlsConfig.java
-        └── SchedulerConfig.java
-```
-
 ### 6.3 Mapping Domain ↔ JPA Entity
 
 Per evitare che il dominio dipenda da JPA, ogni entità ha una **controparte infrastrutturale**:
@@ -332,7 +315,7 @@ Per evitare che il dominio dipenda da JPA, ogni entità ha una **controparte inf
 *   `infrastructure/out/mysql/adapter/ReservationRepositoryAdapter.java` — Implementa `ReservationRepository` (porta di dominio), usa `ReservationJpaRepository` (Spring Data) e converte tramite mapper esplicito.
 
 ```java
-// Esempio: domain/model/Reservation.java (PURO)
+// Esempio: domain/model/Reservation.java (PURO — zero dipendenze framework)
 public class Reservation {
     private final ReservationId id;
     private final GameId gameId;
@@ -340,20 +323,25 @@ public class Reservation {
     private ReservationStatus status;
     private final Instant createdAt;
 
-    public boolean canBeCancelled() {
+    // Clock passato come parametro dal service (non iniettato nel domain)
+    // per garantire testabilità deterministica
+    public boolean canBeCancelled(Clock clock) {
         return status == ReservationStatus.PENDING &&
-               createdAt.isAfter(Instant.now().minus(Duration.ofHours(24)));
+               createdAt.isAfter(Instant.now(clock).minus(Duration.ofHours(24)));
     }
 }
 
 // Esempio: infrastructure/out/mysql/adapter/ReservationRepositoryAdapter.java
+// I mapper sono bean Spring @Component con metodi di istanza (non statici)
+// per consentire mocking nei test e rispettare il DIP.
 @Component
 public class ReservationRepositoryAdapter implements ReservationRepository {
     private final ReservationJpaRepository jpaRepo;
+    private final ReservationMapper mapper;  // iniettato via costruttore
 
     @Override
     public Optional<Reservation> findById(ReservationId id) {
-        return jpaRepo.findById(id.value()).map(ReservationMapper::toDomain);
+        return jpaRepo.findById(id.value()).map(mapper::toDomain);
     }
 }
 ```
@@ -369,7 +357,7 @@ Il Local Server sincronizza i dati con il Central System **ogni 5 minuti**. Se l
 ### 7.2 Meccanismo
 
 1. Quando si verifica un evento locale (prenotazione, fine sessione, statistica generata), l'entità viene salvata nel DB locale.
-2. **Nella stessa transazione atomica**, si inserisce un record nella tabella `outbox_events` (per lo schema DDL si veda la Sezione 10.2).
+2. **Nella stessa transazione atomica** (garantita dall'annotazione `@Transactional` sul metodo del service applicativo), si inserisce un record nella tabella `outbox_events` (per lo schema DDL si veda la Sezione 10.2). L'atomicità è fondamentale: se il salvataggio dell'entità o dell'outbox event fallisce, l'intera operazione viene annullata tramite rollback.
 3. Un job `@Scheduled` (`SyncSchedulerService`) esegue ogni **5 minuti**:
    - Verifica la connettività verso il Central System (HTTP health check).
    - Se connesso, legge tutti i record con `status = 'PENDING'` ordinati per `created_at`.
@@ -411,15 +399,17 @@ Poiché il sistema deve gestire giochi radicalmente diversi (calciobalilla, scac
 
 | Gioco | Metrica di Vittoria | Contabilità Interna | Turni | Interfacce Applicabili |
 |---|---|---|---|---|
-| **Calciobalilla** | Gol (es. 5-3) | Nessuna | No | `ScoredGame` |
-| **Scacchi** | Scacco matto / abbandono | Pezzi catturati | Sì | `BoardGame` |
-| **Freccette** | Chi scende prima a 0 (501) | Punteggio decrescente | Sì | `ScoredGame`, `TurnBasedGame` |
-| **Monopoli** | Ultimo non in bancarotta | Denaro + proprietà | Sì | `ResourceBasedGame` |
-| **Risiko** | Conquista totale | Carri armati per territorio | Sì | `ResourceBasedGame`, `BoardGame` |
+| **Calciobalilla** | Gol (es. 5-3) | Nessuna | No | `GameLifecycle`, `ScoredGame` |
+| **Scacchi** | Scacco matto / abbandono | Pezzi catturati | Sì | `GameLifecycle`, `TurnBasedGame`, `BoardGame` |
+| **Freccette** | Chi scende prima a 0 (501) | Punteggio decrescente | Sì | `GameLifecycle`, `ScoredGame`, `TurnBasedGame` |
+| **Monopoli** | Ultimo non in bancarotta | Denaro + proprietà | Sì | `GameLifecycle`, `TurnBasedGame`, `ResourceBasedGame` |
+| **Risiko** | Conquista totale | Carri armati per territorio | Sì | `GameLifecycle`, `TurnBasedGame`, `ResourceBasedGame`, `BoardGame` |
 
 Questi giochi hanno strutture dati di risultato **incompatibili tra loro**, rendendo impossibile un modello dati unificato a colonne fisse. La soluzione adottata è la combinazione di interfacce polimorfiche Java (per la type safety a compile-time) e colonna JSON nel database (per la flessibilità a runtime).
 
-### 9.3 Gerarchia delle Interfacce
+### 9.3 Capability Interfaces (Composizione senza Diamond Inheritance)
+
+Le interfacce di capability sono **standalone**: non estendono `GameLifecycle` né tra di loro. Ogni classe concreta implementa `GameLifecycle` (per il ciclo di vita) più le capability necessarie tramite composizione piatta. Questo elimina il diamond inheritance che si verificherebbe quando un gioco implementa più capability che condividono un antenato comune.
 
 ```java
 /**
@@ -436,27 +426,27 @@ public interface GameLifecycle {
     GameSessionId getSessionId();
 }
 
-/** Giochi a turni (Scacchi, Monopoli, Risiko, Freccette). */
-public interface TurnBasedGame extends GameLifecycle {
+/** Capability: giochi a turni (Scacchi, Monopoli, Risiko, Freccette). Standalone, non estende GameLifecycle. */
+public interface TurnBasedGame {
     UserId getCurrentPlayer();
     void endTurn();
     int getTurnNumber();
 }
 
-/** Giochi con punteggio numerico (Calciobalilla, Freccette). */
-public interface ScoredGame extends GameLifecycle {
+/** Capability: giochi con punteggio numerico (Calciobalilla, Freccette). Standalone, non estende GameLifecycle. */
+public interface ScoredGame {
     Map<UserId, Integer> getCurrentScores();
     void recordScore(UserId player, int delta);
 }
 
-/** Giochi con risorse multiple per giocatore (Monopoli, Risiko). */
-public interface ResourceBasedGame extends TurnBasedGame {
+/** Capability: giochi con risorse multiple (Monopoli, Risiko). Standalone, non estende TurnBasedGame. */
+public interface ResourceBasedGame {
     Map<UserId, Map<String, Integer>> getResources();
     void updateResource(UserId player, String resourceKey, int newValue);
 }
 
-/** Giochi con board/mappa (Scacchi, Risiko). */
-public interface BoardGame extends TurnBasedGame {
+/** Capability: giochi con board/mappa serializzabile (Scacchi, Risiko). Standalone, non estende TurnBasedGame. */
+public interface BoardGame {
     String serializeBoardState();
     void restoreBoardState(String serializedState);
 }
@@ -465,11 +455,11 @@ public interface BoardGame extends TurnBasedGame {
 ### 9.4 Implementazioni Concrete (nel Game Client)
 
 ```java
-public class FoosballGame implements ScoredGame { ... }
-public class ChessGame implements BoardGame { ... }
-public class DartsGame implements ScoredGame, TurnBasedGame { ... }
-public class MonopolyGame implements ResourceBasedGame { ... }
-public class RiskGame implements ResourceBasedGame, BoardGame { ... }
+public class FoosballGame implements GameLifecycle, ScoredGame { ... }
+public class ChessGame implements GameLifecycle, TurnBasedGame, BoardGame { ... }
+public class DartsGame implements GameLifecycle, ScoredGame, TurnBasedGame { ... }
+public class MonopolyGame implements GameLifecycle, TurnBasedGame, ResourceBasedGame { ... }
+public class RiskGame implements GameLifecycle, TurnBasedGame, ResourceBasedGame, BoardGame { ... }
 ```
 
 ### 9.5 Risultati Polimorfici (GameResult)
@@ -486,18 +476,18 @@ Ogni gioco produce un tipo di risultato diverso. Tutti implementano `GameResult`
     @JsonSubTypes.Type(value = RiskResult.class,     name = "RISK"),
 })
 public interface GameResult {
-    String getWinnerId();
+    UserId getWinnerId();              // Value Object tipizzato, non String
     WinCondition getWinCondition();
 }
 
-// Esempi di implementazione (record Java)
-public record FoosballResult(String winnerId, Map<String, Integer> finalScores,
+// Esempi di implementazione (record Java) — winnerId è UserId, non String
+public record FoosballResult(UserId winnerId, Map<String, Integer> finalScores,
                               WinCondition winCondition) implements GameResult {}
 
-public record ChessResult(String winnerId, String terminationReason,
+public record ChessResult(UserId winnerId, String terminationReason,
                            String finalFenState, WinCondition winCondition) implements GameResult {}
 
-public record MonopolyResult(String winnerId, Map<String, Integer> finalMoney,
+public record MonopolyResult(UserId winnerId, Map<String, Integer> finalMoney,
                               Map<String, List<String>> ownedProperties,
                               WinCondition winCondition) implements GameResult {}
 ```
@@ -562,7 +552,8 @@ CREATE TABLE reservations (
     end_time    DATETIME,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_game (game_id),
-    INDEX idx_user (user_id)
+    INDEX idx_user (user_id),
+    INDEX idx_expiration (status, end_time)
 );
 
 CREATE TABLE game_sessions (
@@ -655,10 +646,16 @@ Il `GameSessionMapper` utilizza il polimorfismo Jackson (`@JsonTypeInfo`) per se
 
 ```java
 // infrastructure/out/mysql/adapter/GameSessionMapper.java
+// Bean Spring @Component — ObjectMapper iniettato per configurazione centralizzata Jackson
+@Component
 public class GameSessionMapper {
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;  // iniettato via costruttore
 
-    public static GameSession toDomain(GameSessionJpaEntity entity) {
+    public GameSessionMapper(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
+    public GameSession toDomain(GameSessionJpaEntity entity) {
         GameResult result = null;
         if (entity.getResultData() != null) {
             result = objectMapper.readValue(entity.getResultData(), GameResult.class);
@@ -678,7 +675,7 @@ public class GameSessionMapper {
         );
     }
 
-    public static GameSessionJpaEntity toEntity(GameSession domain) {
+    public GameSessionJpaEntity toEntity(GameSession domain) {
         GameSessionJpaEntity entity = new GameSessionJpaEntity();
         entity.setId(domain.getId().value());
         entity.setGameId(domain.getGameId().value());
@@ -704,7 +701,9 @@ Questo pattern garantisce che il dominio non dipenda da JPA e che Jackson ricost
 
 ## 11. Replicazione Utenti
 
-### 11.1 Flusso
+La replica utenti avviene **esclusivamente via REST** (push dal Central verso i Local Server tramite `PUT /internal/users/sync`, protetto da API Key). Non viene utilizzato alcun canale MQTT per la sincronizzazione utenti, evitando race condition e inconsistenze derivanti da dual-channel.
+
+### 11.1 Flusso di Registrazione
 
 1. Utente si registra → `POST /api/users` → Central System.
 2. Central System salva l'utente e crea un `OutboxEvent: USER_REGISTERED`.
@@ -713,7 +712,15 @@ Questo pattern garantisce che il dominio non dipenda da JPA e che Jackson ricost
 4. Ogni Local Server salva nella tabella `replicated_users`.
 5. Da quel momento, il login offline funziona su qualsiasi Local Server.
 
-### 11.2 Gestione Conflitti
+### 11.2 Flusso di Aggiornamento (Password/Ruoli)
+
+1. Utente modifica password o ruoli → `PUT /api/users/{id}` → Central System.
+2. Central System aggiorna l'utente nel DB, ri-esegue hash BCrypt se la password è cambiata, e crea un `OutboxEvent: USER_UPDATED`.
+3. Il `UserReplicationSchedulerService` rileva l'evento PENDING e invia i dati aggiornati a **tutti** i Local Server registrati.
+4. Ogni Local Server riceve la lista aggiornata tramite `PUT /internal/users/sync` e il `UserSyncService` esegue un **upsert** nella tabella `replicated_users`.
+5. Da quel momento, il login offline usa la nuova password e i nuovi ruoli.
+
+### 11.3 Gestione Conflitti
 
 Ogni gioco fisico (`game_id`) è univoco e appartiene a un solo edificio. I conflitti di prenotazione inter-edificio non esistono. All'interno dello stesso edificio, il Local Server serializza le prenotazioni atomicamente nel DB locale, ed MQTT propaga lo stato aggiornato in tempo reale a tutti i client.
 
@@ -752,6 +759,7 @@ services:
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=${CENTRAL_DB_PASSWORD:-root}
       - JWT_PRIVATE_KEY_PATH=/certs/private.pem
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
     volumes:
       - ./infrastructure/tls:/certs:ro
     networks:
@@ -799,7 +807,9 @@ services:
       - CENTRAL_SYSTEM_URL=https://central-system:8080
       - SYNC_INTERVAL_MS=300000
       - HEALTHCHECK_INTERVAL_MS=300000
-      - JWT_PUBLIC_KEY_PATH=/certs/public.pem
+      - JWT_LOCAL_PRIVATE_KEY_PATH=/certs/local-private.pem
+      - JWT_LOCAL_PUBLIC_KEY_PATH=/certs/local-public.pem
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
     volumes:
       - ./infrastructure/tls:/certs:ro
     networks:
@@ -949,7 +959,7 @@ Per aggiungere un nuovo edificio, è sufficiente replicare il blocco "Infrastrut
 | Health check endpoint | Ping/pong MQTT ogni 5 min | Terminazione automatica partite orfane |
 | Database | MySQL unico (per nodo) con colonna JSON | Generalizzazione giochi senza ALTER TABLE |
 | Secondo database | No (MongoDB scartato) | Overkill, complessità non giustificata |
-| Autenticazione | JWT + BCrypt | Login offline con chiave pubblica |
+| Autenticazione | JWT (RSA per-nodo) + BCrypt | Login offline con chiave privata locale |
 | Crittografia | TLS 1.3 su REST e MQTT | End-to-end encryption |
 | Architettura interna | Esagonale (Ports & Adapters) | DIP, testabilità, indipendenza da framework |
 | Monorepo | Maven Multi-Module con shared-* | Anti-duplicazione inter-microservizi |
