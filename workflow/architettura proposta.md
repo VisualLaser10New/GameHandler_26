@@ -36,11 +36,11 @@ Il sistema implementa il **Pattern Hub-and-Spoke** combinato con il **Pattern Pu
      │  │ (TLS)          │  │   │  │ (TLS)           │  │
      │  └────────────────┘  │   │  └─────────────────┘  │
      └──────────┬───────────┘   └──────────┬────────────┘
-          MQTTS │                     MQTTS│
-     ┌──────────▼──────────┐   ┌───────────▼────────────┐
-     │ Game Client #1      │   │ Game Client #3         │
-     │ Game Client #2      │   │ Game Client #4         │
-     └─────────────────────┘   └────────────────────────┘
+          MQTTS │                    MQTTS │
+     ┌──────────▼───────────┐   ┌───────────▼───────────┐
+     │ Game Client #1       │   │ Game Client #3        │
+     │ Game Client #2       │   │ Game Client #4        │
+     └──────────────────────┘   └───────────────────────┘
 ```
 
 ### 2.2 Componenti
