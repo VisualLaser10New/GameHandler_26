@@ -1,3 +1,6 @@
 package main.java.com.gameplatform.shared.dto;
 
-public record LoginRequestDto() {}
+public record LoginRequestDto(
+    String username,
+    String password
+) {}

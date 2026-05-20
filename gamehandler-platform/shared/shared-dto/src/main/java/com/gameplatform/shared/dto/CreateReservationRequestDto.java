@@ -1,3 +1,10 @@
 package main.java.com.gameplatform.shared.dto;
 
-public record CreateReservationRequestDto() {}
+import java.time.Instant;
+
+public record CreateReservationRequestDto(
+    String gameId,
+    String userId,
+    Instant startTime,
+    Instant endTime
+) {}

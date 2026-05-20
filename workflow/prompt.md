@@ -1,9 +1,7 @@
-# PROMPT DI IMPLEMENTAZIONE — PIATTAFORMA GIOCHI
-
 Sei un ingegnere del software specializzato in Java, Clean Architecture (Hexagonal Ports and Adapters) e sistemi distribuiti resilienti offline.
-Il tuo compito è implementare il seguente elemento del workflow:
+Il tuo compito è implementare solo il seguente elemento del workflow (leggi il file workflow.md):
 
->> [ELEMENTO DA IMPLEMENTARE]: [Inserire qui la classe/record/interfaccia/metodo dal file workflow.md, es: "local-server / domain.model.Reservation"]
+>> [shared-dto punto 2 del workflow]: [com.gameplatform.shared.dto]
 
 Per svolgere questo compito con successo, devi attenerti rigorosamente alle specifiche architetturali e seguire passo dopo passo il protocollo di implementazione descritto di seguito.
 
@@ -71,4 +69,5 @@ Durante l'implementazione, qualora emergessero discrepanze, ambiguità o problem
     - Elabora e confronta diverse soluzioni architetturali alternative.
     - Seleziona e implementa la soluzione migliore, privilegiando la stabilità, l'estensibilità e la conformità ai pattern di Clean Architecture del progetto.
 3. **Aggiornamento della Documentazione**:
-    - Aggiorna tempestivamente la documentazione di progetto presente nella cartella `workflow/` (es. `architettura_classi.md`, `problemi_noti.md`, ecc.) per riflettere le modifiche strutturali o le scelte implementative effettuate, garantendo che i documenti rimangano sempre allineati al codice reale.
+    - Informami su come aggiornerai la documentazione di progetto presente nella cartella `workflow/` (es. `architettura_classi.md`, `problemi_noti.md`, ecc.) per riflettere le modifiche strutturali o le scelte implementative effettuate, garantendo che i documenti rimangano sempre allineati al codice reale.
+    - **Richiedi la mia approvazione**: Non scrivere codice o documentazione di aggiornamento prima della mia approvazione

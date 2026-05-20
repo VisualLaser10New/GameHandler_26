@@ -1,3 +1,10 @@
 package main.java.com.gameplatform.shared.dto;
 
-public record UserSyncDto() {}
+import java.util.List;
+
+public record UserSyncDto(
+    String userId,
+    String username,
+    String hashedPassword,
+    List<String> roles
+) {}

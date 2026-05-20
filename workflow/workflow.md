@@ -178,84 +178,84 @@
 
 ## 2. shared-dto (`com.gameplatform.shared.dto`)
 
-- [ ] `UserDto` (record)
-  - [ ] `String id()`
-  - [ ] `String username()`
-  - [ ] `String email()`
-  - [ ] `List<String> roles()`
-  - [ ] `Instant createdAt()`
-- [ ] `UserSyncDto` (record)
-  - [ ] `String userId()`
-  - [ ] `String username()`
-  - [ ] `String hashedPassword()`
-  - [ ] `List<String> roles()`
-- [ ] `LoginRequestDto` (record)
-  - [ ] `String username()`
-  - [ ] `String password()`
-- [ ] `LoginResponseDto` (record)
-  - [ ] `String token()`
-  - [ ] `String userId()`
-  - [ ] `Instant expiresAt()`
-- [ ] `ReservationDto` (record)
-  - [ ] `String id()`
-  - [ ] `String gameId()`
-  - [ ] `String userId()`
-  - [ ] `ReservationStatus status()`
-  - [ ] `Instant startTime()`
-  - [ ] `Instant endTime()`
-- [ ] `CreateReservationRequestDto` (record)
-  - [ ] `String gameId()`
-  - [ ] `String userId()`
-  - [ ] `Instant startTime()`
-  - [ ] `Instant endTime()`
-- [ ] `GameStateDto` (record)
-  - [ ] `String gameId()`
-  - [ ] `GameType gameType()`
-  - [ ] `String name()`
-  - [ ] `String buildingId()`
-  - [ ] `GameMachineStatus status()`
-- [ ] `GameSessionDto` (record)
-  - [ ] `String id()`
-  - [ ] `String gameId()`
-  - [ ] `GameType gameType()`
-  - [ ] `GameStatus status()`
-  - [ ] `Instant startedAt()`
-  - [ ] `Instant endedAt()`
-  - [ ] `Integer durationSeconds()`
-  - [ ] `String winnerId()`
-  - [ ] `WinCondition winCondition()`
-  - [ ] `String resultData()`
-- [ ] `GameSessionResultDto` (record)
-  - [ ] `GameSessionDto session()`
-  - [ ] `List<String> participants()`
-- [ ] `StatisticsDto` (record)
-  - [ ] `String buildingId()`
-  - [ ] `String gameType()`
-  - [ ] `Instant periodStart()`
-  - [ ] `Instant periodEnd()`
-  - [ ] `Integer totalSessions()`
-  - [ ] `Integer avgDuration()`
-  - [ ] `Integer totalReservations()`
-  - [ ] `String data()`
-- [ ] `OutboxEventDto` (record)
-  - [ ] `String eventId()`
-  - [ ] `String eventType()`
-  - [ ] `String payload()`
-  - [ ] `Instant createdAt()`
-- [ ] `SyncPayloadDto` (record)
-  - [ ] `String buildingId()`
-  - [ ] `List<OutboxEventDto> events()`
-- [ ] `AlertDto` (record)
-  - [ ] `String buildingId()`
-  - [ ] `String gameId()`
-  - [ ] `String alertType()`
-  - [ ] `String message()`
-  - [ ] `Instant timestamp()`
-- [ ] `ErrorResponseDto` (record)
-  - [ ] `int status()`
-  - [ ] `String error()`
-  - [ ] `String message()`
-  - [ ] `Instant timestamp()`
+`UserDto` (record)
+  - [x] `String id()`
+  - [x] `String username()`
+  - [x] `String email()`
+  - [x] `List<String> roles()`
+  - [x] `Instant createdAt()`
+`UserSyncDto` (record)
+  - [x] `String userId()`
+  - [x] `String username()`
+  - [x] `String hashedPassword()`
+  - [x] `List<String> roles()`
+`LoginRequestDto` (record)
+  - [x] `String username()`
+  - [x] `String password()`
+`LoginResponseDto` (record)
+  - [x] `String token()`
+  - [x] `String userId()`
+  - [x] `Instant expiresAt()`
+`ReservationDto` (record)
+  - [x] `String id()`
+  - [x] `String gameId()`
+  - [x] `String userId()`
+  - [x] `ReservationStatus status()`
+  - [x] `Instant startTime()`
+  - [x] `Instant endTime()`
+`CreateReservationRequestDto` (record)
+  - [x] `String gameId()`
+  - [x] `String userId()`
+  - [x] `Instant startTime()`
+  - [x] `Instant endTime()`
+`GameStateDto` (record)
+  - [x] `String gameId()`
+  - [x] `GameType gameType()`
+  - [x] `String name()`
+  - [x] `String buildingId()`
+  - [x] `GameMachineStatus status()`
+`GameSessionDto` (record)
+  - [x] `String id()`
+  - [x] `String gameId()`
+  - [x] `GameType gameType()`
+  - [x] `GameStatus status()`
+  - [x] `Instant startedAt()`
+  - [x] `Instant endedAt()`
+  - [x] `Integer durationSeconds()`
+  - [x] `String winnerId()`
+  - [x] `WinCondition winCondition()`
+  - [x] `String resultData()`
+`GameSessionResultDto` (record)
+  - [x] `GameSessionDto session()`
+  - [x] `List<String> participants()`
+`StatisticsDto` (record)
+  - [x] `String buildingId()`
+  - [x] `String gameType()`
+  - [x] `Instant periodStart()`
+  - [x] `Instant periodEnd()`
+  - [x] `Integer totalSessions()`
+  - [x] `Integer avgDuration()`
+  - [x] `Integer totalReservations()`
+  - [x] `String data()`
+`OutboxEventDto` (record)
+  - [x] `String eventId()`
+  - [x] `String eventType()`
+  - [x] `String payload()`
+  - [x] `Instant createdAt()`
+`SyncPayloadDto` (record)
+  - [x] `String buildingId()`
+  - [x] `List<OutboxEventDto> events()`
+`AlertDto` (record)
+  - [x] `String buildingId()`
+  - [x] `String gameId()`
+  - [x] `String alertType()`
+  - [x] `String message()`
+  - [x] `Instant timestamp()`
+`ErrorResponseDto` (record)
+  - [x] `int status()`
+  - [x] `String error()`
+  - [x] `String message()`
+  - [x] `Instant timestamp()`
 
 ## 3. shared-mqtt (`com.gameplatform.shared.mqtt`)
 

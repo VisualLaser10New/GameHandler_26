@@ -1,3 +1,8 @@
 package main.java.com.gameplatform.shared.dto;
 
-public record GameSessionResultDto() {}
+import java.util.List;
+
+public record GameSessionResultDto(
+    GameSessionDto session,
+    List<String> participants
+) {}
