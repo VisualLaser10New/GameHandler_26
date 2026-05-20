@@ -1,3 +1,9 @@
 package main.java.com.gameplatform.shared.domain.model;
 
-public record UserId() {}
+public record UserId(String value) {
+    public UserId {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("UserId cannot be null");
+        }
+    }
+}
