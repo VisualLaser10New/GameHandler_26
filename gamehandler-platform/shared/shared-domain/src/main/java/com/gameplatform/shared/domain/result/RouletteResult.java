@@ -8,20 +8,13 @@ import java.util.List;
 public record RouletteResult(String visitorId, int totalRounds, int totalBetAmount, int totalPayout, List<String> winningNumbers, WinCondition winCondition) implements GameResult {
     @Override
     public UserId getWinnerId() {
-
-        if (winCondition == WinCondition.WIN)
-            return new UserId(visitorId);
-        else
-            return null;
+        return winCondition == WinCondition.WIN ? new UserId(visitorId) : null;
     }
 
     @Override
     public List<UserId> getWinnerIds() {
         UserId winner = getWinnerId();
-        if (winner != null)
-            return List.of(winner);
-        else
-            return List.of();
+        return winner != null ? List.of(winner) : List.of();
     }
 
     @Override
