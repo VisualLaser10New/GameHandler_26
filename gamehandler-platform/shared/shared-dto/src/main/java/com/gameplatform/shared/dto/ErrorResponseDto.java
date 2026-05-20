@@ -1,3 +1,10 @@
 package main.java.com.gameplatform.shared.dto;
 
-public record ErrorResponseDto() {}
+import java.time.Instant;
+
+public record ErrorResponseDto(
+    int status,
+    String error,
+    String message,
+    Instant timestamp
+) {}

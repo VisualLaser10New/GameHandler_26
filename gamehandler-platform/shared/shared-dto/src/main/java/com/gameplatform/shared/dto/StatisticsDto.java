@@ -1,3 +1,14 @@
 package main.java.com.gameplatform.shared.dto;
 
-public record StatisticsDto() {}
+import java.time.Instant;
+
+public record StatisticsDto(
+    String buildingId,
+    String gameType,
+    Instant periodStart,
+    Instant periodEnd,
+    Integer totalSessions,
+    Integer avgDuration,
+    Integer totalReservations,
+    String data
+) {}

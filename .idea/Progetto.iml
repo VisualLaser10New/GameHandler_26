@@ -7,6 +7,8 @@
       <sourceFolder url="file://$MODULE_DIR$/gamehandler-platform/game-client-emulator/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/gamehandler-platform/local-server/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/gamehandler-platform/shared/shared-domain/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/gamehandler-platform/shared/shared-dto/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/gamehandler-platform/shared/shared-mqtt/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/gamehandler-platform/central-system/target" />
       <excludeFolder url="file://$MODULE_DIR$/gamehandler-platform/game-client-emulator/target" />
       <excludeFolder url="file://$MODULE_DIR$/gamehandler-platform/local-server/target" />
