@@ -313,56 +313,56 @@
 ## 4. central-system (`com.gameplatform.central`)
 
 ### 4.1 Modello di Dominio Centrale (`domain/model/`)
-- [ ] `User` (class)
-  - [ ] `User(UserId id, String username, String passwordHash, String email, List<String> roles, Instant createdAt)`
-  - [ ] `void changePassword(String newPasswordHash)`
-  - [ ] `void updateRoles(List<String> newRoles)`
-- [ ] `AggregatedStatistics` (class)
-  - [ ] `AggregatedStatistics(String id, BuildingId buildingId, GameType gameType, LocalDate periodStart, LocalDate periodEnd, int totalSessions, int avgDurationSeconds, int totalReservations, Map<String, Object> data)`
-  - [ ] `void mergeWith(AggregatedStatistics other)`
-- [ ] `RegisteredLocalServer` (class)
-  - [ ] `RegisteredLocalServer(BuildingId buildingId, String baseUrl, Instant lastSeenAt, boolean isActive)`
-- [ ] `ProcessedEvent` (class)
-  - [ ] `ProcessedEvent(String eventId, Instant processedAt)`
-- [ ] `OutboxEvent` (class)
-  - [ ] `OutboxEvent(String id, String eventType, String payload, String status, Instant createdAt, Instant sentAt)`
+- [x] `User` (class)
+  - [x] `User(UserId id, String username, String passwordHash, String email, List<String> roles, Instant createdAt)`
+  - [x] `void changePassword(String newPasswordHash)`
+  - [x] `void updateRoles(List<String> newRoles)`
+- [x] `AggregatedStatistics` (class)
+  - [x] `AggregatedStatistics(String id, BuildingId buildingId, GameType gameType, LocalDate periodStart, LocalDate periodEnd, int totalSessions, int avgDurationSeconds, int totalReservations, Map<String, Object> data)`
+  - [x] `void mergeWith(AggregatedStatistics other)`
+- [x] `RegisteredLocalServer` (class)
+  - [x] `RegisteredLocalServer(BuildingId buildingId, String baseUrl, Instant lastSeenAt, boolean isActive)`
+- [x] `ProcessedEvent` (class)
+  - [x] `ProcessedEvent(String eventId, Instant processedAt)`
+- [x] `OutboxEvent` (class)
+  - [x] `OutboxEvent(String id, String eventType, String payload, String status, Instant createdAt, Instant sentAt)`
 
 ### 4.2 Porte di Ingresso (`domain/ports/in/`)
-- [ ] `RegisterUserUseCase` (interface)
-  - [ ] `User register(String username, String password, String email)`
-- [ ] `UpdateUserUseCase` (interface)
-  - [ ] `User updateUser(UserId id, String newPassword, List<String> newRoles)`
-- [ ] `AuthenticateUserUseCase` (interface)
-  - [ ] `LoginResponseDto authenticate(String username, String password)`
-- [ ] `GetGlobalStatisticsUseCase` (interface)
-  - [ ] `List<StatisticsDto> getStatistics(BuildingId buildingId, GameType gameType, LocalDate start, LocalDate end)`
-- [ ] `ReceiveSyncDataUseCase` (interface)
-  - [ ] `void receiveSyncPayload(SyncPayloadDto payload)`
-- [ ] `GetAllUsersUseCase` (interface)
-  - [ ] `List<UserSyncDto> getAllUsersForSync()`
+- [x] `RegisterUserUseCase` (interface)
+  - [x] `User register(String username, String password, String email)`
+- [x] `UpdateUserUseCase` (interface)
+  - [x] `User updateUser(UserId id, String newPassword, List<String> newRoles)`
+- [x] `AuthenticateUserUseCase` (interface)
+  - [x] `LoginResponseDto authenticate(String username, String password)`
+- [x] `GetGlobalStatisticsUseCase` (interface)
+  - [x] `List<StatisticsDto> getStatistics(BuildingId buildingId, GameType gameType, LocalDate start, LocalDate end)`
+- [x] `ReceiveSyncDataUseCase` (interface)
+  - [x] `void receiveSyncPayload(SyncPayloadDto payload)`
+- [x] `GetAllUsersUseCase` (interface)
+  - [x] `List<UserSyncDto> getAllUsersForSync()`
 
 ### 4.3 Porte di Uscita (`domain/ports/out/`)
-- [ ] `UserRepository` (interface)
-  - [ ] `User save(User user)`
-  - [ ] `Optional<User> findById(UserId id)`
-  - [ ] `Optional<User> findByUsername(String username)`
-  - [ ] `List<User> findAll()`
-- [ ] `StatisticsRepository` (interface)
-  - [ ] `AggregatedStatistics save(AggregatedStatistics stats)`
-  - [ ] `Optional<AggregatedStatistics> findByBuildingAndTypeAndPeriod(BuildingId buildingId, GameType gameType, LocalDate periodStart)`
-  - [ ] `List<AggregatedStatistics> findByPeriod(LocalDate start, LocalDate end)`
-- [ ] `ProcessedEventRepository` (interface)
-  - [ ] `boolean existsByEventId(String eventId)`
-  - [ ] `void save(ProcessedEvent event)`
-- [ ] `OutboxEventRepository` (interface)
-  - [ ] `OutboxEvent save(OutboxEvent event)`
-  - [ ] `List<OutboxEvent> findPending()`
-  - [ ] `void markAsSent(String id)`
-- [ ] `LocalServerRegistryPort` (interface)
-  - [ ] `List<RegisteredLocalServer> getActiveLocalServers()`
-  - [ ] `void register(RegisteredLocalServer server)`
-- [ ] `PushUserToLocalServersPort` (interface)
-  - [ ] `void pushUsers(List<UserSyncDto> users, RegisteredLocalServer server)`
+- [x] `UserRepository` (interface)
+  - [x] `User save(User user)`
+  - [x] `Optional<User> findById(UserId id)`
+  - [x] `Optional<User> findByUsername(String username)`
+  - [x] `List<User> findAll()`
+- [x] `StatisticsRepository` (interface)
+  - [x] `AggregatedStatistics save(AggregatedStatistics stats)`
+  - [x] `Optional<AggregatedStatistics> findByBuildingAndTypeAndPeriod(BuildingId buildingId, GameType gameType, LocalDate periodStart)`
+  - [x] `List<AggregatedStatistics> findByPeriod(LocalDate start, LocalDate end)`
+- [x] `ProcessedEventRepository` (interface)
+  - [x] `boolean existsByEventId(String eventId)`
+  - [x] `void save(ProcessedEvent event)`
+- [x] `OutboxEventRepository` (interface)
+  - [x] `OutboxEvent save(OutboxEvent event)`
+  - [x] `List<OutboxEvent> findPending()`
+  - [x] `void markAsSent(String id)`
+- [x] `LocalServerRegistryPort` (interface)
+  - [x] `List<RegisteredLocalServer> getActiveLocalServers()`
+  - [x] `void register(RegisteredLocalServer server)`
+- [x] `PushUserToLocalServersPort` (interface)
+  - [x] `void pushUsers(List<UserSyncDto> users, RegisteredLocalServer server)`
 
 ### 4.4 Eccezioni di Dominio (`domain/exception/`)
 - [ ] `UserAlreadyExistsException` (class)

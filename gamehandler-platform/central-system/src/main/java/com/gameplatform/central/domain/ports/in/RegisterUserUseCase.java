@@ -1,3 +1,8 @@
 package com.gameplatform.central.domain.ports.in;
 
-public interface RegisterUserUseCase {}
+import com.gameplatform.central.domain.model.User;
+
+public interface RegisterUserUseCase {
+    User register(String username, String password, String email);
+}
+

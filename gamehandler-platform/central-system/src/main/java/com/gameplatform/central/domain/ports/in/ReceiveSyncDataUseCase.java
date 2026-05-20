@@ -1,3 +1,8 @@
 package com.gameplatform.central.domain.ports.in;
 
-public interface ReceiveSyncDataUseCase {}
+import com.gameplatform.shared.dto.SyncPayloadDto;
+
+public interface ReceiveSyncDataUseCase {
+    void receiveSyncPayload(SyncPayloadDto payload);
+}
+

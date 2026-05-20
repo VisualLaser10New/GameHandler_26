@@ -1,3 +1,9 @@
 package com.gameplatform.central.domain.ports.out;
 
-public interface ProcessedEventRepository {}
+import com.gameplatform.central.domain.model.ProcessedEvent;
+
+public interface ProcessedEventRepository {
+    boolean existsByEventId(String eventId);
+    void save(ProcessedEvent event);
+}
+
