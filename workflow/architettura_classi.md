@@ -49,6 +49,7 @@ shared/shared-domain/src/main/java/com/gameplatform/shared/domain/
 ```
 shared/shared-dto/src/main/java/com/gameplatform/shared/dto/
 ├── UserDto.java                       (record)
+├── CreateUserRequestDto.java          (record)
 ├── UserSyncDto.java                   (record)
 ├── LoginRequestDto.java               (record)
 ├── LoginResponseDto.java              (record)
@@ -381,6 +382,7 @@ game-client-emulator/src/main/java/com/gameplatform/client/
 | Classe | Tipo | Descrizione | Dipendenze |
 |---|---|---|---|
 | `UserDto` | record | DTO utente per API REST. Campi: `id`, `username`, `email`, `roles`, `createdAt`. | — |
+| `CreateUserRequestDto` | record | DTO per richiesta registrazione utente. Campi: `username`, `password`, `email`. | — |
 | `UserSyncDto` | record | DTO per replica utenti Central→Local. Campi: `userId`, `username`, `hashedPassword`, `roles`. | — |
 | `LoginRequestDto` | record | DTO per richiesta login. Campi: `username`, `password`. | — |
 | `LoginResponseDto` | record | DTO per risposta login. Campi: `token (JWT)`, `userId`, `expiresAt`. | — |
@@ -441,7 +443,7 @@ game-client-emulator/src/main/java/com/gameplatform/client/
 
 | Classe | Tipo | Descrizione | Dipendenze |
 |---|---|---|---|
-| `UserRepository` | interface | CRUD utenti. Metodi: `save()`, `findById()`, `findByUsername()`, `findAll()`. | `User`, `UserId` |
+| `UserRepository` | interface | CRUD utenti. Metodi: `save()`, `findById()`, `findByUsername()`, `findByEmail()`, `findAll()`. | `User`, `UserId` |
 | `StatisticsRepository` | interface | CRUD statistiche. Metodi: `save()`, `findByBuildingAndType()`, `findByPeriod()`. | `AggregatedStatistics` |
 | `ProcessedEventRepository` | interface | `existsByEventId(String)`, `save(ProcessedEvent)`. Per idempotenza. | `ProcessedEvent` |
 | `OutboxEventRepository` | interface | `save()`, `findPending()`, `markAsSent()`. | `OutboxEvent` |

@@ -1,3 +1,50 @@
 package com.gameplatform.central.infrastructure.adapters.out.mysql.adapter;
 
-public class OutboxEventRepositoryAdapter {}
+import com.gameplatform.central.domain.model.OutboxEvent;
+import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
+import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity;
+import com.gameplatform.central.infrastructure.adapters.out.mysql.mapper.OutboxEventMapper;
+import com.gameplatform.central.infrastructure.adapters.out.mysql.repository.OutboxEventJpaRepository;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Component
+public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
+
+    private final OutboxEventJpaRepository jpaRepository;
+    private final OutboxEventMapper mapper;
+
+    public OutboxEventRepositoryAdapter(OutboxEventJpaRepository jpaRepository, OutboxEventMapper mapper) {
+        this.jpaRepository = jpaRepository;
+        this.mapper = mapper;
+    }
+
+    @Override
+    public OutboxEvent save(OutboxEvent event) {
+        OutboxEventJpaEntity entity = mapper.toEntity(event);
+        OutboxEventJpaEntity savedEntity = jpaRepository.save(entity);
+        return mapper.toDomain(savedEntity);
+    }
+
+    @Override
+    public List<OutboxEvent> findPending() {
+        return jpaRepository.findByStatusOrderByCreatedAtAsc("PENDING").stream()
+                .map(mapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public void markAsSent(String id) {
+        if (id == null) {
+            return;
+        }
+        jpaRepository.findById(id).ifPresent(entity -> {
+            entity.setStatus("SENT");
+            entity.setSentAt(Instant.now());
+            jpaRepository.save(entity);
+        });
+    }
+}

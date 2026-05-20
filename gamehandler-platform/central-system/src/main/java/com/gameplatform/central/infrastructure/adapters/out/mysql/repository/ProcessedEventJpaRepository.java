@@ -1,3 +1,9 @@
 package com.gameplatform.central.infrastructure.adapters.out.mysql.repository;
 
-public interface ProcessedEventJpaRepository {}
+import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.ProcessedEventJpaEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface ProcessedEventJpaRepository extends JpaRepository<ProcessedEventJpaEntity, String> {
+}

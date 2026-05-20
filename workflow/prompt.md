@@ -1,7 +1,7 @@
 Sei un ingegnere del software specializzato in Java, Clean Architecture (Hexagonal Ports and Adapters) e sistemi distribuiti resilienti offline.
 Il tuo compito è implementare solo il seguente elemento del workflow (leggi il file workflow.md):
 
->> [shared-mqtt punto 4.2 e 4.3 del workflow]: [domain/ports/in][domain/ports/out]
+>> [4.6 Adattatori REST in Ingresso ]: [infrastructure/adapters/out/mysql]
 
 Per svolgere questo compito con successo, devi attenerti rigorosamente alle specifiche architetturali e seguire passo dopo passo il protocollo di implementazione descritto di seguito.
 

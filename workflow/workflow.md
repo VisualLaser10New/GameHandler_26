@@ -346,6 +346,7 @@
   - [x] `User save(User user)`
   - [x] `Optional<User> findById(UserId id)`
   - [x] `Optional<User> findByUsername(String username)`
+  - [x] `Optional<User> findByEmail(String email)`
   - [x] `List<User> findAll()`
 - [x] `StatisticsRepository` (interface)
   - [x] `AggregatedStatistics save(AggregatedStatistics stats)`
@@ -365,9 +366,9 @@
   - [x] `void pushUsers(List<UserSyncDto> users, RegisteredLocalServer server)`
 
 ### 4.4 Eccezioni di Dominio (`domain/exception/`)
-- [ ] `UserAlreadyExistsException` (class)
-- [ ] `InvalidCredentialsException` (class)
-- [ ] `DuplicateEventException` (class)
+- [x] `UserAlreadyExistsException` (class)
+- [x] `InvalidCredentialsException` (class)
+- [x] `DuplicateEventException` (class)
 
 ### 4.5 Servizi Applicativi (`application/service/`)
 - [ ] `UserService` (class)
@@ -384,61 +385,61 @@
   - [ ] `void replicateUsers()`
 
 ### 4.6 Adattatori REST in Ingresso (`infrastructure/adapters/in/rest/`)
-- [ ] `UserController` (class)
-  - [ ] `ResponseEntity<UserDto> register(CreateUserRequestDto request)`
-- [ ] `AuthController` (class)
-  - [ ] `ResponseEntity<LoginResponseDto> login(LoginRequestDto request)`
-- [ ] `StatisticsController` (class)
-  - [ ] `ResponseEntity<List<StatisticsDto>> getStats(String buildingId, String gameType, String start, String end)`
-- [ ] `SyncController` (class)
-  - [ ] `ResponseEntity<Void> receiveSync(SyncPayloadDto payload, String apiKey)`
+- [x] `UserController` (class)
+  - [x] `ResponseEntity<UserDto> register(CreateUserRequestDto request)`
+- [x] `AuthController` (class)
+  - [x] `ResponseEntity<LoginResponseDto> login(LoginRequestDto request)`
+- [x] `StatisticsController` (class)
+  - [x] `ResponseEntity<List<StatisticsDto>> getStats(String buildingId, String gameType, String start, String end)`
+- [x] `SyncController` (class)
+  - [x] `ResponseEntity<Void> receiveSync(SyncPayloadDto payload, String apiKey)`
 
 ### 4.7 Adattatori di Persistenza MySQL (`infrastructure/adapters/out/mysql/`)
-- [ ] `UserJpaEntity` (class)
-- [ ] `AggregatedStatisticsJpaEntity` (class)
-- [ ] `ProcessedEventJpaEntity` (class)
-- [ ] `OutboxEventJpaEntity` (class)
-- [ ] `RegisteredLocalServerJpaEntity` (class)
+- [x] `UserJpaEntity` (class)
+- [x] `AggregatedStatisticsJpaEntity` (class)
+- [x] `ProcessedEventJpaEntity` (class)
+- [x] `OutboxEventJpaEntity` (class)
+- [x] `RegisteredLocalServerJpaEntity` (class)
 
-- [ ] `UserJpaRepository` (interface)
-  - [ ] `Optional<UserJpaEntity> findByUsername(String username)`
-- [ ] `StatisticsJpaRepository` (interface)
-  - [ ] `Optional<AggregatedStatisticsJpaEntity> findByBuildingIdAndGameTypeAndPeriodStart(String buildingId, String gameType, LocalDate periodStart)`
-- [ ] `ProcessedEventJpaRepository` (interface)
-- [ ] `OutboxEventJpaRepository` (interface)
-  - [ ] `List<OutboxEventJpaEntity> findByStatusOrderByCreatedAtAsc(String status)`
-- [ ] `LocalServerJpaRepository` (interface)
-  - [ ] `List<RegisteredLocalServerJpaEntity> findByIsActiveTrue()`
+- [x] `UserJpaRepository` (interface)
+  - [x] `Optional<UserJpaEntity> findByUsername(String username)`
+- [x] `StatisticsJpaRepository` (interface)
+  - [x] `Optional<AggregatedStatisticsJpaEntity> findByBuildingIdAndGameTypeAndPeriodStart(String buildingId, String gameType, LocalDate periodStart)`
+- [x] `ProcessedEventJpaRepository` (interface)
+- [x] `OutboxEventJpaRepository` (interface)
+  - [x] `List<OutboxEventJpaEntity> findByStatusOrderByCreatedAtAsc(String status)`
+- [x] `LocalServerJpaRepository` (interface)
+  - [x] `List<RegisteredLocalServerJpaEntity> findByIsActiveTrue()`
 
-- [ ] `UserRepositoryAdapter` (class)
-  - [ ] `User save(User user)`
-  - [ ] `Optional<User> findById(UserId id)`
-  - [ ] `Optional<User> findByUsername(String username)`
-  - [ ] `List<User> findAll()`
-- [ ] `StatisticsRepositoryAdapter` (class)
-  - [ ] `AggregatedStatistics save(AggregatedStatistics stats)`
-  - [ ] `Optional<AggregatedStatistics> findByBuildingAndTypeAndPeriod(BuildingId buildingId, GameType gameType, LocalDate periodStart)`
-  - [ ] `List<AggregatedStatistics> findByPeriod(LocalDate start, LocalDate end)`
-- [ ] `ProcessedEventRepositoryAdapter` (class)
-  - [ ] `boolean existsByEventId(String eventId)`
-  - [ ] `void save(ProcessedEvent event)`
-- [ ] `OutboxEventRepositoryAdapter` (class)
-  - [ ] `OutboxEvent save(OutboxEvent event)`
-  - [ ] `List<OutboxEvent> findPending()`
-  - [ ] `void markAsSent(String id)`
-- [ ] `LocalServerRegistryAdapter` (class)
-  - [ ] `List<RegisteredLocalServer> getActiveLocalServers()`
-  - [ ] `void register(RegisteredLocalServer server)`
+- [x] `UserRepositoryAdapter` (class)
+  - [x] `User save(User user)`
+  - [x] `Optional<User> findById(UserId id)`
+  - [x] `Optional<User> findByUsername(String username)`
+  - [x] `List<User> findAll()`
+- [x] `StatisticsRepositoryAdapter` (class)
+  - [x] `AggregatedStatistics save(AggregatedStatistics stats)`
+  - [x] `Optional<AggregatedStatistics> findByBuildingAndTypeAndPeriod(BuildingId buildingId, GameType gameType, LocalDate periodStart)`
+  - [x] `List<AggregatedStatistics> findByPeriod(LocalDate start, LocalDate end)`
+- [x] `ProcessedEventRepositoryAdapter` (class)
+  - [x] `boolean existsByEventId(String eventId)`
+  - [x] `void save(ProcessedEvent event)`
+- [x] `OutboxEventRepositoryAdapter` (class)
+  - [x] `OutboxEvent save(OutboxEvent event)`
+  - [x] `List<OutboxEvent> findPending()`
+  - [x] `void markAsSent(String id)`
+- [x] `LocalServerRegistryAdapter` (class)
+  - [x] `List<RegisteredLocalServer> getActiveLocalServers()`
+  - [x] `void register(RegisteredLocalServer server)`
 
-- [ ] `UserMapper` (class)
-  - [ ] `User toDomain(UserJpaEntity entity)`
-  - [ ] `UserJpaEntity toEntity(User domain)`
-- [ ] `StatisticsMapper` (class)
-  - [ ] `AggregatedStatistics toDomain(AggregatedStatisticsJpaEntity entity)`
-  - [ ] `AggregatedStatisticsJpaEntity toEntity(AggregatedStatistics domain)`
-- [ ] `OutboxEventMapper` (class)
-  - [ ] `OutboxEvent toDomain(OutboxEventJpaEntity entity)`
-  - [ ] `OutboxEventJpaEntity toEntity(OutboxEvent domain)`
+- [x] `UserMapper` (class)
+  - [x] `User toDomain(UserJpaEntity entity)`
+  - [x] `UserJpaEntity toEntity(User domain)`
+- [x] `StatisticsMapper` (class)
+  - [x] `AggregatedStatistics toDomain(AggregatedStatisticsJpaEntity entity)`
+  - [x] `AggregatedStatisticsJpaEntity toEntity(AggregatedStatistics domain)`
+- [x] `OutboxEventMapper` (class)
+  - [x] `OutboxEvent toDomain(OutboxEventJpaEntity entity)`
+  - [x] `OutboxEventJpaEntity toEntity(OutboxEvent domain)`
 
 ### 4.8 Adattatori REST in Uscita (`infrastructure/adapters/out/rest/`)
 - [ ] `LocalServerRestAdapter` (class)
