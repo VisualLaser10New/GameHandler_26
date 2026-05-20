@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.client.domain;
+package com.gameplatform.client.domain;
 
 public class GameFactory {}

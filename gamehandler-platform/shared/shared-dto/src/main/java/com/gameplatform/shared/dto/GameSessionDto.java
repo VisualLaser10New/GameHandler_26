@@ -1,9 +1,9 @@
-package main.java.com.gameplatform.shared.dto;
+package com.gameplatform.shared.dto;
 
 import java.time.Instant;
-import main.java.com.gameplatform.shared.domain.model.GameType;
-import main.java.com.gameplatform.shared.domain.model.GameStatus;
-import main.java.com.gameplatform.shared.domain.model.WinCondition;
+import com.gameplatform.shared.domain.model.GameType;
+import com.gameplatform.shared.domain.model.GameStatus;
+import com.gameplatform.shared.domain.model.WinCondition;
 
 public record GameSessionDto(
     String id,

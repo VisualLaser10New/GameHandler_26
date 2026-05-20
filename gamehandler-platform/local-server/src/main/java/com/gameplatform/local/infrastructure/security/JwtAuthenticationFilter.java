@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.local.infrastructure.security;
+package com.gameplatform.local.infrastructure.security;
 
 public class JwtAuthenticationFilter {}

@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.local.application.service;
+package com.gameplatform.local.application.service;
 
 public class SyncSchedulerService {}

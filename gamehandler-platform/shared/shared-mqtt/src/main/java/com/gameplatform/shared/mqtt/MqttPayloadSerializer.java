@@ -1,4 +1,4 @@
-package main.java.com.gameplatform.shared.mqtt;
+package com.gameplatform.shared.mqtt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;

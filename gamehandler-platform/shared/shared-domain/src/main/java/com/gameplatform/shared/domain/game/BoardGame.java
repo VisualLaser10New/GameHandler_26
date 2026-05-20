@@ -1,4 +1,4 @@
-package main.java.com.gameplatform.shared.domain.game;
+package com.gameplatform.shared.domain.game;
 
 public interface BoardGame {
     String serializeBoardState();

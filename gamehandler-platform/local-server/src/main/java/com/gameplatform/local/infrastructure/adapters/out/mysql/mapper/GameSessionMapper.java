@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.local.infrastructure.adapters.out.mysql.mapper;
+package com.gameplatform.local.infrastructure.adapters.out.mysql.mapper;
 
 public class GameSessionMapper {}

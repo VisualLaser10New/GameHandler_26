@@ -1,6 +1,6 @@
-package main.java.com.gameplatform.shared.domain.events;
+package com.gameplatform.shared.domain.events;
 
-import main.java.com.gameplatform.shared.domain.model.ReservationId;
+import com.gameplatform.shared.domain.model.ReservationId;
 
 import java.time.Instant;
 

@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.local.infrastructure.adapters.out.mysql.entity;
+package com.gameplatform.local.infrastructure.adapters.out.mysql.entity;
 
 public class GameJpaEntity {}

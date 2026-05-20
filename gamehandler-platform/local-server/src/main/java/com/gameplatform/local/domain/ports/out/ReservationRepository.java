@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.local.domain.ports.out;
+package com.gameplatform.local.domain.ports.out;
 
 public interface ReservationRepository {}

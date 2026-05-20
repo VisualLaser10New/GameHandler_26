@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.central.infrastructure.config;
+package com.gameplatform.central.infrastructure.config;
 
 public class SchedulerConfig {}

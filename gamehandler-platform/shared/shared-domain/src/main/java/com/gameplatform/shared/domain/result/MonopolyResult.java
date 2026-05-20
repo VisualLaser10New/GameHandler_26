@@ -1,7 +1,7 @@
-package main.java.com.gameplatform.shared.domain.result;
+package com.gameplatform.shared.domain.result;
 
-import main.java.com.gameplatform.shared.domain.model.UserId;
-import main.java.com.gameplatform.shared.domain.model.WinCondition;
+import com.gameplatform.shared.domain.model.UserId;
+import com.gameplatform.shared.domain.model.WinCondition;
 
 import java.util.List;
 import java.util.Map;

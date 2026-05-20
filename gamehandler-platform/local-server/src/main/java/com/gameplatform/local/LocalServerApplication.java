@@ -1,4 +1,4 @@
-package main.java.com.gameplatform.local;
+package com.gameplatform.local;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

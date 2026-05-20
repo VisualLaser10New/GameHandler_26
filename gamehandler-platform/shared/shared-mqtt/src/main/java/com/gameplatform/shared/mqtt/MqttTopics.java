@@ -1,4 +1,4 @@
-package main.java.com.gameplatform.shared.mqtt;
+package com.gameplatform.shared.mqtt;
 
 public final class MqttTopics {
     private MqttTopics() {}

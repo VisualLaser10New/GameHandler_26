@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.central.application.service;
+package com.gameplatform.central.application.service;
 
 public class UserService {}

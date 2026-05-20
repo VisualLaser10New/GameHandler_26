@@ -1,7 +1,7 @@
-package main.java.com.gameplatform.shared.domain.events;
+package com.gameplatform.shared.domain.events;
 
-import main.java.com.gameplatform.shared.domain.model.GameSessionId;
-import main.java.com.gameplatform.shared.domain.model.GameType;
+import com.gameplatform.shared.domain.model.GameSessionId;
+import com.gameplatform.shared.domain.model.GameType;
 
 import java.time.Instant;
 

@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.local.infrastructure.config;
+package com.gameplatform.local.infrastructure.config;
 
 public class SecurityConfig {}

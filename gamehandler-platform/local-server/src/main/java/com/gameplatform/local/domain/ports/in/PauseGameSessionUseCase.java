@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.local.domain.ports.in;
+package com.gameplatform.local.domain.ports.in;
 
 public interface PauseGameSessionUseCase {}

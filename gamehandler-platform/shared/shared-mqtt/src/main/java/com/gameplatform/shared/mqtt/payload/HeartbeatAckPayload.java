@@ -1,4 +1,4 @@
-package main.java.com.gameplatform.shared.mqtt.payload;
+package com.gameplatform.shared.mqtt.payload;
 
 import java.time.Instant;
 

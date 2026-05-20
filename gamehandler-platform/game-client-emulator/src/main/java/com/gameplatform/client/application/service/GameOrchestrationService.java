@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.client.application.service;
+package com.gameplatform.client.application.service;
 
 public class GameOrchestrationService {}

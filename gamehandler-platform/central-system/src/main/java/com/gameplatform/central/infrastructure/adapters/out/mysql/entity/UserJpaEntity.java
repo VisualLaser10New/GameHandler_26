@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.central.infrastructure.adapters.out.mysql.entity;
+package com.gameplatform.central.infrastructure.adapters.out.mysql.entity;
 
 public class UserJpaEntity {}

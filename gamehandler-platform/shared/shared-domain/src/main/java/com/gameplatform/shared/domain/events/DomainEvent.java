@@ -1,4 +1,4 @@
-package main.java.com.gameplatform.shared.domain.events;
+package com.gameplatform.shared.domain.events;
 
 import java.time.Instant;
 

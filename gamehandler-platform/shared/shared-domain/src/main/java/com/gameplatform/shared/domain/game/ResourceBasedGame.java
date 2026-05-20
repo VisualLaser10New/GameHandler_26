@@ -1,6 +1,6 @@
-package main.java.com.gameplatform.shared.domain.game;
+package com.gameplatform.shared.domain.game;
 
-import main.java.com.gameplatform.shared.domain.model.UserId;
+import com.gameplatform.shared.domain.model.UserId;
 
 import java.util.Map;
 

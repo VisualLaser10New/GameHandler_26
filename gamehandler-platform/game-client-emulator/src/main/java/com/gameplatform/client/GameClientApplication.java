@@ -1,4 +1,4 @@
-package main.java.com.gameplatform.client;
+package com.gameplatform.client;
 
 public class GameClientApplication {
     public static void main(String[] args) {

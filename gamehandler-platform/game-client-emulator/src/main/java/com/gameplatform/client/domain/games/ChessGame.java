@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.client.domain.games;
+package com.gameplatform.client.domain.games;
 
 public class ChessGame {}

@@ -1,6 +1,6 @@
-package main.java.com.gameplatform.shared.mqtt.payload;
+package com.gameplatform.shared.mqtt.payload;
 
-import main.java.com.gameplatform.shared.domain.model.GameMachineStatus;
+import com.gameplatform.shared.domain.model.GameMachineStatus;
 
 public record GameStatePayload(
     String gameId,

@@ -1,4 +1,4 @@
-package main.java.com.gameplatform.shared.dto;
+package com.gameplatform.shared.dto;
 
 import java.util.List;
 

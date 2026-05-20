@@ -1,9 +1,9 @@
-package main.java.com.gameplatform.shared.domain.events;
+package com.gameplatform.shared.domain.events;
 
-import main.java.com.gameplatform.shared.domain.model.BuildingId;
-import main.java.com.gameplatform.shared.domain.model.GameId;
-import main.java.com.gameplatform.shared.domain.model.ReservationId;
-import main.java.com.gameplatform.shared.domain.model.UserId;
+import com.gameplatform.shared.domain.model.BuildingId;
+import com.gameplatform.shared.domain.model.GameId;
+import com.gameplatform.shared.domain.model.ReservationId;
+import com.gameplatform.shared.domain.model.UserId;
 
 import java.time.Instant;
 

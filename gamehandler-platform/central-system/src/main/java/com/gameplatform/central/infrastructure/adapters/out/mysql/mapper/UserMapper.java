@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.central.infrastructure.adapters.out.mysql.mapper;
+package com.gameplatform.central.infrastructure.adapters.out.mysql.mapper;
 
 public class UserMapper {}

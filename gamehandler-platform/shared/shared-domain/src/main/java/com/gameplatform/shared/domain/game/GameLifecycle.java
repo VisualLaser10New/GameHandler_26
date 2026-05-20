@@ -1,6 +1,6 @@
-package main.java.com.gameplatform.shared.domain.game;
+package com.gameplatform.shared.domain.game;
 
-import main.java.com.gameplatform.shared.domain.model.*;
+import com.gameplatform.shared.domain.model.*;
 
 import java.util.List;
 

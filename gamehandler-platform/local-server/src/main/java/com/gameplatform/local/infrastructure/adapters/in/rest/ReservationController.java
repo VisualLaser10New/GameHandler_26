@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.local.infrastructure.adapters.in.rest;
+package com.gameplatform.local.infrastructure.adapters.in.rest;
 
 public class ReservationController {}

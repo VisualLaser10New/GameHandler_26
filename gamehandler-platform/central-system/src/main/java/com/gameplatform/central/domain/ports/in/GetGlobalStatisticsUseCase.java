@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.central.domain.ports.in;
+package com.gameplatform.central.domain.ports.in;
 
 public interface GetGlobalStatisticsUseCase {}

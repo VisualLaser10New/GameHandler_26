@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.local.domain.model;
+package com.gameplatform.local.domain.model;
 
 public class LocalStatistics {}

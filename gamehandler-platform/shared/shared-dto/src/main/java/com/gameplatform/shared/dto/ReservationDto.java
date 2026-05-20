@@ -1,7 +1,7 @@
-package main.java.com.gameplatform.shared.dto;
+package com.gameplatform.shared.dto;
 
 import java.time.Instant;
-import main.java.com.gameplatform.shared.domain.model.ReservationStatus;
+import com.gameplatform.shared.domain.model.ReservationStatus;
 
 public record ReservationDto(
     String id,

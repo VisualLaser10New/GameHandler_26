@@ -1,4 +1,4 @@
-package main.java.com.gameplatform.central;
+package com.gameplatform.central;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

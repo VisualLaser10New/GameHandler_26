@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.local.infrastructure.adapters.out.mysql.adapter;
+package com.gameplatform.local.infrastructure.adapters.out.mysql.adapter;
 
 public class UserRepositoryAdapter {}

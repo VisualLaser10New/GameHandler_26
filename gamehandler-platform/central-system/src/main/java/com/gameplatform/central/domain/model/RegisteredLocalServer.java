@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.central.domain.model;
+package com.gameplatform.central.domain.model;
 
 public class RegisteredLocalServer {}

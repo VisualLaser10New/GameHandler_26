@@ -1,4 +1,4 @@
-package main.java.com.gameplatform.shared.domain.model;
+package com.gameplatform.shared.domain.model;
 
 public record ReservationId(String value) {
     public ReservationId {

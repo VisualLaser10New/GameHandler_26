@@ -1,3 +1,3 @@
-package main.java.com.gameplatform.central.infrastructure.adapters.out.mysql.adapter;
+package com.gameplatform.central.infrastructure.adapters.out.mysql.adapter;
 
 public class OutboxEventRepositoryAdapter {}
