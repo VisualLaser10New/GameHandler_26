@@ -264,51 +264,51 @@
 ## 3. shared-mqtt (`com.gameplatform.shared.mqtt`)
 
 ### 3.1 Topic e Configurazione MQTT
-- [ ] `MqttTopics` (class)
-  - [ ] `static String gameState(String buildingId, String gameId)`
-  - [ ] `static String sessionStart(String buildingId, String gameId)`
-  - [ ] `static String sessionEnd(String buildingId, String gameId)`
-  - [ ] `static String sessionPause(String buildingId, String gameId)`
-  - [ ] `static String sessionResume(String buildingId, String gameId)`
-  - [ ] `static String heartbeat(String buildingId, String gameId)`
-  - [ ] `static String heartbeatAck(String buildingId, String gameId)`
-  - [ ] `static String alerts(String buildingId)`
-- [ ] `MqttQos` (class)
-  - [ ] `static final int STATE = 1`
-  - [ ] `static final int SESSION = 1`
-  - [ ] `static final int HEARTBEAT = 0`
-- [ ] `MqttPayloadSerializer` (class)
-  - [ ] `static byte[] serialize(Object obj)`
-  - [ ] `static <T> T deserialize(byte[] data, Class<T> clazz)`
+- [x] `MqttTopics` (class)
+  - [x] `static String gameState(String buildingId, String gameId)`
+  - [x] `static String sessionStart(String buildingId, String gameId)`
+  - [x] `static String sessionEnd(String buildingId, String gameId)`
+  - [x] `static String sessionPause(String buildingId, String gameId)`
+  - [x] `static String sessionResume(String buildingId, String gameId)`
+  - [x] `static String heartbeat(String buildingId, String gameId)`
+  - [x] `static String heartbeatAck(String buildingId, String gameId)`
+  - [x] `static String alerts(String buildingId)`
+- [x] `MqttQos` (class)
+  - [x] `static final int STATE = 1`
+  - [x] `static final int SESSION = 1`
+  - [x] `static final int HEARTBEAT = 0`
+- [x] `MqttPayloadSerializer` (class)
+  - [x] `static byte[] serialize(Object obj)`
+  - [x] `static <T> T deserialize(byte[] data, Class<T> clazz)`
 
 ### 3.2 Payload MQTT (`payload/`)
-- [ ] `GameStatePayload` (record)
-  - [ ] `String gameId()`
-  - [ ] `GameMachineStatus status()`
-  - [ ] `String userId()`
-- [ ] `SessionStartPayload` (record)
-  - [ ] `String sessionId()`
-  - [ ] `GameType gameType()`
-  - [ ] `List<String> participants()`
-- [ ] `SessionEndPayload` (record)
-  - [ ] `String sessionId()`
-  - [ ] `String winnerId()`
-  - [ ] `WinCondition winCondition()`
-  - [ ] `String resultData()`
-- [ ] `SessionPausePayload` (record)
-  - [ ] `String sessionId()`
-  - [ ] `String pausedBy()`
-- [ ] `HeartbeatPayload` (record)
-  - [ ] `String gameId()`
-  - [ ] `Instant timestamp()`
-- [ ] `HeartbeatAckPayload` (record)
-  - [ ] `String gameId()`
-  - [ ] `Instant serverTimestamp()`
-- [ ] `AlertPayload` (record)
-  - [ ] `String alertType()`
-  - [ ] `String gameId()`
-  - [ ] `String message()`
-  - [ ] `Instant timestamp()`
+- [x] `GameStatePayload` (record)
+  - [x] `String gameId()`
+  - [x] `GameMachineStatus status()`
+  - [x] `String userId()`
+- [x] `SessionStartPayload` (record)
+  - [x] `String sessionId()`
+  - [x] `GameType gameType()`
+  - [x] `List<String> participants()`
+- [x] `SessionEndPayload` (record)
+  - [x] `String sessionId()`
+  - [x] `String winnerId()`
+  - [x] `WinCondition winCondition()`
+  - [x] `String resultData()`
+- [x] `SessionPausePayload` (record)
+  - [x] `String sessionId()`
+  - [x] `String pausedBy()`
+- [x] `HeartbeatPayload` (record)
+  - [x] `String gameId()`
+  - [x] `Instant timestamp()`
+- [x] `HeartbeatAckPayload` (record)
+  - [x] `String gameId()`
+  - [x] `Instant serverTimestamp()`
+- [x] `AlertPayload` (record)
+  - [x] `String alertType()`
+  - [x] `String gameId()`
+  - [x] `String message()`
+  - [x] `Instant timestamp()`
 
 ## 4. central-system (`com.gameplatform.central`)
 
