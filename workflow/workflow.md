@@ -442,28 +442,28 @@
   - [x] `OutboxEventJpaEntity toEntity(OutboxEvent domain)`
 
 ### 4.8 Adattatori REST in Uscita (`infrastructure/adapters/out/rest/`)
-- [ ] `LocalServerRestAdapter` (class)
-  - [ ] `void pushUsers(List<UserSyncDto> users, RegisteredLocalServer server)`
+- [x] `LocalServerRestAdapter` (class)
+  - [x] `void pushUsers(List<UserSyncDto> users, RegisteredLocalServer server)`
 
 ### 4.9 Configurazione e Sicurezza (`infrastructure/config/` e `security/`)
-- [ ] `CentralSystemApplication` (class)
-  - [ ] `static void main(String[] args)`
-- [ ] `SecurityConfig` (class)
-  - [ ] `SecurityFilterChain filterChain(HttpSecurity http)`
-- [ ] `JwtConfig` (class)
-  - [ ] `JwtTokenProvider jwtTokenProvider()`
-- [ ] `SchedulerConfig` (class)
-- [ ] `CorsConfig` (class)
-  - [ ] `CorsFilter corsFilter()`
-- [ ] `JwtTokenProvider` (class)
-  - [ ] `String generateToken(User user)`
-  - [ ] `Claims getClaims(String token)`
-- [ ] `JwtAuthenticationFilter` (class)
-  - [ ] `void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)`
-- [ ] `InternalApiKeyFilter` (class)
-  - [ ] `void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)`
-- [ ] `PasswordEncoderConfig` (class)
-  - [ ] `PasswordEncoder passwordEncoder()`
+- [x] `CentralSystemApplication` (class)
+  - [x] `static void main(String[] args)`
+- [x] `SecurityConfig` (class)
+  - [x] `SecurityFilterChain filterChain(HttpSecurity http)`
+- [x] `JwtConfig` (class)
+  - [x] `JwtTokenProvider jwtTokenProvider()`
+- [x] `SchedulerConfig` (class)
+- [x] `CorsConfig` (class)
+  - [x] `CorsFilter corsFilter()`
+- [x] `JwtTokenProvider` (class)
+  - [x] `String generateToken(User user)`
+  - [x] `Claims getClaims(String token)`
+- [x] `JwtAuthenticationFilter` (class)
+  - [x] `void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)`
+- [x] `InternalApiKeyFilter` (class)
+  - [x] `void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)`
+- [x] `PasswordEncoderConfig` (class)
+  - [x] `PasswordEncoder passwordEncoder()`
 
 ## 5. local-server (`com.gameplatform.local`)
 
@@ -827,3 +827,6 @@
   - [ ] `static void main(String[] args)`
 - [ ] `MqttClientConfig` (class)
   - [ ] `MqttConnectOptions getMqttOptions()`
+
+## 7 Configurazioni
+- [ ] Creare il certificato per `JwtTokenProvider`
