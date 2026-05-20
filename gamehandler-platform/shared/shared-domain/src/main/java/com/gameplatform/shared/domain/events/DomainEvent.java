@@ -1,3 +1,9 @@
 package main.java.com.gameplatform.shared.domain.events;
 
-public interface DomainEvent {}
+import java.time.Instant;
+
+public interface DomainEvent {
+    String getEventId();
+    Instant getOccurredAt();
+    String getEventType();
+}

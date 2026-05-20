@@ -7,174 +7,174 @@
 ## 1. shared-domain (`com.gameplatform.shared.domain`)
 
 ### 1.1 Modello di Dominio (`model/`)
-- [ ] `UserId` (record)
-  - [ ] `UserId(String value)`
-  - [ ] `String value()`
-- [ ] `GameId` (record)
-  - [ ] `GameId(String value)`
-  - [ ] `String value()`
-- [ ] `BuildingId` (record)
-  - [ ] `BuildingId(String value)`
-  - [ ] `String value()`
-- [ ] `GameSessionId` (record)
-  - [ ] `GameSessionId(String value)`
-  - [ ] `String value()`
-- [ ] `ReservationId` (record)
-  - [ ] `ReservationId(String value)`
-  - [ ] `String value()`
-- [ ] `GameType` (enum)
-  - [ ] `CHESS`
-  - [ ] `FOOSBALL`
-  - [ ] `DARTS`
-  - [ ] `MONOPOLY`
-  - [ ] `RISK`
-  - [ ] `SLOT_MACHINE`
-  - [ ] `ROULETTE`
-- [ ] `GameStatus` (enum)
-  - [ ] `WAITING`
-  - [ ] `IN_PROGRESS`
-  - [ ] `PAUSED`
-  - [ ] `COMPLETED`
-  - [ ] `ABORTED`
-- [ ] `GameMachineStatus` (enum)
-  - [ ] `AVAILABLE`
-  - [ ] `RESERVED`
-  - [ ] `IN_USE`
-  - [ ] `MAINTENANCE`
-- [ ] `ReservationStatus` (enum)
-  - [ ] `PENDING`
-  - [ ] `CONFIRMED`
-  - [ ] `CANCELLED`
-  - [ ] `EXPIRED`
-- [ ] `WinCondition` (enum)
-  - [ ] `WIN`
-  - [ ] `DRAW`
-  - [ ] `ABANDONED`
-  - [ ] `TIMEOUT`
-- [ ] `StopReason` (enum)
-  - [ ] `COMPLETED`
-  - [ ] `ABORTED`
-  - [ ] `TIMEOUT`
+- [x] `UserId` (record)
+  - [x] `UserId(String value)`
+  - [x] `String value()`
+- [x] `GameId` (record)
+  - [x] `GameId(String value)`
+  - [x] `String value()`
+- [x] `BuildingId` (record)
+  - [x] `BuildingId(String value)`
+  - [x] `String value()`
+- [x] `GameSessionId` (record)
+  - [x] `GameSessionId(String value)`
+  - [x] `String value()`
+- [x] `ReservationId` (record)
+  - [x] `ReservationId(String value)`
+  - [x] `String value()`
+- [x] `GameType` (enum)
+  - [x] `CHESS`
+  - [x] `FOOSBALL`
+  - [x] `DARTS`
+  - [x] `MONOPOLY`
+  - [x] `RISK`
+  - [x] `SLOT_MACHINE`
+  - [x] `ROULETTE`
+- [x] `GameStatus` (enum)
+  - [x] `WAITING`
+  - [x] `IN_PROGRESS`
+  - [x] `PAUSED`
+  - [x] `COMPLETED`
+  - [x] `ABORTED`
+- [x] `GameMachineStatus` (enum)
+  - [x] `AVAILABLE`
+  - [x] `RESERVED`
+  - [x] `IN_USE`
+  - [x] `MAINTENANCE`
+- [x] `ReservationStatus` (enum)
+  - [x] `PENDING`
+  - [x] `CONFIRMED`
+  - [x] `CANCELLED`
+  - [x] `EXPIRED`
+- [x] `WinCondition` (enum)
+  - [x] `WIN`
+  - [x] `DRAW`
+  - [x] `ABANDONED`
+  - [x] `TIMEOUT`
+- [x] `StopReason` (enum)
+  - [x] `COMPLETED`
+  - [x] `ABORTED`
+  - [x] `TIMEOUT`
 
 ### 1.2 Interfacce di Gioco (`game/`)
-- [ ] `GameLifecycle` (interface)
-  - [ ] `void start(List<UserId> participants)`
-  - [ ] `void stop(StopReason reason)`
-  - [ ] `void pause()`
-  - [ ] `void resume()`
-  - [ ] `GameStatus getStatus()`
-  - [ ] `GameType getGameType()`
-  - [ ] `GameSessionId getSessionId()`
-- [ ] `TurnBasedGame` (interface)
-  - [ ] `UserId getCurrentPlayer()`
-  - [ ] `void endTurn()`
-  - [ ] `int getTurnNumber()`
-- [ ] `ScoredGame` (interface)
-  - [ ] `Map<UserId, Integer> getCurrentScores()`
-  - [ ] `void recordScore(UserId player, int delta)`
-- [ ] `ResourceBasedGame` (interface)
-  - [ ] `Map<UserId, Map<String, Integer>> getResources()`
-  - [ ] `void updateResource(UserId player, String resourceKey, int newValue)`
-- [ ] `BoardGame` (interface)
-  - [ ] `String serializeBoardState()`
-  - [ ] `void restoreBoardState(String serializedState)`
+- [x] `GameLifecycle` (interface)
+  - [x] `void start(List<UserId> participants)`
+  - [x] `void stop(StopReason reason)`
+  - [x] `void pause()`
+  - [x] `void resume()`
+  - [x] `GameStatus getStatus()`
+  - [x] `GameType getGameType()`
+  - [x] `GameSessionId getSessionId()`
+- [x] `TurnBasedGame` (interface)
+  - [x] `UserId getCurrentPlayer()`
+  - [x] `void endTurn()`
+  - [x] `int getTurnNumber()`
+- [x] `ScoredGame` (interface)
+  - [x] `Map<UserId, Integer> getCurrentScores()`
+  - [x] `void recordScore(UserId player, int delta)`
+- [x] `ResourceBasedGame` (interface)
+  - [x] `Map<UserId, Map<String, Integer>> getResources()`
+  - [x] `void updateResource(UserId player, String resourceKey, int newValue)`
+- [x] `BoardGame` (interface)
+  - [x] `String serializeBoardState()`
+  - [x] `void restoreBoardState(String serializedState)`
 
 ### 1.3 Risultati dei Giochi (`result/`)
-- [ ] `GameResult` (interface)
-  - [ ] `UserId getWinnerId()`
-  - [ ] `List<UserId> getWinnerIds()`
-  - [ ] `WinCondition getWinCondition()`
-- [ ] `FoosballResult` (record)
-  - [ ] `FoosballResult(UserId winnerId, List<UserId> winnerIds, Map<String, Integer> finalScores, WinCondition winCondition)`
-  - [ ] `UserId winnerId()`
-  - [ ] `List<UserId> winnerIds()`
-  - [ ] `Map<String, Integer> finalScores()`
-  - [ ] `WinCondition winCondition()`
-- [ ] `ChessResult` (record)
-  - [ ] `ChessResult(UserId winnerId, List<UserId> winnerIds, String terminationReason, String finalFenState, WinCondition winCondition)`
-  - [ ] `UserId winnerId()`
-  - [ ] `List<UserId> winnerIds()`
-  - [ ] `String terminationReason()`
-  - [ ] `String finalFenState()`
-  - [ ] `WinCondition winCondition()`
-- [ ] `DartsResult` (record)
-  - [ ] `DartsResult(UserId winnerId, List<UserId> winnerIds, Map<String, Integer> finalScores, Map<String, Integer> dartsThrown, WinCondition winCondition)`
-  - [ ] `UserId winnerId()`
-  - [ ] `List<UserId> winnerIds()`
-  - [ ] `Map<String, Integer> finalScores()`
-  - [ ] `Map<String, Integer> dartsThrown()`
-  - [ ] `WinCondition winCondition()`
-- [ ] `MonopolyResult` (record)
-  - [ ] `MonopolyResult(UserId winnerId, List<UserId> winnerIds, Map<String, Integer> finalMoney, Map<String, List<String>> ownedProperties, WinCondition winCondition)`
-  - [ ] `UserId winnerId()`
-  - [ ] `List<UserId> winnerIds()`
-  - [ ] `Map<String, Integer> finalMoney()`
-  - [ ] `Map<String, List<String>> ownedProperties()`
-  - [ ] `WinCondition winCondition()`
-- [ ] `RiskResult` (record)
-  - [ ] `RiskResult(UserId winnerId, List<UserId> winnerIds, Map<String, Map<String, Integer>> territoriesAtEnd, int totalRounds, WinCondition winCondition)`
-  - [ ] `UserId winnerId()`
-  - [ ] `List<UserId> winnerIds()`
-  - [ ] `Map<String, Map<String, Integer>> territoriesAtEnd()`
-  - [ ] `int totalRounds()`
-  - [ ] `WinCondition winCondition()`
-- [ ] `SlotResult` (record)
-  - [ ] `SlotResult(String visitorId, int totalSpins, int creditsIn, int creditsOut, int biggestWin, WinCondition winCondition)`
-  - [ ] `String visitorId()`
-  - [ ] `int totalSpins()`
-  - [ ] `int creditsIn()`
-  - [ ] `int creditsOut()`
-  - [ ] `int biggestWin()`
-  - [ ] `WinCondition winCondition()`
-- [ ] `RouletteResult` (record)
-  - [ ] `RouletteResult(String visitorId, int totalRounds, int totalBetAmount, int totalPayout, List<String> winningNumbers, WinCondition winCondition)`
-  - [ ] `String visitorId()`
-  - [ ] `int totalRounds()`
-  - [ ] `int totalBetAmount()`
-  - [ ] `int totalPayout()`
-  - [ ] `List<String> winningNumbers()`
-  - [ ] `WinCondition winCondition()`
+- [x] `GameResult` (interface)
+  - [x] `UserId getWinnerId()`
+  - [x] `List<UserId> getWinnerIds()`
+  - [x] `WinCondition getWinCondition()`
+- [x] `FoosballResult` (record)
+  - [x] `FoosballResult(UserId winnerId, List<UserId> winnerIds, Map<String, Integer> finalScores, WinCondition winCondition)`
+  - [x] `UserId winnerId()`
+  - [x] `List<UserId> winnerIds()`
+  - [x] `Map<String, Integer> finalScores()`
+  - [x] `WinCondition winCondition()`
+- [x] `ChessResult` (record)
+  - [x] `ChessResult(UserId winnerId, List<UserId> winnerIds, String terminationReason, String finalFenState, WinCondition winCondition)`
+  - [x] `UserId winnerId()`
+  - [x] `List<UserId> winnerIds()`
+  - [x] `String terminationReason()`
+  - [x] `String finalFenState()`
+  - [x] `WinCondition winCondition()`
+- [x] `DartsResult` (record)
+  - [x] `DartsResult(UserId winnerId, List<UserId> winnerIds, Map<String, Integer> finalScores, Map<String, Integer> dartsThrown, WinCondition winCondition)`
+  - [x] `UserId winnerId()`
+  - [x] `List<UserId> winnerIds()`
+  - [x] `Map<String, Integer> finalScores()`
+  - [x] `Map<String, Integer> dartsThrown()`
+  - [x] `WinCondition winCondition()`
+- [x] `MonopolyResult` (record)
+  - [x] `MonopolyResult(UserId winnerId, List<UserId> winnerIds, Map<String, Integer> finalMoney, Map<String, List<String>> ownedProperties, WinCondition winCondition)`
+  - [x] `UserId winnerId()`
+  - [x] `List<UserId> winnerIds()`
+  - [x] `Map<String, Integer> finalMoney()`
+  - [x] `Map<String, List<String>> ownedProperties()`
+  - [x] `WinCondition winCondition()`
+- [x] `RiskResult` (record)
+  - [x] `RiskResult(UserId winnerId, List<UserId> winnerIds, Map<String, Map<String, Integer>> territoriesAtEnd, int totalRounds, WinCondition winCondition)`
+  - [x] `UserId winnerId()`
+  - [x] `List<UserId> winnerIds()`
+  - [x] `Map<String, Map<String, Integer>> territoriesAtEnd()`
+  - [x] `int totalRounds()`
+  - [x] `WinCondition winCondition()`
+- [x] `SlotResult` (record)
+  - [x] `SlotResult(String visitorId, int totalSpins, int creditsIn, int creditsOut, int biggestWin, WinCondition winCondition)`
+  - [x] `String visitorId()`
+  - [x] `int totalSpins()`
+  - [x] `int creditsIn()`
+  - [x] `int creditsOut()`
+  - [x] `int biggestWin()`
+  - [x] `WinCondition winCondition()`
+- [x] `RouletteResult` (record)
+  - [x] `RouletteResult(String visitorId, int totalRounds, int totalBetAmount, int totalPayout, List<String> winningNumbers, WinCondition winCondition)`
+  - [x] `String visitorId()`
+  - [x] `int totalRounds()`
+  - [x] `int totalBetAmount()`
+  - [x] `int totalPayout()`
+  - [x] `List<String> winningNumbers()`
+  - [x] `WinCondition winCondition()`
 
 ### 1.4 Eventi di Dominio (`events/`)
-- [ ] `DomainEvent` (interface)
-  - [ ] `String getEventId()`
-  - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
-- [ ] `UserRegisteredEvent` (record)
-  - [ ] `UserRegisteredEvent(String eventId, Instant occurredAt, UserId userId, String username, String hashedPassword, List<String> roles)`
-  - [ ] `String getEventId()`
-  - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
-- [ ] `UserUpdatedEvent` (record)
-  - [ ] `UserUpdatedEvent(String eventId, Instant occurredAt, UserId userId, String username, String hashedPassword, List<String> roles)`
-  - [ ] `String getEventId()`
-  - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
-- [ ] `ReservationCreatedEvent` (record)
-  - [ ] `ReservationCreatedEvent(String eventId, Instant occurredAt, ReservationId reservationId, GameId gameId, UserId userId, BuildingId buildingId)`
-  - [ ] `String getEventId()`
-  - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
-- [ ] `ReservationCancelledEvent` (record)
-  - [ ] `ReservationCancelledEvent(String eventId, Instant occurredAt, ReservationId reservationId)`
-  - [ ] `String getEventId()`
-  - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
-- [ ] `GameSessionCompletedEvent` (record)
-  - [ ] `GameSessionCompletedEvent(String eventId, Instant occurredAt, GameSessionId sessionId, GameType gameType, String resultJson)`
-  - [ ] `String getEventId()`
-  - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
-- [ ] `GameStateChangedEvent` (record)
-  - [ ] `GameStateChangedEvent(String eventId, Instant occurredAt, GameId gameId, GameMachineStatus oldStatus, GameMachineStatus newStatus)`
-  - [ ] `String getEventId()`
-  - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
-- [ ] `StatisticsUpdatedEvent` (record)
-  - [ ] `StatisticsUpdatedEvent(String eventId, Instant occurredAt, BuildingId buildingId)`
-  - [ ] `String getEventId()`
-  - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
+- [x] `DomainEvent` (interface)
+  - [x] `String getEventId()`
+  - [x] `Instant getOccurredAt()`
+  - [x] `String getEventType()`
+- [x] `UserRegisteredEvent` (record)
+  - [x] `UserRegisteredEvent(String eventId, Instant occurredAt, UserId userId, String username, String hashedPassword, List<String> roles)`
+  - [x] `String getEventId()`
+  - [x] `Instant getOccurredAt()`
+  - [x] `String getEventType()`
+- [x] `UserUpdatedEvent` (record)
+  - [x] `UserUpdatedEvent(String eventId, Instant occurredAt, UserId userId, String username, String hashedPassword, List<String> roles)`
+  - [x] `String getEventId()`
+  - [x] `Instant getOccurredAt()`
+  - [x] `String getEventType()`
+- [x] `ReservationCreatedEvent` (record)
+  - [x] `ReservationCreatedEvent(String eventId, Instant occurredAt, ReservationId reservationId, GameId gameId, UserId userId, BuildingId buildingId)`
+  - [x] `String getEventId()`
+  - [x] `Instant getOccurredAt()`
+  - [x] `String getEventType()`
+- [x] `ReservationCancelledEvent` (record)
+  - [x] `ReservationCancelledEvent(String eventId, Instant occurredAt, ReservationId reservationId)`
+  - [x] `String getEventId()`
+  - [x] `Instant getOccurredAt()`
+  - [x] `String getEventType()`
+- [x] `GameSessionCompletedEvent` (record)
+  - [x] `GameSessionCompletedEvent(String eventId, Instant occurredAt, GameSessionId sessionId, GameType gameType, String resultJson)`
+  - [x] `String getEventId()`
+  - [x] `Instant getOccurredAt()`
+  - [x] `String getEventType()`
+- [x] `GameStateChangedEvent` (record)
+  - [x] `GameStateChangedEvent(String eventId, Instant occurredAt, GameId gameId, GameMachineStatus oldStatus, GameMachineStatus newStatus)`
+  - [x] `String getEventId()`
+  - [x] `Instant getOccurredAt()`
+  - [x] `String getEventType()`
+- [x] `StatisticsUpdatedEvent` (record)
+  - [x] `StatisticsUpdatedEvent(String eventId, Instant occurredAt, BuildingId buildingId)`
+  - [x] `String getEventId()`
+  - [x] `Instant getOccurredAt()`
+  - [x] `String getEventType()`
 
 ## 2. shared-dto (`com.gameplatform.shared.dto`)
 
