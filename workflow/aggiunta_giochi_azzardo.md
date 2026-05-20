@@ -1,5 +1,3 @@
-Viewed architettura_classi.md:647-654
-
 ## Analisi: Supporto Slot Machine e Roulette
 
 ### Caratteristiche di questi giochi
