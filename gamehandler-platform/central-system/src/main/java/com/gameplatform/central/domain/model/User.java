@@ -22,11 +22,11 @@ public class User {
         this.createdAt = createdAt;
     }
 
-    void changePassword(String newPasswordHash) {
+    public void changePassword(String newPasswordHash) {
         this.passwordHash = newPasswordHash;
     }
 
-    void updateRoles(List<String> newRoles) {
+    public void updateRoles(List<String> newRoles) {
         this.roles = newRoles;
     }
 
