@@ -366,13 +366,13 @@ game-client-emulator/src/main/java/com/gameplatform/client/
 | Classe | Tipo | Descrizione | Dipendenze |
 |---|---|---|---|
 | `DomainEvent` | interface | Interfaccia marker per tutti gli eventi di dominio. Metodi: `getEventId()`, `getOccurredAt()`, `getEventType()`. | — |
-| `UserRegisteredEvent` | record | Evento emesso alla registrazione utente. Payload: `userId`, `username`, `hashedPassword`, `roles`. | `DomainEvent` |
-| `UserUpdatedEvent` | record | Evento emesso alla modifica di un utente (cambio password o ruoli). Payload: `userId`, `username`, `hashedPassword`, `roles`. Attiva la replica aggiornata verso tutti i Local Server. | `DomainEvent` |
-| `ReservationCreatedEvent` | record | Evento emesso alla creazione prenotazione. Payload: `reservationId`, `gameId`, `userId`, `buildingId`. | `DomainEvent` |
-| `ReservationCancelledEvent` | record | Evento emesso alla cancellazione prenotazione. | `DomainEvent` |
-| `GameSessionCompletedEvent` | record | Evento emesso al completamento di una sessione. Payload: `sessionId`, `gameType`, `result (JSON)`. | `DomainEvent` |
-| `GameStateChangedEvent` | record | Evento emesso al cambio stato macchina fisica. Payload: `gameId`, `oldStatus`, `newStatus`. | `DomainEvent`, `GameMachineStatus` |
-| `StatisticsUpdatedEvent` | record | Evento emesso quando le statistiche locali sono pronte per la sync. | `DomainEvent` |
+| `UserRegisteredEvent` | record | Evento emesso alla registrazione utente. Payload: `userId`, `username`, `hashedPassword`, `roles`. `getEventType()` restituisce `"USER_REGISTERED"`. | `DomainEvent` |
+| `UserUpdatedEvent` | record | Evento emesso alla modifica di un utente (cambio password o ruoli). Payload: `userId`, `username`, `hashedPassword`, `roles`. Attiva la replica aggiornata verso tutti i Local Server. `getEventType()` restituisce `"USER_UPDATED"`. | `DomainEvent` |
+| `ReservationCreatedEvent` | record | Evento emesso alla creazione prenotazione. Payload: `reservationId`, `gameId`, `userId`, `buildingId`. `getEventType()` restituisce `"RESERVATION_CREATED"`. | `DomainEvent` |
+| `ReservationCancelledEvent` | record | Evento emesso alla cancellazione prenotazione. `getEventType()` restituisce `"RESERVATION_CANCELLED"`. | `DomainEvent` |
+| `GameSessionCompletedEvent` | record | Evento emesso al completamento di una sessione. Payload: `sessionId`, `gameType`, `result (JSON)`. `getEventType()` restituisce `"GAME_SESSION_COMPLETED"`. | `DomainEvent` |
+| `GameStateChangedEvent` | record | Evento emesso al cambio stato macchina fisica. Payload: `gameId`, `oldStatus`, `newStatus`. `getEventType()` restituisce `"GAME_STATE_CHANGED"`. | `DomainEvent`, `GameMachineStatus` |
+| `StatisticsUpdatedEvent` | record | Evento emesso quando le statistiche locali sono pronte per la sync. `getEventType()` restituisce `"STATISTICS_UPDATED"`. | `DomainEvent` |
 
 ---
 

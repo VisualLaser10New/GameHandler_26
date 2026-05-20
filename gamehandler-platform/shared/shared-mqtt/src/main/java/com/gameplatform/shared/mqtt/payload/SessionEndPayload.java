@@ -1,3 +1,10 @@
 package main.java.com.gameplatform.shared.mqtt.payload;
 
-public record SessionEndPayload() {}
+import main.java.com.gameplatform.shared.domain.model.WinCondition;
+
+public record SessionEndPayload(
+    String sessionId,
+    String winnerId,
+    WinCondition winCondition,
+    String resultData
+) {}

@@ -126,6 +126,8 @@
   - [ ] `int creditsOut()`
   - [ ] `int biggestWin()`
   - [ ] `WinCondition winCondition()`
+  - [ ] `@Override UserId getWinnerId()` (restituisce `new UserId(visitorId)` se `winCondition == WinCondition.WIN`, altrimenti `null`)
+  - [ ] `@Override List<UserId> getWinnerIds()` (restituisce `List.of(getWinnerId())` se non nullo, altrimenti lista vuota)
 - [ ] `RouletteResult` (record)
   - [ ] `RouletteResult(String visitorId, int totalRounds, int totalBetAmount, int totalPayout, List<String> winningNumbers, WinCondition winCondition)`
   - [ ] `String visitorId()`
@@ -134,47 +136,49 @@
   - [ ] `int totalPayout()`
   - [ ] `List<String> winningNumbers()`
   - [ ] `WinCondition winCondition()`
+  - [ ] `@Override UserId getWinnerId()` (restituisce `new UserId(visitorId)` se `winCondition == WinCondition.WIN`, altrimenti `null`)
+  - [ ] `@Override List<UserId> getWinnerIds()` (restituisce `List.of(getWinnerId())` se non nullo, altrimenti lista vuota)
 
 ### 1.4 Eventi di Dominio (`events/`)
 - [ ] `DomainEvent` (interface)
   - [ ] `String getEventId()`
   - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
+  - [ ] `String getEventType()` (restituisce il tipo di evento come stringa statica)
 - [ ] `UserRegisteredEvent` (record)
   - [ ] `UserRegisteredEvent(String eventId, Instant occurredAt, UserId userId, String username, String hashedPassword, List<String> roles)`
   - [ ] `String getEventId()`
   - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
+  - [ ] `String getEventType()` (restituisce sempre "USER_REGISTERED")
 - [ ] `UserUpdatedEvent` (record)
   - [ ] `UserUpdatedEvent(String eventId, Instant occurredAt, UserId userId, String username, String hashedPassword, List<String> roles)`
   - [ ] `String getEventId()`
   - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
+  - [ ] `String getEventType()` (restituisce sempre "USER_UPDATED")
 - [ ] `ReservationCreatedEvent` (record)
   - [ ] `ReservationCreatedEvent(String eventId, Instant occurredAt, ReservationId reservationId, GameId gameId, UserId userId, BuildingId buildingId)`
   - [ ] `String getEventId()`
   - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
+  - [ ] `String getEventType()` (restituisce sempre "RESERVATION_CREATED")
 - [ ] `ReservationCancelledEvent` (record)
   - [ ] `ReservationCancelledEvent(String eventId, Instant occurredAt, ReservationId reservationId)`
   - [ ] `String getEventId()`
   - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
+  - [ ] `String getEventType()` (restituisce sempre "RESERVATION_CANCELLED")
 - [ ] `GameSessionCompletedEvent` (record)
   - [ ] `GameSessionCompletedEvent(String eventId, Instant occurredAt, GameSessionId sessionId, GameType gameType, String resultJson)`
   - [ ] `String getEventId()`
   - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
+  - [ ] `String getEventType()` (restituisce sempre "GAME_SESSION_COMPLETED")
 - [ ] `GameStateChangedEvent` (record)
   - [ ] `GameStateChangedEvent(String eventId, Instant occurredAt, GameId gameId, GameMachineStatus oldStatus, GameMachineStatus newStatus)`
   - [ ] `String getEventId()`
   - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
+  - [ ] `String getEventType()` (restituisce sempre "GAME_STATE_CHANGED")
 - [ ] `StatisticsUpdatedEvent` (record)
   - [ ] `StatisticsUpdatedEvent(String eventId, Instant occurredAt, BuildingId buildingId)`
   - [ ] `String getEventId()`
   - [ ] `Instant getOccurredAt()`
-  - [ ] `String getEventType()`
+  - [ ] `String getEventType()` (restituisce sempre "STATISTICS_UPDATED")
 
 ## 2. shared-dto (`com.gameplatform.shared.dto`)
 

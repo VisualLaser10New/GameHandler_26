@@ -1,3 +1,8 @@
 package main.java.com.gameplatform.shared.mqtt.payload;
 
-public record HeartbeatPayload() {}
+import java.time.Instant;
+
+public record HeartbeatPayload(
+    String gameId,
+    Instant timestamp
+) {}
