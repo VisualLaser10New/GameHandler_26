@@ -28,7 +28,7 @@ public class AggregatedStatistics {
         this.totalSessions = totalSessions;
         this.avgDurationSeconds = avgDurationSeconds;
         this.totalReservations = totalReservations;
-        this.data = data;
+        this.data = data != null ? new java.util.HashMap<>(data) : new java.util.HashMap<>();
     }
 
     public void mergeWith(AggregatedStatistics other) {
@@ -36,7 +36,7 @@ public class AggregatedStatistics {
             return;
         }
 
-        if (!Objects.equals(this.buildingId, other.buildingId)) {
+        if (!java.util.Objects.equals(this.buildingId, other.buildingId)) {
             throw new IllegalArgumentException("Cannot merge statistics belonging to different buildings");
         }
         if (this.gameType != other.gameType) {
@@ -62,7 +62,7 @@ public class AggregatedStatistics {
             this.periodEnd = other.periodEnd;
         }
 
-        Map<String, Object> mergedData = new HashMap<>();
+        java.util.Map<String, Object> mergedData = new java.util.HashMap<>();
         if (this.data != null) {
             mergedData.putAll(this.data);
         }
