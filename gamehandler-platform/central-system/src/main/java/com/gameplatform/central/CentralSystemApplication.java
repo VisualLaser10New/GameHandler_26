@@ -1,3 +1,13 @@
 package main.java.com.gameplatform.central;
 
-public class CentralSystemApplication {}
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+@SpringBootApplication
+@EnableScheduling
+public class CentralSystemApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(CentralSystemApplication.class, args);
+    }
+}
