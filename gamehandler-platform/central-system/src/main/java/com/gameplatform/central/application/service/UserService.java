@@ -1,3 +1,92 @@
 package com.gameplatform.central.application.service;
 
-public class UserService {}
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gameplatform.central.domain.model.OutboxEvent;
+import com.gameplatform.central.domain.model.User;
+import com.gameplatform.central.domain.ports.in.GetAllUsersUseCase;
+import com.gameplatform.central.domain.ports.in.RegisterUserUseCase;
+import com.gameplatform.central.domain.ports.in.UpdateUserUseCase;
+import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
+import com.gameplatform.central.domain.ports.out.UserRepository;
+import com.gameplatform.shared.domain.model.UserId;
+import com.gameplatform.shared.dto.UserSyncDto;
+import org.springframework.security.crypto.bcrypt.BCrypt;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetAllUsersUseCase {
+    private final UserRepository userRepository;
+    private final OutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
+
+    public UserService(UserRepository userRepository, OutboxEventRepository outboxEventRepository, ObjectMapper objectMapper) {
+        this.userRepository = userRepository;
+        this.outboxEventRepository = outboxEventRepository;
+        this.objectMapper = objectMapper;
+    }
+
+    @Transactional
+    @Override
+    public List<UserSyncDto> getAllUsersForSync() {
+        return userRepository.findAll().stream().map(user ->
+            new UserSyncDto(user.getId().value(), user.getUsername(), user.getPasswordHash(), user.getRoles())
+        ).collect(Collectors.toList());
+    }
+
+    @Transactional
+    @Override
+    public User register(String username, String password, String email) {
+        if (userRepository.findByUsername(username).isPresent() || userRepository.findByEmail(email).isPresent()) {
+            throw new IllegalArgumentException("Username or email already in use");
+        }
+
+        String userId = UUID.randomUUID().toString();
+        String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
+
+        User registrato = new User(new UserId(userId), username, hashedPassword, email, List.of("USER"), Instant.now());
+
+        return saveUserOnDB(registrato, "USER_REGISTERED");
+    }
+
+    @Override
+    public User updateUser(UserId id, String newPassword, List<String> newRoles) {
+        User user = userRepository.findById(id).orElseThrow(() ->
+            new IllegalArgumentException("User not found")
+        );
+
+        if (newPassword != null && !newPassword.isBlank()) {
+            String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+            user.changePassword(hashedPassword);
+        }
+
+        if (newRoles != null && !newRoles.isEmpty()) {
+            user.updateRoles(newRoles);
+        }
+
+        return saveUserOnDB(user, "USER_UPDATED");
+    }
+    
+    private User saveUserOnDB(User user, String eventType) {
+        User savedUser = userRepository.save(user);
+
+        UserSyncDto userSyncDto = new UserSyncDto(savedUser.getId().value(), savedUser.getUsername(), savedUser.getPasswordHash(), savedUser.getRoles());
+
+        String jsonPayLoad;
+        try {
+            jsonPayLoad = objectMapper.writeValueAsString(userSyncDto);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize user to JSON: ", e);
+        }
+
+        OutboxEvent outboxEvent = new OutboxEvent(UUID.randomUUID().toString(), eventType, jsonPayLoad, "PENDING", Instant.now(), null);
+
+        outboxEventRepository.save(outboxEvent);
+
+        return savedUser;
+    }
+}
