@@ -468,64 +468,64 @@
 ## 5. local-server (`com.gameplatform.local`)
 
 ### 5.1 Modello di Dominio Locale (`domain/model/`)
-- [ ] `Reservation` (class)
-  - [ ] `Reservation(ReservationId id, GameId gameId, UserId userId, ReservationStatus status, Instant startTime, Instant endTime, Instant createdAt)`
-  - [ ] `boolean canBeCancelled(Clock clock)`
-  - [ ] `void confirm()`
-  - [ ] `void cancel()`
-  - [ ] `void expire()`
-- [ ] `Game` (class)
-  - [ ] `Game(GameId id, GameType gameType, String name, BuildingId buildingId, GameMachineStatus status)`
-  - [ ] `void reserve()`
-  - [ ] `void startUse()`
-  - [ ] `void release()`
-  - [ ] `void setMaintenance()`
-- [ ] `User` (class)
-  - [ ] `User(UserId userId, String username, String passwordHash, List<String> roles, Instant syncedAt)`
-- [ ] `GameSession` (class)
-  - [ ] `GameSession(GameSessionId id, GameId gameId, GameType gameType, BuildingId buildingId, GameStatus status, Instant startedAt, Instant endedAt, Integer durationSeconds, UserId winnerId, WinCondition winCondition, GameResult result)`
-  - [ ] `void complete(GameResult result)`
-  - [ ] `void abort(StopReason reason)`
-  - [ ] `void pause()`
-  - [ ] `void resume()`
-  - [ ] `void calculateDuration()`
-- [ ] `OutboxEvent` (class)
-  - [ ] `OutboxEvent(String id, String eventType, String payload, String status, Instant createdAt, Instant sentAt, int retryCount)`
-  - [ ] `void markAsSent()`
-  - [ ] `void incrementRetry()`
-  - [ ] `boolean hasFailed()`
-- [ ] `LocalStatistics` (class)
-  - [ ] `LocalStatistics(GameType gameType, int totalSessions, double avgDuration, int totalReservations, Map<String, Double> winRateByUser)`
-  - [ ] `void recalculate(List<GameSession> sessions)`
+- [x] `Reservation` (class)
+  - [x] `Reservation(ReservationId id, GameId gameId, UserId userId, ReservationStatus status, Instant startTime, Instant endTime, Instant createdAt)`
+  - [x] `boolean canBeCancelled(Clock clock)`
+  - [x] `void confirm()`
+  - [x] `void cancel()`
+  - [x] `void expire()`
+- [x] `Game` (class)
+  - [x] `Game(GameId id, GameType gameType, String name, BuildingId buildingId, GameMachineStatus status)`
+  - [x] `void reserve()`
+  - [x] `void startUse()`
+  - [x] `void release()`
+  - [x] `void setMaintenance()`
+- [x] `User` (class)
+  - [x] `User(UserId userId, String username, String passwordHash, List<String> roles, Instant syncedAt)`
+- [x] `GameSession` (class)
+  - [x] `GameSession(GameSessionId id, GameId gameId, GameType gameType, BuildingId buildingId, GameStatus status, Instant startedAt, Instant endedAt, Integer durationSeconds, UserId winnerId, WinCondition winCondition, GameResult result)`
+  - [x] `void complete(GameResult result)`
+  - [x] `void abort(StopReason reason)`
+  - [x] `void pause()`
+  - [x] `void resume()`
+  - [x] `void calculateDuration()`
+- [x] `OutboxEvent` (class)
+  - [x] `OutboxEvent(String id, String eventType, String payload, String status, Instant createdAt, Instant sentAt, int retryCount)`
+  - [x] `void markAsSent()`
+  - [x] `void incrementRetry()`
+  - [x] `boolean hasFailed()`
+- [x] `LocalStatistics` (class)
+  - [x] `LocalStatistics(GameType gameType, int totalSessions, double avgDuration, int totalReservations, Map<String, Double> winRateByUser)`
+  - [x] `void recalculate(List<GameSession> sessions)`
 
 ### 5.2 Porte di Ingresso Locali (`domain/ports/in/`)
-- [ ] `CreateReservationUseCase` (interface)
-  - [ ] `Reservation create(GameId gameId, UserId userId, Instant start, Instant end)`
-- [ ] `CancelReservationUseCase` (interface)
-  - [ ] `void cancel(ReservationId reservationId)`
-- [ ] `GetReservationsUseCase` (interface)
-  - [ ] `List<Reservation> getByUser(UserId userId)`
-  - [ ] `List<Reservation> getByGame(GameId gameId)`
-- [ ] `UpdateGameStateUseCase` (interface)
-  - [ ] `void updateState(GameId gameId, GameMachineStatus newStatus)`
-- [ ] `GetAvailableGamesUseCase` (interface)
-  - [ ] `List<Game> getAvailable()`
-  - [ ] `List<Game> getAll()`
-- [ ] `StartGameSessionUseCase` (interface)
-  - [ ] `GameSession start(GameId gameId, GameType gameType, List<UserId> participants, ReservationId reservationId)`
-- [ ] `EndGameSessionUseCase` (interface)
-  - [ ] `void end(GameSessionId sessionId, GameResult result)`
-- [ ] `PauseGameSessionUseCase` (interface)
-  - [ ] `void pause(GameSessionId sessionId)`
-- [ ] `ResumeGameSessionUseCase` (interface)
-  - [ ] `void resume(GameSessionId sessionId)`
-- [ ] `GetStatisticsUseCase` (interface)
-  - [ ] `LocalStatistics getStatistics(GameType gameType)`
-  - [ ] `List<GameSession> getActiveSessions()`
-- [ ] `AuthenticateLocalUserUseCase` (interface)
-  - [ ] `LoginResponseDto authenticate(String username, String password)`
-- [ ] `SyncUsersUseCase` (interface)
-  - [ ] `void syncUsers(List<UserSyncDto> users)`
+- [x] `CreateReservationUseCase` (interface)
+  - [x] `Reservation create(GameId gameId, UserId userId, Instant start, Instant end)`
+- [x] `CancelReservationUseCase` (interface)
+  - [x] `void cancel(ReservationId reservationId)`
+- [x] `GetReservationsUseCase` (interface)
+  - [x] `List<Reservation> getByUser(UserId userId)`
+  - [x] `List<Reservation> getByGame(GameId gameId)`
+- [x] `UpdateGameStateUseCase` (interface)
+  - [x] `void updateState(GameId gameId, GameMachineStatus newStatus)`
+- [x] `GetAvailableGamesUseCase` (interface)
+  - [x] `List<Game> getAvailable()`
+  - [x] `List<Game> getAll()`
+- [x] `StartGameSessionUseCase` (interface)
+  - [x] `GameSession start(GameId gameId, GameType gameType, List<UserId> participants, ReservationId reservationId)`
+- [x] `EndGameSessionUseCase` (interface)
+  - [x] `void end(GameSessionId sessionId, GameResult result)`
+- [x] `PauseGameSessionUseCase` (interface)
+  - [x] `void pause(GameSessionId sessionId)`
+- [x] `ResumeGameSessionUseCase` (interface)
+  - [x] `void resume(GameSessionId sessionId)`
+- [x] `GetStatisticsUseCase` (interface)
+  - [x] `LocalStatistics getStatistics(GameType gameType)`
+  - [x] `List<GameSession> getActiveSessions()`
+- [x] `AuthenticateLocalUserUseCase` (interface)
+  - [x] `LoginResponseDto authenticate(String username, String password)`
+- [x] `SyncUsersUseCase` (interface)
+  - [x] `void syncUsers(List<UserSyncDto> users)`
 
 ### 5.3 Porte di Uscita Locali (`domain/ports/out/`)
 - [ ] `ReservationRepository` (interface)
