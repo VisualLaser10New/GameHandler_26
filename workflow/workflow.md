@@ -576,36 +576,36 @@
 - [x] `InvalidGameStateTransitionException` (class)
 
 ### 5.5 Servizi Applicativi Locali (`application/service/`)
-- [ ] `ReservationService` (class)
-  - [ ] `Reservation create(GameId gameId, UserId userId, Instant start, Instant end)`
-  - [ ] `void cancel(ReservationId reservationId)`
-  - [ ] `List<Reservation> getByUser(UserId userId)`
-  - [ ] `List<Reservation> getByGame(GameId gameId)`
-- [ ] `ReservationExpirationService` (class)
-  - [ ] `void expireReservations()`
-- [ ] `GameStateService` (class)
-  - [ ] `void updateState(GameId gameId, GameMachineStatus newStatus)`
-  - [ ] `List<Game> getAvailable()`
-  - [ ] `List<Game> getAll()`
-- [ ] `GameSessionService` (class)
-  - [ ] `GameSession start(GameId gameId, GameType gameType, List<UserId> participants, ReservationId reservationId)`
-  - [ ] `void end(GameSessionId sessionId, GameResult result)`
-  - [ ] `void pause(GameSessionId sessionId)`
-  - [ ] `void resume(GameSessionId sessionId)`
-- [ ] `SessionRecoveryService` (class)
-  - [ ] `void start()`
-  - [ ] `void stop()`
-- [ ] `StatisticsService` (class)
-  - [ ] `LocalStatistics getStatistics(GameType gameType)`
-  - [ ] `List<GameSession> getActiveSessions()`
-- [ ] `LocalAuthService` (class)
-  - [ ] `LoginResponseDto authenticate(String username, String password)`
-- [ ] `UserSyncService` (class)
-  - [ ] `void syncUsers(List<UserSyncDto> users)`
-- [ ] `SyncSchedulerService` (class)
-  - [ ] `void syncWithCentral()`
-- [ ] `HealthCheckService` (class)
-  - [ ] `void performHealthCheck()`
+- [x] `ReservationService` (class)
+  - [x] `Reservation create(GameId gameId, UserId userId, Instant start, Instant end)`
+  - [x] `void cancel(ReservationId reservationId)`
+  - [x] `List<Reservation> getByUser(UserId userId)`
+  - [x] `List<Reservation> getByGame(GameId gameId)`
+- [x] `ReservationExpirationService` (class)
+  - [x] `void expireReservations()`
+- [x] `GameStateService` (class)
+  - [x] `void updateState(GameId gameId, GameMachineStatus newStatus)`
+  - [x] `List<Game> getAvailable()`
+  - [x] `List<Game> getAll()`
+- [x] `GameSessionService` (class)
+  - [x] `GameSession start(GameId gameId, GameType gameType, List<UserId> participants, ReservationId reservationId)`
+  - [x] `void end(GameSessionId sessionId, GameResult result)`
+  - [x] `void pause(GameSessionId sessionId)`
+  - [x] `void resume(GameSessionId sessionId)`
+- [x] `SessionRecoveryService` (class)
+  - [x] `void start()`
+  - [x] `void stop()`
+- [x] `StatisticsService` (class)
+  - [x] `LocalStatistics getStatistics(GameType gameType)`
+  - [x] `List<GameSession> getActiveSessions()`
+- [x] `LocalAuthService` (class)
+  - [x] `LoginResponseDto authenticate(String username, String password)`
+- [x] `UserSyncService` (class)
+  - [x] `void syncUsers(List<UserSyncDto> users)`
+- [x] `SyncSchedulerService` (class)
+  - [x] `void syncWithCentral()`
+- [x] `HealthCheckService` (class)
+  - [x] `void performHealthCheck()`
 
 ### 5.6 Adattatori REST in Ingresso Locali (`infrastructure/adapters/in/rest/`)
 - [ ] `ReservationController` (class)

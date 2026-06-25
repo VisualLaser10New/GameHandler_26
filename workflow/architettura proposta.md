@@ -408,13 +408,13 @@ Poiché il sistema deve gestire giochi radicalmente diversi (calciobalilla, scac
 
 ### 9.2 Analisi dei Giochi Supportati
 
-| Gioco | Metrica di Vittoria | Contabilità Interna | Turni | Interfacce Applicabili |
-|---|---|---|---|---|
-| **Calciobalilla** | Gol (es. 5-3) | Nessuna | No | `GameLifecycle`, `ScoredGame` |
-| **Scacchi** | Scacco matto / abbandono | Pezzi catturati | Sì | `GameLifecycle`, `TurnBasedGame`, `BoardGame` |
-| **Freccette** | Chi scende prima a 0 (501) | Punteggio decrescente | Sì | `GameLifecycle`, `ScoredGame`, `TurnBasedGame` |
-| **Monopoli** | Ultimo non in bancarotta | Denaro + proprietà | Sì | `GameLifecycle`, `TurnBasedGame`, `ResourceBasedGame` |
-| **Risiko** | Conquista totale | Carri armati per territorio | Sì | `GameLifecycle`, `TurnBasedGame`, `ResourceBasedGame`, `BoardGame` |
+| Gioco             | Metrica di Vittoria        | Contabilità Interna         | Turni | Interfacce Applicabili                                             |
+|-------------------|----------------------------|-----------------------------|-------|--------------------------------------------------------------------|
+| **Calciobalilla** | Gol (es. 5-3)              | Nessuna                     | No    | `GameLifecycle`, `ScoredGame`                                      |
+| **Scacchi**       | Scacco matto / abbandono   | Pezzi catturati             | Sì    | `GameLifecycle`, `TurnBasedGame`, `BoardGame`                      |
+| **Freccette**     | Chi scende prima a 0 (501) | Punteggio decrescente       | Sì    | `GameLifecycle`, `ScoredGame`, `TurnBasedGame`                     |
+| **Monopoli**      | Ultimo non in bancarotta   | Denaro + proprietà          | Sì    | `GameLifecycle`, `TurnBasedGame`, `ResourceBasedGame`              |
+| **Risiko**        | Conquista totale           | Carri armati per territorio | Sì    | `GameLifecycle`, `TurnBasedGame`, `ResourceBasedGame`, `BoardGame` |
 
 Questi giochi hanno strutture dati di risultato **incompatibili tra loro**, rendendo impossibile un modello dati unificato a colonne fisse. La soluzione adottata è la combinazione di interfacce polimorfiche Java (per la type safety a compile-time) e colonna JSON nel database (per la flessibilità a runtime).
 
@@ -522,13 +522,13 @@ public record RiskResult(UserId winnerId, List<UserId> winnerIds,
 
 Si utilizza un **singolo database MySQL** sia per il Central System che per ogni Local Server. Sono state valutate 5 strategie di persistenza per i dati eterogenei dei giochi:
 
-| Strategia | Flessibilità | Complessità DB | Query Statistiche | Verdetto |
-|---|---|---|---|---|
-| **A — Single Table Inheritance** (colonne nullable per tipo) | ❌ Bassa | ✅ Semplice | ✅ Facile | ❌ Esplosione colonne: 10 giochi = 50+ colonne nullable |
-| **B — Table Per Type** (una tabella per gioco) | ❌ Bassa | ❌ Complessa | ✅ Facile | ❌ Ogni nuovo gioco = ALTER TABLE + nuovo repository |
-| **C — EAV** (Entity-Attribute-Value) | ✅ Alta | ⚠️ Media | ❌ Impossibile | ❌ Anti-pattern noto; aggregazioni SQL impraticabili |
-| **D — MySQL + colonna JSON** | ✅ Alta | ✅ Semplice | ✅ Buona | ✅ **Scelta adottata** |
-| **E — MongoDB** (database documentale) | ✅ Alta | ✅ Semplice | ✅ Buona | ❌ Overkill: aggiunge tecnologia senza benefici reali |
+| Strategia                                                    | Flessibilità | Complessità DB | Query Statistiche | Verdetto                                               |
+|--------------------------------------------------------------|--------------|----------------|-------------------|--------------------------------------------------------|
+| **A — Single Table Inheritance** (colonne nullable per tipo) | ❌ Bassa      | ✅ Semplice     | ✅ Facile          | ❌ Esplosione colonne: 10 giochi = 50+ colonne nullable |
+| **B — Table Per Type** (una tabella per gioco)               | ❌ Bassa      | ❌ Complessa    | ✅ Facile          | ❌ Ogni nuovo gioco = ALTER TABLE + nuovo repository    |
+| **C — EAV** (Entity-Attribute-Value)                         | ✅ Alta       | ⚠️ Media       | ❌ Impossibile     | ❌ Anti-pattern noto; aggregazioni SQL impraticabili    |
+| **D — MySQL + colonna JSON**                                 | ✅ Alta       | ✅ Semplice     | ✅ Buona           | ✅ **Scelta adottata**                                  |
+| **E — MongoDB** (database documentale)                       | ✅ Alta       | ✅ Semplice     | ✅ Buona           | ❌ Overkill: aggiunge tecnologia senza benefici reali   |
 
 **Motivazione della scelta D:** MySQL con colonna JSON offre il miglior trade-off perché:
 - Schema stabile: aggiungere un nuovo gioco richiede **zero** modifiche al DB.
