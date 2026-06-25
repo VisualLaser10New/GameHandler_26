@@ -2,6 +2,7 @@ package com.gameplatform.local.application.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.domain.exception.GameNotAvailableException;
+import com.gameplatform.local.domain.exception.ReservationExpiredException;
 import com.gameplatform.local.domain.exception.ReservationNotFoundException;
 import com.gameplatform.local.domain.exception.SessionAlreadyActiveException;
 import com.gameplatform.local.domain.model.Game;
@@ -74,6 +75,9 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         if (reservationId != null) {
             Reservation reservation = reservationRepository.findById(reservationId)
                     .orElseThrow(() -> new ReservationNotFoundException("Reservation not found: " + reservationId.value()));
+            if (reservation.getStatus() == ReservationStatus.EXPIRED || Instant.now(clock).isAfter(reservation.getEndTime())) {
+                throw new ReservationExpiredException("Reservation has expired: " + reservationId.value());
+            }
             reservation.confirm();
             reservationRepository.save(reservation);
         }

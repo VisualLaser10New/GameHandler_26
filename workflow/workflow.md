@@ -637,93 +637,93 @@
   - [x] `void handleHeartbeat(String topic, byte[] payload)`
 
 ### 5.8 Adattatori MySQL Locali (`infrastructure/adapters/out/mysql/`)
-- [ ] `ReservationJpaEntity` (class)
-- [ ] `GameJpaEntity` (class)
-- [ ] `UserJpaEntity` (class)
-- [ ] `GameSessionJpaEntity` (class)
-- [ ] `SessionParticipantJpaEntity` (class)
-- [ ] `OutboxEventJpaEntity` (class)
+- [x] `ReservationJpaEntity` (class)
+- [x] `GameJpaEntity` (class)
+- [x] `UserJpaEntity` (class)
+- [x] `GameSessionJpaEntity` (class)
+- [x] `SessionParticipantJpaEntity` (class)
+- [x] `OutboxEventJpaEntity` (class)
 
-- [ ] `ReservationJpaRepository` (interface)
-  - [ ] `List<ReservationJpaEntity> findByUserId(String userId)`
-  - [ ] `List<ReservationJpaEntity> findByGameId(String gameId)`
-- [ ] `GameJpaRepository` (interface)
-  - [ ] `List<GameJpaEntity> findByBuildingId(String buildingId)`
-  - [ ] `List<GameJpaEntity> findByStatus(String status)`
-- [ ] `UserJpaRepository` (interface)
-  - [ ] `Optional<UserJpaEntity> findByUsername(String username)`
-- [ ] `GameSessionJpaRepository` (interface)
-  - [ ] `List<GameSessionJpaEntity> findByBuildingId(String buildingId)`
-  - [ ] `List<GameSessionJpaEntity> findByStatus(String status)`
-- [ ] `OutboxEventJpaRepository` (interface)
-  - [ ] `List<OutboxEventJpaEntity> findByStatusOrderByCreatedAtAsc(String status)`
+- [x] `ReservationJpaRepository` (interface)
+  - [x] `List<ReservationJpaEntity> findByUserId(String userId)`
+  - [x] `List<ReservationJpaEntity> findByGameId(String gameId)`
+- [x] `GameJpaRepository` (interface)
+  - [x] `List<GameJpaEntity> findByBuildingId(String buildingId)`
+  - [x] `List<GameJpaEntity> findByStatus(String status)`
+- [x] `UserJpaRepository` (interface)
+  - [x] `Optional<UserJpaEntity> findByUsername(String username)`
+- [x] `GameSessionJpaRepository` (interface)
+  - [x] `List<GameSessionJpaEntity> findByBuildingId(String buildingId)`
+  - [x] `List<GameSessionJpaEntity> findByStatus(String status)`
+- [x] `OutboxEventJpaRepository` (interface)
+  - [x] `List<OutboxEventJpaEntity> findByStatusOrderByCreatedAtAsc(String status)`
 
-- [ ] `ReservationRepositoryAdapter` (class)
-  - [ ] `Reservation save(Reservation reservation)`
-  - [ ] `Optional<Reservation> findById(ReservationId id)`
-  - [ ] `List<Reservation> findByUserId(UserId userId)`
-- [ ] `GameRepositoryAdapter` (class)
-  - [ ] `Game save(Game game)`
-  - [ ] `Optional<Game> findById(GameId id)`
-  - [ ] `List<Game> findAll()`
-- [ ] `UserRepositoryAdapter` (class)
-  - [ ] `User save(User user)`
-  - [ ] `Optional<User> findByUsername(String username)`
-  - [ ] `void saveAll(List<User> users)`
-- [ ] `GameSessionRepositoryAdapter` (class)
-  - [ ] `GameSession save(GameSession session)`
-  - [ ] `Optional<GameSession> findById(GameSessionId id)`
-  - [ ] `List<GameSession> findPendingSync()`
-- [ ] `OutboxEventRepositoryAdapter` (class)
-  - [ ] `OutboxEvent save(OutboxEvent event)`
-  - [ ] `List<OutboxEvent> findPending()`
+- [x] `ReservationRepositoryAdapter` (class)
+  - [x] `Reservation save(Reservation reservation)`
+  - [x] `Optional<Reservation> findById(ReservationId id)`
+  - [x] `List<Reservation> findByUserId(UserId userId)`
+- [x] `GameRepositoryAdapter` (class)
+  - [x] `Game save(Game game)`
+  - [x] `Optional<Game> findById(GameId id)`
+  - [x] `List<Game> findAll()`
+- [x] `UserRepositoryAdapter` (class)
+  - [x] `User save(User user)`
+  - [x] `Optional<User> findByUsername(String username)`
+  - [x] `void saveAll(List<User> users)`
+- [x] `GameSessionRepositoryAdapter` (class)
+  - [x] `GameSession save(GameSession session)`
+  - [x] `Optional<GameSession> findById(GameSessionId id)`
+  - [x] `List<GameSession> findPendingSync()`
+- [x] `OutboxEventRepositoryAdapter` (class)
+  - [x] `OutboxEvent save(OutboxEvent event)`
+  - [x] `List<OutboxEvent> findPending()`
 
-- [ ] `ReservationMapper` (class)
-  - [ ] `Reservation toDomain(ReservationJpaEntity entity)`
-  - [ ] `ReservationJpaEntity toEntity(Reservation domain)`
-- [ ] `GameMapper` (class)
-  - [ ] `Game toDomain(GameJpaEntity entity)`
-  - [ ] `GameJpaEntity toEntity(Game domain)`
-- [ ] `UserMapper` (class)
-  - [ ] `User toDomain(UserJpaEntity entity)`
-  - [ ] `UserJpaEntity toEntity(User domain)`
-- [ ] `GameSessionMapper` (class)
-  - [ ] `GameSession toDomain(GameSessionJpaEntity entity)`
-  - [ ] `GameSessionJpaEntity toEntity(GameSession domain)`
-- [ ] `OutboxEventMapper` (class)
-  - [ ] `OutboxEvent toDomain(OutboxEventJpaEntity entity)`
-  - [ ] `OutboxEventJpaEntity toEntity(OutboxEvent domain)`
+- [x] `ReservationMapper` (class)
+  - [x] `Reservation toDomain(ReservationJpaEntity entity)`
+  - [x] `ReservationJpaEntity toEntity(Reservation domain)`
+- [x] `GameMapper` (class)
+  - [x] `Game toDomain(GameJpaEntity entity)`
+  - [x] `GameJpaEntity toEntity(Game domain)`
+- [x] `UserMapper` (class)
+  - [x] `User toDomain(UserJpaEntity entity)`
+  - [x] `UserJpaEntity toEntity(User domain)`
+- [x] `GameSessionMapper` (class)
+  - [x] `GameSession toDomain(GameSessionJpaEntity entity)`
+  - [x] `GameSessionJpaEntity toEntity(GameSession domain)`
+- [x] `OutboxEventMapper` (class)
+  - [x] `OutboxEvent toDomain(OutboxEventJpaEntity entity)`
+  - [x] `OutboxEventJpaEntity toEntity(OutboxEvent domain)`
 
 ### 5.9 REST e MQTT in Uscita (`infrastructure/adapters/out/rest/` e `mqtt/`)
-- [ ] `CentralSystemRestAdapter` (class)
-  - [ ] `boolean isReachable()`
-  - [ ] `boolean sendSyncPayload(SyncPayloadDto payload)`
-- [ ] `MqttPublisherAdapter` (class)
-  - [ ] `void publishState(GameId gameId, GameMachineStatus status)`
-  - [ ] `void publishAlert(AlertPayload payload)`
+- [x] `CentralSystemRestAdapter` (class)
+  - [x] `boolean isReachable()`
+  - [x] `boolean sendSyncPayload(SyncPayloadDto payload)`
+- [x] `MqttPublisherAdapter` (class)
+  - [x] `void publishState(GameId gameId, GameMachineStatus status)`
+  - [x] `void publishAlert(AlertPayload payload)`
 
 ### 5.10 Configurazione e Sicurezza Locali (`infrastructure/config/` e `security/`)
-- [ ] `LocalServerApplication` (class)
-  - [ ] `static void main(String[] args)`
-- [ ] `MqttConfig` (class)
-  - [ ] `IMqttClient mqttClient()`
-- [ ] `SecurityConfig` (class)
-  - [ ] `SecurityFilterChain filterChain(HttpSecurity http)`
-- [ ] `TlsConfig` (class)
-  - [ ] `SSLContext sslContext()`
-- [ ] `SchedulerConfig` (class)
-  - [ ] `Clock clock()`
-- [ ] `JwtTokenProvider` (class)
-  - [ ] `String generateToken(User user)`
-- [ ] `JwtTokenValidator` (class)
-  - [ ] `Claims validateToken(String token)`
-- [ ] `JwtAuthenticationFilter` (class)
-  - [ ] `void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)`
-- [ ] `InternalApiKeyFilter` (class)
-  - [ ] `void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)`
+- [x] `LocalServerApplication` (class)
+  - [x] `static void main(String[] args)`
+- [x] `MqttConfig` (class)
+  - [x] `IMqttClient mqttClient()`
+- [x] `SecurityConfig` (class)
+  - [x] `SecurityFilterChain filterChain(HttpSecurity http)`
+- [x] `TlsConfig` (class)
+  - [x] `SSLContext sslContext()`
+- [x] `SchedulerConfig` (class)
+  - [x] `Clock clock()`
+- [x] `JwtTokenProvider` (class)
+  - [x] `String generateToken(User user)`
+- [x] `JwtTokenValidator` (class)
+  - [x] `Claims validateToken(String token)`
+- [x] `JwtAuthenticationFilter` (class)
+  - [x] `void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)`
+- [x] `InternalApiKeyFilter` (class)
+  - [x] `void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)`
 
 ### 5.11 Verifica utilizzo Eccezioni
-- [ ] Verificare che le eccezioni create nel punto 5.4 siano state usate ogni qualvolta possibile dal codice scritto nel punto 5.x
+- [x] Verificare che le eccezioni create nel punto 5.4 siano state usate ogni qualvolta possibile dal codice scritto nei punti 5.x
 
 ## 6. game-client-emulator (`com.gameplatform.client`)
 

@@ -2,6 +2,7 @@ package com.gameplatform.local.application.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.domain.exception.GameNotAvailableException;
+import com.gameplatform.local.domain.exception.ReservationExpiredException;
 import com.gameplatform.local.domain.exception.ReservationNotFoundException;
 import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.model.OutboxEvent;
@@ -57,6 +58,10 @@ public class ReservationService implements CreateReservationUseCase, CancelReser
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new GameNotAvailableException("Game machine not found: " + gameId.id()));
 
+        if (end.isBefore(Instant.now(clock))) {
+            throw new ReservationExpiredException("Cannot create a reservation in the past");
+        }
+
         // Changes state to RESERVED, throws InvalidGameStateTransitionException if not AVAILABLE
         game.reserve();
         gameRepository.save(game);
@@ -111,6 +116,10 @@ public class ReservationService implements CreateReservationUseCase, CancelReser
     public void cancel(ReservationId reservationId) {
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ReservationNotFoundException("Reservation not found: " + reservationId.value()));
+
+        if (reservation.getStatus() == ReservationStatus.EXPIRED) {
+            throw new ReservationExpiredException("Cannot cancel an expired reservation: " + reservationId.value());
+        }
 
         if (!reservation.canBeCancelled(clock)) {
             throw new IllegalStateException("Reservation cannot be cancelled because it is not pending or start time is within 1 hour");
