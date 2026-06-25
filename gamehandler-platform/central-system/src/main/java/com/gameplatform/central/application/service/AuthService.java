@@ -7,10 +7,12 @@ import com.gameplatform.central.domain.ports.out.UserRepository;
 import com.gameplatform.central.infrastructure.security.JwtTokenProvider;
 import com.gameplatform.shared.dto.LoginResponseDto;
 import org.springframework.security.crypto.bcrypt.BCrypt;
+import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
+@Service
 public class AuthService implements AuthenticateUserUseCase {
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
@@ -22,7 +24,7 @@ public class AuthService implements AuthenticateUserUseCase {
 
     @Override
     public LoginResponseDto authenticate(String username, String password) {
-        InvalidCredentialsException excptn = new InvalidCredentialsException();
+        InvalidCredentialsException excptn = new InvalidCredentialsException("Invalid username or password");
         User utente = userRepository.findByUsername(username).orElseThrow(() -> excptn);
 
         if (BCrypt.checkpw(password, utente.getPasswordHash())) {

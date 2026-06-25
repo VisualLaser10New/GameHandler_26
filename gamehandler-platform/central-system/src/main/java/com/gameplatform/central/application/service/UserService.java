@@ -2,6 +2,7 @@ package com.gameplatform.central.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gameplatform.central.domain.exception.UserAlreadyExistsException;
 import com.gameplatform.central.domain.model.OutboxEvent;
 import com.gameplatform.central.domain.model.User;
 import com.gameplatform.central.domain.ports.in.GetAllUsersUseCase;
@@ -12,6 +13,7 @@ import com.gameplatform.central.domain.ports.out.UserRepository;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.springframework.security.crypto.bcrypt.BCrypt;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -19,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Service
 public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetAllUsersUseCase {
     private final UserRepository userRepository;
     private final OutboxEventRepository outboxEventRepository;
@@ -42,7 +45,7 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
     @Override
     public User register(String username, String password, String email) {
         if (userRepository.findByUsername(username).isPresent() || userRepository.findByEmail(email).isPresent()) {
-            throw new IllegalArgumentException("Username or email already in use");
+            throw new UserAlreadyExistsException("Username or email already in use");
         }
 
         String userId = UUID.randomUUID().toString();

@@ -8,12 +8,14 @@ import com.gameplatform.central.domain.ports.out.StatisticsRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.dto.StatisticsDto;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Service
 public class StatisticsAggregationService implements GetGlobalStatisticsUseCase {
     private final StatisticsRepository repository;
     private final ObjectMapper objectMapper;

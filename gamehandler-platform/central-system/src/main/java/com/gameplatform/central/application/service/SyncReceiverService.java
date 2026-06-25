@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gameplatform.central.domain.exception.DuplicateEventException;
 import com.gameplatform.central.domain.model.AggregatedStatistics;
 import com.gameplatform.central.domain.model.ProcessedEvent;
 import com.gameplatform.central.domain.ports.in.ReceiveSyncDataUseCase;
@@ -16,6 +17,7 @@ import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.dto.OutboxEventDto;
 import com.gameplatform.shared.dto.SyncPayloadDto;
 import org.springframework.lang.Nullable;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -24,6 +26,7 @@ import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
+@Service
 public class SyncReceiverService implements ReceiveSyncDataUseCase {
     private final ProcessedEventRepository processedEventRepository;
     private final StatisticsRepository statisticsRepository;
@@ -43,6 +46,10 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
 
             for (OutboxEventDto event : payload.events()) {
                 try {
+                    if (processedEventRepository.existsByEventId(event.eventId())) {
+                        throw new DuplicateEventException("Sync event already processed: " + event.eventId());
+                    }
+
                     boolean processed = processEvent(buildingId, event);
 
                     if (processed) {

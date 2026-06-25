@@ -371,18 +371,18 @@
 - [x] `DuplicateEventException` (class)
 
 ### 4.5 Servizi Applicativi (`application/service/`)
-- [ ] `UserService` (class)
-  - [ ] `User register(String username, String password, String email)`
-  - [ ] `User updateUser(UserId id, String newPassword, List<String> newRoles)`
-  - [ ] `List<UserSyncDto> getAllUsersForSync()`
-- [ ] `AuthService` (class)
-  - [ ] `LoginResponseDto authenticate(String username, String password)`
-- [ ] `StatisticsAggregationService` (class)
-  - [ ] `List<StatisticsDto> getStatistics(BuildingId buildingId, GameType gameType, LocalDate start, LocalDate end)`
-- [ ] `SyncReceiverService` (class)
-  - [ ] `void receiveSyncPayload(SyncPayloadDto payload)`
-- [ ] `UserReplicationSchedulerService` (class)
-  - [ ] `void replicateUsers()`
+- [x] `UserService` (class)
+  - [x] `User register(String username, String password, String email)`
+  - [x] `User updateUser(UserId id, String newPassword, List<String> newRoles)`
+  - [x] `List<UserSyncDto> getAllUsersForSync()`
+- [x] `AuthService` (class)
+  - [x] `LoginResponseDto authenticate(String username, String password)`
+- [x] `StatisticsAggregationService` (class)
+  - [x] `List<StatisticsDto> getStatistics(BuildingId buildingId, GameType gameType, LocalDate start, LocalDate end)`
+- [x] `SyncReceiverService` (class)
+  - [x] `void receiveSyncPayload(SyncPayloadDto payload)`
+- [x] `UserReplicationSchedulerService` (class)
+  - [x] `void replicateUsers()`
 
 ### 4.6 Adattatori REST in Ingresso (`infrastructure/adapters/in/rest/`)
 - [x] `UserController` (class)
