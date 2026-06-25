@@ -1,3 +1,12 @@
 package com.gameplatform.local.infrastructure.adapters.out.mysql.repository;
 
-public interface GameJpaRepository {}
+import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.GameJpaEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+
+@Repository
+public interface GameJpaRepository extends JpaRepository<GameJpaEntity, String> {
+    List<GameJpaEntity> findByBuildingId(String buildingId);
+    List<GameJpaEntity> findByStatus(String status);
+}

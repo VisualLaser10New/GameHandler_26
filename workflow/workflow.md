@@ -629,12 +629,12 @@
   - [x] `ResponseEntity<Void> syncUsers(List<UserSyncDto> users, String apiKey)`
 
 ### 5.7 Adattatori MQTT in Ingresso (`infrastructure/adapters/in/mqtt/`)
-- [ ] `GameStateListener` (class)
-  - [ ] `void handleStateMessage(String topic, byte[] payload)`
-- [ ] `GameSessionListener` (class)
-  - [ ] `void handleSessionMessage(String topic, byte[] payload)`
-- [ ] `HeartbeatListener` (class)
-  - [ ] `void handleHeartbeat(String topic, byte[] payload)`
+- [x] `GameStateListener` (class)
+  - [x] `void handleStateMessage(String topic, byte[] payload)`
+- [x] `GameSessionListener` (class)
+  - [x] `void handleSessionMessage(String topic, byte[] payload)`
+- [x] `HeartbeatListener` (class)
+  - [x] `void handleHeartbeat(String topic, byte[] payload)`
 
 ### 5.8 Adattatori MySQL Locali (`infrastructure/adapters/out/mysql/`)
 - [ ] `ReservationJpaEntity` (class)
