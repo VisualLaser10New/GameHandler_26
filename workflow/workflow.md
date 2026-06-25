@@ -608,25 +608,25 @@
   - [x] `void performHealthCheck()`
 
 ### 5.6 Adattatori REST in Ingresso Locali (`infrastructure/adapters/in/rest/`)
-- [ ] `ReservationController` (class)
-  - [ ] `ResponseEntity<ReservationDto> create(CreateReservationRequestDto req)`
-  - [ ] `ResponseEntity<Void> cancel(String id)`
-  - [ ] `ResponseEntity<List<ReservationDto>> getByUser(String userId)`
-- [ ] `GameController` (class)
-  - [ ] `ResponseEntity<List<GameStateDto>> getGames()`
-  - [ ] `ResponseEntity<List<GameStateDto>> getAvailableGames()`
-- [ ] `GameSessionController` (class)
-  - [ ] `ResponseEntity<GameSessionDto> start(CreateSessionRequestDto req)`
-  - [ ] `ResponseEntity<Void> end(String id, GameResult result)`
-  - [ ] `ResponseEntity<Void> pause(String id)`
-  - [ ] `ResponseEntity<Void> resume(String id)`
-- [ ] `StatisticsController` (class)
-  - [ ] `ResponseEntity<LocalStatistics> getStats(String gameType)`
-  - [ ] `ResponseEntity<List<GameSessionDto>> getActiveSessions()`
-- [ ] `AuthController` (class)
-  - [ ] `ResponseEntity<LoginResponseDto> login(LoginRequestDto req)`
-- [ ] `InternalSyncController` (class)
-  - [ ] `ResponseEntity<Void> syncUsers(List<UserSyncDto> users, String apiKey)`
+- [x] `ReservationController` (class)
+  - [x] `ResponseEntity<ReservationDto> create(CreateReservationRequestDto req)`
+  - [x] `ResponseEntity<Void> cancel(String id)`
+  - [x] `ResponseEntity<List<ReservationDto>> getByUser(String userId)`
+- [x] `GameController` (class)
+  - [x] `ResponseEntity<List<GameStateDto>> getGames()`
+  - [x] `ResponseEntity<List<GameStateDto>> getAvailableGames()`
+- [x] `GameSessionController` (class)
+  - [x] `ResponseEntity<GameSessionDto> start(CreateSessionRequestDto req)`
+  - [x] `ResponseEntity<Void> end(String id, GameResult result)`
+  - [x] `ResponseEntity<Void> pause(String id)`
+  - [x] `ResponseEntity<Void> resume(String id)`
+- [x] `StatisticsController` (class)
+  - [x] `ResponseEntity<LocalStatistics> getStats(String gameType)`
+  - [x] `ResponseEntity<List<GameSessionDto>> getActiveSessions()`
+- [x] `AuthController` (class)
+  - [x] `ResponseEntity<LoginResponseDto> login(LoginRequestDto req)`
+- [x] `InternalSyncController` (class)
+  - [x] `ResponseEntity<Void> syncUsers(List<UserSyncDto> users, String apiKey)`
 
 ### 5.7 Adattatori MQTT in Ingresso (`infrastructure/adapters/in/mqtt/`)
 - [ ] `GameStateListener` (class)
