@@ -1,3 +1,9 @@
 package com.gameplatform.local.domain.ports.out;
 
-public interface PublishGameStatePort {}
+import com.gameplatform.shared.domain.model.GameId;
+import com.gameplatform.shared.domain.model.GameMachineStatus;
+
+public interface PublishGameStatePort {
+    void publishState(GameId gameId, GameMachineStatus status);
+    void publishSessionEvent(String topic, Object payload);
+}

@@ -1,3 +1,7 @@
 package com.gameplatform.local.domain.ports.out;
 
-public interface PublishAlertPort {}
+import com.gameplatform.shared.mqtt.payload.AlertPayload;
+
+public interface PublishAlertPort {
+    void publishAlert(AlertPayload payload);
+}

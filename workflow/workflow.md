@@ -528,52 +528,52 @@
   - [x] `void syncUsers(List<UserSyncDto> users)`
 
 ### 5.3 Porte di Uscita Locali (`domain/ports/out/`)
-- [ ] `ReservationRepository` (interface)
-  - [ ] `Reservation save(Reservation reservation)`
-  - [ ] `Optional<Reservation> findById(ReservationId id)`
-  - [ ] `List<Reservation> findByUserId(UserId userId)`
-  - [ ] `List<Reservation> findByGameId(GameId gameId)`
-  - [ ] `List<Reservation> findByStatus(ReservationStatus status)`
-  - [ ] `List<Reservation> findExpired(Instant now)`
-- [ ] `GameRepository` (interface)
-  - [ ] `Game save(Game game)`
-  - [ ] `Optional<Game> findById(GameId id)`
-  - [ ] `List<Game> findByBuildingId(BuildingId buildingId)`
-  - [ ] `List<Game> findByStatus(GameMachineStatus status)`
-  - [ ] `List<Game> findAll()`
-- [ ] `UserRepository` (interface)
-  - [ ] `User save(User user)`
-  - [ ] `Optional<User> findByUsername(String username)`
-  - [ ] `void saveAll(List<User> users)`
-- [ ] `GameSessionRepository` (interface)
-  - [ ] `GameSession save(GameSession session)`
-  - [ ] `Optional<GameSession> findById(GameSessionId id)`
-  - [ ] `List<GameSession> findByBuildingId(BuildingId buildingId)`
-  - [ ] `List<GameSession> findByGameType(GameType gameType)`
-  - [ ] `List<GameSession> findByStatus(GameStatus status)`
-  - [ ] `List<GameSession> findPendingSync()`
-  - [ ] `Optional<GameSession> findActiveByGameId(GameId gameId)`
-- [ ] `OutboxEventRepository` (interface)
-  - [ ] `OutboxEvent save(OutboxEvent event)`
-  - [ ] `List<OutboxEvent> findPending()`
-  - [ ] `void markAsSent(String id)`
-  - [ ] `void incrementRetry(String id)`
-- [ ] `SyncCentralSystemPort` (interface)
-  - [ ] `boolean isReachable()`
-  - [ ] `boolean sendSyncPayload(SyncPayloadDto payload)`
-- [ ] `PublishGameStatePort` (interface)
-  - [ ] `void publishState(GameId gameId, GameMachineStatus status)`
-  - [ ] `void publishSessionEvent(String topic, Object payload)`
-- [ ] `PublishAlertPort` (interface)
-  - [ ] `void publishAlert(AlertPayload payload)`
+- [x] `ReservationRepository` (interface)
+  - [x] `Reservation save(Reservation reservation)`
+  - [x] `Optional<Reservation> findById(ReservationId id)`
+  - [x] `List<Reservation> findByUserId(UserId userId)`
+  - [x] `List<Reservation> findByGameId(GameId gameId)`
+  - [x] `List<Reservation> findByStatus(ReservationStatus status)`
+  - [x] `List<Reservation> findExpired(Instant now)`
+- [x] `GameRepository` (interface)
+  - [x] `Game save(Game game)`
+  - [x] `Optional<Game> findById(GameId id)`
+  - [x] `List<Game> findByBuildingId(BuildingId buildingId)`
+  - [x] `List<Game> findByStatus(GameMachineStatus status)`
+  - [x] `List<Game> findAll()`
+- [x] `UserRepository` (interface)
+  - [x] `User save(User user)`
+  - [x] `Optional<User> findByUsername(String username)`
+  - [x] `void saveAll(List<User> users)`
+- [x] `GameSessionRepository` (interface)
+  - [x] `GameSession save(GameSession session)`
+  - [x] `Optional<GameSession> findById(GameSessionId id)`
+  - [x] `List<GameSession> findByBuildingId(BuildingId buildingId)`
+  - [x] `List<GameSession> findByGameType(GameType gameType)`
+  - [x] `List<GameSession> findByStatus(GameStatus status)`
+  - [x] `List<GameSession> findPendingSync()`
+  - [x] `Optional<GameSession> findActiveByGameId(GameId gameId)`
+- [x] `OutboxEventRepository` (interface)
+  - [x] `OutboxEvent save(OutboxEvent event)`
+  - [x] `List<OutboxEvent> findPending()`
+  - [x] `void markAsSent(String id)`
+  - [x] `void incrementRetry(String id)`
+- [x] `SyncCentralSystemPort` (interface)
+  - [x] `boolean isReachable()`
+  - [x] `boolean sendSyncPayload(SyncPayloadDto payload)`
+- [x] `PublishGameStatePort` (interface)
+  - [x] `void publishState(GameId gameId, GameMachineStatus status)`
+  - [x] `void publishSessionEvent(String topic, Object payload)`
+- [x] `PublishAlertPort` (interface)
+  - [x] `void publishAlert(AlertPayload payload)`
 
 ### 5.4 Eccezioni Locali (`domain/exception/`)
-- [ ] `GameNotAvailableException` (class)
-- [ ] `ReservationNotFoundException` (class)
-- [ ] `ReservationExpiredException` (class)
-- [ ] `UserNotFoundException` (class)
-- [ ] `SessionAlreadyActiveException` (class)
-- [ ] `InvalidGameStateTransitionException` (class)
+- [x] `GameNotAvailableException` (class)
+- [x] `ReservationNotFoundException` (class)
+- [x] `ReservationExpiredException` (class)
+- [x] `UserNotFoundException` (class)
+- [x] `SessionAlreadyActiveException` (class)
+- [x] `InvalidGameStateTransitionException` (class)
 
 ### 5.5 Servizi Applicativi Locali (`application/service/`)
 - [ ] `ReservationService` (class)
@@ -721,6 +721,9 @@
   - [ ] `void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)`
 - [ ] `InternalApiKeyFilter` (class)
   - [ ] `void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)`
+
+### 5.11 Verifica utilizzo Eccezioni
+- [ ] Verificare che le eccezioni create nel punto 5.4 siano state usate ogni qualvolta possibile dal codice scritto nel punto 5.x
 
 ## 6. game-client-emulator (`com.gameplatform.client`)
 
