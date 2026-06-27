@@ -351,17 +351,20 @@
 - [x] `StatisticsRepository` (interface)
   - [x] `AggregatedStatistics save(AggregatedStatistics stats)`
   - [x] `Optional<AggregatedStatistics> findByBuildingAndTypeAndPeriod(BuildingId buildingId, GameType gameType, LocalDate periodStart)`
-  - [x] `List<AggregatedStatistics> findByPeriod(LocalDate start, LocalDate end)`
+  - [x] `Optional<AggregatedStatistics> findByBuildingAndTypeAndPeriodWithLock(BuildingId buildingId, GameType gameType, LocalDate periodStart)`
+  - [x] `List<AggregatedStatistics> findByPeriod(BuildingId buildingId, GameType gameType, LocalDate start, LocalDate end)`
 - [x] `ProcessedEventRepository` (interface)
   - [x] `boolean existsByEventId(String eventId)`
   - [x] `void save(ProcessedEvent event)`
 - [x] `OutboxEventRepository` (interface)
   - [x] `OutboxEvent save(OutboxEvent event)`
   - [x] `List<OutboxEvent> findPending()`
+  - [x] `List<OutboxEvent> findPendingLimit(int limit)`
   - [x] `void markAsSent(String id)`
 - [x] `LocalServerRegistryPort` (interface)
   - [x] `List<RegisteredLocalServer> getActiveLocalServers()`
   - [x] `void register(RegisteredLocalServer server)`
+  - [x] `void updateLastSeenAt(BuildingId buildingId, Instant lastSeenAt)`
 - [x] `PushUserToLocalServersPort` (interface)
   - [x] `void pushUsers(List<UserSyncDto> users, RegisteredLocalServer server)`
 

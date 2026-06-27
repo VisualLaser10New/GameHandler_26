@@ -13,6 +13,7 @@ import com.gameplatform.shared.domain.result.GameResult;
 import com.gameplatform.shared.mqtt.MqttPayloadSerializer;
 import com.gameplatform.shared.mqtt.payload.SessionEndPayload;
 import com.gameplatform.shared.mqtt.payload.SessionPausePayload;
+import com.gameplatform.shared.mqtt.payload.SessionResumePayload;
 import com.gameplatform.shared.mqtt.payload.SessionStartPayload;
 import org.springframework.stereotype.Component;
 
@@ -88,19 +89,11 @@ public class GameSessionListener {
                 pauseGameSessionUseCase.pause(new GameSessionId(pausePayload.sessionId()));
             }
             case "resume" -> {
-                try {
-                    com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(payload);
-                    com.fasterxml.jackson.databind.JsonNode sessionIdNode = node.get("sessionId");
-                    if (sessionIdNode == null || sessionIdNode.isNull()) {
-                        throw new NullPointerException("Session ID is missing");
-                    }
-                    String sessionId = sessionIdNode.asText();
-                    resumeGameSessionUseCase.resume(new GameSessionId(sessionId));
-                } catch (NullPointerException e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to parse session ID from resume payload", e);
+                SessionResumePayload resumePayload = MqttPayloadSerializer.deserialize(payload, SessionResumePayload.class);
+                if (resumePayload.sessionId() == null || resumePayload.sessionId().isBlank()) {
+                    throw new NullPointerException("Session ID is missing");
                 }
+                resumeGameSessionUseCase.resume(new GameSessionId(resumePayload.sessionId()));
             }
         }
     }

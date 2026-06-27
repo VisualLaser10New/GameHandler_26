@@ -87,8 +87,8 @@ public class MqttPublisherAdapter implements PublishGameStatePort, PublishAlertP
                     );
                     bytes = MqttPayloadSerializer.serialize(pausePayload);
                 } else if (topic.endsWith("/session/resume") || topic.endsWith("/resume")) {
-                    Map<String, String> resumeMap = Map.of("sessionId", session.getId().value());
-                    bytes = objectMapper.writeValueAsBytes(resumeMap);
+                    SessionResumePayload resumePayload = new SessionResumePayload(session.getId().value());
+                    bytes = MqttPayloadSerializer.serialize(resumePayload);
                 } else {
                     bytes = MqttPayloadSerializer.serialize(session);
                 }

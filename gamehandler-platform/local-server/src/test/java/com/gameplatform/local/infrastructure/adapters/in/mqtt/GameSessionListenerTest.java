@@ -14,6 +14,7 @@ import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.mqtt.MqttPayloadSerializer;
 import com.gameplatform.shared.mqtt.payload.SessionEndPayload;
 import com.gameplatform.shared.mqtt.payload.SessionPausePayload;
+import com.gameplatform.shared.mqtt.payload.SessionResumePayload;
 import com.gameplatform.shared.mqtt.payload.SessionStartPayload;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,17 +67,15 @@ class GameSessionListenerTest {
     }
 
     @Test
-    void resumeUsesRawJsonNodeParsing() throws Exception {
-        byte[] payload = "{\"sessionId\":\"s-resume\"}".getBytes();
-        com.fasterxml.jackson.databind.node.TextNode node = new com.fasterxml.jackson.databind.node.TextNode("s-resume");
-        when(objectMapper.readTree(payload)).thenReturn(new com.fasterxml.jackson.databind.ObjectMapper().readTree(payload));
+    void resumeDeserializesAndCallsResume() {
+        byte[] payload = MqttPayloadSerializer.serialize(new SessionResumePayload("s-resume"));
         listener.handleSessionMessage(resumeTopic(), payload);
         verify(resumeGameSessionUseCase).resume(eq(new com.gameplatform.shared.domain.model.GameSessionId("s-resume")));
     }
 
     @Test
     void resumeWithMissingSessionIdThrows() {
-        byte[] payload = "{}".getBytes();
+        byte[] payload = MqttPayloadSerializer.serialize(new SessionResumePayload(null));
         assertThatThrownBy(() -> listener.handleSessionMessage(resumeTopic(), payload))
                 .isInstanceOf(NullPointerException.class);
     }

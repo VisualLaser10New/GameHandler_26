@@ -88,7 +88,7 @@ public class GameSessionController {
     }
 
     @NonNull
-    static GameSessionDto getGameSessionDto(GameSession session, ObjectMapper objectMapper) {
+    public static GameSessionDto getGameSessionDto(GameSession session, ObjectMapper objectMapper) {
         String winnerIdStr = session.getWinnerId() != null ? session.getWinnerId().value() : null;
         String resultDataStr = null;
         if (session.getResult() != null) {

@@ -31,6 +31,22 @@ public class JacksonConfig {
     })
     public interface GameResultMixIn {}
 
+    public interface RouletteResultMixIn {
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        UserId getWinnerId();
+
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        List<UserId> getWinnerIds();
+    }
+
+    public interface SlotResultMixIn {
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        UserId getWinnerId();
+
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        List<UserId> getWinnerIds();
+    }
+
     public static class DefaultGameResult implements GameResult {
         private UserId winnerId;
         private List<UserId> winnerIds;
@@ -74,6 +90,9 @@ public class JacksonConfig {
 
     @Bean
     public Jackson2ObjectMapperBuilderCustomizer jacksonCustomizer() {
-        return builder -> builder.mixIn(GameResult.class, GameResultMixIn.class);
+        return builder -> builder
+                .mixIn(GameResult.class, GameResultMixIn.class)
+                .mixIn(RouletteResult.class, RouletteResultMixIn.class)
+                .mixIn(SlotResult.class, SlotResultMixIn.class);
     }
 }

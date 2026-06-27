@@ -228,18 +228,18 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
 
         if (existing.isPresent()) {
             AggregatedStatistics stats = existing.get();
-            AggregatedStatistics reservationStats = new AggregatedStatistics(
-                    UUID.randomUUID().toString(),
-                    buildingId,
-                    gameType,
-                    period,
-                    period,
-                    0,
-                    0,
-                    reservationDelta,
-                    new java.util.HashMap<>()
+            int newReservations = Math.max(0, stats.getTotalReservations() + reservationDelta);
+            stats = new AggregatedStatistics(
+                    stats.getId(),
+                    stats.getBuildingId(),
+                    stats.getGameType(),
+                    stats.getPeriodStart(),
+                    stats.getPeriodEnd(),
+                    stats.getTotalSessions(),
+                    stats.getAvgDurationSeconds(),
+                    newReservations,
+                    stats.getData()
             );
-            stats.mergeWith(reservationStats);
             statisticsRepository.save(stats);
         } else {
             int initialReservations = Math.max(0, reservationDelta);

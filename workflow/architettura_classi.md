@@ -444,10 +444,10 @@ game-client-emulator/src/main/java/com/gameplatform/client/
 | Classe | Tipo | Descrizione | Dipendenze |
 |---|---|---|---|
 | `UserRepository` | interface | CRUD utenti. Metodi: `save()`, `findById()`, `findByUsername()`, `findByEmail()`, `findAll()`. | `User`, `UserId` |
-| `StatisticsRepository` | interface | CRUD statistiche. Metodi: `save()`, `findByBuildingAndType()`, `findByPeriod()`. | `AggregatedStatistics` |
+| `StatisticsRepository` | interface | CRUD statistiche. Metodi: `save()`, `findByBuildingAndTypeAndPeriod()`, `findByBuildingAndTypeAndPeriodWithLock()`, `findByPeriod()`. | `AggregatedStatistics` |
 | `ProcessedEventRepository` | interface | `existsByEventId(String)`, `save(ProcessedEvent)`. Per idempotenza. | `ProcessedEvent` |
-| `OutboxEventRepository` | interface | `save()`, `findPending()`, `markAsSent()`. | `OutboxEvent` |
-| `LocalServerRegistryPort` | interface | `List<RegisteredLocalServer> getActiveLocalServers()`. | `RegisteredLocalServer` |
+| `OutboxEventRepository` | interface | `save()`, `findPending()`, `findPendingLimit()`, `markAsSent()`. | `OutboxEvent` |
+| `LocalServerRegistryPort` | interface | `List<RegisteredLocalServer> getActiveLocalServers()`, `register()`, `updateLastSeenAt()`. | `RegisteredLocalServer` |
 | `PushUserToLocalServersPort` | interface | `void pushUsers(List<UserSyncDto>, RegisteredLocalServer)`. Invia replica utenti via REST. | `UserSyncDto`, `RegisteredLocalServer` |
 
 #### application/service/
