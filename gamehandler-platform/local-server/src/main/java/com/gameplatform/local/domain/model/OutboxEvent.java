@@ -47,7 +47,7 @@ public class OutboxEvent {
 
     public void incrementRetry() {
         this.retryCount++;
-        if (this.retryCount >= 3) {
+        if (this.retryCount >= 10) {
             this.status = "FAILED";
         }
     }

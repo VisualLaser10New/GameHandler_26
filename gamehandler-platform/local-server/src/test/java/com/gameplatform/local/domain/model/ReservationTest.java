@@ -1,129 +1,304 @@
 package com.gameplatform.local.domain.model;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.ReservationId;
 import com.gameplatform.shared.domain.model.ReservationStatus;
 import com.gameplatform.shared.domain.model.UserId;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 class ReservationTest {
 
-    @Test
-    void shouldCreateReservationSuccessfully() {
-        ReservationId id = new ReservationId("res-1");
-        GameId gameId = new GameId("game-1");
-        UserId userId = new UserId("user-1");
-        Instant start = Instant.parse("2026-06-25T12:00:00Z");
-        Instant end = Instant.parse("2026-06-25T13:00:00Z");
-        Instant created = Instant.parse("2026-06-25T10:00:00Z");
+    private static final Instant START = Instant.parse("2026-06-25T12:00:00Z");
+    private static final Instant END = Instant.parse("2026-06-25T13:00:00Z");
+    private static final Instant CREATED = Instant.parse("2026-06-25T10:00:00Z");
+    private static final ZoneId UTC = ZoneId.of("UTC");
 
-        Reservation reservation = new Reservation(id, gameId, userId, ReservationStatus.PENDING, start, end, created);
-
-        assertEquals(id, reservation.getId());
-        assertEquals(gameId, reservation.getGameId());
-        assertEquals(userId, reservation.getUserId());
-        assertEquals(ReservationStatus.PENDING, reservation.getStatus());
-        assertEquals(start, reservation.getStartTime());
-        assertEquals(end, reservation.getEndTime());
-        assertEquals(created, reservation.getCreatedAt());
+    private Reservation sample(ReservationStatus status) {
+        return new Reservation(new ReservationId("res-1"), new GameId("game-1"),
+                new UserId("user-1"), status, START, END, CREATED);
     }
 
-    @Test
-    void shouldConfirmReservation() {
-        Reservation reservation = createSampleReservation(ReservationStatus.PENDING);
-        reservation.confirm();
-        assertEquals(ReservationStatus.CONFIRMED, reservation.getStatus());
+    @Nested
+    class Construction {
+
+        @Test
+        void shouldCreateReservationSuccessfully() {
+            ReservationId id = new ReservationId("res-1");
+            GameId gameId = new GameId("game-1");
+            UserId userId = new UserId("user-1");
+
+            Reservation reservation = new Reservation(id, gameId, userId, ReservationStatus.PENDING,
+                    START, END, CREATED);
+
+            assertThat(reservation.getId()).isEqualTo(id);
+            assertThat(reservation.getGameId()).isEqualTo(gameId);
+            assertThat(reservation.getUserId()).isEqualTo(userId);
+            assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PENDING);
+            assertThat(reservation.getStartTime()).isEqualTo(START);
+            assertThat(reservation.getEndTime()).isEqualTo(END);
+            assertThat(reservation.getCreatedAt()).isEqualTo(CREATED);
+        }
+
+        @Test
+        void shouldAllowZeroLengthReservationWhenStartEqualsEnd() {
+            assertThat(new Reservation(new ReservationId("r"), new GameId("g"), new UserId("u"),
+                    ReservationStatus.PENDING, START, START, CREATED)).isNotNull();
+        }
+
+        @Test
+        void shouldRejectEndTimeStrictlyBeforeStartTime() {
+            assertThatThrownBy(() -> new Reservation(new ReservationId("r"), new GameId("g"),
+                    new UserId("u"), ReservationStatus.PENDING, START,
+                    START.minusSeconds(1), CREATED))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("EndTime cannot be before StartTime");
+        }
+
+        @Test
+        void shouldRejectEndTimeFarBeforeStartTime() {
+            assertThatThrownBy(() -> new Reservation(new ReservationId("r"), new GameId("g"),
+                    new UserId("u"), ReservationStatus.PENDING, END, START, CREATED))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
+        void shouldRejectAnyNullRequiredField() {
+            assertThatThrownBy(() -> new Reservation(null, new GameId("g"), new UserId("u"),
+                    ReservationStatus.PENDING, START, END, CREATED))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> new Reservation(new ReservationId("r"), null, new UserId("u"),
+                    ReservationStatus.PENDING, START, END, CREATED))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> new Reservation(new ReservationId("r"), new GameId("g"), null,
+                    ReservationStatus.PENDING, START, END, CREATED))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> new Reservation(new ReservationId("r"), new GameId("g"),
+                    new UserId("u"), null, START, END, CREATED))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> new Reservation(new ReservationId("r"), new GameId("g"),
+                    new UserId("u"), ReservationStatus.PENDING, null, END, CREATED))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> new Reservation(new ReservationId("r"), new GameId("g"),
+                    new UserId("u"), ReservationStatus.PENDING, START, null, CREATED))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> new Reservation(new ReservationId("r"), new GameId("g"),
+                    new UserId("u"), ReservationStatus.PENDING, START, END, null))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
+        void shouldRejectNullViaValueObjectsEagerly() {
+            assertThatThrownBy(() -> new ReservationId(null))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> new ReservationId("  "))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
     }
 
-    @Test
-    void shouldCancelReservation() {
-        Reservation reservation = createSampleReservation(ReservationStatus.PENDING);
-        reservation.cancel();
-        assertEquals(ReservationStatus.CANCELLED, reservation.getStatus());
+    @Nested
+    class StateTransitions {
+
+        @Test
+        void shouldConfirmPendingReservation() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            r.confirm();
+            assertThat(r.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+        }
+
+        @Test
+        void shouldCancelPendingReservation() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            r.cancel();
+            assertThat(r.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        }
+
+        @Test
+        void shouldExpireConfirmedReservation() {
+            Reservation r = sample(ReservationStatus.CONFIRMED);
+            r.expire();
+            assertThat(r.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+        }
+
+        @Test
+        void shouldExpirePendingReservation() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            r.expire();
+            assertThat(r.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+        }
+
+        @Test
+        void confirmIsPermissiveAndDoesNotGuardPreviousState() {
+            Reservation cancelled = sample(ReservationStatus.CANCELLED);
+            cancelled.confirm();
+            assertThat(cancelled.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+
+            Reservation expired = sample(ReservationStatus.EXPIRED);
+            expired.confirm();
+            assertThat(expired.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+        }
+
+        @Test
+        void cancelIsPermissiveAndCanRevertConfirmedReservation() {
+            Reservation confirmed = sample(ReservationStatus.CONFIRMED);
+            confirmed.cancel();
+            assertThat(confirmed.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        }
+
+        @Test
+        void cancelIsPermissiveAndCanCancelAlreadyCancelledReservation() {
+            Reservation cancelled = sample(ReservationStatus.CANCELLED);
+            cancelled.cancel();
+            assertThat(cancelled.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        }
+
+        @Test
+        void expireIsPermissiveAndCanExpireAlreadyCancelledReservation() {
+            Reservation cancelled = sample(ReservationStatus.CANCELLED);
+            cancelled.expire();
+            assertThat(cancelled.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+        }
+
+        @Test
+        void confirmIsIdempotent() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            r.confirm();
+            r.confirm();
+            assertThat(r.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+        }
+
+        @Test
+        void fullHappyPathPendingConfirmedCancelled() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            r.confirm();
+            r.cancel();
+            assertThat(r.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        }
+
+        @Test
+        void fullHappyPathPendingConfirmedExpired() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            r.confirm();
+            r.expire();
+            assertThat(r.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+        }
+
+        @Test
+        void confirmCancelReconfirmDocumentsLackOfGuard() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            r.confirm();
+            r.cancel();
+            r.confirm();
+            assertThat(r.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+        }
     }
 
-    @Test
-    void shouldExpireReservation() {
-        Reservation reservation = createSampleReservation(ReservationStatus.CONFIRMED);
-        reservation.expire();
-        assertEquals(ReservationStatus.EXPIRED, reservation.getStatus());
+    @Nested
+    class CancellationPolicy {
+
+        @Test
+        void shouldBeCancellableWhenPendingAndMoreThanOneHourBeforeStart() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            Clock oneHourAndOneSecondBeforeStart = Clock.fixed(START.minusSeconds(3601), UTC);
+            assertThat(r.canBeCancelled(oneHourAndOneSecondBeforeStart)).isTrue();
+        }
+
+        @Test
+        void shouldNotBeCancellableExactlyOneHourBeforeStart() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            Clock exactlyOneHourBeforeStart = Clock.fixed(START.minusSeconds(3600), UTC);
+            assertThat(r.canBeCancelled(exactlyOneHourBeforeStart)).isFalse();
+        }
+
+        @Test
+        void shouldNotBeCancellableLessThanOneHourBeforeStart() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            Clock thirtyMinutesBeforeStart = Clock.fixed(START.minusSeconds(1800), UTC);
+            assertThat(r.canBeCancelled(thirtyMinutesBeforeStart)).isFalse();
+        }
+
+        @Test
+        void shouldNotBeCancellableWhenStartTimeIsInThePast() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            Clock afterStart = Clock.fixed(START.plusSeconds(60), UTC);
+            assertThat(r.canBeCancelled(afterStart)).isFalse();
+        }
+
+        @Test
+        void shouldNotBeCancellableWhenNotPendingEvenIfMoreThanOneHourBeforeStart() {
+            Reservation confirmed = sample(ReservationStatus.CONFIRMED);
+            Clock twoHoursBeforeStart = Clock.fixed(START.minusSeconds(7200), UTC);
+            assertThat(confirmed.canBeCancelled(twoHoursBeforeStart)).isFalse();
+
+            Reservation cancelled = sample(ReservationStatus.CANCELLED);
+            assertThat(cancelled.canBeCancelled(twoHoursBeforeStart)).isFalse();
+
+            Reservation expired = sample(ReservationStatus.EXPIRED);
+            assertThat(expired.canBeCancelled(twoHoursBeforeStart)).isFalse();
+        }
+
+        @Test
+        void shouldRejectNullClock() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            assertThatThrownBy(() -> r.canBeCancelled(null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Clock cannot be null");
+        }
+
+        @Test
+        void shouldBeCancellableFarInTheFutureBeforeStart() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            Clock oneYearBeforeStart = Clock.fixed(START.minus(Duration.ofDays(365)), UTC);
+            assertThat(r.canBeCancelled(oneYearBeforeStart)).isTrue();
+        }
+
+        @Test
+        void shouldBeCancellableOneSecondAfterOneHourThreshold() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            Clock clock = Clock.fixed(START.minusSeconds(3601), UTC);
+            assertThat(r.canBeCancelled(clock)).isTrue();
+        }
+
+        @Test
+        void shouldNotBeCancellableAtExactlyStartTime() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            Clock atStart = Clock.fixed(START, UTC);
+            assertThat(r.canBeCancelled(atStart)).isFalse();
+        }
+
+        @Test
+        void shouldNotBeCancellableWayAfterStart() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            Clock farAfter = Clock.fixed(START.plus(Duration.ofDays(1)), UTC);
+            assertThat(r.canBeCancelled(farAfter)).isFalse();
+        }
     }
 
-    @Test
-    void shouldAllowCancellationIfPendingAndMoreThanOneHourBeforeStart() {
-        Instant startTime = Instant.parse("2026-06-25T12:00:00Z");
-        Reservation reservation = new Reservation(
-            new ReservationId("res-1"),
-            new GameId("game-1"),
-            new UserId("user-1"),
-            ReservationStatus.PENDING,
-            startTime,
-            Instant.parse("2026-06-25T13:00:00Z"),
-            Instant.parse("2026-06-25T10:00:00Z")
-        );
+    @Nested
+    class Equality {
 
-        // Clock set at 10:30 (1h 30m before start) -> Should be able to cancel
-        Clock clock1 = Clock.fixed(Instant.parse("2026-06-25T10:30:00Z"), ZoneId.of("UTC"));
-        assertTrue(reservation.canBeCancelled(clock1));
+        @Test
+        void reservationsDoNotOverrideEqualsSoIdentityEqualityHolds() {
+            Reservation a = sample(ReservationStatus.PENDING);
+            Reservation b = sample(ReservationStatus.PENDING);
+            assertThat(a).isNotSameAs(b);
+            assertThat(a.equals(b)).isFalse();
+            assertThat(a.equals(a)).isTrue();
+            assertThat(a.equals(null)).isFalse();
+            assertThat(a.equals("not a reservation")).isFalse();
+        }
 
-        // Clock set at 11:00 (exactly 1h before start) -> Should NOT be able to cancel (manca almeno 1 ora all'inizio - strictly more than 1 hour)
-        Clock clock2 = Clock.fixed(Instant.parse("2026-06-25T11:00:00Z"), ZoneId.of("UTC"));
-        assertFalse(reservation.canBeCancelled(clock2));
-
-        // Clock set at 11:30 (30m before start) -> Should NOT be able to cancel
-        Clock clock3 = Clock.fixed(Instant.parse("2026-06-25T11:30:00Z"), ZoneId.of("UTC"));
-        assertFalse(reservation.canBeCancelled(clock3));
-    }
-
-    @Test
-    void shouldNotAllowCancellationIfNotPending() {
-        // Even if we are 2 hours before start, if status is CONFIRMED, it cannot be cancelled according to the rule:
-        // status == ReservationStatus.PENDING
-        Instant startTime = Instant.parse("2026-06-25T12:00:00Z");
-        Reservation reservation = new Reservation(
-            new ReservationId("res-1"),
-            new GameId("game-1"),
-            new UserId("user-1"),
-            ReservationStatus.CONFIRMED,
-            startTime,
-            Instant.parse("2026-06-25T13:00:00Z"),
-            Instant.parse("2026-06-25T10:00:00Z")
-        );
-
-        Clock clock = Clock.fixed(Instant.parse("2026-06-25T10:00:00Z"), ZoneId.of("UTC"));
-        assertFalse(reservation.canBeCancelled(clock));
-    }
-
-    @Test
-    void shouldThrowExceptionWhenEndTimeBeforeStartTime() {
-        Instant startTime = Instant.parse("2026-06-25T12:00:00Z");
-        Instant invalidEndTime = Instant.parse("2026-06-25T11:59:59Z");
-
-        assertThrows(IllegalArgumentException.class, () -> new Reservation(
-            new ReservationId("res-1"),
-            new GameId("game-1"),
-            new UserId("user-1"),
-            ReservationStatus.PENDING,
-            startTime,
-            invalidEndTime,
-            Instant.parse("2026-06-25T10:00:00Z")
-        ));
-    }
-
-    private Reservation createSampleReservation(ReservationStatus status) {
-        return new Reservation(
-            new ReservationId("res-1"),
-            new GameId("game-1"),
-            new UserId("user-1"),
-            status,
-            Instant.parse("2026-06-25T12:00:00Z"),
-            Instant.parse("2026-06-25T13:00:00Z"),
-            Instant.parse("2026-06-25T10:00:00Z")
-        );
+        @Test
+        void sameHashCodeAcrossInvocationsButNotContractuallyBound() {
+            Reservation r = sample(ReservationStatus.PENDING);
+            assertThat(r.hashCode()).isEqualTo(r.hashCode());
+        }
     }
 }

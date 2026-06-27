@@ -90,8 +90,14 @@ public class GameSessionListener {
             case "resume" -> {
                 try {
                     com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(payload);
-                    String sessionId = node.get("sessionId").asText();
+                    com.fasterxml.jackson.databind.JsonNode sessionIdNode = node.get("sessionId");
+                    if (sessionIdNode == null || sessionIdNode.isNull()) {
+                        throw new NullPointerException("Session ID is missing");
+                    }
+                    String sessionId = sessionIdNode.asText();
                     resumeGameSessionUseCase.resume(new GameSessionId(sessionId));
+                } catch (NullPointerException e) {
+                    throw e;
                 } catch (Exception e) {
                     throw new RuntimeException("Failed to parse session ID from resume payload", e);
                 }

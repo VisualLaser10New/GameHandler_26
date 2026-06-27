@@ -1,28 +1,19 @@
 package com.gameplatform.local.application.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.model.GameSession;
-import com.gameplatform.local.domain.model.OutboxEvent;
-import com.gameplatform.local.domain.ports.out.GameRepository;
 import com.gameplatform.local.domain.ports.out.GameSessionRepository;
-import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
-import com.gameplatform.local.domain.ports.out.PublishAlertPort;
 import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
 import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.GameStatus;
-import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.mqtt.MqttTopics;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Service;
 
-import java.time.Clock;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -30,32 +21,23 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @DependsOn("mqttClient")
 public class SessionRecoveryService implements SmartLifecycle {
 
+    private static final Logger log = LoggerFactory.getLogger(SessionRecoveryService.class);
+
     private final GameSessionRepository gameSessionRepository;
-    private final GameRepository gameRepository;
-    private final OutboxEventRepository outboxEventRepository;
     private final PublishGameStatePort publishGameStatePort;
-    private final PublishAlertPort publishAlertPort;
-    private final Clock clock;
-    private final ObjectMapper objectMapper;
+    private final SessionRecoveryHelper sessionRecoveryHelper;
 
     private final ConcurrentHashMap<GameId, Boolean> pendingAcks = new ConcurrentHashMap<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private Thread recoveryThread;
 
     public SessionRecoveryService(
             GameSessionRepository gameSessionRepository,
-            GameRepository gameRepository,
-            OutboxEventRepository outboxEventRepository,
             PublishGameStatePort publishGameStatePort,
-            PublishAlertPort publishAlertPort,
-            Clock clock,
-            ObjectMapper objectMapper) {
+            SessionRecoveryHelper sessionRecoveryHelper) {
         this.gameSessionRepository = gameSessionRepository;
-        this.gameRepository = gameRepository;
-        this.outboxEventRepository = outboxEventRepository;
         this.publishGameStatePort = publishGameStatePort;
-        this.publishAlertPort = publishAlertPort;
-        this.clock = clock;
-        this.objectMapper = objectMapper;
+        this.sessionRecoveryHelper = sessionRecoveryHelper;
     }
 
     @Override
@@ -65,7 +47,8 @@ public class SessionRecoveryService implements SmartLifecycle {
         }
 
         // Run recovery asynchronously to avoid blocking the main thread during application startup
-        new Thread(this::recoverSessions, "session-recovery-thread").start();
+        recoveryThread = new Thread(this::recoverSessions, "session-recovery-thread");
+        recoveryThread.start();
     }
 
     private void recoverSessions() {
@@ -93,42 +76,10 @@ public class SessionRecoveryService implements SmartLifecycle {
             for (GameSession session : activeSessions) {
                 Boolean ackReceived = pendingAcks.get(session.getGameId());
                 if (ackReceived == null || !ackReceived) {
-                    // Client didn't respond: abort session
-                    session.abort(StopReason.ABORTED, Instant.now(clock));
-                    gameSessionRepository.save(session);
-
-                    Game game = gameRepository.findById(session.getGameId()).orElse(null);
-                    if (game != null) {
-                        game.release();
-                        gameRepository.save(game);
-                        publishGameStatePort.publishState(game.getId(), game.getStatus());
-                    }
-
-                    // Generate outbox sync event
                     try {
-                        Map<String, Object> payload = Map.of(
-                                "eventId", UUID.randomUUID().toString(),
-                                "occurredAt", Instant.now(clock).toString(),
-                                "sessionId", session.getId().value(),
-                                "gameType", session.getGameType().name(),
-                                "durationSeconds", session.getDurationSeconds(),
-                                "status", session.getStatus().name(),
-                                "stopReason", "SERVER_RESTART"
-                        );
-                        String payloadJson = objectMapper.writeValueAsString(payload);
-
-                        OutboxEvent outboxEvent = new OutboxEvent(
-                                UUID.randomUUID().toString(),
-                                "GAME_SESSION_COMPLETED",
-                                payloadJson,
-                                "PENDING",
-                                Instant.now(clock),
-                                null,
-                                0
-                        );
-                        outboxEventRepository.save(outboxEvent);
+                        sessionRecoveryHelper.abortSession(session);
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        log.error("Failed to abort session during recovery for session: {}", session.getId(), e);
                     }
                 }
             }
@@ -143,6 +94,9 @@ public class SessionRecoveryService implements SmartLifecycle {
     @Override
     public void stop() {
         running.set(false);
+        if (recoveryThread != null) {
+            recoveryThread.interrupt();
+        }
     }
 
     @Override

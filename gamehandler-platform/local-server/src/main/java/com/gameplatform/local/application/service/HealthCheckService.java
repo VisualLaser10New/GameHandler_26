@@ -77,7 +77,7 @@ public class HealthCheckService {
                 missedHeartbeatsMap.put(gameId, missed);
 
                 // If client failed to respond for 3 consecutive cycles (15 minutes), declare unreachable
-                if (missed >= 3) {
+                if (missed == 3) {
                     // Abort any active sessions
                     Optional<GameSession> activeSessionOpt = gameSessionRepository.findActiveByGameId(gameId);
                     if (activeSessionOpt.isPresent()) {
@@ -113,8 +113,8 @@ public class HealthCheckService {
                         }
                     }
 
-                    // Release game machine if it was IN_USE or RESERVED or MAINTENANCE
-                    if (game.getStatus() != GameMachineStatus.AVAILABLE) {
+                    // Release game machine only if its current status is IN_USE
+                    if (game.getStatus() == GameMachineStatus.IN_USE) {
                         game.release();
                         gameRepository.save(game);
                         publishGameStatePort.publishState(gameId, game.getStatus());

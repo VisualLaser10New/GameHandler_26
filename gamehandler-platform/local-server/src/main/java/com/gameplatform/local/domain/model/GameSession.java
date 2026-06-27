@@ -8,6 +8,7 @@ import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.domain.model.WinCondition;
+import com.gameplatform.local.domain.exception.InvalidGameStateTransitionException;
 import com.gameplatform.shared.domain.result.GameResult;
 import java.time.Duration;
 import java.time.Instant;
@@ -61,7 +62,7 @@ public class GameSession {
         this.winnerId = winnerId;
         this.winCondition = winCondition;
         this.result = result;
-        this.participants = participants != null ? List.copyOf(participants) : new ArrayList<>();
+        this.participants = participants != null ? List.copyOf(participants) : List.of();
     }
 
     // Costruttore per compatibilità esatta con workflow.md (senza partecipanti)
@@ -76,6 +77,12 @@ public class GameSession {
     }
 
     public void complete(GameResult result, Instant endedAt) {
+        if (this.status == GameStatus.COMPLETED) {
+            throw new InvalidGameStateTransitionException("Cannot complete session because it is already completed");
+        }
+        if (this.status != GameStatus.IN_PROGRESS && this.status != GameStatus.PAUSED && this.status != GameStatus.ABORTED) {
+            throw new InvalidGameStateTransitionException("Cannot complete session because its current status is: " + this.status);
+        }
         this.status = GameStatus.COMPLETED;
         this.result = result;
         this.endedAt = endedAt;
@@ -91,6 +98,12 @@ public class GameSession {
     }
 
     public void abort(StopReason reason, Instant endedAt) {
+        if (this.status == GameStatus.ABORTED || this.status == GameStatus.COMPLETED) {
+            throw new InvalidGameStateTransitionException("Cannot abort session because it is already " + this.status);
+        }
+        if (this.status != GameStatus.IN_PROGRESS && this.status != GameStatus.PAUSED) {
+            throw new InvalidGameStateTransitionException("Cannot abort session because its current status is: " + this.status);
+        }
         this.status = GameStatus.ABORTED;
         this.endedAt = endedAt;
         if (reason == StopReason.TIMEOUT) {
@@ -103,14 +116,14 @@ public class GameSession {
 
     public void pause() {
         if (this.status != GameStatus.IN_PROGRESS) {
-            throw new IllegalStateException("Cannot pause session because its current status is: " + this.status);
+            throw new InvalidGameStateTransitionException("Cannot pause session because its current status is: " + this.status);
         }
         this.status = GameStatus.PAUSED;
     }
 
     public void resume() {
         if (this.status != GameStatus.PAUSED) {
-            throw new IllegalStateException("Cannot resume session because its current status is: " + this.status);
+            throw new InvalidGameStateTransitionException("Cannot resume session because its current status is: " + this.status);
         }
         this.status = GameStatus.IN_PROGRESS;
     }
@@ -166,7 +179,7 @@ public class GameSession {
     }
 
     public List<UserId> getParticipants() {
-        return participants;
+        return List.copyOf(participants);
     }
 }
 

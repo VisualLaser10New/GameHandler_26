@@ -33,8 +33,16 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
         if (path.startsWith("/internal/")) {
             String apiKeyHeader = request.getHeader("X-Internal-Api-Key");
 
-            if (apiKeyHeader == null || !apiKeyHeader.equals(configuredApiKey)) {
-                log.warn("Unauthorized attempt to access local internal endpoint: {} with api-key: {}", path, apiKeyHeader);
+            boolean isValid = false;
+            if (apiKeyHeader != null && configuredApiKey != null) {
+                isValid = java.security.MessageDigest.isEqual(
+                        apiKeyHeader.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        configuredApiKey.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+                );
+            }
+
+            if (!isValid) {
+                log.warn("Unauthorized attempt to access local internal endpoint: {}", path);
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
                 response.setCharacterEncoding("UTF-8");

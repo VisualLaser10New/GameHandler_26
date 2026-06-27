@@ -14,4 +14,5 @@ public interface GameSessionJpaRepository extends JpaRepository<GameSessionJpaEn
     List<GameSessionJpaEntity> findByStatus(String status);
     List<GameSessionJpaEntity> findByGameType(String gameType);
     Optional<GameSessionJpaEntity> findFirstByGameIdAndStatusIn(String gameId, Collection<String> statuses);
+    List<GameSessionJpaEntity> findByStatusIn(Collection<String> statuses);
 }

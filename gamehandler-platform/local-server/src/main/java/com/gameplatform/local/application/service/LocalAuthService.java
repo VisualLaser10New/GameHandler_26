@@ -34,8 +34,8 @@ public class LocalAuthService implements AuthenticateLocalUserUseCase {
 
         String token = jwtTokenProvider.generateToken(user);
         
-        // Default token expiration of 24 hours
-        Instant expiresAt = Instant.now().plus(24, ChronoUnit.HOURS);
+        // Default token expiration of 1 hour
+        Instant expiresAt = Instant.now().plus(1, ChronoUnit.HOURS);
 
         return new LoginResponseDto(token, user.getUserId().value(), expiresAt);
     }

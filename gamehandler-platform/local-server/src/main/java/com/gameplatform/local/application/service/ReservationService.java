@@ -18,6 +18,8 @@ import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.ReservationId;
 import com.gameplatform.shared.domain.model.ReservationStatus;
 import com.gameplatform.shared.domain.model.UserId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,8 @@ import java.util.UUID;
 @Service
 @Transactional
 public class ReservationService implements CreateReservationUseCase, CancelReservationUseCase, GetReservationsUseCase {
+
+    private static final Logger log = LoggerFactory.getLogger(ReservationService.class);
 
     private final ReservationRepository reservationRepository;
     private final GameRepository gameRepository;
@@ -107,7 +111,22 @@ public class ReservationService implements CreateReservationUseCase, CancelReser
         }
 
         // Publish new game machine status to MQTT
-        publishGameStatePort.publishState(gameId, game.getStatus());
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        try {
+                            publishGameStatePort.publishState(gameId, game.getStatus());
+                        } catch (Exception e) {
+                            log.warn("Failed to publish game state to MQTT after transaction commit", e);
+                        }
+                    }
+                }
+            );
+        } else {
+            publishGameStatePort.publishState(gameId, game.getStatus());
+        }
 
         return savedReservation;
     }
@@ -162,7 +181,22 @@ public class ReservationService implements CreateReservationUseCase, CancelReser
         }
 
         // Publish new game machine status to MQTT
-        publishGameStatePort.publishState(game.getId(), game.getStatus());
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        try {
+                            publishGameStatePort.publishState(game.getId(), game.getStatus());
+                        } catch (Exception e) {
+                            log.warn("Failed to publish game state to MQTT after transaction commit", e);
+                        }
+                    }
+                }
+            );
+        } else {
+            publishGameStatePort.publishState(game.getId(), game.getStatus());
+        }
     }
 
     @Override

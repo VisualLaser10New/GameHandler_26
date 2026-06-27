@@ -15,4 +15,15 @@
       </profile>
     </annotationProcessing>
   </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="boardgame-platform" options="-parameters" />
+      <module name="central-system" options="-parameters" />
+      <module name="game-client-emulator" options="-parameters" />
+      <module name="local-server" options="-parameters" />
+      <module name="shared-domain" options="-parameters" />
+      <module name="shared-dto" options="-parameters" />
+      <module name="shared-mqtt" options="-parameters" />
+    </option>
+  </component>
 </project>

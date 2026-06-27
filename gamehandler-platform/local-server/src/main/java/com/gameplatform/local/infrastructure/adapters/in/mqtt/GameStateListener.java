@@ -16,6 +16,9 @@ public class GameStateListener {
     }
 
     public void handleStateMessage(String topic, byte[] payload) {
+        if (payload == null) {
+            throw new NullPointerException("Payload cannot be null");
+        }
         GameStatePayload statePayload = MqttPayloadSerializer.deserialize(payload, GameStatePayload.class);
         
         // Extract gameId from topic building/{buildingId}/game/{gameId}/state

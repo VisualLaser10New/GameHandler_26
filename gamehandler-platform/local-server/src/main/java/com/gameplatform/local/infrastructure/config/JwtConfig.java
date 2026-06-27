@@ -41,64 +41,53 @@ public class JwtConfig {
     }
 
     private void loadKeys() {
-        try {
-            log.info("Loading local private key from: {}", privateKeyPath);
-            log.info("Loading local public key from: {}", publicKeyPath);
+        log.info("Loading local private key from: {}", privateKeyPath);
+        log.info("Loading local public key from: {}", publicKeyPath);
 
-            Resource privateRes = resourceLoader.getResource(privateKeyPath);
-            Resource publicRes = resourceLoader.getResource(publicKeyPath);
+        Resource privateRes = resourceLoader.getResource(privateKeyPath);
+        Resource publicRes = resourceLoader.getResource(publicKeyPath);
 
-            if (privateRes.exists() && publicRes.exists()) {
-                // Load Private Key
-                byte[] privBytes;
-                try (InputStream is = privateRes.getInputStream()) {
-                    privBytes = is.readAllBytes();
-                }
-                String privPem = new String(privBytes, StandardCharsets.UTF_8);
-                String cleanPrivPem = privPem
-                        .replace("-----BEGIN PRIVATE KEY-----", "")
-                        .replace("-----END PRIVATE KEY-----", "")
-                        .replaceAll("\\s+", "");
-                byte[] decodedPriv = Base64.getDecoder().decode(cleanPrivPem);
-                PKCS8EncodedKeySpec privSpec = new PKCS8EncodedKeySpec(decodedPriv);
-
-                // Load Public Key
-                byte[] pubBytes;
-                try (InputStream is = publicRes.getInputStream()) {
-                    pubBytes = is.readAllBytes();
-                }
-                String pubPem = new String(pubBytes, StandardCharsets.UTF_8);
-                String cleanPubPem = pubPem
-                        .replace("-----BEGIN PUBLIC KEY-----", "")
-                        .replace("-----END PUBLIC KEY-----", "")
-                        .replaceAll("\\s+", "");
-                byte[] decodedPub = Base64.getDecoder().decode(cleanPubPem);
-                X509EncodedKeySpec pubSpec = new X509EncodedKeySpec(decodedPub);
-
-                KeyFactory kf = KeyFactory.getInstance("RSA");
-                this.privateKey = kf.generatePrivate(privSpec);
-                this.publicKey = kf.generatePublic(pubSpec);
-                log.info("Successfully loaded local RSA keypair");
-            } else {
-                log.warn("One or both local PEM key files not found. Generating temporary RSA keypair...");
-                generateFallbackKeyPair();
-            }
-        } catch (Exception e) {
-            log.error("Failed to load local RSA keys. Generating temporary fallback keypair...", e);
-            generateFallbackKeyPair();
+        if (!privateRes.exists()) {
+            throw new IllegalStateException("Local private key PEM file not found at " + privateKeyPath);
         }
-    }
+        if (!publicRes.exists()) {
+            throw new IllegalStateException("Local public key PEM file not found at " + publicKeyPath);
+        }
 
-    private void generateFallbackKeyPair() {
         try {
-            KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
-            kpg.initialize(2048);
-            KeyPair kp = kpg.generateKeyPair();
-            this.privateKey = kp.getPrivate();
-            this.publicKey = kp.getPublic();
-            log.info("Temporary fallback local RSA keypair generated successfully");
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Failed to generate fallback RSA keypair", e);
+            // Load Private Key
+            byte[] privBytes;
+            try (InputStream is = privateRes.getInputStream()) {
+                privBytes = is.readAllBytes();
+            }
+            String privPem = new String(privBytes, StandardCharsets.UTF_8);
+            String cleanPrivPem = privPem
+                    .replace("-----BEGIN PRIVATE KEY-----", "")
+                    .replace("-----END PRIVATE KEY-----", "")
+                    .replaceAll("\\s+", "");
+            byte[] decodedPriv = Base64.getDecoder().decode(cleanPrivPem);
+            PKCS8EncodedKeySpec privSpec = new PKCS8EncodedKeySpec(decodedPriv);
+
+            // Load Public Key
+            byte[] pubBytes;
+            try (InputStream is = publicRes.getInputStream()) {
+                pubBytes = is.readAllBytes();
+            }
+            String pubPem = new String(pubBytes, StandardCharsets.UTF_8);
+            String cleanPubPem = pubPem
+                    .replace("-----BEGIN PUBLIC KEY-----", "")
+                    .replace("-----END PUBLIC KEY-----", "")
+                    .replaceAll("\\s+", "");
+            byte[] decodedPub = Base64.getDecoder().decode(cleanPubPem);
+            X509EncodedKeySpec pubSpec = new X509EncodedKeySpec(decodedPub);
+
+            KeyFactory kf = KeyFactory.getInstance("RSA");
+            this.privateKey = kf.generatePrivate(privSpec);
+            this.publicKey = kf.generatePublic(pubSpec);
+            log.info("Successfully loaded local RSA keypair");
+        } catch (Exception e) {
+            log.error("Failed to load or parse local RSA keys from PEM files", e);
+            throw new RuntimeException("Failed to load or parse local RSA keys", e);
         }
     }
 

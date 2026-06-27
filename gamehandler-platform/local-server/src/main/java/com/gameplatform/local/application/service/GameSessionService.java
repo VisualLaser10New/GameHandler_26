@@ -2,6 +2,7 @@ package com.gameplatform.local.application.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.domain.exception.GameNotAvailableException;
+import com.gameplatform.local.domain.exception.InvalidGameStateTransitionException;
 import com.gameplatform.local.domain.exception.ReservationExpiredException;
 import com.gameplatform.local.domain.exception.ReservationNotFoundException;
 import com.gameplatform.local.domain.exception.SessionAlreadyActiveException;
@@ -21,6 +22,8 @@ import com.gameplatform.local.domain.ports.out.ReservationRepository;
 import com.gameplatform.shared.domain.model.*;
 import com.gameplatform.shared.domain.result.GameResult;
 import com.gameplatform.shared.mqtt.MqttTopics;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +37,8 @@ import java.util.UUID;
 @Service
 @Transactional
 public class GameSessionService implements StartGameSessionUseCase, EndGameSessionUseCase, PauseGameSessionUseCase, ResumeGameSessionUseCase {
+
+    private static final Logger log = LoggerFactory.getLogger(GameSessionService.class);
 
     private final GameSessionRepository gameSessionRepository;
     private final GameRepository gameRepository;
@@ -75,6 +80,12 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         if (reservationId != null) {
             Reservation reservation = reservationRepository.findById(reservationId)
                     .orElseThrow(() -> new ReservationNotFoundException("Reservation not found: " + reservationId.value()));
+            if (!reservation.getGameId().equals(gameId)) {
+                throw new InvalidGameStateTransitionException("Reservation game machine does not match the requested game machine");
+            }
+            if (reservation.getStatus() == ReservationStatus.CANCELLED) {
+                throw new ReservationExpiredException("Reservation has been cancelled: " + reservationId.value());
+            }
             if (reservation.getStatus() == ReservationStatus.EXPIRED || Instant.now(clock).isAfter(reservation.getEndTime())) {
                 throw new ReservationExpiredException("Reservation has expired: " + reservationId.value());
             }
@@ -104,12 +115,27 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
 
         GameSession savedSession = gameSessionRepository.save(session);
 
-        // Publish new game machine status to MQTT
-        publishGameStatePort.publishState(gameId, game.getStatus());
-
-        // Publish session start event to MQTT
-        String startTopic = MqttTopics.sessionStart(game.getBuildingId().id(), gameId.id());
-        publishGameStatePort.publishSessionEvent(startTopic, savedSession);
+        // Publish new game machine status and session start event to MQTT
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        try {
+                            publishGameStatePort.publishState(gameId, game.getStatus());
+                            String startTopic = MqttTopics.sessionStart(game.getBuildingId().id(), gameId.id());
+                            publishGameStatePort.publishSessionEvent(startTopic, savedSession);
+                        } catch (Exception e) {
+                            log.warn("Failed to publish game state or session start event to MQTT after transaction commit", e);
+                        }
+                    }
+                }
+            );
+        } else {
+            publishGameStatePort.publishState(gameId, game.getStatus());
+            String startTopic = MqttTopics.sessionStart(game.getBuildingId().id(), gameId.id());
+            publishGameStatePort.publishSessionEvent(startTopic, savedSession);
+        }
 
         return savedSession;
     }
@@ -133,17 +159,38 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         Game game = gameRepository.findById(session.getGameId())
                 .orElseThrow(() -> new GameNotAvailableException("Game machine not found: " + session.getGameId().id()));
 
-        // Only release the game machine and publish status if the session was not already aborted 
+        // Only release the game machine if the session was not already aborted 
         // (since aborted sessions have already released the machine)
         if (!wasAborted) {
             game.release();
             gameRepository.save(game);
-            publishGameStatePort.publishState(game.getId(), game.getStatus());
         }
 
-        // Publish session end event to MQTT
-        String endTopic = MqttTopics.sessionEnd(game.getBuildingId().id(), game.getId().id());
-        publishGameStatePort.publishSessionEvent(endTopic, session);
+        // Publish session end event and game status to MQTT
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        try {
+                            if (!wasAborted) {
+                                publishGameStatePort.publishState(game.getId(), game.getStatus());
+                            }
+                            String endTopic = MqttTopics.sessionEnd(game.getBuildingId().id(), game.getId().id());
+                            publishGameStatePort.publishSessionEvent(endTopic, session);
+                        } catch (Exception e) {
+                            log.warn("Failed to publish game state or session end event to MQTT after transaction commit", e);
+                        }
+                    }
+                }
+            );
+        } else {
+            if (!wasAborted) {
+                publishGameStatePort.publishState(game.getId(), game.getStatus());
+            }
+            String endTopic = MqttTopics.sessionEnd(game.getBuildingId().id(), game.getId().id());
+            publishGameStatePort.publishSessionEvent(endTopic, session);
+        }
 
         // Generate Outbox Event
         try {
@@ -191,8 +238,24 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                 .orElseThrow(() -> new GameNotAvailableException("Game machine not found: " + session.getGameId().id()));
 
         // Publish session pause event to MQTT
-        String pauseTopic = MqttTopics.sessionPause(game.getBuildingId().id(), game.getId().id());
-        publishGameStatePort.publishSessionEvent(pauseTopic, session);
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        try {
+                            String pauseTopic = MqttTopics.sessionPause(game.getBuildingId().id(), game.getId().id());
+                            publishGameStatePort.publishSessionEvent(pauseTopic, session);
+                        } catch (Exception e) {
+                            log.warn("Failed to publish session pause event to MQTT after transaction commit", e);
+                        }
+                    }
+                }
+            );
+        } else {
+            String pauseTopic = MqttTopics.sessionPause(game.getBuildingId().id(), game.getId().id());
+            publishGameStatePort.publishSessionEvent(pauseTopic, session);
+        }
     }
 
     @Override
@@ -207,7 +270,23 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                 .orElseThrow(() -> new GameNotAvailableException("Game machine not found: " + session.getGameId().id()));
 
         // Publish session resume event to MQTT
-        String resumeTopic = MqttTopics.sessionResume(game.getBuildingId().id(), game.getId().id());
-        publishGameStatePort.publishSessionEvent(resumeTopic, session);
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        try {
+                            String resumeTopic = MqttTopics.sessionResume(game.getBuildingId().id(), game.getId().id());
+                            publishGameStatePort.publishSessionEvent(resumeTopic, session);
+                        } catch (Exception e) {
+                            log.warn("Failed to publish session resume event to MQTT after transaction commit", e);
+                        }
+                    }
+                }
+            );
+        } else {
+            String resumeTopic = MqttTopics.sessionResume(game.getBuildingId().id(), game.getId().id());
+            publishGameStatePort.publishSessionEvent(resumeTopic, session);
+        }
     }
 }

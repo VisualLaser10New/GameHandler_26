@@ -15,16 +15,26 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity;
+import com.gameplatform.local.infrastructure.adapters.out.mysql.repository.OutboxEventJpaRepository;
+import java.util.Objects;
+import java.util.Set;
 
 @Component
 public class GameSessionRepositoryAdapter implements GameSessionRepository {
 
     private final GameSessionJpaRepository jpaRepository;
     private final GameSessionMapper mapper;
+    private final OutboxEventJpaRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
 
-    public GameSessionRepositoryAdapter(GameSessionJpaRepository jpaRepository, GameSessionMapper mapper) {
+    public GameSessionRepositoryAdapter(GameSessionJpaRepository jpaRepository, GameSessionMapper mapper, OutboxEventJpaRepository outboxEventRepository, ObjectMapper objectMapper) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
+        this.outboxEventRepository = outboxEventRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -62,7 +72,26 @@ public class GameSessionRepositoryAdapter implements GameSessionRepository {
 
     @Override
     public List<GameSession> findPendingSync() {
-        return List.of();
+        List<GameSessionJpaEntity> completedOrAbortedSessions = jpaRepository.findByStatusIn(List.of("COMPLETED", "ABORTED"));
+        List<OutboxEventJpaEntity> sentEvents = outboxEventRepository.findByEventTypeAndStatus("GAME_SESSION_COMPLETED", "SENT");
+        
+        Set<String> sentSessionIds = sentEvents.stream()
+            .map(event -> {
+                try {
+                    JsonNode node = objectMapper.readTree(event.getPayload());
+                    JsonNode sessionIdNode = node.get("sessionId");
+                    return sessionIdNode != null ? sessionIdNode.asText() : null;
+                } catch (Exception e) {
+                    return null;
+                }
+            })
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+
+        return completedOrAbortedSessions.stream()
+            .filter(session -> !sentSessionIds.contains(session.getId()))
+            .map(mapper::toDomain)
+            .collect(Collectors.toList());
     }
 
     @Override
