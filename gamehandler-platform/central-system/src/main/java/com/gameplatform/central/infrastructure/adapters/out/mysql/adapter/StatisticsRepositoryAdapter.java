@@ -42,11 +42,19 @@ public class StatisticsRepositoryAdapter implements StatisticsRepository {
     }
 
     @Override
-    public List<AggregatedStatistics> findByPeriod(LocalDate start, LocalDate end) {
-        if (start == null || end == null) {
-            return List.of();
+    public Optional<AggregatedStatistics> findByBuildingAndTypeAndPeriodWithLock(BuildingId buildingId, GameType gameType, LocalDate periodStart) {
+        if (buildingId == null || gameType == null || periodStart == null) {
+            return Optional.empty();
         }
-        return jpaRepository.findByPeriodStartGreaterThanEqualAndPeriodEndLessThanEqual(start, end).stream()
+        return jpaRepository.findByBuildingIdAndGameTypeAndPeriodStartWithLock(buildingId.id(), gameType.name(), periodStart)
+                .map(mapper::toDomain);
+    }
+
+    @Override
+    public List<AggregatedStatistics> findByPeriod(BuildingId buildingId, GameType gameType, LocalDate start, LocalDate end) {
+        String buildingIdStr = buildingId != null ? buildingId.id() : null;
+        String gameTypeStr = gameType != null ? gameType.name() : null;
+        return jpaRepository.findByCriteria(buildingIdStr, gameTypeStr, start, end).stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
     }

@@ -15,6 +15,14 @@ server:
 
 jwt:
   private-key-path: ${JWT_PRIVATE_KEY_PATH:classpath:private.pem}
+  # Token lifetime in milliseconds. Default: 86 400 000 ms = 24 hours.
+  # Override via JWT_EXPIRATION_MS environment variable or directly in this file.
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 
 internal:
   api-key: ${INTERNAL_API_KEY:secret}
+
+# CORS allowed origins (comma-separated list, or '*' for wildcard without credentials).
+# Default: http://localhost:3000 for local development.
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}

@@ -10,6 +10,7 @@ import java.util.Optional;
 public interface StatisticsRepository {
     AggregatedStatistics save(AggregatedStatistics stats);
     Optional<AggregatedStatistics> findByBuildingAndTypeAndPeriod(BuildingId buildingId, GameType gameType, LocalDate periodStart);
-    List<AggregatedStatistics> findByPeriod(LocalDate start, LocalDate end);
+    Optional<AggregatedStatistics> findByBuildingAndTypeAndPeriodWithLock(BuildingId buildingId, GameType gameType, LocalDate periodStart);
+    List<AggregatedStatistics> findByPeriod(BuildingId buildingId, GameType gameType, LocalDate start, LocalDate end);
 }
 

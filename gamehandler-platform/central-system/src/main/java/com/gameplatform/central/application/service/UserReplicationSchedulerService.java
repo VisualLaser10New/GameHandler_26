@@ -8,15 +8,37 @@ import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.shared.dto.UserSyncDto;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * Scheduled service that replicates pending user events to all active local servers.
+ *
+ * <p>Resilience: if pushing to one server fails, the error is logged and the loop
+ * continues to the next server – a single failing server never aborts the entire batch.</p>
+ *
+ * <p>Correctness: an event is only marked as SENT when it has been successfully pushed
+ * to <em>every</em> active local server in the current run.</p>
+ *
+ * <p>Backpressure: events are fetched in chunks of {@value #BATCH_SIZE} to keep memory
+ * usage bounded regardless of queue depth.</p>
+ *
+ * <p>Uses {@code fixedDelay} so the next execution only starts after the previous one
+ * completes, preventing overlapping scheduler runs.</p>
+ */
 @Service
 public class UserReplicationSchedulerService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserReplicationSchedulerService.class);
+
     private static final String USER_REGISTERED_EVENT = "USER_REGISTERED";
-    private static final String USER_UPDATED_EVENT = "USER_UPDATED";
+    private static final String USER_UPDATED_EVENT    = "USER_UPDATED";
+    /** Maximum number of pending events to fetch per scheduler run. */
+    private static final int BATCH_SIZE = 50;
 
     private final OutboxEventRepository outboxEventRepository;
     private final LocalServerRegistryPort localServerRegistryPort;
@@ -35,9 +57,16 @@ public class UserReplicationSchedulerService {
         this.objectMapper = objectMapper;
     }
 
-    @Scheduled(fixedRate = 300_000)
+    /**
+     * Polls for pending user-replication events and pushes them to local servers.
+     *
+     * <p>{@code fixedDelay} ensures no overlapping runs – the 5-minute window begins
+     * only after the previous invocation finishes.</p>
+     */
+    @Scheduled(fixedDelay = 300_000)
     public void replicateUsers() {
-        List<OutboxEvent> pendingUserEvents = outboxEventRepository.findPending().stream()
+        // Fetch at most BATCH_SIZE events to avoid loading an unbounded result set
+        List<OutboxEvent> pendingUserEvents = outboxEventRepository.findPendingLimit(BATCH_SIZE).stream()
                 .filter(this::isUserReplicationEvent)
                 .toList();
 
@@ -54,11 +83,26 @@ public class UserReplicationSchedulerService {
         for (OutboxEvent event : pendingUserEvents) {
             UserSyncDto user = deserializeUser(event);
 
+            // Track whether all servers received the event successfully
+            boolean allSucceeded = true;
+
             for (RegisteredLocalServer server : activeLocalServers) {
-                pushUserToLocalServersPort.pushUsers(List.of(user), server);
+                try {
+                    pushUserToLocalServersPort.pushUsers(List.of(user), server);
+                } catch (Exception e) {
+                    // Isolate per-server failures: log and continue to the next server
+                    allSucceeded = false;
+                    log.error("Failed to push user event [{}] to server [{}]: {}",
+                            event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                }
             }
 
-            outboxEventRepository.markAsSent(event.getId());
+            // Only mark as sent when the event reached every active server
+            if (allSucceeded) {
+                outboxEventRepository.markAsSent(event.getId());
+            } else {
+                log.warn("User event [{}] was NOT marked as sent because one or more servers failed.", event.getId());
+            }
         }
     }
 

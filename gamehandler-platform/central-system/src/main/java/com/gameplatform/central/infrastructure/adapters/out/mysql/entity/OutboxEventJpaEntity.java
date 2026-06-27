@@ -3,11 +3,14 @@ package com.gameplatform.central.infrastructure.adapters.out.mysql.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
 @Entity
-@Table(name = "outbox_events")
+@Table(name = "outbox_events", indexes = {
+    @Index(name = "idx_outbox_status_created_at", columnList = "status, created_at")
+})
 public class OutboxEventJpaEntity {
 
     @Id

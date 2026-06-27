@@ -18,5 +18,10 @@
             <artifactId>shared-domain</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- Bean Validation API (annotations only – runtime provided by Spring Boot) -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
     </dependencies>
 </project>

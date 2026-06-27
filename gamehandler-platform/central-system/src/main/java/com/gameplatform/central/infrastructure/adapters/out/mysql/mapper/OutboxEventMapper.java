@@ -1,6 +1,7 @@
 package com.gameplatform.central.infrastructure.adapters.out.mysql.mapper;
 
 import com.gameplatform.central.domain.model.OutboxEvent;
+import com.gameplatform.central.domain.model.OutboxEventStatus;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity;
 import org.springframework.stereotype.Component;
 
@@ -15,7 +16,7 @@ public class OutboxEventMapper {
                 entity.getId(),
                 entity.getEventType(),
                 entity.getPayload(),
-                entity.getStatus(),
+                entity.getStatus() != null ? OutboxEventStatus.valueOf(entity.getStatus()) : null,
                 entity.getCreatedAt(),
                 entity.getSentAt()
         );
@@ -29,9 +30,10 @@ public class OutboxEventMapper {
                 domain.getId(),
                 domain.getEventType(),
                 domain.getPayload(),
-                domain.getStatus(),
+                domain.getStatus() != null ? domain.getStatus().name() : null,
                 domain.getCreatedAt(),
                 domain.getSentAt()
         );
     }
 }
+

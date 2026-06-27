@@ -6,6 +6,8 @@ import com.gameplatform.central.domain.model.AggregatedStatistics;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.AggregatedStatisticsJpaEntity;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -14,6 +16,8 @@ import java.util.Map;
 
 @Component
 public class StatisticsMapper {
+
+    private static final Logger log = LoggerFactory.getLogger(StatisticsMapper.class);
 
     private final ObjectMapper objectMapper;
 
@@ -30,7 +34,8 @@ public class StatisticsMapper {
             try {
                 dataMap = objectMapper.readValue(entity.getData(), new TypeReference<Map<String, Object>>() {});
             } catch (IOException e) {
-                // Return empty map or log in case of parsing exception
+                log.error("Critical error parsing statistics JSON data for entity ID: {}", entity.getId(), e);
+                throw new RuntimeException("Failed to deserialize AggregatedStatistics data", e);
             }
         }
         return new AggregatedStatistics(
@@ -55,7 +60,8 @@ public class StatisticsMapper {
             try {
                 dataStr = objectMapper.writeValueAsString(domain.getData());
             } catch (IOException e) {
-                // Ignore or handle
+                log.error("Critical error serializing statistics JSON data for domain ID: {}", domain.getId(), e);
+                throw new RuntimeException("Failed to serialize AggregatedStatistics data", e);
             }
         }
         return new AggregatedStatisticsJpaEntity(

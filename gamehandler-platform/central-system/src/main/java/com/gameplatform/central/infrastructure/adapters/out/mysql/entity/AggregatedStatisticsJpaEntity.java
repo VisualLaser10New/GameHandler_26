@@ -4,10 +4,13 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "aggregated_statistics")
+@Table(name = "aggregated_statistics", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"building_id", "game_type", "period_start"})
+})
 public class AggregatedStatisticsJpaEntity {
 
     @Id

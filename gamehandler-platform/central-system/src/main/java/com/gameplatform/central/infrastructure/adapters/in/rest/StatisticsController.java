@@ -12,6 +12,13 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * REST adapter that exposes global aggregated statistics.
+ *
+ * <p>An invalid {@code gameType} parameter value is now caught here and re-thrown
+ * as {@link IllegalArgumentException} with a descriptive message. The
+ * {@link GlobalExceptionHandler} maps this to HTTP 400 Bad Request.</p>
+ */
 @RestController
 @RequestMapping("/api/statistics")
 @PreAuthorize("hasRole('ADMIN')")
@@ -34,9 +41,16 @@ public class StatisticsController {
                 ? new BuildingId(buildingId)
                 : null;
 
-        GameType parsedGameType = (gameType != null && !gameType.isBlank())
-                ? GameType.valueOf(gameType.toUpperCase())
-                : null;
+        GameType parsedGameType = null;
+        if (gameType != null && !gameType.isBlank()) {
+            try {
+                parsedGameType = GameType.valueOf(gameType.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                        "Unknown game type: '" + gameType + "'. Valid values are: "
+                                + java.util.Arrays.toString(GameType.values()));
+            }
+        }
 
         List<StatisticsDto> statistics = getGlobalStatisticsUseCase.getStatistics(
                 parsedBuildingId,
@@ -48,4 +62,3 @@ public class StatisticsController {
         return ResponseEntity.ok(statistics);
     }
 }
-

@@ -27,10 +27,9 @@ public class StatisticsAggregationService implements GetGlobalStatisticsUseCase 
 
     @Override
     public List<StatisticsDto> getStatistics(BuildingId buildingId, GameType gameType, LocalDate start, LocalDate end) {
-        List<AggregatedStatistics> rawStats = repository.findByPeriod(start, end);
+        List<AggregatedStatistics> rawStats = repository.findByPeriod(buildingId, gameType, start, end);
 
-        return rawStats.stream().filter(stats ->
-                        buildingId == null || buildingId.equals(stats.getBuildingId())).filter(stats -> gameType == null || gameType == stats.getGameType()).map(this::toDto).collect(Collectors.toList());
+        return rawStats.stream().map(this::toDto).collect(Collectors.toList());
     }
 
     private StatisticsDto toDto(AggregatedStatistics stats) {

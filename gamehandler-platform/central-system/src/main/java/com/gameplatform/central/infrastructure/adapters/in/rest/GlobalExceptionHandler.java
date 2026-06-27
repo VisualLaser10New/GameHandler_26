@@ -1,0 +1,117 @@
+package com.gameplatform.central.infrastructure.adapters.in.rest;
+
+import com.gameplatform.central.domain.exception.InvalidCredentialsException;
+import com.gameplatform.central.domain.exception.RateLimitExceededException;
+import com.gameplatform.central.domain.exception.UserAlreadyExistsException;
+import com.gameplatform.central.domain.exception.UserNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ * Centralised exception-to-HTTP-status mapping for all REST controllers.
+ *
+ * <p>Follows the Separation of Concerns principle: controllers stay free of
+ * try-catch boilerplate while every domain exception is mapped to a well-defined
+ * HTTP response exactly once.</p>
+ *
+ * <ul>
+ *   <li>{@link UserNotFoundException}       → 404 Not Found</li>
+ *   <li>{@link UserAlreadyExistsException}  → 409 Conflict</li>
+ *   <li>{@link InvalidCredentialsException} → 401 Unauthorized</li>
+ *   <li>{@link RateLimitExceededException}  → 429 Too Many Requests</li>
+ *   <li>{@link MethodArgumentNotValidException} → 400 Bad Request (Bean Validation)</li>
+ *   <li>{@link IllegalArgumentException}    → 400 Bad Request</li>
+ * </ul>
+ */
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 400 Bad Request
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Handles constraint violations produced by {@code @Valid} on request bodies.
+     * Returns one combined message listing all failing fields.
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidationErrors(MethodArgumentNotValidException ex) {
+        String details = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .collect(Collectors.joining("; "));
+        log.debug("Validation failure: {}", details);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", details));
+    }
+
+    /**
+     * Handles {@link IllegalArgumentException} thrown when e.g. an invalid
+     * enum value is supplied as a request parameter.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
+        log.debug("Illegal argument: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", ex.getMessage()));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 401 Unauthorized
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidCredentials(InvalidCredentialsException ex) {
+        log.debug("Authentication failure: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", ex.getMessage()));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 404 Not Found
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleUserNotFound(UserNotFoundException ex) {
+        log.debug("User not found: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", ex.getMessage()));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 409 Conflict
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    public ResponseEntity<Map<String, String>> handleUserAlreadyExists(UserAlreadyExistsException ex) {
+        log.debug("User already exists: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(Map.of("error", ex.getMessage()));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 429 Too Many Requests
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Map<String, String>> handleRateLimitExceeded(RateLimitExceededException ex) {
+        log.warn("Rate limit exceeded: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(Map.of("error", ex.getMessage()));
+    }
+}

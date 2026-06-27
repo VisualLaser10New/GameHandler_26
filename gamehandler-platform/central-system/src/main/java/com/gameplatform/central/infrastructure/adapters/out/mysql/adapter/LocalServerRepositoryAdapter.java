@@ -6,7 +6,9 @@ import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.Registe
 import com.gameplatform.central.infrastructure.adapters.out.mysql.repository.LocalServerJpaRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -43,5 +45,17 @@ public class LocalServerRepositoryAdapter implements LocalServerRegistryPort {
                 server.isActive()
         );
         jpaRepository.save(entity);
+    }
+
+    @Override
+    @Transactional
+    public void updateLastSeenAt(BuildingId buildingId, Instant lastSeenAt) {
+        if (buildingId == null || lastSeenAt == null) {
+            return;
+        }
+        jpaRepository.findById(buildingId.id()).ifPresent(entity -> {
+            entity.setLastSeenAt(lastSeenAt);
+            jpaRepository.save(entity);
+        });
     }
 }
