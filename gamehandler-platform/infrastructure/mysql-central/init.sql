@@ -28,7 +28,7 @@ CREATE TABLE aggregated_statistics (
     period_start  DATE NOT NULL,
     period_end    DATE NOT NULL,
     total_sessions INT DEFAULT 0,
-    avg_duration_s INT DEFAULT 0,
+    avg_duration_seconds INT DEFAULT 0,
     total_reservations INT DEFAULT 0,
     data          JSON,
     UNIQUE KEY uk_building_type_period (building_id, game_type, period_start)
@@ -47,3 +47,14 @@ CREATE TABLE local_servers (
     is_active    BOOLEAN DEFAULT TRUE,
     INDEX idx_active (is_active)
 );
+
+CREATE TABLE outbox_events (
+    id          VARCHAR(36) PRIMARY KEY,
+    event_type  VARCHAR(100) NOT NULL,
+    payload     TEXT NOT NULL,
+    status      VARCHAR(20) NOT NULL,
+    created_at  DATETIME(6) NOT NULL,
+    sent_at     DATETIME(6),
+    INDEX idx_outbox_status_created_at (status, created_at)
+);
+

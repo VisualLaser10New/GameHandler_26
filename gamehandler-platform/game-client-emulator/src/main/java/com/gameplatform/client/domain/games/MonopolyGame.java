@@ -63,10 +63,6 @@ public class MonopolyGame implements GameLifecycle {
         this.stopReason = stopReason;
     }
 
-    public void setRunning(boolean running) {
-        this.running = running;
-    }
-
     @Override
     public void start(List<UserId> participants) {
         running = true;
@@ -87,16 +83,6 @@ public class MonopolyGame implements GameLifecycle {
     public void stop(StopReason reason) {
         this.running = false;
         this.stopReason = reason;
-    }
-
-    @Override
-    public void pause() {
-        this.running = false;
-    }
-
-    @Override
-    public void resume() {
-        this.running = true;
     }
 
     public void updateResource(UserId player, String key, int val) {

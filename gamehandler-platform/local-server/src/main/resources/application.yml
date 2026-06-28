@@ -1,8 +1,10 @@
 spring:
+  main:
+    allow-circular-references: true
   application:
     name: local-server
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/local_db}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3307/local_db}
     username: ${SPRING_DATASOURCE_USERNAME:root}
     password: ${SPRING_DATASOURCE_PASSWORD:root}
   jpa:
@@ -11,7 +13,7 @@ spring:
     show-sql: true
 
 server:
-  port: 8080
+  port: ${PORT:8081}
 
 app:
   building-id: ${BUILDING_ID:building-1}

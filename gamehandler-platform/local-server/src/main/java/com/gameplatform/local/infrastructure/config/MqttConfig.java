@@ -38,9 +38,9 @@ public class MqttConfig {
 
     @Bean(destroyMethod = "disconnect")
     public IMqttClient mqttClient(
-            GameStateListener gameStateListener,
-            GameSessionListener gameSessionListener,
-            HeartbeatListener heartbeatListener) throws MqttException {
+            @org.springframework.context.annotation.Lazy GameStateListener gameStateListener,
+            @org.springframework.context.annotation.Lazy GameSessionListener gameSessionListener,
+            @org.springframework.context.annotation.Lazy HeartbeatListener heartbeatListener) throws MqttException {
 
         String clientId = "local-server-" + buildingId + "-" + UUID.randomUUID().toString().substring(0, 8);
         log.info("Creating MqttClient with brokerUrl: {} and clientId: {}", brokerUrl, clientId);

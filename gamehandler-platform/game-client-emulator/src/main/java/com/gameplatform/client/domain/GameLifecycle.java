@@ -11,4 +11,5 @@ public interface GameLifecycle {
     void stop(StopReason reason);
     void pause();
     void resume();
+    List<UserId> getParticipants();
 }

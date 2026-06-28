@@ -9,6 +9,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${CENTRAL_DB_PASSWORD:-root}
       MYSQL_DATABASE: central_db
+    ports:
+      - "3306:3306"
     volumes:
       - ./infrastructure/mysql-central/init.sql:/docker-entrypoint-initdb.d/init.sql
       - central-db-data:/var/lib/mysql
@@ -43,6 +45,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${LOCAL_DB_PASSWORD:-root}
       MYSQL_DATABASE: local_db
+    ports:
+      - "3307:3306"
     volumes:
       - ./infrastructure/mysql-local/init.sql:/docker-entrypoint-initdb.d/init.sql
       - local-db-1-data:/var/lib/mysql
@@ -57,6 +61,7 @@ services:
       - ./infrastructure/mosquitto/password_file:/mosquitto/config/password_file
     ports:
       - "8883:8883"
+      - "1883:1883"
     networks:
       - local-net-1
 

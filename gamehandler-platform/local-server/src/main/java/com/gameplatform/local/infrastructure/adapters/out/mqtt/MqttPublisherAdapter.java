@@ -30,7 +30,7 @@ public class MqttPublisherAdapter implements PublishGameStatePort, PublishAlertP
     private final String buildingId;
 
     public MqttPublisherAdapter(
-            IMqttClient mqttClient,
+            @org.springframework.context.annotation.Lazy IMqttClient mqttClient,
             ObjectMapper objectMapper,
             @Value("${app.building-id}") String buildingId) {
         this.mqttClient = mqttClient;
