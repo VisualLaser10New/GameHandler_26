@@ -788,21 +788,21 @@
   - [ ] `void checkConnection()`
 
 ### 6.3 Adattatori MQTT Client (`infrastructure/mqtt/`)
-- [ ] `MqttClientAdapter` (class)
-  - [ ] `void connect()`
-  - [ ] `void disconnect()`
-  - [ ] `void publish(String topic, byte[] payload)`
-- [ ] `MqttConnectionManager` (class)
-  - [ ] `void manageConnection()`
-- [ ] `GameStatePublisher` (class)
-  - [ ] `void publishState(GameMachineStatus status)`
-- [ ] `SessionPublisher` (class)
-  - [ ] `void publishStart(SessionStartPayload p)`
-  - [ ] `void publishEnd(SessionEndPayload p)`
-- [ ] `HeartbeatPublisher` (class)
-  - [ ] `void publishHeartbeat(HeartbeatPayload p)`
-- [ ] `StateSubscriber` (class)
-  - [ ] `void subscribeToStates()`
+- [x] `MqttClientAdapter` (class)
+  - [x] `void connect()`
+  - [x] `void disconnect()`
+  - [x] `void publish(String topic, byte[] payload)`
+- [x] `MqttConnectionManager` (class)
+  - [x] `void manageConnection()`
+- [x] `GameStatePublisher` (class)
+  - [x] `void publishState(GameMachineStatus status)`
+- [x] `SessionPublisher` (class)
+  - [x] `void publishStart(SessionStartPayload p)`
+  - [x] `void publishEnd(SessionEndPayload p)`
+- [x] `HeartbeatPublisher` (class)
+  - [x] `void publishHeartbeat(HeartbeatPayload p)`
+- [x] `StateSubscriber` (class)
+  - [x] `void subscribeToStates()`
 
 ### 6.4 Interfaccia Grafica JavaFX (`infrastructure/ui/` e `components/`)
 - [ ] `MainView` (class)
@@ -831,8 +831,8 @@
 ### 6.5 Configurazione Client (`infrastructure/config/`)
 - [ ] `GameClientApplication` (class)
   - [ ] `static void main(String[] args)`
-- [ ] `MqttClientConfig` (class)
-  - [ ] `MqttConnectOptions getMqttOptions()`
+- [x] `MqttClientConfig` (class)
+  - [x] `MqttConnectOptions getMqttOptions()`
 
 ## 7 Configurazioni
 - [ ] Creare il certificato per `JwtTokenProvider`
