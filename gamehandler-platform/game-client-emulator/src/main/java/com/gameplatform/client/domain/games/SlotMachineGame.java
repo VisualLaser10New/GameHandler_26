@@ -8,27 +8,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class FoosballGame {
+public class SlotMachineGame {
     private List<UserId> participants;
+    private StopReason stopReason;
     private Map<UserId, Integer> scores;
     private boolean running;
-    private StopReason stopReason;
 
-    public FoosballGame() {
-        this.participants = new ArrayList<>();
-        this.running = false;
+    public SlotMachineGame() {
+        this.participants = new ArrayList<UserId>();
         this.stopReason = null;
-        this.scores = new HashMap<>();
+        this.scores = new HashMap<UserId, Integer>();
+        this.running = false;
     }
 
-    public void start(List<UserId> participants) {
+    public void start(List<UserId> participants, StopReason stopReason) {
         this.running = true;
         this.participants = participants;
-        this.scores.clear();
-        for (UserId userId : participants) {
-            this.scores.put(userId, 0);
-        }
         this.stopReason = null;
+        this.scores.clear();
+        for (UserId participant : participants) {
+            this.scores.put(participant, 0);
+        }
     }
 
     public void stop(StopReason reason) {
@@ -36,15 +36,17 @@ public class FoosballGame {
         this.stopReason = reason;
     }
 
-    void recordScore(UserId player, int delta) {
-        if (!running) {
+    public void recordScore(UserId player, int score) {
+        if (!this.running) {
             throw new IllegalStateException("Game is not running");
         }
-        if (!scores.containsKey(player)) {
+        if (!this.scores.containsKey(player)) {
             throw new IllegalStateException("Player " + player + " is not found");
         }
+        this.scores.put(player, score);
+    }
 
-        int newScore = scores.get(player) + delta;
-        scores.put(player, newScore);
+    public void spin() {
+        // TODO
     }
 }
