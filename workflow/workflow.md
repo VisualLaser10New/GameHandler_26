@@ -805,28 +805,28 @@
   - [x] `void subscribeToStates()`
 
 ### 6.4 Interfaccia Grafica JavaFX (`infrastructure/ui/` e `components/`)
-- [ ] `MainView` (class)
-  - [ ] `void start(Stage stage)`
-  - [ ] `void navigateTo(String viewName)`
-- [ ] `LoginView` (class)
-  - [ ] `Parent getView()`
-  - [ ] `void performLogin()`
-- [ ] `GameSelectionView` (class)
-  - [ ] `Parent getView()`
-  - [ ] `void refreshGames()`
-- [ ] `GamePlayView` (class)
-  - [ ] `Parent getView()`
-  - [ ] `void updateGameDisplay()`
-- [ ] `StatisticsView` (class)
-  - [ ] `Parent getView()`
-  - [ ] `void showStats()`
-- [ ] `ScoreboardComponent` (class)
-  - [ ] `void updateScores(Map<String, Integer> scores)`
-- [ ] `TimerComponent` (class)
-  - [ ] `void startTimer()`
-  - [ ] `void stopTimer()`
-- [ ] `StatusBarComponent` (class)
-  - [ ] `void updateStatus(String statusText)`
+- [x] `MainView` (class)
+  - [x] `void start(Stage stage)`
+  - [x] `void navigateTo(String viewName)`
+- [x] `LoginView` (class)
+  - [x] `Parent getView()`
+  - [x] `void performLogin()`
+- [x] `GameSelectionView` (class)
+  - [x] `Parent getView()`
+  - [x] `void refreshGames()`
+- [x] `GamePlayView` (class)
+  - [x] `Parent getView()`
+  - [x] `void updateGameDisplay()`
+- [x] `StatisticsView` (class)
+  - [x] `Parent getView()`
+  - [x] `void showStats()`
+- [x] `ScoreboardComponent` (class)
+  - [x] `void updateScores(Map<String, Integer> scores)`
+- [x] `TimerComponent` (class)
+  - [x] `void startTimer()`
+  - [x] `void stopTimer()`
+- [x] `StatusBarComponent` (class)
+  - [x] `void updateStatus(String statusText)`
 
 ### 6.5 Configurazione Client (`infrastructure/config/`)
 - [ ] `GameClientApplication` (class)

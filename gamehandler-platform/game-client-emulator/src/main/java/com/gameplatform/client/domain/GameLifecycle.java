@@ -9,4 +9,5 @@ import java.util.List;
 public interface GameLifecycle {
     void start(List<UserId> participants);
     void stop(StopReason reason);
+    List<UserId> getParticipants();
 }

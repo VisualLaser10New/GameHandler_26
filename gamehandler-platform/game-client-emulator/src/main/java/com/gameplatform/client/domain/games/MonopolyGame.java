@@ -85,6 +85,11 @@ public class MonopolyGame implements GameLifecycle {
         this.stopReason = reason;
     }
 
+    @Override
+    public List<UserId> getParticipants() {
+        return partecipants;
+    }
+
     public void updateResource(UserId player, String key, int val) {
         if (!running) {
             throw new IllegalStateException("MonopolyGame is not running");
