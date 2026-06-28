@@ -59,6 +59,8 @@ public class RiskGame implements GameLifecycle {
         this.turnIndex = turnIndex;
     }
 
+    public void setRunning(boolean running) { this.running = running; }
+
     public GameSessionId getSessionId() {
         return sessionId;
     }
@@ -83,6 +85,16 @@ public class RiskGame implements GameLifecycle {
     public void stop(StopReason reason) {
         this.running = false;
         this.stopReason = reason;
+    }
+
+    @Override
+    public void pause() {
+        this.running = false;
+    }
+
+    @Override
+    public void resume() {
+        this.running = true;
     }
 
     public void updateResources(UserId player, String key, int val) {

@@ -52,6 +52,8 @@ public class RouletteGame implements GameLifecycle {
         this.stopReason = stopReason;
     }
 
+    public void setRunning(boolean running) { this.running = running; }
+
     public int getTurnIndex() {
         return turnIndex;
     }
@@ -77,6 +79,16 @@ public class RouletteGame implements GameLifecycle {
     public void stop(StopReason reason) {
         this.stopReason = reason;
         this.running = false;
+    }
+
+    @Override
+    public void pause() {
+        this.running = false;
+    }
+
+    @Override
+    public void resume() {
+        this.running = true;
     }
 
     public void endTurn() {

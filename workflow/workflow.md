@@ -775,17 +775,17 @@
   - [X] `PAUSED`
 
 ### 6.2 Servizi Applicativi Client (`application/service/`)
-- [ ] `GameOrchestrationService` (class)
-  - [ ] `void startGame(GameType type, List<String> participants)`
-  - [ ] `void stopGame(StopReason reason)`
-  - [ ] `void pauseGame()`
-  - [ ] `void resumeGame()`
-- [ ] `HeartbeatService` (class)
-  - [ ] `void startHeartbeat()`
-  - [ ] `void stopHeartbeat()`
-  - [ ] `void handleHeartbeatAck()`
-- [ ] `ConnectionMonitorService` (class)
-  - [ ] `void checkConnection()`
+- [X] `GameOrchestrationService` (class)
+  - [X] `void startGame(GameType type, List<String> participants)`
+  - [X] `void stopGame(StopReason reason)`
+  - [X] `void pauseGame()`
+  - [X] `void resumeGame()`
+- [X] `HeartbeatService` (class)
+  - [X] `void startHeartbeat()`
+  - [X] `void stopHeartbeat()`
+  - [X] `void handleHeartbeatAck()`
+- [X] `ConnectionMonitorService` (class)
+  - [X] `void checkConnection()`
 
 ### 6.3 Adattatori MQTT Client (`infrastructure/mqtt/`)
 - [x] `MqttClientAdapter` (class)

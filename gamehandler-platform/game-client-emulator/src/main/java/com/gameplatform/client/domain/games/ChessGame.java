@@ -74,6 +74,16 @@ public class ChessGame implements GameLifecycle {
         this.stopReason = reason;
     }
 
+    @Override
+    public void pause() {
+        this.running = false;
+    }
+
+    @Override
+    public void resume() {
+        this.running = true;
+    }
+
     public void endTurn() {
         if (!this.running) {
             throw new IllegalStateException("ChessGame is not running");

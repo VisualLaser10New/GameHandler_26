@@ -62,6 +62,8 @@ public class DartsGame implements GameLifecycle {
         this.participants = participants;
     }
 
+    public void setRunning(boolean running) { this.running = running; }
+
     @Override
     public void start(List<UserId> participants) {
         this.running = true;
@@ -77,6 +79,16 @@ public class DartsGame implements GameLifecycle {
     public void stop(StopReason reason) {
         this.running = false;
         this.stopReason = reason;
+    }
+
+    @Override
+    public void pause() {
+        this.running = false;
+    }
+
+    @Override
+    public void resume() {
+        this.running = true;
     }
 
     public void recordScore(UserId player, int delta) {
