@@ -765,8 +765,8 @@
   - [X] `void stop(StopReason reason)`
   - [X] `void endTurn()`
   - [X] `void placeBet(UserId player, String num, int amount)`
-- [ ] `GameFactory` (class)
-  - [ ] `static GameLifecycle createGame(GameType type, GameSessionId sessionId)`
+- [X] `GameFactory` (class)
+  - [X] `static GameLifecycle createGame(GameType type, GameSessionId sessionId)`
 - [X] `ClientState` (enum)
   - [X] `DISCONNECTED`
   - [X] `CONNECTED`
