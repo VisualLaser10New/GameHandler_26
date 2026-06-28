@@ -1,5 +1,7 @@
 package com.gameplatform.client.domain.games;
 
+import com.gameplatform.client.domain.GameLifecycle;
+import com.gameplatform.shared.domain.model.GameSessionId;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.domain.model.UserId;
 
@@ -8,19 +10,50 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class FoosballGame {
+public class FoosballGame implements GameLifecycle {
     private List<UserId> participants;
     private Map<UserId, Integer> scores;
-    private boolean running;
+    private GameSessionId sessionId;
     private StopReason stopReason;
+    private boolean running;
 
-    public FoosballGame() {
+    public FoosballGame(GameSessionId sessionId) {
         this.participants = new ArrayList<>();
         this.running = false;
         this.stopReason = null;
         this.scores = new HashMap<>();
+        this.sessionId = sessionId;
     }
 
+    public GameSessionId getSessionId() {
+        return sessionId;
+    }
+
+    public StopReason getStopReason() {
+        return stopReason;
+    }
+
+    public void setStopReason(StopReason stopReason) {
+        this.stopReason = stopReason;
+    }
+
+    public Map<UserId, Integer> getScores() {
+        return scores;
+    }
+
+    public void setScores(Map<UserId, Integer> scores) {
+        this.scores = scores;
+    }
+
+    public List<UserId> getParticipants() {
+        return participants;
+    }
+
+    public void setParticipants(List<UserId> participants) {
+        this.participants = participants;
+    }
+
+    @Override
     public void start(List<UserId> participants) {
         this.running = true;
         this.participants = participants;
@@ -31,6 +64,7 @@ public class FoosballGame {
         this.stopReason = null;
     }
 
+    @Override
     public void stop(StopReason reason) {
         this.running = false;
         this.stopReason = reason;

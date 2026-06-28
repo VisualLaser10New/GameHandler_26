@@ -1,5 +1,7 @@
 package com.gameplatform.client.domain.games;
 
+import com.gameplatform.client.domain.GameLifecycle;
+import com.gameplatform.shared.domain.model.GameSessionId;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.domain.model.UserId;
 
@@ -8,20 +10,59 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class DartsGame {
+public class DartsGame implements GameLifecycle {
     private List<UserId> participants;
     private Map<UserId, Integer> scores;
     private boolean running;
     private int turnIndex;
+    private GameSessionId sessionId;
     private StopReason stopReason;
 
-    public DartsGame() {
+    public DartsGame(GameSessionId sessionId) {
         participants = new ArrayList<>();
         scores = new HashMap<>();
         running = false;
         turnIndex = 0;
+        this.sessionId = sessionId;
     }
 
+    public GameSessionId getSessionId() {
+        return sessionId;
+    }
+
+    public StopReason getStopReason() {
+        return stopReason;
+    }
+
+    public void setStopReason(StopReason stopReason) {
+        this.stopReason = stopReason;
+    }
+
+    public int getTurnIndex() {
+        return turnIndex;
+    }
+
+    public void setTurnIndex(int turnIndex) {
+        this.turnIndex = turnIndex;
+    }
+
+    public Map<UserId, Integer> getScores() {
+        return scores;
+    }
+
+    public void setScores(Map<UserId, Integer> scores) {
+        this.scores = scores;
+    }
+
+    public List<UserId> getParticipants() {
+        return participants;
+    }
+
+    public void setParticipants(List<UserId> participants) {
+        this.participants = participants;
+    }
+
+    @Override
     public void start(List<UserId> participants) {
         this.running = true;
         this.participants = participants;
@@ -32,6 +73,7 @@ public class DartsGame {
         this.stopReason = null;
     }
 
+    @Override
     public void stop(StopReason reason) {
         this.running = false;
         this.stopReason = reason;

@@ -1,25 +1,66 @@
 package com.gameplatform.client.domain.games;
 
+import com.gameplatform.client.domain.GameLifecycle;
+import com.gameplatform.shared.domain.model.GameSessionId;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.domain.model.UserId;
 
 import java.util.*;
 
-public class RouletteGame {
+public class RouletteGame implements GameLifecycle {
     private List<UserId> participants;
     private boolean running;
     private StopReason stopReason;
     private Map<UserId, Map<String, Integer>> bets;
     private int turnIndex;
+    private GameSessionId sessionId;
 
-    public RouletteGame() {
+    public RouletteGame(GameSessionId sessionId) {
         this.participants = new ArrayList<>();
         this.running = false;
         this.stopReason = null;
         this.bets = new HashMap<>();
         this.turnIndex = 0;
+        this.sessionId = sessionId;
     }
 
+    public GameSessionId getSessionId() {
+        return sessionId;
+    }
+
+    public List<UserId> getParticipants() {
+        return participants;
+    }
+
+    public void setParticipants(List<UserId> participants) {
+        this.participants = participants;
+    }
+
+    public Map<UserId, Map<String, Integer>> getBets() {
+        return bets;
+    }
+
+    public void setBets(Map<UserId, Map<String, Integer>> bets) {
+        this.bets = bets;
+    }
+
+    public StopReason getStopReason() {
+        return stopReason;
+    }
+
+    public void setStopReason(StopReason stopReason) {
+        this.stopReason = stopReason;
+    }
+
+    public int getTurnIndex() {
+        return turnIndex;
+    }
+
+    public void setTurnIndex(int turnIndex) {
+        this.turnIndex = turnIndex;
+    }
+
+    @Override
     public void start(List<UserId> participants) {
         this.participants = participants;
         this.running = true;
@@ -32,6 +73,7 @@ public class RouletteGame {
         }
     }
 
+    @Override
     public void stop(StopReason reason) {
         this.stopReason = reason;
         this.running = false;

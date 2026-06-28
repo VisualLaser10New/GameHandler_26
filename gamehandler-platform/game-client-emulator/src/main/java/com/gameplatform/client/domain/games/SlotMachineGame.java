@@ -1,5 +1,7 @@
 package com.gameplatform.client.domain.games;
 
+import com.gameplatform.client.domain.GameLifecycle;
+import com.gameplatform.shared.domain.model.GameSessionId;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.domain.model.UserId;
 
@@ -8,20 +10,52 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class SlotMachineGame {
+public class SlotMachineGame implements GameLifecycle {
     private List<UserId> participants;
     private StopReason stopReason;
     private Map<UserId, Integer> scores;
     private boolean running;
+    private GameSessionId sessionId;
 
-    public SlotMachineGame() {
+    public SlotMachineGame(GameSessionId sessionId) {
         this.participants = new ArrayList<UserId>();
         this.stopReason = null;
         this.scores = new HashMap<UserId, Integer>();
         this.running = false;
+        this.sessionId = sessionId;
     }
 
-    public void start(List<UserId> participants, StopReason stopReason) {
+    public List<UserId> getParticipants() {
+        return participants;
+    }
+
+    public void setParticipants(List<UserId> participants) {
+        this.participants = participants;
+    }
+
+    public StopReason getStopReason() {
+        return stopReason;
+    }
+
+    public void setStopReason(StopReason stopReason) {
+        this.stopReason = stopReason;
+    }
+
+    public Map<UserId, Integer> getScores() {
+        return scores;
+    }
+
+    public void setScores(Map<UserId, Integer> scores) {
+        this.scores = scores;
+    }
+
+
+    public GameSessionId getSessionId() {
+        return sessionId;
+    }
+
+    @Override
+    public void start(List<UserId> participants) {
         this.running = true;
         this.participants = participants;
         this.stopReason = null;
@@ -31,6 +65,7 @@ public class SlotMachineGame {
         }
     }
 
+    @Override
     public void stop(StopReason reason) {
         this.running = false;
         this.stopReason = reason;
