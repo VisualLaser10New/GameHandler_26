@@ -26,6 +26,7 @@ public class LocalServerRestAdapter implements PushUserToLocalServersPort {
     private final RestTemplate restTemplate;
     private final String apiKey;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public LocalServerRestAdapter(@Value("${internal.api-key}") String apiKey) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(5000);
