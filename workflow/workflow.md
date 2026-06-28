@@ -731,48 +731,48 @@
 ## 6. game-client-emulator (`com.gameplatform.client`)
 
 ### 6.1 Implementazioni dei Giochi ed Emulatori (`domain/games/`)
-- [ ] `FoosballGame` (class)
-  - [ ] `void start(List<UserId> participants)`
-  - [ ] `void stop(StopReason reason)`
-  - [ ] `void recordScore(UserId player, int delta)`
-- [ ] `ChessGame` (class)
-  - [ ] `void start(List<UserId> participants)`
-  - [ ] `void stop(StopReason reason)`
-  - [ ] `void endTurn()`
-  - [ ] `String serializeBoardState()`
-- [ ] `DartsGame` (class)
-  - [ ] `void start(List<UserId> participants)`
-  - [ ] `void stop(StopReason reason)`
-  - [ ] `void recordScore(UserId player, int delta)`
-  - [ ] `void endTurn()`
-- [ ] `MonopolyGame` (class)
-  - [ ] `void start(List<UserId> participants)`
-  - [ ] `void stop(StopReason reason)`
-  - [ ] `void updateResource(UserId player, String key, int val)`
-  - [ ] `void endTurn()`
-- [ ] `RiskGame` (class)
-  - [ ] `void start(List<UserId> participants)`
-  - [ ] `void stop(StopReason reason)`
-  - [ ] `void updateResource(UserId player, String key, int val)`
-  - [ ] `String serializeBoardState()`
-- [ ] `SlotMachineGame` (class)
-  - [ ] `void start(List<UserId> participants)`
-  - [ ] `void stop(StopReason reason)`
-  - [ ] `void recordScore(UserId player, int delta)`
+- [X] `FoosballGame` (class)
+  - [X] `void start(List<UserId> participants)`
+  - [X] `void stop(StopReason reason)`
+  - [X] `void recordScore(UserId player, int delta)`
+- [X] `ChessGame` (class)
+  - [X] `void start(List<UserId> participants)`
+  - [X] `void stop(StopReason reason)`
+  - [X] `void endTurn()`
+  - [X] `String serializeBoardState()`
+- [X] `DartsGame` (class)
+  - [X] `void start(List<UserId> participants)`
+  - [X] `void stop(StopReason reason)`
+  - [X] `void recordScore(UserId player, int delta)`
+  - [X] `void endTurn()`
+- [X] `MonopolyGame` (class)
+  - [X] `void start(List<UserId> participants)`
+  - [X] `void stop(StopReason reason)`
+  - [X] `void updateResource(UserId player, String key, int val)`
+  - [X] `void endTurn()`
+- [X] `RiskGame` (class)
+  - [X] `void start(List<UserId> participants)`
+  - [X] `void stop(StopReason reason)`
+  - [X] `void updateResource(UserId player, String key, int val)`
+  - [X] `String serializeBoardState()`
+- [X] `SlotMachineGame` (class)
+  - [X] `void start(List<UserId> participants)`
+  - [X] `void stop(StopReason reason)`
+  - [X] `void recordScore(UserId player, int delta)`
   - [ ] `void spin()`
-- [ ] `RouletteGame` (class)
-  - [ ] `void start(List<UserId> participants)`
-  - [ ] `void stop(StopReason reason)`
-  - [ ] `void endTurn()`
-  - [ ] `void placeBet(UserId player, String num, int amount)`
+- [X] `RouletteGame` (class)
+  - [X] `void start(List<UserId> participants)`
+  - [X] `void stop(StopReason reason)`
+  - [X] `void endTurn()`
+  - [X] `void placeBet(UserId player, String num, int amount)`
 - [ ] `GameFactory` (class)
   - [ ] `static GameLifecycle createGame(GameType type, GameSessionId sessionId)`
-- [ ] `ClientState` (enum)
-  - [ ] `DISCONNECTED`
-  - [ ] `CONNECTED`
-  - [ ] `LOGGED_IN`
-  - [ ] `IN_GAME`
-  - [ ] `PAUSED`
+- [X] `ClientState` (enum)
+  - [X] `DISCONNECTED`
+  - [X] `CONNECTED`
+  - [X] `LOGGED_IN`
+  - [X] `IN_GAME`
+  - [X] `PAUSED`
 
 ### 6.2 Servizi Applicativi Client (`application/service/`)
 - [ ] `GameOrchestrationService` (class)
