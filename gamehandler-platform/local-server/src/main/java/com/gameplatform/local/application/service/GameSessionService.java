@@ -3,8 +3,10 @@ package com.gameplatform.local.application.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.domain.exception.GameNotAvailableException;
 import com.gameplatform.local.domain.exception.InvalidGameStateTransitionException;
+import com.gameplatform.local.domain.exception.ReservationAlreadyUsedException;
 import com.gameplatform.local.domain.exception.ReservationExpiredException;
 import com.gameplatform.local.domain.exception.ReservationNotFoundException;
+import com.gameplatform.local.domain.exception.ReservationUserMismatchException;
 import com.gameplatform.local.domain.exception.SessionAlreadyActiveException;
 import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.model.GameSession;
@@ -83,6 +85,12 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
             if (!reservation.getGameId().equals(gameId)) {
                 throw new InvalidGameStateTransitionException("Reservation game machine does not match the requested game machine");
             }
+            if (!participants.contains(reservation.getUserId())) {
+                throw new ReservationUserMismatchException("Reservation user does not match the participants list");
+            }
+            if (reservation.getStatus() == ReservationStatus.CONFIRMED) {
+                throw new ReservationAlreadyUsedException("Reservation has already been used");
+            }
             if (reservation.getStatus() == ReservationStatus.CANCELLED) {
                 throw new ReservationExpiredException("Reservation has been cancelled: " + reservationId.value());
             }
@@ -91,6 +99,10 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
             }
             reservation.confirm();
             reservationRepository.save(reservation);
+        } else {
+            if (game.getStatus() == GameMachineStatus.RESERVED) {
+                throw new GameNotAvailableException("Game machine is reserved");
+            }
         }
 
         // Change machine state to IN_USE

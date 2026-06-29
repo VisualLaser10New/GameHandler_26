@@ -135,7 +135,7 @@ class GameSessionServiceTest {
         when(gameRepository.findById(any())).thenReturn(Optional.of(game(GameMachineStatus.AVAILABLE)));
         when(reservationRepository.findById(any())).thenReturn(Optional.of(r));
         assertThrows(ReservationExpiredException.class, () ->
-                service.start(new GameId("game-1"), GameType.CHESS, List.of(), rid));
+                service.start(new GameId("game-1"), GameType.CHESS, List.of(new UserId("u-1")), rid));
     }
 
     @Test
@@ -146,7 +146,7 @@ class GameSessionServiceTest {
         when(gameRepository.findById(any())).thenReturn(Optional.of(game(GameMachineStatus.AVAILABLE)));
         when(reservationRepository.findById(any())).thenReturn(Optional.of(r));
         assertThrows(ReservationExpiredException.class, () ->
-                service.start(new GameId("game-1"), GameType.CHESS, List.of(), rid));
+                service.start(new GameId("game-1"), GameType.CHESS, List.of(new UserId("u-1")), rid));
     }
 
     @Test
@@ -179,7 +179,7 @@ class GameSessionServiceTest {
         when(reservationRepository.findById(any())).thenReturn(Optional.of(r));
 
         assertThrows(ReservationExpiredException.class, () ->
-                service.start(new GameId("game-1"), GameType.CHESS, List.of(), rid));
+                service.start(new GameId("game-1"), GameType.CHESS, List.of(new UserId("u-1")), rid));
     }
 
     @Test

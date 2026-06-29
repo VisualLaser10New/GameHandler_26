@@ -62,8 +62,19 @@ public class ReservationRepositoryAdapter implements ReservationRepository {
 
     @Override
     public List<Reservation> findExpired(Instant now) {
-        return jpaRepository.findByStatusInAndEndTimeBefore(List.of("PENDING", "CONFIRMED"), now).stream()
+        return jpaRepository.findByStatusInAndEndTimeBefore(List.of("PENDING"), now).stream()
             .map(mapper::toDomain)
             .collect(Collectors.toList());
+    }
+
+    @Override
+    public int countByGameIds(List<GameId> gameIds) {
+        if (gameIds == null || gameIds.isEmpty()) {
+            return 0;
+        }
+        List<String> ids = gameIds.stream()
+            .map(GameId::id)
+            .collect(Collectors.toList());
+        return jpaRepository.countByGameIdIn(ids);
     }
 }

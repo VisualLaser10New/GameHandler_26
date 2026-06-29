@@ -3,6 +3,7 @@ package com.gameplatform.central.application.service;
 import com.gameplatform.central.domain.exception.InvalidCredentialsException;
 import com.gameplatform.central.domain.exception.RateLimitExceededException;
 import com.gameplatform.central.domain.model.User;
+import com.gameplatform.central.domain.ports.out.FailedLoginAttemptRepository;
 import com.gameplatform.central.domain.ports.out.UserRepository;
 import com.gameplatform.central.infrastructure.security.JwtTokenProvider;
 import com.gameplatform.shared.domain.model.UserId;
@@ -14,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -38,13 +40,18 @@ class AuthServiceTest {
     private UserRepository userRepository;
 
     @Mock
+    private FailedLoginAttemptRepository failedLoginAttemptRepository;
+
+    @Mock
     private JwtTokenProvider jwtTokenProvider;
 
     private AuthService authService;
+    private final Clock clock = Clock.systemUTC();
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userRepository, jwtTokenProvider);
+        authService = new AuthService(userRepository, failedLoginAttemptRepository, jwtTokenProvider, clock);
+        lenient().when(failedLoginAttemptRepository.countFailedAttempts(anyString(), any())).thenReturn(0L);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -117,6 +124,8 @@ class AuthServiceTest {
     void authenticate_shouldBlockOnSixthAttempt_afterFiveFailedAttemptsWithinWindow() {
         // All attempts for an unknown user – 5 should go through, the 6th must be rate-limited
         when(userRepository.findByUsername("eve")).thenReturn(Optional.empty());
+        when(failedLoginAttemptRepository.countFailedAttempts(eq("eve"), any()))
+                .thenReturn(0L, 1L, 2L, 3L, 4L, 5L);
 
         for (int i = 1; i <= 5; i++) {
             final int attempt = i;
@@ -135,6 +144,8 @@ class AuthServiceTest {
     void authenticate_shouldTrackRateLimitPerUsername_independently() {
         // "alice" has 5 failed attempts; "bob" should still be allowed
         when(userRepository.findByUsername("alice")).thenReturn(Optional.empty());
+        when(failedLoginAttemptRepository.countFailedAttempts(eq("alice"), any()))
+                .thenReturn(0L, 1L, 2L, 3L, 4L, 5L);
 
         for (int i = 0; i < 5; i++) {
             try { authService.authenticate("alice", "bad"); } catch (InvalidCredentialsException ignored) {}
@@ -147,6 +158,7 @@ class AuthServiceTest {
 
         // bob is on a separate counter and must not be affected
         when(userRepository.findByUsername("bob")).thenReturn(Optional.empty());
+        when(failedLoginAttemptRepository.countFailedAttempts(eq("bob"), any())).thenReturn(0L);
         assertThatThrownBy(() -> authService.authenticate("bob", "bad"))
                 .isInstanceOf(InvalidCredentialsException.class)
                 // should NOT be a rate-limit message

@@ -82,13 +82,10 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
         }
 
         if (newRoles != null && !newRoles.isEmpty()) {
-            List<String> mergedRoles = new ArrayList<>(user.getRoles());
-            for (String role : newRoles) {
-                if (!mergedRoles.contains(role)) {
-                    mergedRoles.add(role);
-                }
-            }
-            user.updateRoles(mergedRoles);
+            List<String> deduplicatedRoles = newRoles.stream()
+                    .distinct()
+                    .collect(Collectors.toList());
+            user.updateRoles(deduplicatedRoles);
         }
 
         return saveUserOnDB(user, "USER_UPDATED");

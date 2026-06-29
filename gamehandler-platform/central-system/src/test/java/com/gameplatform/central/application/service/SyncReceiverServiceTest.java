@@ -214,12 +214,12 @@ class SyncReceiverServiceTest {
 
         when(processedEventRepository.existsByEventId("already-done")).thenReturn(true);
 
-        // Must throw DuplicateEventException (or at least not call save again)
-        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
-                syncReceiverService.receiveSyncPayload(syncPayload))
-                .isInstanceOf(com.gameplatform.central.domain.exception.DuplicateEventException.class);
+        // Must not throw DuplicateEventException and complete successfully (skipping duplicate)
+        assertThatCode(() -> syncReceiverService.receiveSyncPayload(syncPayload))
+                .doesNotThrowAnyException();
 
         verify(statisticsRepository, never()).save(any());
+        verify(processedEventRepository, never()).save(any());
     }
 
     // ──────────────────────────────────────────────────────────────────────────

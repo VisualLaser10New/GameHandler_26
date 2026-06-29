@@ -15,4 +15,5 @@ public interface ReservationJpaRepository extends JpaRepository<ReservationJpaEn
     List<ReservationJpaEntity> findByStatus(String status);
     List<ReservationJpaEntity> findByStatusAndEndTimeBefore(String status, Instant endTime);
     List<ReservationJpaEntity> findByStatusInAndEndTimeBefore(Collection<String> statuses, Instant endTime);
+    int countByGameIdIn(Collection<String> gameIds);
 }

@@ -1,5 +1,6 @@
 package com.gameplatform.local.domain.model;
 
+import com.gameplatform.local.domain.exception.InvalidGameStateTransitionException;
 import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.ReservationId;
 import com.gameplatform.shared.domain.model.ReservationStatus;
@@ -61,14 +62,23 @@ public class Reservation {
     }
 
     public void confirm() {
+        if (this.status != ReservationStatus.PENDING) {
+            throw new InvalidGameStateTransitionException("Cannot confirm reservation because status is: " + this.status);
+        }
         this.status = ReservationStatus.CONFIRMED;
     }
 
     public void cancel() {
+        if (this.status != ReservationStatus.PENDING) {
+            throw new InvalidGameStateTransitionException("Cannot cancel reservation because status is: " + this.status);
+        }
         this.status = ReservationStatus.CANCELLED;
     }
 
     public void expire() {
+        if (this.status != ReservationStatus.PENDING) {
+            throw new InvalidGameStateTransitionException("Cannot expire reservation because status is: " + this.status);
+        }
         this.status = ReservationStatus.EXPIRED;
     }
 

@@ -4,9 +4,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.central.domain.model.OutboxEvent;
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
+import com.gameplatform.central.domain.model.ReplicationProgress;
 import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +16,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Scheduled service that replicates pending user events to all active local servers.
@@ -43,17 +47,20 @@ public class UserReplicationSchedulerService {
     private final OutboxEventRepository outboxEventRepository;
     private final LocalServerRegistryPort localServerRegistryPort;
     private final PushUserToLocalServersPort pushUserToLocalServersPort;
+    private final ReplicationProgressRepository replicationProgressRepository;
     private final ObjectMapper objectMapper;
 
     public UserReplicationSchedulerService(
             OutboxEventRepository outboxEventRepository,
             LocalServerRegistryPort localServerRegistryPort,
             PushUserToLocalServersPort pushUserToLocalServersPort,
+            ReplicationProgressRepository replicationProgressRepository,
             ObjectMapper objectMapper
     ) {
         this.outboxEventRepository = outboxEventRepository;
         this.localServerRegistryPort = localServerRegistryPort;
         this.pushUserToLocalServersPort = pushUserToLocalServersPort;
+        this.replicationProgressRepository = replicationProgressRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -83,12 +90,22 @@ public class UserReplicationSchedulerService {
         for (OutboxEvent event : pendingUserEvents) {
             UserSyncDto user = deserializeUser(event);
 
+            List<ReplicationProgress> progressList = replicationProgressRepository.findByEventId(event.getId());
+            Set<String> alreadyReplicatedServerIds = progressList.stream()
+                    .map(ReplicationProgress::serverId)
+                    .collect(Collectors.toSet());
+
             // Track whether all servers received the event successfully
             boolean allSucceeded = true;
 
             for (RegisteredLocalServer server : activeLocalServers) {
+                String serverId = server.getBuildingId().id();
+                if (alreadyReplicatedServerIds.contains(serverId)) {
+                    continue;
+                }
                 try {
                     pushUserToLocalServersPort.pushUsers(List.of(user), server);
+                    replicationProgressRepository.save(new ReplicationProgress(event.getId(), serverId));
                 } catch (Exception e) {
                     // Isolate per-server failures: log and continue to the next server
                     allSucceeded = false;

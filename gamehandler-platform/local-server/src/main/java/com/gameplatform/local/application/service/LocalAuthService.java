@@ -9,6 +9,7 @@ import com.gameplatform.shared.dto.LoginResponseDto;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
@@ -17,10 +18,12 @@ public class LocalAuthService implements AuthenticateLocalUserUseCase {
 
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
+    private final Clock clock;
 
-    public LocalAuthService(UserRepository userRepository, JwtTokenProvider jwtTokenProvider) {
+    public LocalAuthService(UserRepository userRepository, JwtTokenProvider jwtTokenProvider, Clock clock) {
         this.userRepository = userRepository;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.clock = clock;
     }
 
     @Override
@@ -35,7 +38,7 @@ public class LocalAuthService implements AuthenticateLocalUserUseCase {
         String token = jwtTokenProvider.generateToken(user);
         
         // Default token expiration of 1 hour
-        Instant expiresAt = Instant.now().plus(1, ChronoUnit.HOURS);
+        Instant expiresAt = Instant.now(clock).plus(1, ChronoUnit.HOURS);
 
         return new LoginResponseDto(token, user.getUserId().value(), expiresAt);
     }

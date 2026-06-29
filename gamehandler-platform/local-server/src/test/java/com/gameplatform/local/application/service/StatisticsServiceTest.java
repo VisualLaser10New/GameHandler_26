@@ -45,9 +45,7 @@ class StatisticsServiceTest {
         GameId chessId = new GameId("game-1");
         GameId foosballId = new GameId("game-2");
         when(gameRepository.findAll()).thenReturn(List.of(game(chessId, GameType.CHESS), game(foosballId, GameType.FOOSBALL)));
-        when(reservationRepository.findByGameId(chessId)).thenReturn(List.of(
-                new Reservation(new ReservationId("r1"), chessId, new UserId("u"), ReservationStatus.PENDING, Instant.now(), Instant.now().plusSeconds(60), Instant.now()),
-                new Reservation(new ReservationId("r2"), chessId, new UserId("u"), ReservationStatus.PENDING, Instant.now(), Instant.now().plusSeconds(60), Instant.now())));
+        when(reservationRepository.countByGameIds(List.of(chessId))).thenReturn(2);
         when(gameSessionRepository.findByGameType(GameType.CHESS)).thenReturn(List.of(completedSession(GameType.CHESS)));
 
         LocalStatistics stats = service.getStatistics(GameType.CHESS);
@@ -70,7 +68,7 @@ class StatisticsServiceTest {
     void shouldHandleNoSessions() {
         GameId id = new GameId("game-1");
         when(gameRepository.findAll()).thenReturn(List.of(game(id, GameType.CHESS)));
-        when(reservationRepository.findByGameId(id)).thenReturn(List.of());
+        when(reservationRepository.countByGameIds(List.of(id))).thenReturn(0);
         when(gameSessionRepository.findByGameType(GameType.CHESS)).thenReturn(List.of());
 
         LocalStatistics stats = service.getStatistics(GameType.CHESS);

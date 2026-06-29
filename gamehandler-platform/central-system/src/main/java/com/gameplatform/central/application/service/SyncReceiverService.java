@@ -68,13 +68,14 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
         for (OutboxEventDto event : payload.events()) {
             try {
                 if (processedEventRepository.existsByEventId(event.eventId())) {
-                    throw new DuplicateEventException("Sync event already processed: " + event.eventId());
+                    log.info("Duplicate sync event caught, skipping: {}", event.eventId());
+                    continue;
                 }
 
                 boolean processed = processEvent(buildingId, event);
 
                 if (processed) {
-                    processedEventRepository.save(new ProcessedEvent(event.eventId(), event.createdAt()));
+                    processedEventRepository.save(new ProcessedEvent(event.eventId(), Instant.now()));
                 }
             } catch (JsonProcessingException e) {
                 throw new RuntimeException("Error processing sync event: " + event.eventId(), e);
@@ -92,7 +93,7 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
             GameType gameType = parseGameType(payloadNode, eventDto.eventId());
             if (gameType == null) {
                 // Malformed payload – record as processed to prevent re-processing, but skip stats update
-                processedEventRepository.save(new ProcessedEvent(eventDto.eventId(), eventDto.createdAt()));
+                processedEventRepository.save(new ProcessedEvent(eventDto.eventId(), Instant.now()));
                 return false;
             }
             Instant occurredAt = payloadNode.has("occurredAt")
@@ -105,7 +106,7 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
         } else if ("RESERVATION_CREATED".equals(eventDto.eventType())) {
             GameType gameType = parseGameType(payloadNode, eventDto.eventId());
             if (gameType == null) {
-                processedEventRepository.save(new ProcessedEvent(eventDto.eventId(), eventDto.createdAt()));
+                processedEventRepository.save(new ProcessedEvent(eventDto.eventId(), Instant.now()));
                 return false;
             }
             Instant occurredAt = payloadNode.has("occurredAt")
@@ -117,7 +118,7 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
         } else if ("RESERVATION_CANCELLED".equals(eventDto.eventType())) {
             ParsedGameTypePeriod parsed = parseGameTypePeriod(payloadNode, eventDto.eventId());
             if (parsed == null) {
-                processedEventRepository.save(new ProcessedEvent(eventDto.eventId(), eventDto.createdAt()));
+                processedEventRepository.save(new ProcessedEvent(eventDto.eventId(), Instant.now()));
                 return false;
             }
             updateReservationStats(buildingId, parsed.gameType(), parsed.periodStart(), -1);

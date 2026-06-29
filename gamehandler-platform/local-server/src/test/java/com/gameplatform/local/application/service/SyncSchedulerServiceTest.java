@@ -26,7 +26,12 @@ class SyncSchedulerServiceTest {
 
     @BeforeEach
     void setup() {
-        service = new SyncSchedulerService(outboxEventRepository, syncCentralSystemPort, "building-1");
+        service = new SyncSchedulerService(
+                outboxEventRepository,
+                syncCentralSystemPort,
+                new OutboxSyncHelper(outboxEventRepository),
+                "building-1"
+        );
     }
 
     private OutboxEvent event(String id) {
