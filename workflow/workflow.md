@@ -829,8 +829,8 @@
   - [x] `void updateStatus(String statusText)`
 
 ### 6.5 Configurazione Client (`infrastructure/config/`)
-- [ ] `GameClientApplication` (class)
-  - [ ] `static void main(String[] args)`
+- [x] `GameClientApplication` (class)
+  - [x] `static void main(String[] args)`
 - [x] `MqttClientConfig` (class)
   - [x] `MqttConnectOptions getMqttOptions()`
 

@@ -105,4 +105,19 @@ public class MonopolyGame implements GameLifecycle {
 
         this.turnIndex = (this.turnIndex + 1) % partecipants.size();
     }
+
+    @Override
+    public List<UserId> getParticipants() {
+        return partecipants;
+    }
+
+    @Override
+    public void pause() {
+        this.running = false;
+    }
+
+    @Override
+    public void resume() {
+        this.running = true;
+    }
 }
