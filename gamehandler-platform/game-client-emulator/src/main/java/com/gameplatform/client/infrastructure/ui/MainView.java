@@ -99,6 +99,21 @@ public class MainView extends Application {
             String brokerUrl = System.getenv().getOrDefault("MQTT_BROKER_URL", "tcp://localhost:1883");
             String clientId = System.getenv().getOrDefault("MQTT_CLIENT_ID", "game-client");
             buildingId = System.getenv().getOrDefault("BUILDING_ID", "building-001");
+            String gameId = System.getenv().getOrDefault("GAME_ID", "game-1");
+            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "http://localhost:8081");
+
+            // Perform dynamic enrollment if using TLS (ssl://)
+            if (brokerUrl.startsWith("ssl://")) {
+                statusBar.updateStatus("Enrolling device certificates...");
+                com.gameplatform.client.infrastructure.security.CertificateEnrollmentService enrollmentService = 
+                        new com.gameplatform.client.infrastructure.security.CertificateEnrollmentService(gameId, localServerUrl);
+                boolean enrolled = enrollmentService.enrollIfNecessary();
+                if (!enrolled) {
+                    statusBar.updateStatus("Enrollment failed. Proceeding without certs.");
+                } else {
+                    statusBar.updateStatus("Enrollment successful.");
+                }
+            }
 
             MqttClientConfig mqttConfig = new MqttClientConfig(brokerUrl, clientId, buildingId);
             mqttAdapter = new MqttClientAdapter(mqttConfig);

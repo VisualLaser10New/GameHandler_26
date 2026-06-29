@@ -15,8 +15,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ResourceLoader;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.InputStream;
+import java.security.KeyStore;
 import java.util.UUID;
 
 @Configuration
@@ -35,6 +41,24 @@ public class MqttConfig {
 
     @Value("${mqtt.password:}")
     private String password;
+
+    @Value("${mqtt.trust-store:}")
+    private String mqttTrustStore;
+
+    @Value("${mqtt.trust-store-password:}")
+    private String mqttTrustStorePassword;
+
+    @Value("${mqtt.key-store:}")
+    private String mqttKeyStore;
+
+    @Value("${mqtt.key-store-password:}")
+    private String mqttKeyStorePassword;
+
+    private final ResourceLoader resourceLoader;
+
+    public MqttConfig(ResourceLoader resourceLoader) {
+        this.resourceLoader = resourceLoader;
+    }
 
     @Bean(destroyMethod = "disconnect")
     public IMqttClient mqttClient(
@@ -59,11 +83,31 @@ public class MqttConfig {
         }
 
         // Configure TLS if brokerUrl uses ssl scheme
-        if (brokerUrl.startsWith("ssl://")) {
+        if (brokerUrl.startsWith("ssl://") && mqttTrustStore != null && !mqttTrustStore.isBlank()) {
             try {
-                options.setSocketFactory(SSLSocketFactory.getDefault());
+                KeyStore trustStore = KeyStore.getInstance("PKCS12");
+                try (InputStream in = resourceLoader.getResource(mqttTrustStore).getInputStream()) {
+                    trustStore.load(in, mqttTrustStorePassword.toCharArray());
+                }
+                TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init(trustStore);
+
+                KeyManagerFactory kmf = null;
+                if (mqttKeyStore != null && !mqttKeyStore.isBlank()) {
+                    KeyStore keyStore = KeyStore.getInstance("PKCS12");
+                    try (InputStream in = resourceLoader.getResource(mqttKeyStore).getInputStream()) {
+                        keyStore.load(in, mqttKeyStorePassword.toCharArray());
+                    }
+                    kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+                    kmf.init(keyStore, mqttKeyStorePassword.toCharArray());
+                }
+
+                SSLContext sslContext = SSLContext.getInstance("TLS");
+                sslContext.init(kmf != null ? kmf.getKeyManagers() : null, tmf.getTrustManagers(), new java.security.SecureRandom());
+                options.setSocketFactory(sslContext.getSocketFactory());
+                log.info("Successfully configured SSLSocketFactory (mTLS) for MQTT client");
             } catch (Exception e) {
-                log.error("Failed to configure default SSLSocketFactory for MQTT client", e);
+                log.error("Failed to configure SSLSocketFactory for MQTT client", e);
             }
         }
 

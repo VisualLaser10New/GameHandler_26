@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLSocketFactory;
+import java.io.File;
+import java.security.KeyStore;
 import java.util.UUID;
 
 /**
@@ -67,7 +69,38 @@ public class MqttClientAdapter {
         options.setKeepAliveInterval(config.getKeepAliveInterval());
 
         if (config.getBrokerUrl().startsWith("ssl://")) {
-            options.setSocketFactory(SSLSocketFactory.getDefault());
+            try {
+                String gameId = System.getenv().getOrDefault("GAME_ID", "game-1");
+                File keystoreFile = new File("certs/" + gameId + "-keystore.p12");
+                File truststoreFile = new File("certs/local-truststore.p12");
+
+                // Truststore
+                KeyStore trustStore = KeyStore.getInstance("PKCS12");
+                try (java.io.InputStream in = new java.io.FileInputStream(truststoreFile)) {
+                    trustStore.load(in, "changeit".toCharArray());
+                }
+                javax.net.ssl.TrustManagerFactory tmf = javax.net.ssl.TrustManagerFactory.getInstance(
+                        javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init(trustStore);
+
+                // Keystore
+                KeyStore keyStore = KeyStore.getInstance("PKCS12");
+                try (java.io.InputStream in = new java.io.FileInputStream(keystoreFile)) {
+                    keyStore.load(in, "changeit".toCharArray());
+                }
+                javax.net.ssl.KeyManagerFactory kmf = javax.net.ssl.KeyManagerFactory.getInstance(
+                        javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
+                kmf.init(keyStore, "changeit".toCharArray());
+
+                javax.net.ssl.SSLContext sslContext = javax.net.ssl.SSLContext.getInstance("TLS");
+                sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new java.security.SecureRandom());
+
+                options.setSocketFactory(sslContext.getSocketFactory());
+                log.info("Configured Paho MQTT client with mTLS keystore and truststore");
+            } catch (Exception e) {
+                log.error("Failed to load mTLS certificates for MQTT broker: {}", e.getMessage(), e);
+                options.setSocketFactory(SSLSocketFactory.getDefault());
+            }
         }
 
         mqttClient.setCallback(new MqttCallbackExtended() {

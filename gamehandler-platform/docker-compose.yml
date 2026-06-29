@@ -31,6 +31,8 @@ services:
       - SPRING_DATASOURCE_PASSWORD=${CENTRAL_DB_PASSWORD:-root}
       - JWT_PRIVATE_KEY_PATH=/certs/private.pem
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - SSL_KEYSTORE_PATH=file:/certs/central-system-https.p12
+      - SSL_KEYSTORE_PASSWORD=changeit
     volumes:
       - ./infrastructure/tls:/certs:ro
     networks:
@@ -84,8 +86,17 @@ services:
       - JWT_LOCAL_PRIVATE_KEY_PATH=/certs/local-private.pem
       - JWT_LOCAL_PUBLIC_KEY_PATH=/certs/local-public.pem
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - SSL_KEYSTORE_PATH=file:/certs/local-server-https.p12
+      - SSL_KEYSTORE_PASSWORD=changeit
+      - SSL_TRUSTSTORE_PATH=file:/certs/central-truststore.p12
+      - SSL_TRUSTSTORE_PASSWORD=changeit
+      - MQTT_TRUSTSTORE_PATH=file:/certs/local-truststore.p12
+      - MQTT_TRUSTSTORE_PASSWORD=changeit
+      - CA_CERT_PATH=file:/mosquitto/certs/ca.crt
+      - CA_KEY_PATH=file:/mosquitto/certs/ca.key
     volumes:
       - ./infrastructure/tls:/certs:ro
+      - ./infrastructure/mosquitto/certs:/mosquitto/certs:ro
     networks:
       - local-net-1
       - integration-net
@@ -105,7 +116,7 @@ services:
       - GAME_TYPE=FOOSBALL
       - BUILDING_ID=building-1
       - MQTT_BROKER_URL=ssl://mqtt-broker-1:8883
-      - LOCAL_SERVER_URL=http://local-server-1:8080
+      - LOCAL_SERVER_URL=https://local-server-1:8080
       - MQTT_USERNAME=client-foosball-1
       - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
     networks:
@@ -123,7 +134,7 @@ services:
       - GAME_TYPE=CHESS
       - BUILDING_ID=building-1
       - MQTT_BROKER_URL=ssl://mqtt-broker-1:8883
-      - LOCAL_SERVER_URL=http://local-server-1:8080
+      - LOCAL_SERVER_URL=https://local-server-1:8080
       - MQTT_USERNAME=client-chess-1
       - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
     networks:

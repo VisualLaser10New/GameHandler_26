@@ -59,9 +59,10 @@ public class StatisticsView {
     public void showStats() {
         statusLabel.setText("Loading...");
         try {
-            HttpClient client = HttpClient.newHttpClient();
+            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "http://localhost:8081");
+            HttpClient client = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl);
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/api/statistics"))
+                    .uri(URI.create(localServerUrl + "/api/statistics"))
                     .GET()
                     .build();
             client.sendAsync(request, HttpResponse.BodyHandlers.ofString())

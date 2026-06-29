@@ -12,6 +12,12 @@ spring:
 
 server:
   port: 8080
+  ssl:
+    enabled: true
+    key-store: ${SSL_KEYSTORE_PATH:classpath:central-system-https.p12}
+    key-store-password: ${SSL_KEYSTORE_PASSWORD:changeit}
+    key-store-type: PKCS12
+    key-alias: central-system-https
 
 jwt:
   private-key-path: ${JWT_PRIVATE_KEY_PATH:classpath:private.pem}

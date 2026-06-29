@@ -75,6 +75,15 @@
             <version>9.3.0</version>
             <scope>runtime</scope>
         </dependency>
+        <!-- Bouncy Castle (for dynamic CSR/certificates handling) -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+        </dependency>
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

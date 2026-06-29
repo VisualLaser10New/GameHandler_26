@@ -14,15 +14,29 @@ spring:
 
 server:
   port: ${PORT:8081}
+  ssl:
+    enabled: true
+    key-store: ${SSL_KEYSTORE_PATH:classpath:local-server-https.p12}
+    key-store-password: ${SSL_KEYSTORE_PASSWORD:changeit}
+    key-store-type: PKCS12
+    key-alias: local-server-https
 
 app:
   building-id: ${BUILDING_ID:building-1}
-  central-system-url: ${CENTRAL_SYSTEM_URL:http://localhost:8080}
+  central-system-url: ${CENTRAL_SYSTEM_URL:https://localhost:8080}
   sync-interval-ms: ${SYNC_INTERVAL_MS:300000}
   healthcheck-interval-ms: ${HEALTHCHECK_INTERVAL_MS:300000}
 
+ssl:
+  trust-store: ${SSL_TRUSTSTORE_PATH:classpath:central-truststore.p12}
+  trust-store-password: ${SSL_TRUSTSTORE_PASSWORD:changeit}
+  ca-cert-path: ${CA_CERT_PATH:classpath:ca.crt}
+  ca-key-path: ${CA_KEY_PATH:classpath:ca.key}
+
 mqtt:
   broker-url: ${MQTT_BROKER_URL:tcp://localhost:1883}
+  trust-store: ${MQTT_TRUSTSTORE_PATH:classpath:local-truststore.p12}
+  trust-store-password: ${MQTT_TRUSTSTORE_PASSWORD:changeit}
 
 jwt:
   local-private-key-path: ${JWT_LOCAL_PRIVATE_KEY_PATH:classpath:local-private.pem}

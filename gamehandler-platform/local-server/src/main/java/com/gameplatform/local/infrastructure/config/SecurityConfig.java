@@ -33,6 +33,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/devices/register").permitAll()
                 .requestMatchers("/internal/**").permitAll() // Handled by InternalApiKeyFilter
                 .anyRequest().authenticated()
             );

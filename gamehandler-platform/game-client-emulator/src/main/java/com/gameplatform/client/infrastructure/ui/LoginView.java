@@ -107,9 +107,10 @@ public class LoginView {
             ObjectMapper mapper = new ObjectMapper();
             String json = mapper.writeValueAsString(request);
 
-            HttpClient client = HttpClient.newHttpClient();
+            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "http://localhost:8081");
+            HttpClient client = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl);
             HttpRequest httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/api/auth/login"))
+                    .uri(URI.create(localServerUrl + "/api/auth/login"))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .build();
