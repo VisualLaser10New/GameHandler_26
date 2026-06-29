@@ -7,7 +7,7 @@ import com.gameplatform.central.domain.model.User;
 import com.gameplatform.central.domain.ports.in.AuthenticateUserUseCase;
 import com.gameplatform.central.domain.ports.out.FailedLoginAttemptRepository;
 import com.gameplatform.central.domain.ports.out.UserRepository;
-import com.gameplatform.central.infrastructure.security.JwtTokenProvider;
+import com.gameplatform.central.domain.ports.out.TokenProviderPort;
 import com.gameplatform.shared.dto.LoginResponseDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,18 +26,18 @@ public class AuthService implements AuthenticateUserUseCase {
 
     private final UserRepository userRepository;
     private final FailedLoginAttemptRepository failedLoginAttemptRepository;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final TokenProviderPort tokenProviderPort;
     private final Clock clock;
 
     public AuthService(
             UserRepository userRepository,
             FailedLoginAttemptRepository failedLoginAttemptRepository,
-            JwtTokenProvider jwtTokenProvider,
+            TokenProviderPort tokenProviderPort,
             Clock clock
     ) {
         this.userRepository = userRepository;
         this.failedLoginAttemptRepository = failedLoginAttemptRepository;
-        this.jwtTokenProvider = jwtTokenProvider;
+        this.tokenProviderPort = tokenProviderPort;
         this.clock = clock;
     }
 
@@ -50,7 +50,10 @@ public class AuthService implements AuthenticateUserUseCase {
         if (userOpt.isPresent()) {
             User user = userOpt.get();
             if (BCrypt.checkpw(password, user.getPasswordHash())) {
-                return new LoginResponseDto(jwtTokenProvider.generateToken(user), user.getId().value(), Instant.now(clock).plus(24, ChronoUnit.HOURS));
+                Instant now = Instant.now(clock).truncatedTo(ChronoUnit.SECONDS);
+                String token = tokenProviderPort.generateToken(user, now);
+                Instant expiresAt = now.plusMillis(tokenProviderPort.getTokenExpirationMs());
+                return new LoginResponseDto(token, user.getId().value(), expiresAt);
             } else {
                 recordFailure(username);
                 log.warn("Failed login attempt: Incorrect password for username '{}'", username);

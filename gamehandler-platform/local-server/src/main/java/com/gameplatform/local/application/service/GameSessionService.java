@@ -88,17 +88,16 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
             if (!participants.contains(reservation.getUserId())) {
                 throw new ReservationUserMismatchException("Reservation user does not match the participants list");
             }
-            if (reservation.getStatus() == ReservationStatus.CONFIRMED) {
-                throw new ReservationAlreadyUsedException("Reservation has already been used");
-            }
             if (reservation.getStatus() == ReservationStatus.CANCELLED) {
                 throw new ReservationExpiredException("Reservation has been cancelled: " + reservationId.value());
             }
             if (reservation.getStatus() == ReservationStatus.EXPIRED || Instant.now(clock).isAfter(reservation.getEndTime())) {
                 throw new ReservationExpiredException("Reservation has expired: " + reservationId.value());
             }
-            reservation.confirm();
-            reservationRepository.save(reservation);
+            if (reservation.getStatus() == ReservationStatus.PENDING) {
+                reservation.confirm();
+                reservationRepository.save(reservation);
+            }
         } else {
             if (game.getStatus() == GameMachineStatus.RESERVED) {
                 throw new GameNotAvailableException("Game machine is reserved");

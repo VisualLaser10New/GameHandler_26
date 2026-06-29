@@ -18,10 +18,12 @@ public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
 
     private final OutboxEventJpaRepository jpaRepository;
     private final OutboxEventMapper mapper;
+    private final java.time.Clock clock;
 
-    public OutboxEventRepositoryAdapter(OutboxEventJpaRepository jpaRepository, OutboxEventMapper mapper) {
+    public OutboxEventRepositoryAdapter(OutboxEventJpaRepository jpaRepository, OutboxEventMapper mapper, java.time.Clock clock) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
+        this.clock = clock;
     }
 
     @Override
@@ -53,7 +55,19 @@ public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
         }
         jpaRepository.findById(id).ifPresent(entity -> {
             entity.setStatus("SENT");
-            entity.setSentAt(Instant.now());
+            entity.setSentAt(Instant.now(clock));
+            jpaRepository.save(entity);
+        });
+    }
+
+    @Override
+    @Transactional
+    public void markAsFailed(String id) {
+        if (id == null) {
+            return;
+        }
+        jpaRepository.findById(id).ifPresent(entity -> {
+            entity.setStatus("FAILED");
             jpaRepository.save(entity);
         });
     }

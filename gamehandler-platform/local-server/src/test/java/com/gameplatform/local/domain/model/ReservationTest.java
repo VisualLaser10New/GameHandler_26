@@ -122,10 +122,10 @@ class ReservationTest {
         }
 
         @Test
-        void shouldFailToExpireConfirmedReservation() {
+        void shouldExpireConfirmedReservation() {
             Reservation r = sample(ReservationStatus.CONFIRMED);
-            assertThatThrownBy(r::expire)
-                    .isInstanceOf(InvalidGameStateTransitionException.class);
+            r.expire();
+            assertThat(r.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
         }
 
         @Test
@@ -184,11 +184,11 @@ class ReservationTest {
         }
 
         @Test
-        void fullHappyPathPendingConfirmedExpiredThrows() {
+        void fullHappyPathPendingConfirmedExpiredSucceeds() {
             Reservation r = sample(ReservationStatus.PENDING);
             r.confirm();
-            assertThatThrownBy(r::expire)
-                    .isInstanceOf(InvalidGameStateTransitionException.class);
+            r.expire();
+            assertThat(r.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
         }
 
         @Test

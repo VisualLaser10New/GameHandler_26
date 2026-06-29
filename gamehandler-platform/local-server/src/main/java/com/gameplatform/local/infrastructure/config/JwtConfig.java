@@ -4,6 +4,7 @@ import com.gameplatform.local.infrastructure.security.JwtTokenProvider;
 import com.gameplatform.local.infrastructure.security.JwtTokenValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +29,9 @@ public class JwtConfig {
 
     private PrivateKey privateKey;
     private PublicKey publicKey;
+
+    @Autowired(required = false)
+    private java.time.Clock clock = java.time.Clock.systemUTC();
 
     public JwtConfig(
             ResourceLoader resourceLoader,
@@ -93,7 +97,7 @@ public class JwtConfig {
 
     @Bean
     public JwtTokenProvider jwtTokenProvider() {
-        return new JwtTokenProvider(privateKey);
+        return new JwtTokenProvider(privateKey, clock);
     }
 
     @Bean

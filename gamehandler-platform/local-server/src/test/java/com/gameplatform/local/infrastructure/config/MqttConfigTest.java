@@ -25,7 +25,7 @@ class MqttConfigTest {
         GameSessionListener gameSessionListener = mock(GameSessionListener.class);
         HeartbeatListener heartbeatListener = mock(HeartbeatListener.class);
 
-        MqttConfig mqttConfig = new MqttConfig();
+        MqttConfig mqttConfig = new MqttConfig(mock(org.springframework.core.io.ResourceLoader.class));
 
         // Inject private properties using reflection
         setField(mqttConfig, "brokerUrl", "tcp://localhost:1883");

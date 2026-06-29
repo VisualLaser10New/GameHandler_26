@@ -1,6 +1,7 @@
 package com.gameplatform.central.infrastructure.security;
 
 import com.gameplatform.central.domain.model.User;
+import com.gameplatform.central.domain.ports.out.TokenProviderPort;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import jakarta.annotation.PostConstruct;
@@ -15,6 +16,7 @@ import java.security.*;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.RSAPublicKeySpec;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
@@ -27,11 +29,12 @@ import java.util.List;
  * {@code jwt.expiration-ms} property (default: 86 400 000 ms = 24 hours),
  * eliminating any hard-coded expiration constants.</p>
  */
-public class JwtTokenProvider {
+public class JwtTokenProvider implements TokenProviderPort {
 
     private static final Logger log = LoggerFactory.getLogger(JwtTokenProvider.class);
 
     private final ResourceLoader resourceLoader;
+    private final Clock clock;
     private final String privateKeyPath;
 
     /** Token lifetime in milliseconds, injected from {@code jwt.expiration-ms}. */
@@ -44,13 +47,23 @@ public class JwtTokenProvider {
      * Constructs a {@code JwtTokenProvider}.
      *
      * @param resourceLoader   Spring resource loader used to resolve the PEM file.
+     * @param clock            Clock instance for time synchronization.
      * @param privateKeyPath   Classpath or filesystem path to the PKCS-8 RSA private key.
      * @param tokenExpirationMs Token lifetime in milliseconds (from {@code jwt.expiration-ms}).
      */
-    public JwtTokenProvider(ResourceLoader resourceLoader, String privateKeyPath, long tokenExpirationMs) {
+    public JwtTokenProvider(ResourceLoader resourceLoader, Clock clock, String privateKeyPath, long tokenExpirationMs) {
         this.resourceLoader = resourceLoader;
+        this.clock = clock;
         this.privateKeyPath = privateKeyPath;
         this.tokenExpirationMs = tokenExpirationMs;
+    }
+
+    /**
+     * Constructs a {@code JwtTokenProvider} using default UTC clock for backward compatibility.
+     */
+    @Deprecated
+    public JwtTokenProvider(ResourceLoader resourceLoader, String privateKeyPath, long tokenExpirationMs) {
+        this(resourceLoader, Clock.systemUTC(), privateKeyPath, tokenExpirationMs);
     }
 
     @PostConstruct
@@ -63,9 +76,9 @@ public class JwtTokenProvider {
                     byte[] keyBytes = is.readAllBytes();
                     String pem = new String(keyBytes, StandardCharsets.UTF_8);
                     String cleanPem = pem
-                            .replace("-----BEGIN PRIVATE KEY-----", "")
-                            .replace("-----END PRIVATE KEY-----", "")
-                            .replaceAll("\\s+", "");
+                             .replace("-----BEGIN PRIVATE KEY-----", "")
+                             .replace("-----END PRIVATE KEY-----", "")
+                             .replaceAll("\\s+", "");
                     byte[] decoded = Base64.getDecoder().decode(cleanPem);
                     PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(decoded);
                     KeyFactory kf = KeyFactory.getInstance("RSA");
@@ -103,18 +116,8 @@ public class JwtTokenProvider {
         }
     }
 
-    /**
-     * Generates a signed JWT for the given user.
-     *
-     * <p>The expiration is computed as {@code now + tokenExpirationMs} so that
-     * both {@code generateToken} and {@code validateToken} use the same
-     * configurable window.</p>
-     *
-     * @param user the authenticated user
-     * @return a compact, signed JWT string
-     */
-    public String generateToken(User user) {
-        Instant now = Instant.now();
+    @Override
+    public String generateToken(User user, Instant now) {
         Instant expiresAt = now.plusMillis(tokenExpirationMs);
 
         return Jwts.builder()
@@ -125,6 +128,10 @@ public class JwtTokenProvider {
                 .expiration(Date.from(expiresAt))
                 .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
+    }
+
+    public String generateToken(User user) {
+        return generateToken(user, Instant.now(clock));
     }
 
     /**
@@ -165,7 +172,8 @@ public class JwtTokenProvider {
     // ── package-private accessor for tests ───────────────────────────────────
 
     /** Returns the configured token expiration in milliseconds. */
-    long getTokenExpirationMs() {
+    @Override
+    public long getTokenExpirationMs() {
         return tokenExpirationMs;
     }
 }

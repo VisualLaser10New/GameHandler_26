@@ -76,7 +76,7 @@ public class Reservation {
     }
 
     public void expire() {
-        if (this.status != ReservationStatus.PENDING) {
+        if (this.status != ReservationStatus.PENDING && this.status != ReservationStatus.CONFIRMED) {
             throw new InvalidGameStateTransitionException("Cannot expire reservation because status is: " + this.status);
         }
         this.status = ReservationStatus.EXPIRED;

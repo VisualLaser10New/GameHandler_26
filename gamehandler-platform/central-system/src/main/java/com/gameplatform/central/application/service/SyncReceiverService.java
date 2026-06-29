@@ -20,6 +20,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -44,16 +45,28 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
     private final StatisticsRepository statisticsRepository;
     private final LocalServerRegistryPort localServerRegistryPort;
     private final ObjectMapper objectMapper;
+    private final Clock clock;
 
     public SyncReceiverService(
             ProcessedEventRepository processedEventRepository,
             StatisticsRepository statisticsRepository,
             LocalServerRegistryPort localServerRegistryPort,
             ObjectMapper objectMapper) {
+        this(processedEventRepository, statisticsRepository, localServerRegistryPort, objectMapper, Clock.systemUTC());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SyncReceiverService(
+            ProcessedEventRepository processedEventRepository,
+            StatisticsRepository statisticsRepository,
+            LocalServerRegistryPort localServerRegistryPort,
+            ObjectMapper objectMapper,
+            Clock clock) {
         this.processedEventRepository = processedEventRepository;
         this.statisticsRepository = statisticsRepository;
         this.localServerRegistryPort = localServerRegistryPort;
         this.objectMapper = objectMapper;
+        this.clock = clock;
     }
 
     @Transactional
@@ -75,15 +88,21 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
                 boolean processed = processEvent(buildingId, event);
 
                 if (processed) {
-                    processedEventRepository.save(new ProcessedEvent(event.eventId(), Instant.now()));
+                    processedEventRepository.save(new ProcessedEvent(event.eventId(), Instant.now(clock)));
                 }
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException("Error processing sync event: " + event.eventId(), e);
+            } catch (Exception e) {
+                log.error("Failed to parse/process sync event [{}] due to exception: {}. Skipping event and marking it as processed to prevent batch poisoning.",
+                        event.eventId(), e.getMessage(), e);
+                try {
+                    processedEventRepository.save(new ProcessedEvent(event.eventId(), Instant.now(clock)));
+                } catch (Exception saveEx) {
+                    log.error("Failed to mark failed event [{}] as processed: {}", event.eventId(), saveEx.getMessage(), saveEx);
+                }
             }
         }
 
         // Heartbeat: update lastSeenAt for this building's server after a successful sync
-        localServerRegistryPort.updateLastSeenAt(buildingId, Instant.now());
+        localServerRegistryPort.updateLastSeenAt(buildingId, Instant.now(clock));
     }
 
     private boolean processEvent(BuildingId buildingId, OutboxEventDto eventDto) throws JsonProcessingException {
@@ -93,11 +112,11 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
             GameType gameType = parseGameType(payloadNode, eventDto.eventId());
             if (gameType == null) {
                 // Malformed payload – record as processed to prevent re-processing, but skip stats update
-                processedEventRepository.save(new ProcessedEvent(eventDto.eventId(), Instant.now()));
+                processedEventRepository.save(new ProcessedEvent(eventDto.eventId(), Instant.now(clock)));
                 return false;
             }
             Instant occurredAt = payloadNode.has("occurredAt")
-                    ? Instant.parse(payloadNode.get("occurredAt").asText()) : Instant.now();
+                    ? Instant.parse(payloadNode.get("occurredAt").asText()) : Instant.now(clock);
             LocalDate periodStart = LocalDate.ofInstant(occurredAt, ZoneOffset.UTC);
             int durationSeconds = extractDuration(payloadNode);
             updateSessionStats(buildingId, gameType, periodStart, durationSeconds);
@@ -106,11 +125,11 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
         } else if ("RESERVATION_CREATED".equals(eventDto.eventType())) {
             GameType gameType = parseGameType(payloadNode, eventDto.eventId());
             if (gameType == null) {
-                processedEventRepository.save(new ProcessedEvent(eventDto.eventId(), Instant.now()));
+                processedEventRepository.save(new ProcessedEvent(eventDto.eventId(), Instant.now(clock)));
                 return false;
             }
             Instant occurredAt = payloadNode.has("occurredAt")
-                    ? Instant.parse(payloadNode.get("occurredAt").asText()) : Instant.now();
+                    ? Instant.parse(payloadNode.get("occurredAt").asText()) : Instant.now(clock);
             LocalDate periodStart = LocalDate.ofInstant(occurredAt, ZoneOffset.UTC);
             updateReservationStats(buildingId, gameType, periodStart, 1);
             return true;
@@ -118,7 +137,7 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
         } else if ("RESERVATION_CANCELLED".equals(eventDto.eventType())) {
             ParsedGameTypePeriod parsed = parseGameTypePeriod(payloadNode, eventDto.eventId());
             if (parsed == null) {
-                processedEventRepository.save(new ProcessedEvent(eventDto.eventId(), Instant.now()));
+                processedEventRepository.save(new ProcessedEvent(eventDto.eventId(), Instant.now(clock)));
                 return false;
             }
             updateReservationStats(buildingId, parsed.gameType(), parsed.periodStart(), -1);
@@ -155,7 +174,7 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
             return null;
         }
         Instant occurredAt = payloadNode.has("occurredAt")
-                ? Instant.parse(payloadNode.get("occurredAt").asText()) : Instant.now();
+                ? Instant.parse(payloadNode.get("occurredAt").asText()) : Instant.now(clock);
         LocalDate periodStart = LocalDate.ofInstant(occurredAt, ZoneOffset.UTC);
         return new ParsedGameTypePeriod(gameType, periodStart);
     }

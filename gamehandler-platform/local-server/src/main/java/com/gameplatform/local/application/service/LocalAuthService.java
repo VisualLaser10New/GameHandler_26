@@ -4,7 +4,7 @@ import com.gameplatform.local.domain.exception.UserNotFoundException;
 import com.gameplatform.local.domain.model.User;
 import com.gameplatform.local.domain.ports.in.AuthenticateLocalUserUseCase;
 import com.gameplatform.local.domain.ports.out.UserRepository;
-import com.gameplatform.local.infrastructure.security.JwtTokenProvider;
+import com.gameplatform.local.domain.ports.out.TokenGeneratorPort;
 import com.gameplatform.shared.dto.LoginResponseDto;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
@@ -17,12 +17,12 @@ import java.time.temporal.ChronoUnit;
 public class LocalAuthService implements AuthenticateLocalUserUseCase {
 
     private final UserRepository userRepository;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final TokenGeneratorPort tokenGeneratorPort;
     private final Clock clock;
 
-    public LocalAuthService(UserRepository userRepository, JwtTokenProvider jwtTokenProvider, Clock clock) {
+    public LocalAuthService(UserRepository userRepository, TokenGeneratorPort tokenGeneratorPort, Clock clock) {
         this.userRepository = userRepository;
-        this.jwtTokenProvider = jwtTokenProvider;
+        this.tokenGeneratorPort = tokenGeneratorPort;
         this.clock = clock;
     }
 
@@ -35,10 +35,12 @@ public class LocalAuthService implements AuthenticateLocalUserUseCase {
             throw new org.springframework.security.authentication.BadCredentialsException("Invalid username or password");
         }
 
-        String token = jwtTokenProvider.generateToken(user);
-        
-        // Default token expiration of 1 hour
-        Instant expiresAt = Instant.now(clock).plus(1, ChronoUnit.HOURS);
+        // Determine base instant truncated to seconds to align with JWT NumericDate specification
+        Instant now = Instant.now(clock).truncatedTo(ChronoUnit.SECONDS);
+        Instant expiresAt = now.plus(1, ChronoUnit.HOURS);
+
+        // Request token generation using the same base instant
+        String token = tokenGeneratorPort.generateToken(user, now);
 
         return new LoginResponseDto(token, user.getUserId().value(), expiresAt);
     }

@@ -88,7 +88,19 @@ public class UserReplicationSchedulerService {
         }
 
         for (OutboxEvent event : pendingUserEvents) {
-            UserSyncDto user = deserializeUser(event);
+            UserSyncDto user;
+            try {
+                user = deserializeUser(event);
+            } catch (Exception e) {
+                log.error("Failed to deserialize user replication event [{}] due to malformed payload. Transitioning event to FAILED. Payload: {}",
+                        event.getId(), event.getPayload(), e);
+                try {
+                    outboxEventRepository.markAsFailed(event.getId());
+                } catch (Exception dbEx) {
+                    log.error("Failed to mark event [{}] as FAILED in database", event.getId(), dbEx);
+                }
+                continue; // Proceed to process next events in the current batch
+            }
 
             List<ReplicationProgress> progressList = replicationProgressRepository.findByEventId(event.getId());
             Set<String> alreadyReplicatedServerIds = progressList.stream()

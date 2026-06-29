@@ -9,5 +9,6 @@ public interface OutboxEventRepository {
     /** Returns at most {@code limit} pending events, ordered by creation time ascending. */
     List<OutboxEvent> findPendingLimit(int limit);
     void markAsSent(String id);
+    void markAsFailed(String id);
 }
 

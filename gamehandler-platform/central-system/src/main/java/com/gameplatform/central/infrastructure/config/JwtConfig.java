@@ -17,8 +17,9 @@ public class JwtConfig {
 
     @Bean
     public JwtTokenProvider jwtTokenProvider(ResourceLoader resourceLoader,
+                                             java.time.Clock clock,
                                              @Value("${jwt.private-key-path}") String privateKeyPath,
                                              @Value("${jwt.expiration-ms:86400000}") long tokenExpirationMs) {
-        return new JwtTokenProvider(resourceLoader, privateKeyPath, tokenExpirationMs);
+        return new JwtTokenProvider(resourceLoader, clock, privateKeyPath, tokenExpirationMs);
     }
 }

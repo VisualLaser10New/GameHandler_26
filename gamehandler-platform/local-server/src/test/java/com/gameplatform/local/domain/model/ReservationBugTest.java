@@ -76,8 +76,9 @@ class ReservationBugTest {
         reservation.confirm();
         assertEquals(ReservationStatus.CONFIRMED, reservation.getStatus());
 
-        // expire() has guard
-        assertThrows(InvalidGameStateTransitionException.class, reservation::expire);
+        // expire() should succeed
+        assertDoesNotThrow(reservation::expire);
+        assertEquals(ReservationStatus.EXPIRED, reservation.getStatus());
     }
 
     /**
