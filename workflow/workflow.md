@@ -759,7 +759,7 @@
   - [X] `void start(List<UserId> participants)`
   - [X] `void stop(StopReason reason)`
   - [X] `void recordScore(UserId player, int delta)`
-  - [ ] `void spin()`
+  - [x] `void spin()`
 - [X] `RouletteGame` (class)
   - [X] `void start(List<UserId> participants)`
   - [X] `void stop(StopReason reason)`
