@@ -5,10 +5,7 @@ import com.gameplatform.shared.domain.model.GameSessionId;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.domain.model.UserId;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class SlotMachineGame implements GameLifecycle {
     private List<UserId> participants;
@@ -92,7 +89,40 @@ public class SlotMachineGame implements GameLifecycle {
         this.scores.put(player, score);
     }
 
-    public void spin() {
-        // TODO
+    private static final String[] SYMBOLS = {"CHERRY", "LEMON", "ORANGE", "PLUM", "BELL", "SEVEN"};
+    private static final Random RANDOM = new Random();
+
+    private String lastReel1;
+    private String lastReel2;
+    private String lastReel3;
+
+    public void spin(UserId player) {
+        if (!running) {
+            throw new IllegalStateException("Game is not running");
+        }
+        if (!scores.containsKey(player)) {
+            throw new IllegalStateException("Player " + player + " is not found");
+        }
+
+        lastReel1 = SYMBOLS[RANDOM.nextInt(SYMBOLS.length)];
+        lastReel2 = SYMBOLS[RANDOM.nextInt(SYMBOLS.length)];
+        lastReel3 = SYMBOLS[RANDOM.nextInt(SYMBOLS.length)];
+
+        int points = calculatePayout(lastReel1, lastReel2, lastReel3);
+        scores.put(player, scores.get(player) + points);
     }
+
+    private int calculatePayout(String r1, String r2, String r3) {
+        if (r1.equals(r2) && r2.equals(r3)) {
+            return 100;
+        }
+        if (r1.equals(r2) || r2.equals(r3) || r1.equals(r3)) {
+            return 10;
+        }
+        return 0;
+    }
+
+    public String getLastReel1() { return lastReel1; }
+    public String getLastReel2() { return lastReel2; }
+    public String getLastReel3() { return lastReel3; }
 }
