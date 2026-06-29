@@ -119,33 +119,32 @@ class UserServiceTest {
     }
 
     @Test
-    void updateUser_shouldMergeRolesAdditively_notOverwrite() {
+    void updateUser_shouldOverwriteRoles_notMerge() {
         UserId id = new UserId("user-1");
         User existing = buildUser("alice", List.of("USER"));
         when(userRepository.findById(id)).thenReturn(Optional.of(existing));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(outboxEventRepository.save(any(OutboxEvent.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        // Adding ADMIN to a user that already has USER → both roles must be present
+        // Setting roles to [ADMIN] for a user that already has USER → roles must be overwritten to just ADMIN
         User updated = userService.updateUser(id, null, List.of("ADMIN"));
 
         assertThat(updated.getRoles())
-                .containsExactlyInAnyOrder("USER", "ADMIN");
+                .containsExactly("ADMIN");
     }
 
     @Test
-    void updateUser_shouldNotDuplicateExistingRoles_whenSameRoleProvidedAgain() {
+    void updateUser_shouldDeduplicateNewRoles_whenDuplicateRolesProvided() {
         UserId id = new UserId("user-1");
         User existing = buildUser("alice", List.of("USER", "ADMIN"));
         when(userRepository.findById(id)).thenReturn(Optional.of(existing));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(outboxEventRepository.save(any(OutboxEvent.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        // Providing a role that already exists must not create a duplicate
-        User updated = userService.updateUser(id, null, List.of("USER"));
+        // Providing a roles list with duplicates should result in unique roles
+        User updated = userService.updateUser(id, null, List.of("USER", "USER"));
 
-        assertThat(updated.getRoles()).containsExactlyInAnyOrder("USER", "ADMIN");
-        assertThat(updated.getRoles()).hasSize(2);
+        assertThat(updated.getRoles()).containsExactly("USER");
     }
 
     @Test

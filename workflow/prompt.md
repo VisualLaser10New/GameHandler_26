@@ -1,6 +1,6 @@
 Sei un ingegnere del software specializzato in Java, Clean Architecture (Hexagonal Ports and Adapters) e sistemi distribuiti resilienti offline.
 Leggi il file workflow.md e il file architettura_classi.md per comprendere il workflow di sviluppo del progetto.
-Il tuo compito è implementare solo i seguenti elemeni del workflow:
+Il tuo compito è implementare solo i seguenti elementi del workflow:
 
 >> [5.9, 5.10]
 

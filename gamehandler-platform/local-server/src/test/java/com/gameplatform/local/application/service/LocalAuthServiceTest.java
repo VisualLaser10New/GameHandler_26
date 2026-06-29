@@ -27,8 +27,14 @@ class LocalAuthServiceTest {
 
     @Mock UserRepository userRepository;
     @Mock JwtTokenProvider jwtTokenProvider;
+    private final java.time.Clock clock = java.time.Clock.systemUTC();
 
-    @InjectMocks LocalAuthService service;
+    LocalAuthService service;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        service = new LocalAuthService(userRepository, jwtTokenProvider, clock);
+    }
 
     private User userWithPassword(String password) {
         String hash = BCrypt.hashpw(password, BCrypt.gensalt());

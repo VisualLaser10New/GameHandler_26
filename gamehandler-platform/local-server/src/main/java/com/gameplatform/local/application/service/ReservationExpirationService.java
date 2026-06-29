@@ -12,10 +12,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @Transactional
 public class ReservationExpirationService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReservationExpirationService.class);
 
     private final ReservationRepository reservationRepository;
     private final GameRepository gameRepository;
@@ -45,7 +49,23 @@ public class ReservationExpirationService {
             if (game != null) {
                 game.release();
                 gameRepository.save(game);
-                publishGameStatePort.publishState(game.getId(), game.getStatus());
+                
+                if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+                    org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                        new org.springframework.transaction.support.TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
+                                try {
+                                    publishGameStatePort.publishState(game.getId(), game.getStatus());
+                                } catch (Exception e) {
+                                    log.error("Failed to publish game state after transaction commit", e);
+                                }
+                            }
+                        }
+                    );
+                } else {
+                    publishGameStatePort.publishState(game.getId(), game.getStatus());
+                }
             }
         }
     }

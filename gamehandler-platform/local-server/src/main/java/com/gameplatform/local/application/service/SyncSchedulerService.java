@@ -16,14 +16,17 @@ public class SyncSchedulerService {
 
     private final OutboxEventRepository outboxEventRepository;
     private final SyncCentralSystemPort syncCentralSystemPort;
+    private final OutboxSyncHelper outboxSyncHelper;
     private final String buildingId;
 
     public SyncSchedulerService(
             OutboxEventRepository outboxEventRepository,
             SyncCentralSystemPort syncCentralSystemPort,
+            OutboxSyncHelper outboxSyncHelper,
             @Value("${app.building-id}") String buildingId) {
         this.outboxEventRepository = outboxEventRepository;
         this.syncCentralSystemPort = syncCentralSystemPort;
+        this.outboxSyncHelper = outboxSyncHelper;
         this.buildingId = buildingId;
     }
 
@@ -50,16 +53,16 @@ public class SyncSchedulerService {
 
         SyncPayloadDto payload = new SyncPayloadDto(buildingId, dtos);
 
+        List<String> eventIds = pendingEvents.stream()
+                .map(OutboxEvent::getId)
+                .toList();
+
         boolean success = syncCentralSystemPort.sendSyncPayload(payload);
 
         if (success) {
-            for (OutboxEvent event : pendingEvents) {
-                outboxEventRepository.markAsSent(event.getId());
-            }
+            outboxSyncHelper.markAsSent(eventIds);
         } else {
-            for (OutboxEvent event : pendingEvents) {
-                outboxEventRepository.incrementRetry(event.getId());
-            }
+            outboxSyncHelper.incrementRetry(eventIds);
         }
     }
 }

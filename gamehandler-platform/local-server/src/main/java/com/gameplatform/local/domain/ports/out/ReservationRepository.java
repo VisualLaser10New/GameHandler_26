@@ -16,4 +16,5 @@ public interface ReservationRepository {
     List<Reservation> findByGameId(GameId gameId);
     List<Reservation> findByStatus(ReservationStatus status);
     List<Reservation> findExpired(Instant now);
+    int countByGameIds(List<GameId> gameIds);
 }

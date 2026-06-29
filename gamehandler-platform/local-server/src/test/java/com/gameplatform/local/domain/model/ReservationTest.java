@@ -3,6 +3,7 @@ package com.gameplatform.local.domain.model;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.gameplatform.local.domain.exception.InvalidGameStateTransitionException;
 import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.ReservationId;
 import com.gameplatform.shared.domain.model.ReservationStatus;
@@ -121,10 +122,10 @@ class ReservationTest {
         }
 
         @Test
-        void shouldExpireConfirmedReservation() {
+        void shouldFailToExpireConfirmedReservation() {
             Reservation r = sample(ReservationStatus.CONFIRMED);
-            r.expire();
-            assertThat(r.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+            assertThatThrownBy(r::expire)
+                    .isInstanceOf(InvalidGameStateTransitionException.class);
         }
 
         @Test
@@ -135,68 +136,67 @@ class ReservationTest {
         }
 
         @Test
-        void confirmIsPermissiveAndDoesNotGuardPreviousState() {
+        void confirmShouldFailOnCancelledOrExpiredState() {
             Reservation cancelled = sample(ReservationStatus.CANCELLED);
-            cancelled.confirm();
-            assertThat(cancelled.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+            assertThatThrownBy(cancelled::confirm)
+                    .isInstanceOf(InvalidGameStateTransitionException.class);
 
             Reservation expired = sample(ReservationStatus.EXPIRED);
-            expired.confirm();
-            assertThat(expired.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+            assertThatThrownBy(expired::confirm)
+                    .isInstanceOf(InvalidGameStateTransitionException.class);
         }
 
         @Test
-        void cancelIsPermissiveAndCanRevertConfirmedReservation() {
+        void cancelShouldFailOnConfirmedReservation() {
             Reservation confirmed = sample(ReservationStatus.CONFIRMED);
-            confirmed.cancel();
-            assertThat(confirmed.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+            assertThatThrownBy(confirmed::cancel)
+                    .isInstanceOf(InvalidGameStateTransitionException.class);
         }
 
         @Test
-        void cancelIsPermissiveAndCanCancelAlreadyCancelledReservation() {
+        void cancelShouldFailOnAlreadyCancelledReservation() {
             Reservation cancelled = sample(ReservationStatus.CANCELLED);
-            cancelled.cancel();
-            assertThat(cancelled.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+            assertThatThrownBy(cancelled::cancel)
+                    .isInstanceOf(InvalidGameStateTransitionException.class);
         }
 
         @Test
-        void expireIsPermissiveAndCanExpireAlreadyCancelledReservation() {
+        void expireShouldFailOnAlreadyCancelledReservation() {
             Reservation cancelled = sample(ReservationStatus.CANCELLED);
-            cancelled.expire();
-            assertThat(cancelled.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+            assertThatThrownBy(cancelled::expire)
+                    .isInstanceOf(InvalidGameStateTransitionException.class);
         }
 
         @Test
-        void confirmIsIdempotent() {
+        void confirmIsPreventedIfAlreadyConfirmed() {
             Reservation r = sample(ReservationStatus.PENDING);
             r.confirm();
-            r.confirm();
-            assertThat(r.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+            assertThatThrownBy(r::confirm)
+                    .isInstanceOf(InvalidGameStateTransitionException.class);
         }
 
         @Test
-        void fullHappyPathPendingConfirmedCancelled() {
+        void fullHappyPathPendingConfirmedCancelledThrows() {
             Reservation r = sample(ReservationStatus.PENDING);
             r.confirm();
-            r.cancel();
-            assertThat(r.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+            assertThatThrownBy(r::cancel)
+                    .isInstanceOf(InvalidGameStateTransitionException.class);
         }
 
         @Test
-        void fullHappyPathPendingConfirmedExpired() {
+        void fullHappyPathPendingConfirmedExpiredThrows() {
             Reservation r = sample(ReservationStatus.PENDING);
             r.confirm();
-            r.expire();
-            assertThat(r.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+            assertThatThrownBy(r::expire)
+                    .isInstanceOf(InvalidGameStateTransitionException.class);
         }
 
         @Test
-        void confirmCancelReconfirmDocumentsLackOfGuard() {
+        void confirmCancelReconfirmThrows() {
             Reservation r = sample(ReservationStatus.PENDING);
             r.confirm();
-            r.cancel();
-            r.confirm();
-            assertThat(r.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+            assertThatThrownBy(r::cancel)
+                    .isInstanceOf(InvalidGameStateTransitionException.class);
         }
     }
 

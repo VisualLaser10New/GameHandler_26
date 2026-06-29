@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.central.domain.model.OutboxEvent;
 import com.gameplatform.central.domain.model.OutboxEventStatus;
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
+import com.gameplatform.central.domain.model.ReplicationProgress;
 import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +48,9 @@ class UserReplicationSchedulerServiceTest {
     @Mock
     private PushUserToLocalServersPort pushUserToLocalServersPort;
 
+    @Mock
+    private ReplicationProgressRepository replicationProgressRepository;
+
     private UserReplicationSchedulerService schedulerService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -55,8 +60,10 @@ class UserReplicationSchedulerServiceTest {
                 outboxEventRepository,
                 localServerRegistryPort,
                 pushUserToLocalServersPort,
+                replicationProgressRepository,
                 objectMapper
         );
+        lenient().when(replicationProgressRepository.findByEventId(any())).thenReturn(List.of());
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -215,6 +222,30 @@ class UserReplicationSchedulerServiceTest {
 
         verify(pushUserToLocalServersPort, never()).pushUsers(any(), any());
         verify(outboxEventRepository, never()).markAsSent(any());
+    }
+
+    @Test
+    void replicateUsers_shouldSkipServerAndNotPush_whenAlreadyReplicatedToThatServer() {
+        OutboxEvent event = buildUserEvent("USER_REGISTERED");
+        RegisteredLocalServer server1 = buildServer("s1", "http://s1:8080");
+        RegisteredLocalServer server2 = buildServer("s2", "http://s2:8080");
+
+        when(outboxEventRepository.findPendingLimit(50)).thenReturn(List.of(event));
+        when(localServerRegistryPort.getActiveLocalServers()).thenReturn(List.of(server1, server2));
+
+        // Mock progress for s1, so only s2 needs replication
+        ReplicationProgress progress1 = new ReplicationProgress(event.getId(), "s1");
+        when(replicationProgressRepository.findByEventId(event.getId())).thenReturn(List.of(progress1));
+
+        schedulerService.replicateUsers();
+
+        // pushUsers should only be called for server2, not server1
+        verify(pushUserToLocalServersPort, never()).pushUsers(any(), eq(server1));
+        verify(pushUserToLocalServersPort).pushUsers(any(), eq(server2));
+
+        // replicationProgressRepository should only save progress for server2
+        verify(replicationProgressRepository).save(new ReplicationProgress(event.getId(), "s2"));
+        verify(replicationProgressRepository, never()).save(new ReplicationProgress(event.getId(), "s1"));
     }
 
     // ──────────────────────────────────────────────────────────────────────────

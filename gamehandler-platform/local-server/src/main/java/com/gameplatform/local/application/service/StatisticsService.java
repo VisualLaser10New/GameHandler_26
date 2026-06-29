@@ -7,6 +7,7 @@ import com.gameplatform.local.domain.ports.in.GetStatisticsUseCase;
 import com.gameplatform.local.domain.ports.out.GameRepository;
 import com.gameplatform.local.domain.ports.out.GameSessionRepository;
 import com.gameplatform.local.domain.ports.out.ReservationRepository;
+import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.GameStatus;
 import com.gameplatform.shared.domain.model.GameType;
 import org.springframework.stereotype.Service;
@@ -39,10 +40,11 @@ public class StatisticsService implements GetStatisticsUseCase {
                 .filter(game -> game.getGameType() == gameType)
                 .toList();
 
-        int totalReservations = 0;
-        for (Game game : gamesOfType) {
-            totalReservations += reservationRepository.findByGameId(game.getId()).size();
-        }
+        List<GameId> gameIds = gamesOfType.stream()
+                .map(Game::getId)
+                .toList();
+
+        int totalReservations = reservationRepository.countByGameIds(gameIds);
 
         // Retrieve sessions and recalculate stats
         List<GameSession> sessions = gameSessionRepository.findByGameType(gameType);

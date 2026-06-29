@@ -15,12 +15,15 @@ import com.gameplatform.shared.domain.model.GameStatus;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.mqtt.MqttTopics;
 import com.gameplatform.shared.mqtt.payload.AlertPayload;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +33,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 @Transactional
 public class HealthCheckService {
+
+    private static final Logger log = LoggerFactory.getLogger(HealthCheckService.class);
 
     private final GameSessionRepository gameSessionRepository;
     private final GameRepository gameRepository;
@@ -62,6 +67,29 @@ public class HealthCheckService {
         this.objectMapper = objectMapper;
     }
 
+    private void deferMqttPublish(Runnable publishRunnable) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        try {
+                            publishRunnable.run();
+                        } catch (Exception e) {
+                            log.error("Failed to execute deferred MQTT publication", e);
+                        }
+                    }
+                }
+            );
+        } else {
+            try {
+                publishRunnable.run();
+            } catch (Exception e) {
+                log.error("Failed to execute MQTT publication", e);
+            }
+        }
+    }
+
     @Scheduled(fixedRate = 300000)
     public void performHealthCheck() {
         List<Game> games = gameRepository.findAll();
@@ -77,7 +105,9 @@ public class HealthCheckService {
                 missedHeartbeatsMap.put(gameId, missed);
 
                 // If client failed to respond for 3 consecutive cycles (15 minutes), declare unreachable
-                if (missed == 3) {
+                if (missed >= 3) {
+                    missedHeartbeatsMap.put(gameId, 0);
+
                     // Abort any active sessions
                     Optional<GameSession> activeSessionOpt = gameSessionRepository.findActiveByGameId(gameId);
                     if (activeSessionOpt.isPresent()) {
@@ -87,15 +117,15 @@ public class HealthCheckService {
 
                         // Generate outbox sync event
                         try {
-                            Map<String, Object> payload = Map.of(
-                                    "eventId", UUID.randomUUID().toString(),
-                                    "occurredAt", Instant.now(clock).toString(),
-                                    "sessionId", session.getId().value(),
-                                    "gameType", session.getGameType().name(),
-                                    "durationSeconds", session.getDurationSeconds(),
-                                    "status", session.getStatus().name(),
-                                    "stopReason", "TIMEOUT"
-                            );
+                            Map<String, Object> payload = new HashMap<>();
+                            payload.put("eventId", UUID.randomUUID().toString());
+                            payload.put("occurredAt", Instant.now(clock).toString());
+                            payload.put("sessionId", session.getId().value());
+                            payload.put("gameType", session.getGameType().name());
+                            payload.put("durationSeconds", session.getDurationSeconds());
+                            payload.put("status", session.getStatus().name());
+                            payload.put("stopReason", "TIMEOUT");
+
                             String payloadJson = objectMapper.writeValueAsString(payload);
 
                             OutboxEvent outboxEvent = new OutboxEvent(
@@ -109,7 +139,7 @@ public class HealthCheckService {
                             );
                             outboxEventRepository.save(outboxEvent);
                         } catch (Exception e) {
-                            e.printStackTrace();
+                            log.error("Failed to serialize or save outbox event during heartbeat health check", e);
                         }
                     }
 
@@ -117,7 +147,7 @@ public class HealthCheckService {
                     if (game.getStatus() == GameMachineStatus.IN_USE) {
                         game.release();
                         gameRepository.save(game);
-                        publishGameStatePort.publishState(gameId, game.getStatus());
+                        deferMqttPublish(() -> publishGameStatePort.publishState(gameId, game.getStatus()));
                     }
 
                     // Publish alert to MQTT
@@ -127,7 +157,7 @@ public class HealthCheckService {
                             "Client has missed 3 consecutive heartbeat cycles (15 minutes). Declaring unreachable.",
                             Instant.now(clock)
                     );
-                    publishAlertPort.publishAlert(alert);
+                    deferMqttPublish(() -> publishAlertPort.publishAlert(alert));
                 }
             } else {
                 // Reset missed counter on successful contact
@@ -139,7 +169,7 @@ public class HealthCheckService {
 
             // Send new heartbeat ping to client via MQTT session event topic
             String topic = MqttTopics.heartbeat(game.getBuildingId().id(), gameId.id());
-            publishGameStatePort.publishSessionEvent(topic, "PING");
+            deferMqttPublish(() -> publishGameStatePort.publishSessionEvent(topic, "PING"));
         }
     }
 

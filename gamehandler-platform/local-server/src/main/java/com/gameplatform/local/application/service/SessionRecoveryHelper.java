@@ -14,12 +14,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Component
 @Transactional
 public class SessionRecoveryHelper {
+
+    private static final Logger log = LoggerFactory.getLogger(SessionRecoveryHelper.class);
 
     private final GameSessionRepository gameSessionRepository;
     private final GameRepository gameRepository;
@@ -52,19 +57,35 @@ public class SessionRecoveryHelper {
         if (game != null) {
             game.release();
             gameRepository.save(game);
-            publishGameStatePort.publishState(game.getId(), game.getStatus());
+            
+            if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            try {
+                                publishGameStatePort.publishState(game.getId(), game.getStatus());
+                            } catch (Exception e) {
+                                log.error("Failed to publish game state after transaction commit", e);
+                            }
+                        }
+                    }
+                );
+            } else {
+                publishGameStatePort.publishState(game.getId(), game.getStatus());
+            }
         }
 
         // Generate outbox sync event
-        Map<String, Object> payload = Map.of(
-                "eventId", UUID.randomUUID().toString(),
-                "occurredAt", Instant.now(clock).toString(),
-                "sessionId", session.getId().value(),
-                "gameType", session.getGameType().name(),
-                "durationSeconds", session.getDurationSeconds(),
-                "status", session.getStatus().name(),
-                "stopReason", "SERVER_RESTART"
-        );
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("eventId", UUID.randomUUID().toString());
+        payload.put("occurredAt", Instant.now(clock).toString());
+        payload.put("sessionId", session.getId().value());
+        payload.put("gameType", session.getGameType().name());
+        payload.put("durationSeconds", session.getDurationSeconds());
+        payload.put("status", session.getStatus().name());
+        payload.put("stopReason", "SERVER_RESTART");
+
         String payloadJson = objectMapper.writeValueAsString(payload);
 
         OutboxEvent outboxEvent = new OutboxEvent(

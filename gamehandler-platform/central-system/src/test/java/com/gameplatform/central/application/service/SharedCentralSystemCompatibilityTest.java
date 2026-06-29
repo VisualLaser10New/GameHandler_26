@@ -10,6 +10,7 @@ import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.ProcessedEventRepository;
 import com.gameplatform.central.domain.ports.out.StatisticsRepository;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
+import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
 import com.gameplatform.central.domain.ports.out.UserRepository;
 import com.gameplatform.central.domain.model.User;
 import com.gameplatform.shared.domain.model.BuildingId;
@@ -66,6 +67,9 @@ class SharedCentralSystemCompatibilityTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private ReplicationProgressRepository replicationProgressRepository;
+
     private SyncReceiverService syncReceiverService;
     private StatisticsAggregationService statisticsAggregationService;
     private UserReplicationSchedulerService userReplicationSchedulerService;
@@ -84,6 +88,7 @@ class SharedCentralSystemCompatibilityTest {
                 outboxEventRepository,
                 localServerRegistryPort,
                 null, // PushUserToLocalServersPort not needed for these tests
+                replicationProgressRepository,
                 objectMapper
         );
     }
