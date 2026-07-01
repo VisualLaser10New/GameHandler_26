@@ -4,6 +4,7 @@ import com.gameplatform.central.domain.exception.InvalidCredentialsException;
 import com.gameplatform.central.domain.exception.RateLimitExceededException;
 import com.gameplatform.central.domain.model.User;
 import com.gameplatform.central.domain.ports.out.FailedLoginAttemptRepository;
+import com.gameplatform.central.domain.ports.out.TokenProviderPort;
 import com.gameplatform.central.domain.ports.out.UserRepository;
 import com.gameplatform.central.infrastructure.security.JwtTokenProvider;
 import com.gameplatform.shared.domain.model.UserId;
@@ -43,7 +44,7 @@ class AuthServiceTest {
     private FailedLoginAttemptRepository failedLoginAttemptRepository;
 
     @Mock
-    private JwtTokenProvider jwtTokenProvider;
+    private TokenProviderPort jwtTokenProvider;
 
     private AuthService authService;
     private final Clock clock = Clock.systemUTC();
@@ -65,7 +66,7 @@ class AuthServiceTest {
         User user = buildUser("alice", hash);
 
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
-        when(jwtTokenProvider.generateToken(user)).thenReturn("mock-jwt-token");
+        when(jwtTokenProvider.generateToken(eq(user), any(Instant.class))).thenReturn("mock-jwt-token");
 
         LoginResponseDto response = authService.authenticate("alice", plainPassword);
 
@@ -175,7 +176,7 @@ class AuthServiceTest {
         User user = buildUser("charlie", hash);
 
         when(userRepository.findByUsername("charlie")).thenReturn(Optional.of(user));
-        when(jwtTokenProvider.generateToken(user)).thenReturn("jwt");
+        when(jwtTokenProvider.generateToken(eq(user), any(Instant.class))).thenReturn("jwt");
 
         // Successful login must not record a failure
         authService.authenticate("charlie", plainPassword);

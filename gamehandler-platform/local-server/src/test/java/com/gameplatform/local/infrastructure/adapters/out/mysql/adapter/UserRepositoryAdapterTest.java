@@ -14,8 +14,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.gameplatform.local.domain.model.User;
+import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.LocalUserJpaEntity;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.UserJpaEntity;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.mapper.UserMapper;
+import com.gameplatform.local.infrastructure.adapters.out.mysql.repository.LocalUserJpaRepository;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.repository.UserJpaRepository;
 import com.gameplatform.shared.domain.model.UserId;
 
@@ -24,6 +26,8 @@ class UserRepositoryAdapterTest {
 
     @Mock
     private UserJpaRepository jpaRepository;
+    @Mock
+    private LocalUserJpaRepository localUserJpaRepository;
     @Mock
     private UserMapper mapper;
     @InjectMocks
@@ -50,6 +54,35 @@ class UserRepositoryAdapterTest {
         when(jpaRepository.findByUsername("alice")).thenReturn(Optional.of(e));
         when(mapper.toDomain(e)).thenReturn(sample());
         assertThat(adapter.findByUsername("alice")).isPresent();
+    }
+
+    @Test
+    void findByUsernameFallsBackToLocalUsersWhenNotInReplicated() {
+        UserJpaEntity replicated = null;
+        LocalUserJpaEntity local = new LocalUserJpaEntity();
+        User domain = sample();
+        when(jpaRepository.findByUsername("alice")).thenReturn(Optional.empty());
+        when(localUserJpaRepository.findByUsername("alice")).thenReturn(Optional.of(local));
+        when(mapper.toDomainFromLocalUser(local)).thenReturn(domain);
+        assertThat(adapter.findByUsername("alice")).isPresent().hasValue(domain);
+        verifyNoMoreInteractions(localUserJpaRepository);
+    }
+
+    @Test
+    void findByUsernamePrefersReplicatedUserOverLocalUser() {
+        UserJpaEntity replicated = new UserJpaEntity();
+        User replicatedDomain = sample();
+        when(jpaRepository.findByUsername("alice")).thenReturn(Optional.of(replicated));
+        when(mapper.toDomain(replicated)).thenReturn(replicatedDomain);
+        assertThat(adapter.findByUsername("alice")).isPresent().hasValue(replicatedDomain);
+        verifyNoInteractions(localUserJpaRepository);
+    }
+
+    @Test
+    void findByUsernameReturnsEmptyWhenNotFoundInEitherSource() {
+        when(jpaRepository.findByUsername("alice")).thenReturn(Optional.empty());
+        when(localUserJpaRepository.findByUsername("alice")).thenReturn(Optional.empty());
+        assertThat(adapter.findByUsername("alice")).isEmpty();
     }
 
     @Test

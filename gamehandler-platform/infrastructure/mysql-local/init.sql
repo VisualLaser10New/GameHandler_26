@@ -2,11 +2,13 @@
 
 CREATE TABLE users (
     id              VARCHAR(36) PRIMARY KEY,
-    username        VARCHAR(100) UNIQUE NOT NULL,
+    username        VARCHAR(100) NOT NULL,
     password_hash   VARCHAR(255) NOT NULL,
     email           VARCHAR(255),
     roles           VARCHAR(255) DEFAULT 'USER',
-    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_users_username UNIQUE (username),
+    CONSTRAINT uk_users_email UNIQUE (email)
 );
 
 CREATE TABLE game_catalog (

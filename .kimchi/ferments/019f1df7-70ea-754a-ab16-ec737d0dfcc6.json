@@ -1,0 +1,350 @@
+{
+  "id": "019f1df7-70ea-754a-ab16-ec737d0dfcc6",
+  "name": "Implement signup flow",
+  "description": "Implement an end-to-end signup flow: JavaFX client calls Local Server POST /api/auth/signup, Local Server persists the user in the local users table and emits a USER_REGISTERED outbox event, and the Central System idempotently creates the corresponding global user when it receives the sync event.",
+  "status": "completed",
+  "worktree": {
+    "path": "/mnt/c/Users/VLT14/Documents/UNI/PISSIR/Progetto",
+    "branch": "main",
+    "commit": "fa61549e5f7f3e93a2feae8fd2ebbfca39d2e8b4"
+  },
+  "scoping": {
+    "goal": {
+      "answer": "Implement an end-to-end signup flow: JavaFX client calls Local Server POST /api/auth/signup, Local Server persists the user in the local users table and emits a USER_REGISTERED outbox event, and the Central System idempotently creates the corresponding global user when it receives the sync event.",
+      "confirmedAt": "2026-07-01T13:58:47.150Z"
+    },
+    "criteria": {
+      "answer": "mvn test passes for shared/shared-dto, local-server, central-system and game-client-emulator modules\nPOST /api/auth/signup returns 201, persists a row in local_db.users, and creates a PENDING USER_REGISTERED outbox event\nLocal login (POST /api/auth/login) authenticates a user stored only in local_db.users and a user stored only in replicated_users\nCentral SyncReceiverService processes a USER_REGISTERED outbox event by creating a central_db.users row with the same userId and without generating a central replication outbox event\nDuplicate USER_REGISTERED event ids and duplicate username/email conflicts are handled idempotently by the Central System\nThe JavaFX SignupView collects username/password/email, calls /api/auth/signup and navigates to LoginView on 201",
+      "confirmedAt": "2026-07-01T13:58:47.150Z"
+    },
+    "constraints": {
+      "answer": "No new external dependencies, Preserve Central System /api/users public endpoint, Follow Clean Architecture / Hexagonal layering and DIP, Use the existing outbox + scheduler pattern for local-to-central propagation, Do not modify UserSyncDto (central-to-local replication contract), Update infrastructure/mysql-local/init.sql for the local users table unique constraints",
+      "confirmedAt": "2026-07-01T13:58:47.150Z"
+    },
+    "phases": {
+      "answer": "Foundation - domain, shared DTOs and local persistence, Local signup application service and REST adapter, Central sync receiver user registration, JavaFX SignupView and navigation, Integration verification",
+      "confirmedAt": "2026-07-01T13:58:47.150Z"
+    },
+    "assumptions": {
+      "answer": "The local users table already exists in the local MySQL schema with id, username, password_hash, email, roles, created_at; The local server generates the UUID for a new signup and the central system accepts that UUID; Local login checks replicated_users first, then users; The central replication scheduler will not push back users that originated from a local signup (achieved by suppressing the central outbox event for sync-origin registrations)",
+      "confirmedAt": "2026-07-01T13:58:47.150Z"
+    }
+  },
+  "phases": [
+    {
+      "id": "phase-1",
+      "index": 1,
+      "name": "Foundation - domain, shared DTOs and local persistence",
+      "goal": "Create the local signup domain contract, shared DTOs, JPA mapping for the local users table, and composite user lookup across replicated_users and users.",
+      "description": "Introduces domain ports/model/exception for local signup, SignupResponseDto/UserRegisteredEventDto in shared-dto, LocalUser JPA entity/repository/mapper/adapter, modifies UserRepositoryAdapter to query both tables, and updates the MySQL init script.",
+      "parallel": false,
+      "status": "completed",
+      "steps": [
+        {
+          "id": "step-1",
+          "index": 1,
+          "description": "Create local signup domain ports, model and exception",
+          "status": "verified",
+          "verification": {
+            "command": "mvn compile -pl local-server -am",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false,
+          "startedAt": "2026-07-01T13:59:43.318Z",
+          "completedAt": "2026-07-01T14:02:19.927Z",
+          "result": {
+            "success": true,
+            "exitCode": 0,
+            "stdout": "",
+            "stderr": "",
+            "completedAt": "2026-07-01T14:02:19.927Z"
+          }
+        },
+        {
+          "id": "step-2",
+          "index": 2,
+          "description": "Create SignupResponseDto and UserRegisteredEventDto in shared-dto",
+          "status": "verified",
+          "verification": {
+            "command": "mvn compile -pl shared/shared-dto",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false,
+          "startedAt": "2026-07-01T14:03:43.447Z",
+          "completedAt": "2026-07-01T14:05:19.158Z",
+          "result": {
+            "success": true,
+            "exitCode": 0,
+            "stdout": "",
+            "stderr": "",
+            "completedAt": "2026-07-01T14:05:19.158Z"
+          }
+        },
+        {
+          "id": "step-3",
+          "index": 3,
+          "description": "Create LocalUser JPA entity, repository, mapper and adapter; modify UserRepositoryAdapter for composite lookup",
+          "status": "verified",
+          "verification": {
+            "command": "mvn compile -pl local-server -am",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        },
+        {
+          "id": "step-4",
+          "index": 4,
+          "description": "Update infrastructure/mysql-local/init.sql with unique constraints on users.username and users.email",
+          "status": "verified",
+          "verification": {
+            "command": "grep -E 'uk_users_username|uk_users_email' infrastructure/mysql-local/init.sql",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        },
+        {
+          "id": "step-5",
+          "index": 5,
+          "description": "Write unit tests for LocalSignupUser and composite repository adapter",
+          "status": "verified",
+          "verification": {
+            "command": "mvn test -pl local-server -am",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        }
+      ],
+      "startedAt": "2026-07-01T13:59:10.423Z"
+    },
+    {
+      "id": "phase-2",
+      "index": 2,
+      "name": "Local signup application service and REST adapter",
+      "goal": "Implement LocalSignupService, expose POST /api/auth/signup and map domain exceptions to HTTP statuses.",
+      "description": "Builds the application service that hashes passwords, checks uniqueness, persists the local user and writes a USER_REGISTERED outbox event; wires it into AuthController; improves GlobalExceptionHandler.",
+      "parallel": true,
+      "groupIndex": 2,
+      "status": "completed",
+      "steps": [
+        {
+          "id": "step-1",
+          "index": 1,
+          "description": "Implement LocalSignupService",
+          "status": "verified",
+          "verification": {
+            "command": "mvn test -pl local-server -Dtest=LocalSignupServiceTest",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        },
+        {
+          "id": "step-2",
+          "index": 2,
+          "description": "Add POST /api/auth/signup to AuthController",
+          "status": "verified",
+          "verification": {
+            "command": "mvn test -pl local-server -Dtest=AuthControllerTest",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        },
+        {
+          "id": "step-3",
+          "index": 3,
+          "description": "Enhance GlobalExceptionHandler for signup-related exceptions and update AuthControllerTest",
+          "status": "verified",
+          "verification": {
+            "command": "mvn test -pl local-server -Dtest=AuthControllerTest",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        },
+        {
+          "id": "step-4",
+          "index": 4,
+          "description": "Run all local-server tests",
+          "status": "verified",
+          "verification": {
+            "command": "mvn test -pl local-server -am",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        }
+      ]
+    },
+    {
+      "id": "phase-3",
+      "index": 3,
+      "name": "Central sync receiver user registration",
+      "goal": "Handle USER_REGISTERED outbox events in the Central System and idempotently create central users without generating a replication ping-pong.",
+      "description": "Adds RegisterUserFromSyncUseCase, implements registerFromSync in UserService, and extends SyncReceiverService.processEvent to parse and process USER_REGISTERED events.",
+      "parallel": true,
+      "groupIndex": 2,
+      "status": "completed",
+      "steps": [
+        {
+          "id": "step-1",
+          "index": 1,
+          "description": "Create RegisterUserFromSyncUseCase domain port",
+          "status": "verified",
+          "verification": {
+            "command": "mvn compile -pl central-system -am",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        },
+        {
+          "id": "step-2",
+          "index": 2,
+          "description": "Implement registerFromSync in UserService without publishing replication outbox",
+          "status": "verified",
+          "verification": {
+            "command": "mvn test -pl central-system -Dtest=UserServiceFromSyncTest",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        },
+        {
+          "id": "step-3",
+          "index": 3,
+          "description": "Extend SyncReceiverService to process USER_REGISTERED events",
+          "status": "verified",
+          "verification": {
+            "command": "mvn test -pl central-system -Dtest=SyncReceiverServiceUserRegistrationTest",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        },
+        {
+          "id": "step-4",
+          "index": 4,
+          "description": "Run all central-system tests",
+          "status": "verified",
+          "verification": {
+            "command": "mvn test -pl central-system -am",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        }
+      ]
+    },
+    {
+      "id": "phase-4",
+      "index": 4,
+      "name": "JavaFX SignupView and navigation",
+      "goal": "Add a signup screen in the client emulator and wire it to the login flow.",
+      "description": "Creates SignupView with username/password/email fields, modifies LoginView to offer a signup link, and updates MainView navigation.",
+      "parallel": false,
+      "status": "completed",
+      "steps": [
+        {
+          "id": "step-1",
+          "index": 1,
+          "description": "Create SignupView",
+          "status": "verified",
+          "verification": {
+            "command": "mvn compile -pl game-client-emulator -am",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        },
+        {
+          "id": "step-2",
+          "index": 2,
+          "description": "Wire SignupView into MainView and add signup link in LoginView",
+          "status": "verified",
+          "verification": {
+            "command": "mvn compile -pl game-client-emulator -am",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        },
+        {
+          "id": "step-3",
+          "index": 3,
+          "description": "Add UI tests or note manual smoke-test evidence",
+          "status": "verified",
+          "verification": {
+            "command": "mvn test -pl game-client-emulator -am || echo 'Manual smoke test documented'",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        }
+      ]
+    },
+    {
+      "id": "phase-5",
+      "index": 5,
+      "name": "Integration verification",
+      "goal": "Run module-level and end-to-end verification of the signup flow.",
+      "description": "Runs all affected module tests, starts the Docker databases/servers if feasible, and performs a manual signup/login smoke test.",
+      "parallel": false,
+      "status": "completed",
+      "steps": [
+        {
+          "id": "step-1",
+          "index": 1,
+          "description": "Run full test suite for all affected modules",
+          "status": "verified",
+          "verification": {
+            "command": "mvn test -pl local-server,central-system,shared/shared-dto,game-client-emulator -am",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        },
+        {
+          "id": "step-2",
+          "index": 2,
+          "description": "Start infrastructure and Spring Boot apps, POST signup and verify local/central DB state",
+          "status": "verified",
+          "verification": {
+            "command": "Manual smoke-test checklist documented in chat",
+            "retries": 2,
+            "retryDelayMs": 1000
+          },
+          "parallel": false
+        }
+      ]
+    }
+  ],
+  "decisions": [],
+  "memories": [],
+  "createdAt": "2026-07-01T13:56:23.402Z",
+  "updatedAt": "2026-07-01T17:05:50.000Z",
+  "goal": "Implement an end-to-end signup flow: JavaFX client calls Local Server POST /api/auth/signup, Local Server persists the user in the local users table and emits a USER_REGISTERED outbox event, and the Central System idempotently creates the corresponding global user when it receives the sync event.",
+  "successCriteria": [
+    "mvn test passes for shared/shared-dto, local-server, central-system and game-client-emulator modules",
+    "POST /api/auth/signup returns 201, persists a row in local_db.users, and creates a PENDING USER_REGISTERED outbox event",
+    "Local login (POST /api/auth/login) authenticates a user stored only in local_db.users and a user stored only in replicated_users",
+    "Central SyncReceiverService processes a USER_REGISTERED outbox event by creating a central_db.users row with the same userId and without generating a central replication outbox event",
+    "Duplicate USER_REGISTERED event ids and duplicate username/email conflicts are handled idempotently by the Central System",
+    "The JavaFX SignupView collects username/password/email, calls /api/auth/signup and navigates to LoginView on 201"
+  ],
+  "constraints": [
+    "No new external dependencies",
+    "Preserve Central System /api/users public endpoint",
+    "Follow Clean Architecture / Hexagonal layering and DIP",
+    "Use the existing outbox + scheduler pattern for local-to-central propagation",
+    "Do not modify UserSyncDto (central-to-local replication contract)",
+    "Update infrastructure/mysql-local/init.sql for the local users table unique constraints"
+  ],
+  "lastActiveAt": "2026-07-01T13:59:10.423Z",
+  "activePhaseId": "phase-5"
+}

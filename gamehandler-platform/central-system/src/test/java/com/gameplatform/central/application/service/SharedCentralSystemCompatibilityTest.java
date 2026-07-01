@@ -13,6 +13,7 @@ import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
 import com.gameplatform.central.domain.ports.out.UserRepository;
 import com.gameplatform.central.domain.model.User;
+import com.gameplatform.central.domain.ports.in.RegisterUserFromSyncUseCase;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.domain.model.UserId;
@@ -70,6 +71,9 @@ class SharedCentralSystemCompatibilityTest {
     @Mock
     private ReplicationProgressRepository replicationProgressRepository;
 
+    @Mock
+    private RegisterUserFromSyncUseCase registerUserFromSyncUseCase;
+
     private SyncReceiverService syncReceiverService;
     private StatisticsAggregationService statisticsAggregationService;
     private UserReplicationSchedulerService userReplicationSchedulerService;
@@ -81,6 +85,7 @@ class SharedCentralSystemCompatibilityTest {
                 processedEventRepository,
                 statisticsRepository,
                 localServerRegistryPort,
+                registerUserFromSyncUseCase,
                 objectMapper
         );
         statisticsAggregationService = new StatisticsAggregationService(statisticsRepository, objectMapper);

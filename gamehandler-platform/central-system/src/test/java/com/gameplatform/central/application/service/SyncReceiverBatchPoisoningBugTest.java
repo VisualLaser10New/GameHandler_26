@@ -3,6 +3,7 @@ package com.gameplatform.central.application.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.central.domain.model.AggregatedStatistics;
 import com.gameplatform.central.domain.model.ProcessedEvent;
+import com.gameplatform.central.domain.ports.in.RegisterUserFromSyncUseCase;
 import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.ProcessedEventRepository;
 import com.gameplatform.central.domain.ports.out.StatisticsRepository;
@@ -44,6 +45,9 @@ class SyncReceiverBatchPoisoningBugTest {
     @Mock
     private LocalServerRegistryPort localServerRegistryPort;
 
+    @Mock
+    private RegisterUserFromSyncUseCase registerUserFromSyncUseCase;
+
     private SyncReceiverService service;
 
     @BeforeEach
@@ -52,6 +56,7 @@ class SyncReceiverBatchPoisoningBugTest {
                 processedEventRepository,
                 statisticsRepository,
                 localServerRegistryPort,
+                registerUserFromSyncUseCase,
                 new ObjectMapper()
         );
     }

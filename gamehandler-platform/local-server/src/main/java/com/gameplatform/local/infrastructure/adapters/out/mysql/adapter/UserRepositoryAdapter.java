@@ -4,6 +4,7 @@ import com.gameplatform.local.domain.model.User;
 import com.gameplatform.local.domain.ports.out.UserRepository;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.UserJpaEntity;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.mapper.UserMapper;
+import com.gameplatform.local.infrastructure.adapters.out.mysql.repository.LocalUserJpaRepository;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.repository.UserJpaRepository;
 import org.springframework.stereotype.Component;
 
@@ -15,10 +16,12 @@ import java.util.stream.Collectors;
 public class UserRepositoryAdapter implements UserRepository {
 
     private final UserJpaRepository jpaRepository;
+    private final LocalUserJpaRepository localUserJpaRepository;
     private final UserMapper mapper;
 
-    public UserRepositoryAdapter(UserJpaRepository jpaRepository, UserMapper mapper) {
+    public UserRepositoryAdapter(UserJpaRepository jpaRepository, LocalUserJpaRepository localUserJpaRepository, UserMapper mapper) {
         this.jpaRepository = jpaRepository;
+        this.localUserJpaRepository = localUserJpaRepository;
         this.mapper = mapper;
     }
 
@@ -31,7 +34,11 @@ public class UserRepositoryAdapter implements UserRepository {
 
     @Override
     public Optional<User> findByUsername(String username) {
-        return jpaRepository.findByUsername(username).map(mapper::toDomain);
+        Optional<User> replicated = jpaRepository.findByUsername(username).map(mapper::toDomain);
+        if (replicated.isPresent()) {
+            return replicated;
+        }
+        return localUserJpaRepository.findByUsername(username).map(mapper::toDomainFromLocalUser);
     }
 
     @Override

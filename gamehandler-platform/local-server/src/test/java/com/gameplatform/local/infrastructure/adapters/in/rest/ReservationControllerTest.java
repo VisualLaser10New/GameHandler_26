@@ -58,10 +58,10 @@ class ReservationControllerTest {
 
     @Test
     void createWithBlankGameIdPropagatesIllegalArgFromRecordCtor() throws Exception {
-        // GameId(null/blank) throws IllegalArgumentException inside the controller -> 500 by default (no handler)
+        // GameId(null/blank) throws IllegalArgumentException inside the controller -> 400 due to global exception handler
         String body = "{\"gameId\":\"\",\"userId\":\"u1\",\"startTime\":\"2026-02-01T10:00:00Z\",\"endTime\":\"2026-02-01T11:00:00Z\"}";
         mvc.perform(post("/api/reservations").contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isBadRequest());
         verifyNoInteractions(createUseCase);
     }
 

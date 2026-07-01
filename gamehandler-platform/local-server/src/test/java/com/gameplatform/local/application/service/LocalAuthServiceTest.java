@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import com.gameplatform.local.domain.exception.UserNotFoundException;
 import com.gameplatform.local.domain.model.User;
+import com.gameplatform.local.domain.ports.out.TokenGeneratorPort;
 import com.gameplatform.local.domain.ports.out.UserRepository;
 import com.gameplatform.local.infrastructure.security.JwtTokenProvider;
 import com.gameplatform.shared.domain.model.UserId;
@@ -26,7 +27,7 @@ import org.springframework.security.crypto.bcrypt.BCrypt;
 class LocalAuthServiceTest {
 
     @Mock UserRepository userRepository;
-    @Mock JwtTokenProvider jwtTokenProvider;
+    @Mock TokenGeneratorPort jwtTokenProvider;
     private final java.time.Clock clock = java.time.Clock.systemUTC();
 
     LocalAuthService service;
@@ -45,7 +46,7 @@ class LocalAuthServiceTest {
     void shouldAuthenticateAndReturnToken() {
         User user = userWithPassword("password");
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
-        when(jwtTokenProvider.generateToken(user)).thenReturn("jwt-token");
+        when(jwtTokenProvider.generateToken(eq(user), any(Instant.class))).thenReturn("jwt-token");
 
         LoginResponseDto response = service.authenticate("alice", "password");
 
@@ -60,7 +61,7 @@ class LocalAuthServiceTest {
     void shouldFailWhenUserNotFound() {
         when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
         assertThrows(UserNotFoundException.class, () -> service.authenticate("ghost", "pwd"));
-        verify(jwtTokenProvider, never()).generateToken(any());
+        verify(jwtTokenProvider, never()).generateToken(any(), any());
     }
 
     @Test
@@ -68,6 +69,6 @@ class LocalAuthServiceTest {
         User user = userWithPassword("password");
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
         assertThrows(BadCredentialsException.class, () -> service.authenticate("alice", "wrong"));
-        verify(jwtTokenProvider, never()).generateToken(any());
+        verify(jwtTokenProvider, never()).generateToken(any(), any());
     }
 }

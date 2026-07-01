@@ -36,6 +36,8 @@ public class MainView extends Application {
     private static final String VIEW_GAME_PLAY = "game_play";
     private static final String VIEW_STATISTICS = "statistics";
 
+    private static final String VIEW_SIGNUP = "signup";
+
     private Stage primaryStage;
     private BorderPane root;
     private HBox navBar;
@@ -43,6 +45,7 @@ public class MainView extends Application {
     private Button gamesNavButton;
     private Button statsNavButton;
     private LoginView loginView;
+    private SignupView signupView;
     private GameSelectionView gameSelectionView;
     private GamePlayView gamePlayView;
     private StatisticsView statisticsView;
@@ -131,9 +134,14 @@ public class MainView extends Application {
         gameSelectionView = new GameSelectionView(mqttAdapter, buildingId);
         gamePlayView = new GamePlayView();
         loginView = new LoginView();
+        signupView = new SignupView();
         statisticsView = new StatisticsView();
 
         loginView.setOnLoginSuccess(() -> navigateTo(VIEW_GAME_SELECTION));
+        loginView.setOnNavigateToSignup(() -> navigateTo(VIEW_SIGNUP));
+
+        signupView.setOnSignupSuccess(() -> navigateTo(VIEW_LOGIN));
+        signupView.setOnCancel(() -> navigateTo(VIEW_LOGIN));
 
         gameSelectionView.setOnGameSelected((GameStateDto state) -> {
             gamePlayView.setGameState(state);
@@ -158,6 +166,11 @@ public class MainView extends Application {
             case VIEW_LOGIN:
                 loginView.reset();
                 root.setCenter(loginView.getView());
+                navBar.setVisible(false);
+                break;
+            case VIEW_SIGNUP:
+                signupView.reset();
+                root.setCenter(signupView.getView());
                 navBar.setVisible(false);
                 break;
             case VIEW_GAME_SELECTION:

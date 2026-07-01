@@ -26,7 +26,9 @@ public class LoginView {
     private final PasswordField passwordField;
     private final Label errorLabel;
     private final Button loginButton;
+    private final Hyperlink signupLink;
     private Runnable onLoginSuccess;
+    private Runnable onNavigateToSignup;
 
     public LoginView() {
         root = new VBox(12);
@@ -49,13 +51,21 @@ public class LoginView {
         loginButton = new Button("Login");
         loginButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14; -fx-padding: 8 24; -fx-background-radius: 4;");
 
+        signupLink = new Hyperlink("Don't have an account? Sign Up");
+        signupLink.setStyle("-fx-text-fill: #3498db; -fx-underline: true; -fx-font-size: 13;");
+
         errorLabel = new Label();
         errorLabel.setStyle("-fx-text-fill: #e74c3c; -fx-font-size: 12;");
 
-        root.getChildren().addAll(title, usernameField, passwordField, loginButton, errorLabel);
+        root.getChildren().addAll(title, usernameField, passwordField, loginButton, signupLink, errorLabel);
 
         loginButton.setOnAction(e -> performLogin());
         passwordField.setOnAction(e -> performLogin());
+        signupLink.setOnAction(e -> {
+            if (onNavigateToSignup != null) {
+                onNavigateToSignup.run();
+            }
+        });
     }
 
     private String usernameFieldStyle() {
@@ -79,6 +89,15 @@ public class LoginView {
      */
     public void setOnLoginSuccess(Runnable callback) {
         this.onLoginSuccess = callback;
+    }
+
+    /**
+     * Registers a callback to be invoked when navigating to the signup screen.
+     *
+     * @param callback the action to run; may be {@code null}
+     */
+    public void setOnNavigateToSignup(Runnable callback) {
+        this.onNavigateToSignup = callback;
     }
 
     /**

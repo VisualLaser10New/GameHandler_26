@@ -14,10 +14,10 @@ import java.security.SecureRandom;
 @Configuration
 public class TlsConfig {
 
-    @Value("${ssl.trust-store}")
+    @Value("${ssl.trust-store:}")
     private String trustStorePath;
 
-    @Value("${ssl.trust-store-password}")
+    @Value("${ssl.trust-store-password:}")
     private String trustStorePassword;
 
     private final ResourceLoader resourceLoader;
@@ -30,7 +30,7 @@ public class TlsConfig {
     public SSLContext sslContext() {
         try {
             SSLContext sslContext = SSLContext.getInstance("TLS");
-            if (trustStorePath == null || trustStorePath.isBlank()) {
+            if (trustStorePath == null || trustStorePath.isBlank() || trustStorePath.startsWith("${")) {
                 // Fallback for tests or missing configuration
                 sslContext.init(null, null, new SecureRandom());
                 return sslContext;

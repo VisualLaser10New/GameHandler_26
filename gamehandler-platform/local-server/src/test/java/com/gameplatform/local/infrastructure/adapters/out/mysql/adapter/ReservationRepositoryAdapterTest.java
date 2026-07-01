@@ -108,9 +108,9 @@ class ReservationRepositoryAdapterTest {
     @Test
     void findExpiredPassesPendingAndNow() {
         Instant now = Instant.now();
-        when(jpaRepository.findByStatusInAndEndTimeBefore(List.of("PENDING"), now))
+        when(jpaRepository.findByStatusInAndEndTimeBefore(List.of("PENDING", "CONFIRMED"), now))
             .thenReturn(List.of());
         adapter.findExpired(now);
-        verify(jpaRepository).findByStatusInAndEndTimeBefore(List.of("PENDING"), now);
+        verify(jpaRepository).findByStatusInAndEndTimeBefore(List.of("PENDING", "CONFIRMED"), now);
     }
 }

@@ -8,11 +8,13 @@ import com.gameplatform.central.domain.model.OutboxEvent;
 import com.gameplatform.central.domain.model.OutboxEventStatus;
 import com.gameplatform.central.domain.model.User;
 import com.gameplatform.central.domain.ports.in.GetAllUsersUseCase;
+import com.gameplatform.central.domain.ports.in.RegisterUserFromSyncUseCase;
 import com.gameplatform.central.domain.ports.in.RegisterUserUseCase;
 import com.gameplatform.central.domain.ports.in.UpdateUserUseCase;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.UserRepository;
 import com.gameplatform.shared.domain.model.UserId;
+import com.gameplatform.shared.dto.UserRegisteredEventDto;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +30,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetAllUsersUseCase {
+public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetAllUsersUseCase, RegisterUserFromSyncUseCase {
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private final UserRepository userRepository;
@@ -66,6 +68,32 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
         } catch (DataIntegrityViolationException e) {
             log.warn("Database unique constraint violation during registration for username: {} or email: {}", username, email, e);
             throw new UserAlreadyExistsException("User already exists", e);
+        }
+    }
+
+    @Transactional
+    @Override
+    public void registerFromSync(UserRegisteredEventDto dto) {
+        UserId userId = new UserId(dto.userId());
+        if (userRepository.findById(userId).isPresent()) {
+            log.info("User already exists from sync, skipping: {}", dto.userId());
+            return;
+        }
+        if (userRepository.findByUsername(dto.username()).isPresent()) {
+            log.info("Username already exists from sync, skipping: {}", dto.username());
+            return;
+        }
+        if (userRepository.findByEmail(dto.email()).isPresent()) {
+            log.info("Email already exists from sync, skipping: {}", dto.email());
+            return;
+        }
+
+        User user = new User(userId, dto.username(), dto.hashedPassword(), dto.email(), dto.roles(), dto.createdAt());
+        try {
+            userRepository.save(user);
+            log.info("Created central user from sync: {}", dto.userId());
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Database unique constraint violation during sync registration for userId: {}", dto.userId(), e);
         }
     }
 

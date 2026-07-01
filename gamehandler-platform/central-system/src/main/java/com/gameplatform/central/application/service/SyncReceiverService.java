@@ -7,6 +7,7 @@ import com.gameplatform.central.domain.exception.DuplicateEventException;
 import com.gameplatform.central.domain.model.AggregatedStatistics;
 import com.gameplatform.central.domain.model.ProcessedEvent;
 import com.gameplatform.central.domain.ports.in.ReceiveSyncDataUseCase;
+import com.gameplatform.central.domain.ports.in.RegisterUserFromSyncUseCase;
 import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.ProcessedEventRepository;
 import com.gameplatform.central.domain.ports.out.StatisticsRepository;
@@ -14,6 +15,7 @@ import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.dto.OutboxEventDto;
 import com.gameplatform.shared.dto.SyncPayloadDto;
+import com.gameplatform.shared.dto.UserRegisteredEventDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.lang.Nullable;
@@ -44,6 +46,7 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
     private final ProcessedEventRepository processedEventRepository;
     private final StatisticsRepository statisticsRepository;
     private final LocalServerRegistryPort localServerRegistryPort;
+    private final RegisterUserFromSyncUseCase registerUserFromSyncUseCase;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -51,8 +54,9 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
             ProcessedEventRepository processedEventRepository,
             StatisticsRepository statisticsRepository,
             LocalServerRegistryPort localServerRegistryPort,
+            RegisterUserFromSyncUseCase registerUserFromSyncUseCase,
             ObjectMapper objectMapper) {
-        this(processedEventRepository, statisticsRepository, localServerRegistryPort, objectMapper, Clock.systemUTC());
+        this(processedEventRepository, statisticsRepository, localServerRegistryPort, registerUserFromSyncUseCase, objectMapper, Clock.systemUTC());
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -60,11 +64,13 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
             ProcessedEventRepository processedEventRepository,
             StatisticsRepository statisticsRepository,
             LocalServerRegistryPort localServerRegistryPort,
+            RegisterUserFromSyncUseCase registerUserFromSyncUseCase,
             ObjectMapper objectMapper,
             Clock clock) {
         this.processedEventRepository = processedEventRepository;
         this.statisticsRepository = statisticsRepository;
         this.localServerRegistryPort = localServerRegistryPort;
+        this.registerUserFromSyncUseCase = registerUserFromSyncUseCase;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -141,6 +147,10 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
                 return false;
             }
             updateReservationStats(buildingId, parsed.gameType(), parsed.periodStart(), -1);
+            return true;
+        } else if ("USER_REGISTERED".equals(eventDto.eventType())) {
+            UserRegisteredEventDto dto = objectMapper.readValue(eventDto.payload(), UserRegisteredEventDto.class);
+            registerUserFromSyncUseCase.registerFromSync(dto);
             return true;
         }
 

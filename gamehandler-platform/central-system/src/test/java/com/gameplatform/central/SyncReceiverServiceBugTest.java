@@ -3,6 +3,7 @@ package com.gameplatform.central;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.central.application.service.SyncReceiverService;
 import com.gameplatform.central.domain.exception.DuplicateEventException;
+import com.gameplatform.central.domain.ports.in.RegisterUserFromSyncUseCase;
 import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.ProcessedEventRepository;
 import com.gameplatform.central.domain.ports.out.StatisticsRepository;
@@ -40,6 +41,9 @@ class SyncReceiverServiceBugTest {
     @Mock
     private LocalServerRegistryPort localServerRegistryPort;
 
+    @Mock
+    private RegisterUserFromSyncUseCase registerUserFromSyncUseCase;
+
     private ObjectMapper objectMapper;
 
     private SyncReceiverService syncReceiverService;
@@ -51,6 +55,7 @@ class SyncReceiverServiceBugTest {
                 processedEventRepository,
                 statisticsRepository,
                 localServerRegistryPort,
+                registerUserFromSyncUseCase,
                 objectMapper
         );
     }

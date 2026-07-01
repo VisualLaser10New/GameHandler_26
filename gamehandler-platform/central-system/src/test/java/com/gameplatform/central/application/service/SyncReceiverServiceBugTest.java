@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.central.domain.exception.DuplicateEventException;
 import com.gameplatform.central.domain.model.AggregatedStatistics;
 import com.gameplatform.central.domain.model.ProcessedEvent;
+import com.gameplatform.central.domain.ports.in.RegisterUserFromSyncUseCase;
 import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.ProcessedEventRepository;
 import com.gameplatform.central.domain.ports.out.StatisticsRepository;
@@ -33,6 +34,7 @@ class SyncReceiverServiceBugTest {
     private ProcessedEventRepository processedEventRepository;
     private StatisticsRepository statisticsRepository;
     private LocalServerRegistryPort localServerRegistryPort;
+    private RegisterUserFromSyncUseCase registerUserFromSyncUseCase;
     private ObjectMapper objectMapper;
     private SyncReceiverService service;
 
@@ -41,6 +43,7 @@ class SyncReceiverServiceBugTest {
         processedEventRepository = mock(ProcessedEventRepository.class);
         statisticsRepository = mock(StatisticsRepository.class);
         localServerRegistryPort = mock(LocalServerRegistryPort.class);
+        registerUserFromSyncUseCase = mock(RegisterUserFromSyncUseCase.class);
         objectMapper = new ObjectMapper();
         // Configure ObjectMapper to handle Instant serialization for tests
         objectMapper.findAndRegisterModules();
@@ -48,6 +51,7 @@ class SyncReceiverServiceBugTest {
                 processedEventRepository,
                 statisticsRepository,
                 localServerRegistryPort,
+                registerUserFromSyncUseCase,
                 objectMapper
         );
     }

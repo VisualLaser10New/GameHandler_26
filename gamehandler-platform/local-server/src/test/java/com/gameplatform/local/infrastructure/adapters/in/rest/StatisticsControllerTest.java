@@ -45,7 +45,7 @@ class StatisticsControllerTest {
     @Test
     void getStatsWithInvalidGameTypeThrowsIllegalArg500() throws Exception {
         mvc.perform(get("/api/statistics").param("gameType", "NOT_A_GAME"))
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isBadRequest());
         verifyNoInteractions(useCase);
     }
 

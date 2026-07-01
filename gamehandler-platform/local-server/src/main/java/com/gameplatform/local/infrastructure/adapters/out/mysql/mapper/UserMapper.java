@@ -1,6 +1,7 @@
 package com.gameplatform.local.infrastructure.adapters.out.mysql.mapper;
 
 import com.gameplatform.local.domain.model.User;
+import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.LocalUserJpaEntity;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.UserJpaEntity;
 import com.gameplatform.shared.domain.model.UserId;
 import org.springframework.stereotype.Component;
@@ -39,6 +40,23 @@ public class UserMapper {
             domain.getPasswordHash(),
             rolesStr,
             domain.getSyncedAt()
+        );
+    }
+
+    public User toDomainFromLocalUser(LocalUserJpaEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        List<String> rolesList = List.of();
+        if (entity.getRoles() != null && !entity.getRoles().isBlank()) {
+            rolesList = Arrays.asList(entity.getRoles().split(","));
+        }
+        return new User(
+            new UserId(entity.getId()),
+            entity.getUsername(),
+            entity.getPasswordHash(),
+            rolesList,
+            entity.getCreatedAt()
         );
     }
 }
