@@ -835,4 +835,4 @@
   - [x] `MqttConnectOptions getMqttOptions()`
 
 ## 7 Configurazioni
-- [ ] Creare il certificato per `JwtTokenProvider`
+- [x] Creare il certificato per `JwtTokenProvider`
