@@ -1,6 +1,5 @@
 package com.gameplatform.local.infrastructure.adapters.out.mysql.adapter;
 
-import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.ReservationJpaEntity;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.mapper.ReservationMapper;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.repository.ReservationJpaRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -24,7 +23,7 @@ import static org.mockito.Mockito.when;
  * (PENDING, CONFIRMED) and end_time < now, but the adapter queries only PENDING.
  */
 @ExtendWith(MockitoExtension.class)
-class BugL07_ReservationRepositoryFindExpiredConfirmedTest {
+class BugL07_FindExpiredConfirmedTest {
 
     @Mock ReservationJpaRepository jpaRepository;
 
