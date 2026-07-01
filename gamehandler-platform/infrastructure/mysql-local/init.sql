@@ -14,7 +14,7 @@ CREATE TABLE game_catalog (
     game_type   VARCHAR(50) NOT NULL,
     name        VARCHAR(100) NOT NULL,
     building_id VARCHAR(36) NOT NULL,
-    status      VARCHAR(20) DEFAULT 'AVAILABLE',
+    status      ENUM('AVAILABLE','RESERVED','IN_USE','MAINTENANCE') DEFAULT 'AVAILABLE',
     INDEX idx_building (building_id),
     INDEX idx_type (game_type)
 );
@@ -83,10 +83,10 @@ CREATE TABLE replicated_users (
 );
 
 CREATE TABLE local_statistics_cache (
-    id          VARCHAR(36) PRIMARY KEY,
-    game_type   VARCHAR(50) NOT NULL,
-    period      DATE NOT NULL,
-    data        JSON,
-    computed_at DATETIME NOT NULL,
-    UNIQUE KEY uk_type_period (game_type, period)
+    id              VARCHAR(36) PRIMARY KEY,
+    game_type       VARCHAR(50) NOT NULL,
+    period_date     DATE NOT NULL,
+    data            JSON,
+    computed_at     DATETIME NOT NULL,
+    UNIQUE KEY      uk_type_period (game_type, period_date)
 );

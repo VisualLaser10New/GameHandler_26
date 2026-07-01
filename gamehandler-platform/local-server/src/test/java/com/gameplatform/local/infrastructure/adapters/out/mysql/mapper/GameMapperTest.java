@@ -27,7 +27,7 @@ class GameMapperTest {
         assertThat(entity.getGameType()).isEqualTo("CHESS");
         assertThat(entity.getName()).isEqualTo("Scacchi");
         assertThat(entity.getBuildingId()).isEqualTo("b-1");
-        assertThat(entity.getStatus()).isEqualTo("IN_USE");
+        assertThat(entity.getStatus()).isEqualTo(GameMachineStatus.IN_USE);
 
         Game back = mapper.toDomain(entity);
         assertThat(back).usingRecursiveComparison().isEqualTo(domain);
@@ -41,12 +41,5 @@ class GameMapperTest {
     @Test
     void toEntityNullReturnsNull() {
         assertThat(mapper.toEntity(null)).isNull();
-    }
-
-    @Test
-    void toDomainInvalidStatusThrows() {
-        GameJpaEntity entity = new GameJpaEntity("g", "CHESS", "n", "b", "UNKNOWN");
-        assertThatThrownBy(() -> mapper.toDomain(entity))
-            .isInstanceOf(IllegalArgumentException.class);
     }
 }

@@ -20,7 +20,7 @@ public class GameMapper {
             GameType.valueOf(entity.getGameType()),
             entity.getName(),
             new BuildingId(entity.getBuildingId()),
-            GameMachineStatus.valueOf(entity.getStatus())
+            entity.getStatus()
         );
     }
 
@@ -33,7 +33,7 @@ public class GameMapper {
             domain.getGameType().name(),
             domain.getName(),
             domain.getBuildingId().id(),
-            domain.getStatus().name()
+            domain.getStatus()
         );
     }
 }

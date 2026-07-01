@@ -66,9 +66,9 @@ class GameRepositoryAdapterTest {
 
     @Test
     void findByStatusPassesEnumName() {
-        when(jpaRepository.findByStatus("AVAILABLE")).thenReturn(List.of());
+        when(jpaRepository.findByStatus(GameMachineStatus.AVAILABLE)).thenReturn(List.of());
         adapter.findByStatus(GameMachineStatus.AVAILABLE);
-        verify(jpaRepository).findByStatus("AVAILABLE");
+        verify(jpaRepository).findByStatus(GameMachineStatus.AVAILABLE);
     }
 
     @Test

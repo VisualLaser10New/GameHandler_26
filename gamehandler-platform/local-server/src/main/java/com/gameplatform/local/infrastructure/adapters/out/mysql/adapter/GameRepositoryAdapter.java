@@ -46,7 +46,7 @@ public class GameRepositoryAdapter implements GameRepository {
 
     @Override
     public List<Game> findByStatus(GameMachineStatus status) {
-        return jpaRepository.findByStatus(status.name()).stream()
+        return jpaRepository.findByStatus(status).stream()
             .map(mapper::toDomain)
             .collect(Collectors.toList());
     }

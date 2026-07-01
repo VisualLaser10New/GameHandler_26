@@ -1,9 +1,7 @@
 package com.gameplatform.local.infrastructure.adapters.out.mysql.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.gameplatform.shared.domain.model.GameMachineStatus;
+import jakarta.persistence.*;
 
 @Entity
 @Table(name = "game_catalog")
@@ -22,13 +20,14 @@ public class GameJpaEntity {
     @Column(name = "building_id", nullable = false, length = 50)
     private String buildingId;
 
-    @Column(name = "status", nullable = false, length = 20)
-    private String status;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private GameMachineStatus status;
 
     public GameJpaEntity() {
     }
 
-    public GameJpaEntity(String id, String gameType, String name, String buildingId, String status) {
+    public GameJpaEntity(String id, String gameType, String name, String buildingId, GameMachineStatus status) {
         this.id = id;
         this.gameType = gameType;
         this.name = name;
@@ -68,11 +67,11 @@ public class GameJpaEntity {
         this.buildingId = buildingId;
     }
 
-    public String getStatus() {
+    public GameMachineStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(GameMachineStatus status) {
         this.status = status;
     }
 }
