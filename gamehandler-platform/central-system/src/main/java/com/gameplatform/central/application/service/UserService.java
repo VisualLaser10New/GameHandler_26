@@ -22,6 +22,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -71,7 +72,7 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
         }
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Override
     public void registerFromSync(UserRegisteredEventDto dto) {
         UserId userId = new UserId(dto.userId());

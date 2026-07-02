@@ -47,9 +47,12 @@ public class UserMapper {
         if (entity == null) {
             return null;
         }
-        List<String> rolesList = List.of();
+        List<String> rolesList = List.of("USER");
         if (entity.getRoles() != null && !entity.getRoles().isBlank()) {
-            rolesList = Arrays.asList(entity.getRoles().split(","));
+            rolesList = Arrays.stream(entity.getRoles().split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .toList();
         }
         return new User(
             new UserId(entity.getId()),

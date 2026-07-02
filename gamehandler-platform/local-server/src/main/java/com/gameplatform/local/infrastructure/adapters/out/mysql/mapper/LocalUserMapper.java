@@ -43,7 +43,10 @@ public class LocalUserMapper {
         if (roles == null || roles.isBlank()) {
             return List.of("USER");
         }
-        return Arrays.asList(roles.split(","));
+        return Arrays.stream(roles.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
     }
 
     private String formatRoles(List<String> roles) {

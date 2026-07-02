@@ -9,6 +9,7 @@ import com.gameplatform.local.domain.ports.out.LocalSignupUserRepository;
 import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.dto.UserRegisteredEventDto;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,10 +18,13 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 @Transactional
 public class LocalSignupService implements RegisterLocalUserUseCase {
+
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
     private final LocalSignupUserRepository localSignupUserRepository;
     private final OutboxEventRepository outboxEventRepository;
@@ -50,6 +54,19 @@ public class LocalSignupService implements RegisterLocalUserUseCase {
             throw new IllegalArgumentException("Email cannot be null or empty");
         }
 
+        username = username.strip();
+        email = email.strip();
+
+        if (username.length() > 100) {
+            throw new IllegalArgumentException("Username exceeds 100 characters");
+        }
+        if (email.length() > 255) {
+            throw new IllegalArgumentException("Email exceeds 255 characters");
+        }
+        if (!EMAIL_PATTERN.matcher(email).matches()) {
+            throw new IllegalArgumentException("Invalid email format: " + email);
+        }
+
         if (localSignupUserRepository.existsByUsername(username)) {
             throw new UserAlreadyExistsException("Username already exists: " + username);
         }
@@ -71,7 +88,12 @@ public class LocalSignupService implements RegisterLocalUserUseCase {
                 now
         );
 
-        LocalSignupUser savedUser = localSignupUserRepository.save(user);
+        LocalSignupUser savedUser;
+        try {
+            savedUser = localSignupUserRepository.save(user);
+        } catch (DataIntegrityViolationException e) {
+            throw new UserAlreadyExistsException("User already exists: " + username, e);
+        }
 
         createUserRegisteredOutboxEvent(savedUser);
 
