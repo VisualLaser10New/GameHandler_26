@@ -26,11 +26,13 @@ public class SignupView {
     private final PasswordField passwordField;
     private final Label errorLabel;
     private final Button signupButton;
-    private final Hyperlink loginLink;
     private Runnable onSignupSuccess;
     private Runnable onCancel;
+    private final String inputFieldStyle;
 
     public SignupView() {
+        inputFieldStyle = "-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;";
+
         root = new VBox(12);
         root.setAlignment(Pos.CENTER);
         root.setStyle("-fx-padding: 40; -fx-background-color: #1e1e1e;");
@@ -41,22 +43,22 @@ public class SignupView {
         usernameField = new TextField();
         usernameField.setPromptText("Username");
         usernameField.setMaxWidth(260);
-        usernameField.setStyle(inputFieldStyle());
+        usernameField.setStyle(inputFieldStyle);
 
         emailField = new TextField();
         emailField.setPromptText("Email Address");
         emailField.setMaxWidth(260);
-        emailField.setStyle(inputFieldStyle());
+        emailField.setStyle(inputFieldStyle);
 
         passwordField = new PasswordField();
         passwordField.setPromptText("Password");
         passwordField.setMaxWidth(260);
-        passwordField.setStyle(inputFieldStyle());
+        passwordField.setStyle(inputFieldStyle);
 
         signupButton = new Button("Sign Up");
         signupButton.setStyle("-fx-background-color: #2ecc71; -fx-text-fill: white; -fx-font-size: 14; -fx-padding: 8 24; -fx-background-radius: 4;");
 
-        loginLink = new Hyperlink("Already have an account? Log In");
+        Hyperlink loginLink = new Hyperlink("Already have an account? Log In");
         loginLink.setStyle("-fx-text-fill: #3498db; -fx-underline: true; -fx-font-size: 13;");
 
         errorLabel = new Label();
@@ -73,6 +75,7 @@ public class SignupView {
         });
     }
 
+    @Deprecated
     private String inputFieldStyle() {
         return "-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;";
     }
