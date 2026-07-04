@@ -133,9 +133,13 @@ public class SignupView {
                             } else if (response.statusCode() == 409) {
                                 errorLabel.setStyle("-fx-text-fill: #e74c3c;");
                                 errorLabel.setText("Username or email already exists");
-                            } else {
+                            } else if (response.statusCode() == 400) {
                                 errorLabel.setStyle("-fx-text-fill: #e74c3c;");
-                                errorLabel.setText("Signup failed: status " + response.statusCode());
+                                errorLabel.setText("Data validation error");
+                            }
+                            else {
+                                errorLabel.setStyle("-fx-text-fill: #e74c3c;");
+                                errorLabel.setText("Signup failed: status " + response.statusCode() + "\nWhy? Because " + response);
                             }
                         });
                     })

@@ -70,10 +70,6 @@ public class LoginView {
         });
     }
 
-    @Deprecated
-    private String usernameFieldStyle() {
-        return "-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;";
-    }
 
     /**
      * Returns the root JavaFX node for this view.
@@ -147,7 +143,11 @@ public class LoginView {
                                 if (onLoginSuccess != null) {
                                     onLoginSuccess.run();
                                 }
-                            } else {
+                            } else if (response.statusCode() == 401) {
+                                errorLabel.setStyle("-fx-text-fill: #e74c3c;");
+                                errorLabel.setText("Invalid username or password");
+                            }
+                            else {
                                 errorLabel.setStyle("-fx-text-fill: #e74c3c;");
                                 errorLabel.setText("Login failed: " + response.statusCode());
                             }
