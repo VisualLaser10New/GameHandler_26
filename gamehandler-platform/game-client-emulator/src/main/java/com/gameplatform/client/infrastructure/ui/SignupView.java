@@ -112,7 +112,7 @@ public class SignupView {
             ObjectMapper mapper = new ObjectMapper();
             String json = mapper.writeValueAsString(request);
 
-            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "http://localhost:8081");
+            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
             HttpClient client = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl);
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(localServerUrl + "/api/auth/signup"))

@@ -29,8 +29,10 @@ public class LoginView {
     private final Hyperlink signupLink;
     private Runnable onLoginSuccess;
     private Runnable onNavigateToSignup;
+    private final String usernameFieldStyle;
 
     public LoginView() {
+        usernameFieldStyle = "-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4";
         root = new VBox(12);
         root.setAlignment(Pos.CENTER);
         root.setStyle("-fx-padding: 40; -fx-background-color: #1e1e1e;");
@@ -41,12 +43,12 @@ public class LoginView {
         usernameField = new TextField();
         usernameField.setPromptText("Username");
         usernameField.setMaxWidth(260);
-        usernameField.setStyle(usernameFieldStyle());
+        usernameField.setStyle(usernameFieldStyle);
 
         passwordField = new PasswordField();
         passwordField.setPromptText("Password");
         passwordField.setMaxWidth(260);
-        passwordField.setStyle(usernameFieldStyle());
+        passwordField.setStyle(usernameFieldStyle);
 
         loginButton = new Button("Login");
         loginButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14; -fx-padding: 8 24; -fx-background-radius: 4;");
@@ -68,6 +70,7 @@ public class LoginView {
         });
     }
 
+    @Deprecated
     private String usernameFieldStyle() {
         return "-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;";
     }
@@ -126,7 +129,7 @@ public class LoginView {
             ObjectMapper mapper = new ObjectMapper();
             String json = mapper.writeValueAsString(request);
 
-            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "http://localhost:8081");
+            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
             HttpClient client = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl);
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(localServerUrl + "/api/auth/login"))
