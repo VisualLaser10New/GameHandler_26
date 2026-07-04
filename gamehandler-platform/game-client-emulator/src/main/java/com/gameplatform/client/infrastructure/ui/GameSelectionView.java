@@ -130,7 +130,7 @@ public class GameSelectionView {
     public void refreshGames() {
         statusLabel.setText("Refreshing...");
         try {
-            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "http://localhost:8081");
+            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
             java.net.http.HttpClient client = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl);
             java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
                     .uri(java.net.URI.create(localServerUrl + "/api/games"))

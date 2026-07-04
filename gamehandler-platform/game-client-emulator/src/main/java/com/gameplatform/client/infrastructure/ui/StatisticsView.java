@@ -59,7 +59,7 @@ public class StatisticsView {
     public void showStats() {
         statusLabel.setText("Loading...");
         try {
-            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "http://localhost:8081");
+            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
             HttpClient client = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl);
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(localServerUrl + "/api/statistics"))
