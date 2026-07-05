@@ -10,6 +10,7 @@ import java.util.Optional;
 public interface GameRepository {
     Game save(Game game);
     Optional<Game> findById(GameId id);
+    Optional<Game> findByIdForUpdate(GameId id);
     List<Game> findByBuildingId(BuildingId buildingId);
     List<Game> findByStatus(GameMachineStatus status);
     List<Game> findAll();

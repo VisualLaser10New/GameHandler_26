@@ -16,6 +16,11 @@ import com.gameplatform.local.domain.ports.in.EndGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.PauseGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.ResumeGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.StartGameSessionUseCase;
+import com.gameplatform.local.domain.ports.in.CreateLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.JoinLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.StartLobbyUseCase;
+import com.gameplatform.shared.domain.game.GameFactory;
+import com.gameplatform.shared.domain.game.GameLifecycle;
 import com.gameplatform.local.domain.ports.out.GameRepository;
 import com.gameplatform.local.domain.ports.out.GameSessionRepository;
 import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
@@ -38,7 +43,7 @@ import java.util.UUID;
 
 @Service
 @Transactional
-public class GameSessionService implements StartGameSessionUseCase, EndGameSessionUseCase, PauseGameSessionUseCase, ResumeGameSessionUseCase {
+public class GameSessionService implements StartGameSessionUseCase, EndGameSessionUseCase, PauseGameSessionUseCase, ResumeGameSessionUseCase, CreateLobbyUseCase, JoinLobbyUseCase, StartLobbyUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(GameSessionService.class);
 
@@ -69,13 +74,16 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
 
     @Override
     public GameSession start(GameId gameId, GameType gameType, List<UserId> participants, ReservationId reservationId) {
+        List<UserId> activeParticipants = participants != null ? participants : List.of();
+
         // Check for active session on this game machine
         Optional<GameSession> activeSession = gameSessionRepository.findActiveByGameId(gameId);
         if (activeSession.isPresent()) {
             throw new SessionAlreadyActiveException("A session is already active on game machine: " + gameId.id());
         }
 
-        Game game = gameRepository.findById(gameId)
+        Game game = gameRepository.findByIdForUpdate(gameId)
+                .or(() -> gameRepository.findById(gameId))
                 .orElseThrow(() -> new GameNotAvailableException("Game machine not found: " + gameId.id()));
 
         // Validate and confirm reservation if provided
@@ -85,7 +93,7 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
             if (!reservation.getGameId().equals(gameId)) {
                 throw new InvalidGameStateTransitionException("Reservation game machine does not match the requested game machine");
             }
-            if (!participants.contains(reservation.getUserId())) {
+            if (!activeParticipants.contains(reservation.getUserId())) {
                 throw new ReservationUserMismatchException("Reservation user does not match the participants list");
             }
             if (reservation.getStatus() == ReservationStatus.CANCELLED) {
@@ -99,9 +107,17 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                 reservationRepository.save(reservation);
             }
         } else {
-            if (game.getStatus() == GameMachineStatus.RESERVED) {
-                throw new GameNotAvailableException("Game machine is reserved");
+            if (game.getStatus() == GameMachineStatus.RESERVED || game.getStatus() == GameMachineStatus.LOBBY) {
+                throw new GameNotAvailableException("Game machine is reserved or in lobby");
             }
+        }
+
+        // Validate player counts using GameFactory
+        GameLifecycle gameLogic = GameFactory.createGame(gameType, null);
+        int min = gameLogic.getMinPlayers();
+        int max = gameLogic.getMaxPlayers();
+        if (activeParticipants.size() < min || activeParticipants.size() > max) {
+            throw new IllegalArgumentException("Number of players must be between " + min + " and " + max);
         }
 
         // Change machine state to IN_USE
@@ -121,7 +137,7 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                 null,
                 null,
                 null,
-                participants
+                activeParticipants
         );
 
         GameSession savedSession = gameSessionRepository.save(session);
@@ -298,6 +314,138 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         } else {
             String resumeTopic = MqttTopics.sessionResume(game.getBuildingId().id(), game.getId().id());
             publishGameStatePort.publishSessionEvent(resumeTopic, session);
+        }
+    }
+
+    @Override
+    public GameSession createLobby(GameId gameId, GameType gameType, UserId creatorId) {
+        Optional<GameSession> activeSession = gameSessionRepository.findActiveByGameId(gameId);
+        if (activeSession.isPresent()) {
+            throw new SessionAlreadyActiveException("A session is already active on game machine: " + gameId.id());
+        }
+
+        Game game = gameRepository.findByIdForUpdate(gameId)
+                .or(() -> gameRepository.findById(gameId))
+                .orElseThrow(() -> new GameNotAvailableException("Game machine not found: " + gameId.id()));
+
+        // Set game status to LOBBY
+        game.setLobby();
+        gameRepository.save(game);
+
+        GameSessionId sessionId = new GameSessionId(UUID.randomUUID().toString());
+        GameSession session = new GameSession(
+                sessionId,
+                gameId,
+                gameType,
+                game.getBuildingId(),
+                GameStatus.WAITING,
+                Instant.now(clock),
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(creatorId)
+        );
+
+        GameSession savedSession = gameSessionRepository.save(session);
+
+        // Publish to MQTT
+        deferMqttPublish(() -> {
+            publishGameStatePort.publishState(gameId, game.getStatus());
+            String topic = MqttTopics.sessionStart(game.getBuildingId().id(), gameId.id());
+            publishGameStatePort.publishSessionEvent(topic, savedSession);
+        });
+
+        return savedSession;
+    }
+
+    @Override
+    public GameSession joinLobby(GameSessionId sessionId, UserId userId) {
+        GameSession session = gameSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Game session not found: " + sessionId.value()));
+
+        if (session.getStatus() != GameStatus.WAITING) {
+            throw new IllegalStateException("Session is not in WAITING (lobby) state");
+        }
+
+        GameLifecycle gameLogic = GameFactory.createGame(session.getGameType(), null);
+        int max = gameLogic.getMaxPlayers();
+
+        if (session.getParticipants().size() >= max) {
+            throw new IllegalStateException("Lobby is already full");
+        }
+
+        session.addParticipant(userId);
+        GameSession savedSession = gameSessionRepository.save(session);
+
+        // Publish to MQTT
+        deferMqttPublish(() -> {
+            String topic = "building/" + session.getBuildingId().id() + "/game/" + session.getGameId().id() + "/session/join";
+            publishGameStatePort.publishSessionEvent(topic, savedSession);
+        });
+
+        return savedSession;
+    }
+
+    @Override
+    public GameSession startLobby(GameSessionId sessionId) {
+        GameSession session = gameSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Game session not found: " + sessionId.value()));
+
+        if (session.getStatus() != GameStatus.WAITING) {
+            throw new IllegalStateException("Session is not in WAITING (lobby) state");
+        }
+
+        GameLifecycle gameLogic = GameFactory.createGame(session.getGameType(), null);
+        int min = gameLogic.getMinPlayers();
+
+        if (session.getParticipants().size() < min) {
+            throw new IllegalStateException("Not enough players to start the game");
+        }
+
+        Game game = gameRepository.findByIdForUpdate(session.getGameId())
+                .or(() -> gameRepository.findById(session.getGameId()))
+                .orElseThrow(() -> new GameNotAvailableException("Game machine not found: " + session.getGameId().id()));
+
+        // Start using the game
+        game.startUse();
+        gameRepository.save(game);
+
+        // Update session status to IN_PROGRESS
+        session.setStatus(GameStatus.IN_PROGRESS);
+        GameSession savedSession = gameSessionRepository.save(session);
+
+        // Publish to MQTT
+        deferMqttPublish(() -> {
+            publishGameStatePort.publishState(game.getId(), game.getStatus());
+            String topic = MqttTopics.sessionStart(game.getBuildingId().id(), game.getId().id());
+            publishGameStatePort.publishSessionEvent(topic, savedSession);
+        });
+
+        return savedSession;
+    }
+
+    private void deferMqttPublish(Runnable publishRunnable) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        try {
+                            publishRunnable.run();
+                        } catch (Exception e) {
+                            log.error("Failed to execute deferred MQTT publication", e);
+                        }
+                    }
+                }
+            );
+        } else {
+            try {
+                publishRunnable.run();
+            } catch (Exception e) {
+                log.error("Failed to execute MQTT publication", e);
+            }
         }
     }
 }

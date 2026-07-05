@@ -94,7 +94,7 @@ class BugL08_ConfirmedReservationStartSessionTest {
         GameSession session = assertDoesNotThrow(() -> service.start(
                 GAME_ID,
                 GameType.CHESS,
-                List.of(USER_ID),
+                List.of(USER_ID, new UserId("opponent")),
                 RESERVATION_ID
         ));
 

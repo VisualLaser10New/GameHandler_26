@@ -28,6 +28,9 @@ class GameSessionControllerTest {
     @Mock private EndGameSessionUseCase endUseCase;
     @Mock private PauseGameSessionUseCase pauseUseCase;
     @Mock private ResumeGameSessionUseCase resumeUseCase;
+    @Mock private CreateLobbyUseCase createLobbyUseCase;
+    @Mock private JoinLobbyUseCase joinLobbyUseCase;
+    @Mock private StartLobbyUseCase startLobbyUseCase;
     private MockMvc mvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -39,7 +42,7 @@ class GameSessionControllerTest {
                 com.gameplatform.local.infrastructure.config.JacksonConfig.GameResultMixIn.class);
 
         mvc = MockMvcBuilders.standaloneSetup(
-                new GameSessionController(startUseCase, endUseCase, pauseUseCase, resumeUseCase, testMapper))
+                new GameSessionController(startUseCase, endUseCase, pauseUseCase, resumeUseCase, createLobbyUseCase, joinLobbyUseCase, startLobbyUseCase, testMapper))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(testMapper))
                 .build();

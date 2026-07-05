@@ -660,7 +660,7 @@ class SharedLocalServerCompatibilityTest {
             when(gameRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(gameSessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            gameSessionService.start(new GameId("game-1"), GameType.CHESS, List.of(), null);
+            gameSessionService.start(new GameId("game-1"), GameType.CHESS, List.of(new UserId("u1"), new UserId("u2")), null);
 
             // The afterCommit callback should use MqttTopics.sessionStart
             verify(publishGameStatePort, atLeastOnce()).publishState(any(), any());

@@ -1,7 +1,7 @@
 package com.gameplatform.client.application.service;
 
-import com.gameplatform.client.domain.GameFactory;
-import com.gameplatform.client.domain.GameLifecycle;
+import com.gameplatform.shared.domain.game.GameFactory;
+import com.gameplatform.shared.domain.game.GameLifecycle;
 import com.gameplatform.client.infrastructure.mqtt.SessionPublisher;
 import com.gameplatform.shared.domain.model.GameSessionId;
 import com.gameplatform.shared.domain.model.GameType;

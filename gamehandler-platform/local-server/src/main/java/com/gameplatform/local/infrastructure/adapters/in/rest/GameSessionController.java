@@ -19,6 +19,10 @@ import org.springframework.lang.NonNull;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import com.gameplatform.local.domain.ports.in.CreateLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.JoinLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.StartLobbyUseCase;
+import com.gameplatform.shared.dto.JoinSessionRequestDto;
 import java.util.List;
 
 @RestController
@@ -30,6 +34,9 @@ public class GameSessionController {
     private final EndGameSessionUseCase endGameSessionUseCase;
     private final PauseGameSessionUseCase pauseGameSessionUseCase;
     private final ResumeGameSessionUseCase resumeGameSessionUseCase;
+    private final CreateLobbyUseCase createLobbyUseCase;
+    private final JoinLobbyUseCase joinLobbyUseCase;
+    private final StartLobbyUseCase startLobbyUseCase;
     private final ObjectMapper objectMapper;
 
     public GameSessionController(
@@ -37,11 +44,17 @@ public class GameSessionController {
             EndGameSessionUseCase endGameSessionUseCase,
             PauseGameSessionUseCase pauseGameSessionUseCase,
             ResumeGameSessionUseCase resumeGameSessionUseCase,
+            CreateLobbyUseCase createLobbyUseCase,
+            JoinLobbyUseCase joinLobbyUseCase,
+            StartLobbyUseCase startLobbyUseCase,
             ObjectMapper objectMapper) {
         this.startGameSessionUseCase = startGameSessionUseCase;
         this.endGameSessionUseCase = endGameSessionUseCase;
         this.pauseGameSessionUseCase = pauseGameSessionUseCase;
         this.resumeGameSessionUseCase = resumeGameSessionUseCase;
+        this.createLobbyUseCase = createLobbyUseCase;
+        this.joinLobbyUseCase = joinLobbyUseCase;
+        this.startLobbyUseCase = startLobbyUseCase;
         this.objectMapper = objectMapper;
     }
 
@@ -63,6 +76,34 @@ public class GameSessionController {
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(toDto(session));
+    }
+
+    @PostMapping("/lobby")
+    public ResponseEntity<GameSessionDto> createLobby(@RequestBody CreateSessionRequestDto req) {
+        List<UserId> participants = req.participants() != null
+                ? req.participants().stream().map(UserId::new).toList()
+                : List.of();
+        UserId creatorId = participants.isEmpty() ? new UserId("creator") : participants.get(0);
+
+        GameSession session = createLobbyUseCase.createLobby(
+                new GameId(req.gameId()),
+                req.gameType(),
+                creatorId
+        );
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(toDto(session));
+    }
+
+    @PostMapping("/{id}/join")
+    public ResponseEntity<GameSessionDto> join(@PathVariable String id, @RequestBody JoinSessionRequestDto req) {
+        GameSession session = joinLobbyUseCase.joinLobby(new GameSessionId(id), new UserId(req.userId()));
+        return ResponseEntity.ok(toDto(session));
+    }
+
+    @PostMapping("/{id}/start-lobby")
+    public ResponseEntity<GameSessionDto> startLobby(@PathVariable String id) {
+        GameSession session = startLobbyUseCase.startLobby(new GameSessionId(id));
+        return ResponseEntity.ok(toDto(session));
     }
 
     @PostMapping("/{id}/end")

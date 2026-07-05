@@ -123,4 +123,40 @@ public class SessionPublisher {
             log.error("Failed to publish session resume", e);
         }
     }
+
+    public void publishLobbyCreate(String gameId, GameType gameType, String creatorId) {
+        try {
+            String topic = "building/" + buildingId + "/game/" + gameId + "/session/lobby/create";
+            com.gameplatform.shared.mqtt.payload.LobbyCreatePayload payload = new com.gameplatform.shared.mqtt.payload.LobbyCreatePayload(gameType, creatorId);
+            byte[] bytes = MqttPayloadSerializer.serialize(payload);
+            log.info("Publishing lobby create to topic {}: {}", topic, payload);
+            adapter.publish(topic, bytes, MqttQos.SESSION, false);
+        } catch (MqttException e) {
+            log.error("Failed to publish lobby create", e);
+        }
+    }
+
+    public void publishLobbyJoin(String gameId, String sessionId, String userId) {
+        try {
+            String topic = "building/" + buildingId + "/game/" + gameId + "/session/lobby/join";
+            com.gameplatform.shared.mqtt.payload.LobbyJoinPayload payload = new com.gameplatform.shared.mqtt.payload.LobbyJoinPayload(sessionId, userId);
+            byte[] bytes = MqttPayloadSerializer.serialize(payload);
+            log.info("Publishing lobby join to topic {}: {}", topic, payload);
+            adapter.publish(topic, bytes, MqttQos.SESSION, false);
+        } catch (MqttException e) {
+            log.error("Failed to publish lobby join", e);
+        }
+    }
+
+    public void publishLobbyStart(String gameId, String sessionId) {
+        try {
+            String topic = "building/" + buildingId + "/game/" + gameId + "/session/lobby/start";
+            com.gameplatform.shared.mqtt.payload.LobbyStartPayload payload = new com.gameplatform.shared.mqtt.payload.LobbyStartPayload(sessionId);
+            byte[] bytes = MqttPayloadSerializer.serialize(payload);
+            log.info("Publishing lobby start to topic {}: {}", topic, payload);
+            adapter.publish(topic, bytes, MqttQos.SESSION, false);
+        } catch (MqttException e) {
+            log.error("Failed to publish lobby start", e);
+        }
+    }
 }

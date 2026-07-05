@@ -1,7 +1,9 @@
-package com.gameplatform.client.domain.games;
+package com.gameplatform.shared.domain.game.games;
 
-import com.gameplatform.client.domain.GameLifecycle;
+import com.gameplatform.shared.domain.game.GameLifecycle;
 import com.gameplatform.shared.domain.model.GameSessionId;
+import com.gameplatform.shared.domain.model.GameStatus;
+import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.domain.model.UserId;
 
@@ -25,6 +27,7 @@ public class FoosballGame implements GameLifecycle {
         this.sessionId = sessionId;
     }
 
+    @Override
     public GameSessionId getSessionId() {
         return sessionId;
     }
@@ -45,6 +48,7 @@ public class FoosballGame implements GameLifecycle {
         this.scores = scores;
     }
 
+    @Override
     public List<UserId> getParticipants() {
         return participants;
     }
@@ -82,7 +86,27 @@ public class FoosballGame implements GameLifecycle {
         this.running = true;
     }
 
-    void recordScore(UserId player, int delta) {
+    @Override
+    public GameStatus getStatus() {
+        return running ? GameStatus.IN_PROGRESS : GameStatus.COMPLETED;
+    }
+
+    @Override
+    public GameType getGameType() {
+        return GameType.FOOSBALL;
+    }
+
+    @Override
+    public int getMinPlayers() {
+        return 2;
+    }
+
+    @Override
+    public int getMaxPlayers() {
+        return 4;
+    }
+
+    public void recordScore(UserId player, int delta) {
         if (!running) {
             throw new IllegalStateException("Game is not running");
         }

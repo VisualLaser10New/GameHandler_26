@@ -1,7 +1,9 @@
-package com.gameplatform.client.domain.games;
+package com.gameplatform.shared.domain.game.games;
 
-import com.gameplatform.client.domain.GameLifecycle;
+import com.gameplatform.shared.domain.game.GameLifecycle;
 import com.gameplatform.shared.domain.model.GameSessionId;
+import com.gameplatform.shared.domain.model.GameStatus;
+import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.domain.model.UserId;
 
@@ -27,6 +29,7 @@ public class RiskGame implements GameLifecycle {
         this.sessionId = sessionId;
     }
 
+    @Override
     public List<UserId> getParticipants() {
         return participants;
     }
@@ -61,6 +64,7 @@ public class RiskGame implements GameLifecycle {
 
     public void setRunning(boolean running) { this.running = running; }
 
+    @Override
     public GameSessionId getSessionId() {
         return sessionId;
     }
@@ -95,6 +99,26 @@ public class RiskGame implements GameLifecycle {
     @Override
     public void resume() {
         this.running = true;
+    }
+
+    @Override
+    public GameStatus getStatus() {
+        return running ? GameStatus.IN_PROGRESS : GameStatus.COMPLETED;
+    }
+
+    @Override
+    public GameType getGameType() {
+        return GameType.RISK;
+    }
+
+    @Override
+    public int getMinPlayers() {
+        return 2;
+    }
+
+    @Override
+    public int getMaxPlayers() {
+        return 6;
     }
 
     public void updateResources(UserId player, String key, int val) {

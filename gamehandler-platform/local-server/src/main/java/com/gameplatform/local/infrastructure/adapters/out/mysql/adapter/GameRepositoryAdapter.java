@@ -38,6 +38,11 @@ public class GameRepositoryAdapter implements GameRepository {
     }
 
     @Override
+    public Optional<Game> findByIdForUpdate(GameId id) {
+        return jpaRepository.findByIdForUpdate(id.id()).map(mapper::toDomain);
+    }
+
+    @Override
     public List<Game> findByBuildingId(BuildingId buildingId) {
         return jpaRepository.findByBuildingId(buildingId.id()).stream()
             .map(mapper::toDomain)

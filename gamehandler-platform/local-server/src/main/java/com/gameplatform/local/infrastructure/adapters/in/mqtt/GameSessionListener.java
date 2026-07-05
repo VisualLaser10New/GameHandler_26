@@ -15,6 +15,13 @@ import com.gameplatform.shared.mqtt.payload.SessionEndPayload;
 import com.gameplatform.shared.mqtt.payload.SessionPausePayload;
 import com.gameplatform.shared.mqtt.payload.SessionResumePayload;
 import com.gameplatform.shared.mqtt.payload.SessionStartPayload;
+import com.gameplatform.local.domain.ports.in.CreateLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.JoinLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.StartLobbyUseCase;
+import com.gameplatform.shared.mqtt.payload.LobbyCreatePayload;
+import com.gameplatform.shared.mqtt.payload.LobbyJoinPayload;
+import com.gameplatform.shared.mqtt.payload.LobbyStartPayload;
+import com.gameplatform.shared.domain.model.GameType;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -26,6 +33,9 @@ public class GameSessionListener {
     private final EndGameSessionUseCase endGameSessionUseCase;
     private final PauseGameSessionUseCase pauseGameSessionUseCase;
     private final ResumeGameSessionUseCase resumeGameSessionUseCase;
+    private final CreateLobbyUseCase createLobbyUseCase;
+    private final JoinLobbyUseCase joinLobbyUseCase;
+    private final StartLobbyUseCase startLobbyUseCase;
     private final ObjectMapper objectMapper;
 
     public GameSessionListener(
@@ -33,11 +43,17 @@ public class GameSessionListener {
             EndGameSessionUseCase endGameSessionUseCase,
             PauseGameSessionUseCase pauseGameSessionUseCase,
             ResumeGameSessionUseCase resumeGameSessionUseCase,
+            CreateLobbyUseCase createLobbyUseCase,
+            JoinLobbyUseCase joinLobbyUseCase,
+            StartLobbyUseCase startLobbyUseCase,
             ObjectMapper objectMapper) {
         this.startGameSessionUseCase = startGameSessionUseCase;
         this.endGameSessionUseCase = endGameSessionUseCase;
         this.pauseGameSessionUseCase = pauseGameSessionUseCase;
         this.resumeGameSessionUseCase = resumeGameSessionUseCase;
+        this.createLobbyUseCase = createLobbyUseCase;
+        this.joinLobbyUseCase = joinLobbyUseCase;
+        this.startLobbyUseCase = startLobbyUseCase;
         this.objectMapper = objectMapper;
     }
 
@@ -47,6 +63,25 @@ public class GameSessionListener {
         String action = tokens[5];
 
         switch (action) {
+            case "lobby" -> {
+                if (tokens.length >= 7) {
+                    String lobbyAction = tokens[6];
+                    switch (lobbyAction) {
+                        case "create" -> {
+                            LobbyCreatePayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyCreatePayload.class);
+                            createLobbyUseCase.createLobby(new GameId(gameId), payloadDto.gameType(), new UserId(payloadDto.creatorId()));
+                        }
+                        case "join" -> {
+                            LobbyJoinPayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyJoinPayload.class);
+                            joinLobbyUseCase.joinLobby(new GameSessionId(payloadDto.sessionId()), new UserId(payloadDto.userId()));
+                        }
+                        case "start" -> {
+                            LobbyStartPayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyStartPayload.class);
+                            startLobbyUseCase.startLobby(new GameSessionId(payloadDto.sessionId()));
+                        }
+                    }
+                }
+            }
             case "start" -> {
                 SessionStartPayload startPayload = MqttPayloadSerializer.deserialize(payload, SessionStartPayload.class);
                 List<UserId> participants = startPayload.participants() != null

@@ -4,5 +4,6 @@ public enum GameMachineStatus {
     AVAILABLE,
     RESERVED,
     IN_USE,
-    MAINTENANCE
+    MAINTENANCE,
+    LOBBY
 }

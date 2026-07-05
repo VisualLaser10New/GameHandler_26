@@ -1,7 +1,9 @@
-package com.gameplatform.client.domain.games;
+package com.gameplatform.shared.domain.game.games;
 
-import com.gameplatform.client.domain.GameLifecycle;
+import com.gameplatform.shared.domain.game.GameLifecycle;
 import com.gameplatform.shared.domain.model.GameSessionId;
+import com.gameplatform.shared.domain.model.GameStatus;
+import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.domain.model.UserId;
 
@@ -26,6 +28,7 @@ public class DartsGame implements GameLifecycle {
         this.sessionId = sessionId;
     }
 
+    @Override
     public GameSessionId getSessionId() {
         return sessionId;
     }
@@ -54,6 +57,7 @@ public class DartsGame implements GameLifecycle {
         this.scores = scores;
     }
 
+    @Override
     public List<UserId> getParticipants() {
         return participants;
     }
@@ -89,6 +93,26 @@ public class DartsGame implements GameLifecycle {
     @Override
     public void resume() {
         this.running = true;
+    }
+
+    @Override
+    public GameStatus getStatus() {
+        return running ? GameStatus.IN_PROGRESS : GameStatus.COMPLETED;
+    }
+
+    @Override
+    public GameType getGameType() {
+        return GameType.DARTS;
+    }
+
+    @Override
+    public int getMinPlayers() {
+        return 1;
+    }
+
+    @Override
+    public int getMaxPlayers() {
+        return 8;
     }
 
     public void recordScore(UserId player, int delta) {

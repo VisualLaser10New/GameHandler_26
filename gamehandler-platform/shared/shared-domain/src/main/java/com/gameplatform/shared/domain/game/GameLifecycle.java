@@ -12,4 +12,7 @@ public interface GameLifecycle {
     GameStatus getStatus();
     GameType getGameType();
     GameSessionId getSessionId();
+    List<UserId> getParticipants();
+    int getMinPlayers();
+    int getMaxPlayers();
 }

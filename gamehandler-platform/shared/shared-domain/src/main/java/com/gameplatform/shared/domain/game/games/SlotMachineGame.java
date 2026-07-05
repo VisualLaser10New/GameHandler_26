@@ -1,7 +1,9 @@
-package com.gameplatform.client.domain.games;
+package com.gameplatform.shared.domain.game.games;
 
-import com.gameplatform.client.domain.GameLifecycle;
+import com.gameplatform.shared.domain.game.GameLifecycle;
 import com.gameplatform.shared.domain.model.GameSessionId;
+import com.gameplatform.shared.domain.model.GameStatus;
+import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.domain.model.UserId;
 
@@ -22,6 +24,7 @@ public class SlotMachineGame implements GameLifecycle {
         this.sessionId = sessionId;
     }
 
+    @Override
     public List<UserId> getParticipants() {
         return participants;
     }
@@ -48,6 +51,7 @@ public class SlotMachineGame implements GameLifecycle {
 
     public void setRunning(boolean running) { this.running = running; }
 
+    @Override
     public GameSessionId getSessionId() {
         return sessionId;
     }
@@ -77,6 +81,26 @@ public class SlotMachineGame implements GameLifecycle {
     @Override
     public void resume() {
         this.running = true;
+    }
+
+    @Override
+    public GameStatus getStatus() {
+        return running ? GameStatus.IN_PROGRESS : GameStatus.COMPLETED;
+    }
+
+    @Override
+    public GameType getGameType() {
+        return GameType.SLOT_MACHINE;
+    }
+
+    @Override
+    public int getMinPlayers() {
+        return 1;
+    }
+
+    @Override
+    public int getMaxPlayers() {
+        return 1;
     }
 
     public void recordScore(UserId player, int score) {

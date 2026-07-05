@@ -46,7 +46,7 @@ public class Game {
     }
 
     public void startUse() {
-        if (status != GameMachineStatus.AVAILABLE && status != GameMachineStatus.RESERVED) {
+        if (status != GameMachineStatus.AVAILABLE && status != GameMachineStatus.RESERVED && status != GameMachineStatus.LOBBY) {
             throw new InvalidGameStateTransitionException(
                 "Cannot start using game machine because its current status is: " + status
             );
@@ -58,7 +58,7 @@ public class Game {
         if (status == GameMachineStatus.AVAILABLE) {
             return; // Already available
         }
-        if (status != GameMachineStatus.IN_USE && status != GameMachineStatus.RESERVED && status != GameMachineStatus.MAINTENANCE) {
+        if (status != GameMachineStatus.IN_USE && status != GameMachineStatus.RESERVED && status != GameMachineStatus.MAINTENANCE && status != GameMachineStatus.LOBBY) {
             throw new InvalidGameStateTransitionException(
                 "Cannot release game machine because its current status is: " + status
             );
@@ -68,6 +68,15 @@ public class Game {
 
     public void setMaintenance() {
         this.status = GameMachineStatus.MAINTENANCE;
+    }
+
+    public void setLobby() {
+        if (status != GameMachineStatus.AVAILABLE) {
+            throw new InvalidGameStateTransitionException(
+                "Cannot set game machine to LOBBY because its current status is: " + status
+            );
+        }
+        this.status = GameMachineStatus.LOBBY;
     }
 
     public GameId getId() {

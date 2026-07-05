@@ -27,7 +27,7 @@ public class GameSession {
     private UserId winnerId;
     private WinCondition winCondition;
     private GameResult result;
-    private final List<UserId> participants;
+    private List<UserId> participants;
 
     // Costruttore con partecipanti
     public GameSession(GameSessionId id, GameId gameId, GameType gameType, BuildingId buildingId, GameStatus status,
@@ -114,6 +114,16 @@ public class GameSession {
         calculateDuration();
     }
 
+    public void cancelLobby(Instant endedAt) {
+        if (this.status != GameStatus.WAITING) {
+            throw new InvalidGameStateTransitionException("Cannot cancel lobby because its current status is: " + this.status);
+        }
+        this.status = GameStatus.ABORTED;
+        this.endedAt = endedAt;
+        this.winCondition = WinCondition.TIMEOUT;
+        calculateDuration();
+    }
+
     public void pause() {
         if (this.status != GameStatus.IN_PROGRESS) {
             throw new InvalidGameStateTransitionException("Cannot pause session because its current status is: " + this.status);
@@ -180,6 +190,22 @@ public class GameSession {
 
     public List<UserId> getParticipants() {
         return List.copyOf(participants);
+    }
+
+    public void addParticipant(UserId userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("UserId cannot be null");
+        }
+        if (this.participants.contains(userId)) {
+            return; // Already in participants
+        }
+        List<UserId> newList = new ArrayList<>(this.participants);
+        newList.add(userId);
+        this.participants = List.copyOf(newList);
+    }
+
+    public void setStatus(GameStatus status) {
+        this.status = status;
     }
 }
 

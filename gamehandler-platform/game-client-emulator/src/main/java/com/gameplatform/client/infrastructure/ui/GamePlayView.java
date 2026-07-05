@@ -1,7 +1,7 @@
 package com.gameplatform.client.infrastructure.ui;
 
 import com.gameplatform.client.application.service.GameOrchestrationService;
-import com.gameplatform.client.domain.GameLifecycle;
+import com.gameplatform.shared.domain.game.GameLifecycle;
 import com.gameplatform.client.infrastructure.ui.components.ScoreboardComponent;
 import com.gameplatform.client.infrastructure.ui.components.TimerComponent;
 import com.gameplatform.shared.domain.model.*;
@@ -127,7 +127,7 @@ public class GamePlayView {
         if (currentGameState == null) return;
 
         List<UserId> participants = List.of(new UserId("local-user"));
-        currentGame = com.gameplatform.client.domain.GameFactory.createGame(
+        currentGame = com.gameplatform.shared.domain.game.GameFactory.createGame(
                 currentGameState.gameType(),
                 new GameSessionId(java.util.UUID.randomUUID().toString()));
         currentGame.start(participants);

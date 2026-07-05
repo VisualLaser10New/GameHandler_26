@@ -1,6 +1,6 @@
-package com.gameplatform.client.domain;
+package com.gameplatform.shared.domain.game;
 
-import com.gameplatform.client.domain.games.*;
+import com.gameplatform.shared.domain.game.games.*;
 import com.gameplatform.shared.domain.model.GameSessionId;
 import com.gameplatform.shared.domain.model.GameType;
 

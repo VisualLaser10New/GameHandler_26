@@ -1,7 +1,9 @@
-package com.gameplatform.client.domain.games;
+package com.gameplatform.shared.domain.game.games;
 
-import com.gameplatform.client.domain.GameLifecycle;
+import com.gameplatform.shared.domain.game.GameLifecycle;
 import com.gameplatform.shared.domain.model.GameSessionId;
+import com.gameplatform.shared.domain.model.GameStatus;
+import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.domain.model.UserId;
 
@@ -27,6 +29,7 @@ public class MonopolyGame implements GameLifecycle {
         this.sessionId = sessionId;
     }
 
+    @Override
     public GameSessionId getSessionId() {
         return sessionId;
     }
@@ -119,5 +122,25 @@ public class MonopolyGame implements GameLifecycle {
     @Override
     public void resume() {
         this.running = true;
+    }
+
+    @Override
+    public GameStatus getStatus() {
+        return running ? GameStatus.IN_PROGRESS : GameStatus.COMPLETED;
+    }
+
+    @Override
+    public GameType getGameType() {
+        return GameType.MONOPOLY;
+    }
+
+    @Override
+    public int getMinPlayers() {
+        return 2;
+    }
+
+    @Override
+    public int getMaxPlayers() {
+        return 6;
     }
 }
