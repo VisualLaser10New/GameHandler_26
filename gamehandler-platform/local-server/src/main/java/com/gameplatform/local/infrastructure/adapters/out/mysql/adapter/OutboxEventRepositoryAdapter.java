@@ -6,7 +6,10 @@ import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.OutboxEve
 import com.gameplatform.local.infrastructure.adapters.out.mysql.mapper.OutboxEventMapper;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.repository.OutboxEventJpaRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -15,10 +18,12 @@ public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
 
     private final OutboxEventJpaRepository jpaRepository;
     private final OutboxEventMapper mapper;
+    private final Clock clock;
 
-    public OutboxEventRepositoryAdapter(OutboxEventJpaRepository jpaRepository, OutboxEventMapper mapper) {
+    public OutboxEventRepositoryAdapter(OutboxEventJpaRepository jpaRepository, OutboxEventMapper mapper, Clock clock) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
+        this.clock = clock;
     }
 
     @Override
@@ -36,6 +41,7 @@ public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
     }
 
     @Override
+    @Transactional
     public void markAsSent(String id) {
         jpaRepository.findById(id).ifPresent(entity -> {
             OutboxEvent domain = mapper.toDomain(entity);
@@ -45,11 +51,31 @@ public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
     }
 
     @Override
+    @Transactional
     public void incrementRetry(String id) {
         jpaRepository.findById(id).ifPresent(entity -> {
             OutboxEvent domain = mapper.toDomain(entity);
             domain.incrementRetry();
             jpaRepository.save(mapper.toEntity(domain));
         });
+    }
+
+    @Override
+    @Transactional
+    public void markAsSentBatch(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        jpaRepository.markAsSentBatch(ids, Instant.now(clock));
+    }
+
+    @Override
+    @Transactional
+    public void incrementRetryBatch(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        jpaRepository.incrementRetryBatch(ids);
+        jpaRepository.markAsFailedAboveThreshold(ids, OutboxEvent.FAILED_THRESHOLD);
     }
 }

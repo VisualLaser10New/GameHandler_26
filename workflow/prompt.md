@@ -72,3 +72,28 @@ Durante l'implementazione, qualora emergessero discrepanze, ambiguità o problem
 3. **Aggiornamento della Documentazione**:
     - Informami su come aggiornerai la documentazione di progetto presente nella cartella `workflow/` (es. `architettura_classi.md`, `problemi_noti.md`, ecc.) per riflettere le modifiche strutturali o le scelte implementative effettuate, garantendo che i documenti rimangano sempre allineati al codice reale.
     - **Richiedi la mia approvazione**: Non scrivere codice o documentazione di aggiornamento prima della mia approvazione
+
+
+
+# altri prompt
+
+### analisi dei sistemi server distribuiti
+
+Sei un ingegnere del software specializzato in Java, Clean Architecture (Hexagonal Ports and Adapters) e sistemi distribuiti resilienti offline.
+Il nostro compito ora è di analizzare e rendere pienamente funzionante la comunicazione tra local-server e central sytem. Analizza entrambi i sistemi per comprendere per ora solo il loro funzionamento. Non modificare codice
+
+crea un piano di risoluzione dei bugs e implementazione delle funzionalità rilevate mancanti:
+- il piano deve essere completo
+- il piano deve essere altamente ingegnerizzato e rispettare i principi della architettura clean
+- il piano deve essere verificato al completamente eseguendo entrambi i sistemi e verificando che non crashino
+- il piano deve essere verificato attraverso dei test appositi (utilizzando anche i test già esistenti)
+- il piano deve prevedere a priori quali saranno tutti i tipi di messaggi scambiabili tra local e central system e controllare attentamente il codice di essi, analizzando se ad ogni messaggio da una parte, dall'altra ci sia una implementazione che sia ingrado di riceverlo e processarlo evitando bugs
+- il piano deve provare che non vi siano assolutamente bottleneck, rallentamenti di comunicazione, deadlock, desincronizzazioni tra i sistemi
+  Al termine del piano bisogna verificare la sua funzionalità completa nel seguente modo:
+- si analizzano i messaggi inviabili e il codice che li gestisce
+- si esegue una simulazione virtuale (anche attraverso test junit) passo passo
+- si trovano le eventuali problematiche
+- si rileva la causa sorgente primaria dei bugs, e se vi sono possibili altri malfunzionamenti introdotti dallo stesso bug, o se vi è lo stesso bug in altre sezioni del codice
+- si applica la patch di correzione, che deve essere una soluzione permanente e alla radice assoluta del problema
+Per leggere il codice utilizza diversi subagent
+- 

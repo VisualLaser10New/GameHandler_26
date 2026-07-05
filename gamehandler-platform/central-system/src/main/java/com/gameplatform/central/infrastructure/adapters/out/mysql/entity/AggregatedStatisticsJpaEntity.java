@@ -38,6 +38,9 @@ public class AggregatedStatisticsJpaEntity {
     @Column(name = "total_reservations", nullable = false)
     private int totalReservations;
 
+    @Column(name = "total_aborted_sessions", nullable = false)
+    private int totalAbortedSessions;
+
     @Column(name = "data", columnDefinition = "TEXT")
     private String data;
 
@@ -45,6 +48,10 @@ public class AggregatedStatisticsJpaEntity {
     }
 
     public AggregatedStatisticsJpaEntity(String id, String buildingId, String gameType, LocalDate periodStart, LocalDate periodEnd, int totalSessions, int avgDurationSeconds, int totalReservations, String data) {
+        this(id, buildingId, gameType, periodStart, periodEnd, totalSessions, avgDurationSeconds, totalReservations, 0, data);
+    }
+
+    public AggregatedStatisticsJpaEntity(String id, String buildingId, String gameType, LocalDate periodStart, LocalDate periodEnd, int totalSessions, int avgDurationSeconds, int totalReservations, int totalAbortedSessions, String data) {
         this.id = id;
         this.buildingId = buildingId;
         this.gameType = gameType;
@@ -53,6 +60,7 @@ public class AggregatedStatisticsJpaEntity {
         this.totalSessions = totalSessions;
         this.avgDurationSeconds = avgDurationSeconds;
         this.totalReservations = totalReservations;
+        this.totalAbortedSessions = totalAbortedSessions;
         this.data = data;
     }
 
@@ -118,6 +126,14 @@ public class AggregatedStatisticsJpaEntity {
 
     public void setTotalReservations(int totalReservations) {
         this.totalReservations = totalReservations;
+    }
+
+    public int getTotalAbortedSessions() {
+        return totalAbortedSessions;
+    }
+
+    public void setTotalAbortedSessions(int totalAbortedSessions) {
+        this.totalAbortedSessions = totalAbortedSessions;
     }
 
     public String getData() {

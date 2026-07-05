@@ -8,6 +8,7 @@ import com.gameplatform.central.domain.ports.in.AuthenticateUserUseCase;
 import com.gameplatform.central.domain.ports.out.FailedLoginAttemptRepository;
 import com.gameplatform.central.domain.ports.out.UserRepository;
 import com.gameplatform.central.domain.ports.out.TokenProviderPort;
+import com.gameplatform.shared.domain.security.TokenWithExpiry;
 import com.gameplatform.shared.dto.LoginResponseDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,9 +52,8 @@ public class AuthService implements AuthenticateUserUseCase {
             User user = userOpt.get();
             if (BCrypt.checkpw(password, user.getPasswordHash())) {
                 Instant now = Instant.now(clock).truncatedTo(ChronoUnit.SECONDS);
-                String token = tokenProviderPort.generateToken(user, now);
-                Instant expiresAt = now.plusMillis(tokenProviderPort.getTokenExpirationMs());
-                return new LoginResponseDto(token, user.getId().value(), expiresAt);
+                TokenWithExpiry tokenWithExpiry = tokenProviderPort.generateTokenWithExpiry(user, now);
+                return new LoginResponseDto(tokenWithExpiry.token(), user.getId().value(), tokenWithExpiry.expiresAt());
             } else {
                 recordFailure(username);
                 log.warn("Failed login attempt: Incorrect password for username '{}'", username);

@@ -3,6 +3,9 @@ package com.gameplatform.local.domain.model;
 import java.time.Instant;
 
 public class OutboxEvent {
+    /** Retry count threshold after which an event transitions to FAILED status. */
+    public static final int FAILED_THRESHOLD = 10;
+
     private final String id;
     private final String eventType;
     private final String payload;
@@ -47,7 +50,7 @@ public class OutboxEvent {
 
     public void incrementRetry() {
         this.retryCount++;
-        if (this.retryCount >= 10) {
+        if (this.retryCount >= FAILED_THRESHOLD) {
             this.status = "FAILED";
         }
     }

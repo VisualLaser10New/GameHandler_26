@@ -105,3 +105,37 @@ Se è necessario aggiornare il file `password_file` del broker MQTT (attualmente
 ```bash
 docker run --rm -v ${PWD}/infrastructure/mosquitto:/mosquitto/config eclipse-mosquitto:2.0 sh -c "mosquitto_passwd -c -b /mosquitto/config/password_file client-foosball-1 foosball_password"
 ```
+
+---
+
+## 6. Smoke test (Docker)
+
+Procedura manuale per verificare il flusso end-to-end su Docker. Documentata come riferimento per la FASE 4 step 5 (avvio reale) del piano `workflow/analisi/risoluzione_comunicazioni_local_central.md` — non eseguita in CI perché richiede Docker daemon attivo.
+
+### Prerequisiti
+- Docker + Docker Compose
+- Porte libere: 8080, 8081, 1883, 3306, 3307
+
+### Avvio
+```bash
+cd gamehandler-platform
+docker-compose up -d --build central-db local-db-1 mqtt-broker-1
+mvn spring-boot:run -pl central-system
+# in un altro terminale:
+mvn spring-boot:run -pl local-server
+```
+
+### Verifica (10-15 min di osservazione)
+1. **Auto-registrazione**: nel log del local compare `Local server registered with central system`. Nel DB central: `SELECT * FROM central_db.local_servers;` → riga `building-1` con `is_active=1`, `base_url=https://local-server-1:8081`.
+2. **Replica utenti**: registra un utente sul local → entro 5 min l'utente appare in `central_db.users`. Il central scheduler replica verso il local → l'utente appare in `local_db.users`.
+3. **Outbox**: `SELECT status, COUNT(*) FROM local_db.outbox_events GROUP BY status;` → PENDING → 0, SENT cresce, FAILED → 0 (promosso a DLQ da `OutboxDlqPromotionService`).
+4. **Statistiche**: `SELECT * FROM central_db.aggregated_statistics;` → `total_sessions`, `total_aborted_sessions`, `total_reservations` popolati.
+5. **Log**: nessun `ERROR` o `WARN` inatteso.
+
+### Comandi curl di verifica
+```bash
+# Health check central
+curl -k https://localhost:8080/actuator/health
+# Health check local
+curl -k https://localhost:8081/actuator/health
+```

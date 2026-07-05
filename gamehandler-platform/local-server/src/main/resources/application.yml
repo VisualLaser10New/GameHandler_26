@@ -23,9 +23,13 @@ server:
 
 app:
   building-id: ${BUILDING_ID:building-1}
+  local-base-url: ${LOCAL_BASE_URL:https://local-server-1:8081}
   central-system-url: ${CENTRAL_SYSTEM_URL:https://localhost:8080}
   sync-interval-ms: ${SYNC_INTERVAL_MS:300000}
   healthcheck-interval-ms: ${HEALTHCHECK_INTERVAL_MS:300000}
+  dlq-promotion-interval-ms: ${DLQ_PROMOTION_INTERVAL_MS:600000}
+  outbox-purge-retention-days: ${OUTBOX_PURGE_RETENTION_DAYS:7}
+  outbox-purge-interval-ms: ${OUTBOX_PURGE_INTERVAL_MS:86400000}
 
 ssl:
   trust-store: ${SSL_TRUSTSTORE_PATH:classpath:central-truststore.p12}

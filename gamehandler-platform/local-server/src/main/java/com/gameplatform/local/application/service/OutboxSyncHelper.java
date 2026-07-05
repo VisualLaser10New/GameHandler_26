@@ -17,18 +17,14 @@ public class OutboxSyncHelper {
     }
 
     public void markAsSent(List<String> ids) {
-        if (ids != null) {
-            for (String id : ids) {
-                outboxEventRepository.markAsSent(id);
-            }
+        if (ids != null && !ids.isEmpty()) {
+            outboxEventRepository.markAsSentBatch(ids);
         }
     }
 
     public void incrementRetry(List<String> ids) {
-        if (ids != null) {
-            for (String id : ids) {
-                outboxEventRepository.incrementRetry(id);
-            }
+        if (ids != null && !ids.isEmpty()) {
+            outboxEventRepository.incrementRetryBatch(ids);
         }
     }
 }

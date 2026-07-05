@@ -8,6 +8,7 @@ import com.gameplatform.central.domain.ports.out.TokenProviderPort;
 import com.gameplatform.central.domain.ports.out.UserRepository;
 import com.gameplatform.central.infrastructure.security.JwtTokenProvider;
 import com.gameplatform.shared.domain.model.UserId;
+import com.gameplatform.shared.domain.security.TokenWithExpiry;
 import com.gameplatform.shared.dto.LoginResponseDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -66,7 +68,8 @@ class AuthServiceTest {
         User user = buildUser("alice", hash);
 
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
-        when(jwtTokenProvider.generateToken(eq(user), any(Instant.class))).thenReturn("mock-jwt-token");
+        when(jwtTokenProvider.generateTokenWithExpiry(eq(user), any(Instant.class)))
+                .thenReturn(new TokenWithExpiry("mock-jwt-token", Instant.now().plusSeconds(60)));
 
         LoginResponseDto response = authService.authenticate("alice", plainPassword);
 
@@ -176,7 +179,8 @@ class AuthServiceTest {
         User user = buildUser("charlie", hash);
 
         when(userRepository.findByUsername("charlie")).thenReturn(Optional.of(user));
-        when(jwtTokenProvider.generateToken(eq(user), any(Instant.class))).thenReturn("jwt");
+        when(jwtTokenProvider.generateTokenWithExpiry(eq(user), any(Instant.class)))
+                .thenReturn(new TokenWithExpiry("jwt", Instant.now().plusSeconds(60)));
 
         // Successful login must not record a failure
         authService.authenticate("charlie", plainPassword);

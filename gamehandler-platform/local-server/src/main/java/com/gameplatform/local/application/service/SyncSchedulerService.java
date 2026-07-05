@@ -30,7 +30,7 @@ public class SyncSchedulerService {
         this.buildingId = buildingId;
     }
 
-    @Scheduled(fixedRate = 300000)
+    @Scheduled(fixedDelayString = "${app.sync-interval-ms:300000}")
     public void syncWithCentral() {
         List<OutboxEvent> pendingEvents = outboxEventRepository.findPending();
         if (pendingEvents.isEmpty()) {

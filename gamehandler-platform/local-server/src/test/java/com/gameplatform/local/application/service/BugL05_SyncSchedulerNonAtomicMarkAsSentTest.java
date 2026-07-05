@@ -8,23 +8,25 @@ import com.gameplatform.shared.dto.SyncPayloadDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.time.Instant;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
- * Bug L-05: SyncSchedulerService is NOT annotated with {@code @Transactional}.
+ * Regression test for Bug L-05: SyncSchedulerService used to call
+ * {@code markAsSent} once per event id in a loop, without transactional atomicity.
+ * A failure mid-loop left some events SENT and others PENDING (partial update).
  *
- * <p>After a successful sync, events are marked as SENT one by one in a loop (lines 55-58).
- * Without {@code @Transactional}, if {@code markAsSent()} fails mid-loop, some events
- * are marked as SENT and others remain PENDING — a non-atomic partial update.</p>
+ * <p>Fix: {@link OutboxSyncHelper} now delegates to
+ * {@link OutboxEventRepository#markAsSentBatch(List)} / {@link OutboxEventRepository#incrementRetryBatch(List)}
+ * which execute a single bulk UPDATE statement inside one transaction. This test
+ * verifies the scheduler triggers exactly one batch call (atomic by construction)
+ * instead of N per-id calls.</p>
  */
 class BugL05_SyncSchedulerNonAtomicMarkAsSentTest {
 
@@ -47,9 +49,8 @@ class BugL05_SyncSchedulerNonAtomicMarkAsSentTest {
     }
 
     @Test
-    @DisplayName("BUG L-05: markAsSent fails on 3rd event — first 2 are marked SENT, 3rd remains PENDING (non-atomic without @Transactional)")
-    void partialMarkAsSentWhenThirdCallFails() {
-        // -- Create 4 pending outbox events
+    @DisplayName("FIX L-05: successful sync issues a single atomic markAsSentBatch call (not N per-id calls)")
+    void successfulSyncUsesSingleAtomicBatchMarkAsSent() {
         OutboxEvent event1 = new OutboxEvent("evt-1", "GAME_SESSION_COMPLETED", "{}", "PENDING", NOW, null, 0);
         OutboxEvent event2 = new OutboxEvent("evt-2", "GAME_SESSION_COMPLETED", "{}", "PENDING", NOW, null, 0);
         OutboxEvent event3 = new OutboxEvent("evt-3", "GAME_SESSION_COMPLETED", "{}", "PENDING", NOW, null, 0);
@@ -59,30 +60,30 @@ class BugL05_SyncSchedulerNonAtomicMarkAsSentTest {
         when(syncCentralSystemPort.isReachable()).thenReturn(true);
         when(syncCentralSystemPort.sendSyncPayload(any(SyncPayloadDto.class))).thenReturn(true);
 
-        // -- markAsSent succeeds for events 1 and 2, but throws on event 3
-        doNothing().when(outboxEventRepository).markAsSent("evt-1");
-        doNothing().when(outboxEventRepository).markAsSent("evt-2");
-        doThrow(new RuntimeException("Database connection lost"))
-                .when(outboxEventRepository).markAsSent("evt-3");
+        syncSchedulerService.syncWithCentral();
 
-        // -- Execute sync
-        assertThrows(RuntimeException.class, () -> syncSchedulerService.syncWithCentral(),
-                "syncWithCentral should propagate the exception from markAsSent");
+        // Exactly ONE batch call with all 4 ids — atomic by construction (single UPDATE).
+        verify(outboxEventRepository, times(1)).markAsSentBatch(List.of("evt-1", "evt-2", "evt-3", "evt-4"));
+        // The old per-id API must NOT be used anymore.
+        verify(outboxEventRepository, never()).markAsSent(any());
+        verify(outboxEventRepository, never()).incrementRetry(any());
+        verify(outboxEventRepository, never()).incrementRetryBatch(any());
+    }
 
-        // BUG EXPOSED: Without @Transactional, events 1 and 2 were already marked as SENT
-        // before the failure on event 3. This is a partial update — non-atomic.
-        InOrder inOrder = inOrder(outboxEventRepository);
-        inOrder.verify(outboxEventRepository).markAsSent("evt-1"); // marked SENT ✓
-        inOrder.verify(outboxEventRepository).markAsSent("evt-2"); // marked SENT ✓
-        inOrder.verify(outboxEventRepository).markAsSent("evt-3"); // FAILED — throws RuntimeException
+    @Test
+    @DisplayName("FIX L-05: failed sync issues a single atomic incrementRetryBatch call")
+    void failedSyncUsesSingleAtomicBatchIncrementRetry() {
+        OutboxEvent event1 = new OutboxEvent("evt-1", "GAME_SESSION_COMPLETED", "{}", "PENDING", NOW, null, 0);
+        OutboxEvent event2 = new OutboxEvent("evt-2", "GAME_SESSION_COMPLETED", "{}", "PENDING", NOW, null, 0);
 
-        // Event 4 was never reached
-        verify(outboxEventRepository, never()).markAsSent("evt-4");
+        when(outboxEventRepository.findPending()).thenReturn(List.of(event1, event2));
+        when(syncCentralSystemPort.isReachable()).thenReturn(true);
+        when(syncCentralSystemPort.sendSyncPayload(any(SyncPayloadDto.class))).thenReturn(false);
 
-        // Events 1 and 2 are permanently marked as SENT, but event 3 and 4 remain PENDING.
-        // On the next sync cycle, only events 3 and 4 will be retried, but events 1 and 2
-        // will NOT be included — they were already marked SENT even though the batch was not
-        // atomically committed. With @Transactional, all 4 markAsSent calls would have
-        // been rolled back.
+        syncSchedulerService.syncWithCentral();
+
+        verify(outboxEventRepository, times(1)).incrementRetryBatch(List.of("evt-1", "evt-2"));
+        verify(outboxEventRepository, never()).markAsSentBatch(any());
+        verify(outboxEventRepository, never()).incrementRetry(any());
     }
 }

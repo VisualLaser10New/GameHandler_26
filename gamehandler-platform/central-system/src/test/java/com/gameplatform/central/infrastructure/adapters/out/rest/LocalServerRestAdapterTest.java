@@ -27,7 +27,7 @@ class LocalServerRestAdapterTest {
 
     @Test
     void shouldConfigureTimeoutsInDefaultConstructor() throws Exception {
-        LocalServerRestAdapter adapter = new LocalServerRestAdapter("test-api-key");
+        LocalServerRestAdapter adapter = new LocalServerRestAdapter("test-api-key", 5000, 5000);
 
         java.lang.reflect.Field rtField = LocalServerRestAdapter.class.getDeclaredField("restTemplate");
         rtField.setAccessible(true);

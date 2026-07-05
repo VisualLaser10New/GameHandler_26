@@ -7,7 +7,7 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:root}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
 
 server:
@@ -27,6 +27,11 @@ jwt:
 
 internal:
   api-key: ${INTERNAL_API_KEY:secret}
+
+central:
+  replication:
+    connect-timeout-ms: ${CENTRAL_REPLICATION_CONNECT_TIMEOUT_MS:5000}
+    read-timeout-ms: ${CENTRAL_REPLICATION_READ_TIMEOUT_MS:5000}
 
 # CORS allowed origins (comma-separated list, or '*' for wildcard without credentials).
 # Default: http://localhost:3000 for local development.

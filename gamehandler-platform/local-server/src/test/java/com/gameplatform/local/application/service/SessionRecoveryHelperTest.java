@@ -98,7 +98,7 @@ class SessionRecoveryHelperTest {
         verify(outboxEventRepository).save(outboxCaptor.capture());
 
         OutboxEvent event = outboxCaptor.getValue();
-        assertEquals("GAME_SESSION_COMPLETED", event.getEventType());
+        assertEquals("GAME_SESSION_ABORTED", event.getEventType());
         assertEquals("PENDING", event.getStatus());
         assertTrue(event.getPayload().contains("SERVER_RESTART"));
         assertTrue(event.getPayload().contains("s-1"));

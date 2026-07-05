@@ -20,7 +20,7 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
 
     private final String configuredApiKey;
 
-    public InternalApiKeyFilter(@Value("${internal.api-key}") String configuredApiKey) {
+    public InternalApiKeyFilter(@Value("${internal.api-key:secret}") String configuredApiKey) {
         this.configuredApiKey = configuredApiKey;
     }
 

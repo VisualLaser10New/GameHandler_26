@@ -5,6 +5,7 @@ import com.gameplatform.local.domain.model.User;
 import com.gameplatform.local.domain.ports.in.AuthenticateLocalUserUseCase;
 import com.gameplatform.local.domain.ports.out.UserRepository;
 import com.gameplatform.local.domain.ports.out.TokenGeneratorPort;
+import com.gameplatform.shared.domain.security.TokenWithExpiry;
 import com.gameplatform.shared.dto.LoginResponseDto;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
@@ -37,11 +38,10 @@ public class LocalAuthService implements AuthenticateLocalUserUseCase {
 
         // Determine base instant truncated to seconds to align with JWT NumericDate specification
         Instant now = Instant.now(clock).truncatedTo(ChronoUnit.SECONDS);
-        Instant expiresAt = now.plus(1, ChronoUnit.HOURS);
 
-        // Request token generation using the same base instant
-        String token = tokenGeneratorPort.generateToken(user, now);
+        // Token generator is the single source of truth for the JWT exp claim (fix for BUG-L09 / B11)
+        TokenWithExpiry tokenWithExpiry = tokenGeneratorPort.generateTokenWithExpiry(user, now);
 
-        return new LoginResponseDto(token, user.getUserId().value(), expiresAt);
+        return new LoginResponseDto(tokenWithExpiry.token(), user.getUserId().value(), tokenWithExpiry.expiresAt());
     }
 }

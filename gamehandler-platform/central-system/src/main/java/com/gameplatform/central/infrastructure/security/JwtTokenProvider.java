@@ -2,6 +2,7 @@ package com.gameplatform.central.infrastructure.security;
 
 import com.gameplatform.central.domain.model.User;
 import com.gameplatform.central.domain.ports.out.TokenProviderPort;
+import com.gameplatform.shared.domain.security.TokenWithExpiry;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import jakarta.annotation.PostConstruct;
@@ -89,38 +90,30 @@ public class JwtTokenProvider implements TokenProviderPort {
                         this.publicKey = kf.generatePublic(publicKeySpec);
                         log.info("Successfully loaded RSA private key and derived public key");
                     } else {
-                        log.warn("Loaded private key is not an RSAPrivateCrtKey, generating a temporary key pair instead");
-                        generateFallbackKeyPair();
+                        throw new IllegalStateException("Loaded private key from " + privateKeyPath + " is not an RSAPrivateCrtKey; cannot derive public key");
                     }
                 }
             } else {
-                log.warn("Private key file not found at {}. Generating a temporary RSA key pair for this session...", privateKeyPath);
-                generateFallbackKeyPair();
+                throw new IllegalStateException("Private key file not found at " + privateKeyPath + "; aborting startup");
             }
+        } catch (IllegalStateException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("Failed to load RSA private key from {}. Generating a temporary RSA key pair...", privateKeyPath, e);
-            generateFallbackKeyPair();
-        }
-    }
-
-    private void generateFallbackKeyPair() {
-        try {
-            KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
-            kpg.initialize(2048);
-            KeyPair kp = kpg.generateKeyPair();
-            this.privateKey = kp.getPrivate();
-            this.publicKey = kp.getPublic();
-            log.info("Temporary fallback RSA key pair generated successfully");
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Failed to generate fallback RSA key pair", e);
+            throw new IllegalStateException("Failed to load RSA private key from " + privateKeyPath + "; aborting startup", e);
         }
     }
 
     @Override
+    @Deprecated(since = "B11", forRemoval = true)
     public String generateToken(User user, Instant now) {
+        return generateTokenWithExpiry(user, now).token();
+    }
+
+    @Override
+    public TokenWithExpiry generateTokenWithExpiry(User user, Instant now) {
         Instant expiresAt = now.plusMillis(tokenExpirationMs);
 
-        return Jwts.builder()
+        String token = Jwts.builder()
                 .subject(user.getUsername())
                 .claim("userId", user.getId().value())
                 .claim("roles", user.getRoles())
@@ -128,6 +121,7 @@ public class JwtTokenProvider implements TokenProviderPort {
                 .expiration(Date.from(expiresAt))
                 .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
+        return new TokenWithExpiry(token, expiresAt);
     }
 
     public String generateToken(User user) {

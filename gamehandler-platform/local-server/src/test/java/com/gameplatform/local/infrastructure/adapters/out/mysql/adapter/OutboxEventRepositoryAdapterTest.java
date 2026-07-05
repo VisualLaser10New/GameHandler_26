@@ -3,6 +3,7 @@ package com.gameplatform.local.infrastructure.adapters.out.mysql.adapter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +26,8 @@ class OutboxEventRepositoryAdapterTest {
     private OutboxEventJpaRepository jpaRepository;
     @Mock
     private OutboxEventMapper mapper;
+    @Mock
+    private Clock clock;
     @InjectMocks
     private OutboxEventRepositoryAdapter adapter;
 
@@ -62,7 +65,7 @@ class OutboxEventRepositoryAdapterTest {
         adapter.markAsSent("e-1");
 
         verify(jpaRepository).save(updated);
-        assertThat(domain.getStatus()).isEqualTo("SENT"); // markAsSent impostato dal dominio
+        assertThat(domain.getStatus()).isEqualTo("SENT");
     }
 
     @Test
@@ -83,5 +86,44 @@ class OutboxEventRepositoryAdapterTest {
         adapter.incrementRetry("e-1");
 
         assertThat(domain.getRetryCount()).isEqualTo(1);
+    }
+
+    // ── B5: bulk operations ──────────────────────────────────────────────────
+
+    @Test
+    void markAsSentBatchCallsSingleBulkUpdate() {
+        Instant now = Instant.parse("2026-07-05T12:00:00Z");
+        when(clock.instant()).thenReturn(now);
+        List<String> ids = List.of("e-1", "e-2", "e-3");
+
+        adapter.markAsSentBatch(ids);
+
+        verify(jpaRepository).markAsSentBatch(ids, now);
+        verify(jpaRepository, never()).findById(any());
+        verify(jpaRepository, never()).save(any());
+    }
+
+    @Test
+    void incrementRetryBatchCallsIncrementThenFailThreshold() {
+        List<String> ids = List.of("e-1", "e-2");
+
+        adapter.incrementRetryBatch(ids);
+
+        verify(jpaRepository).incrementRetryBatch(ids);
+        verify(jpaRepository).markAsFailedAboveThreshold(ids, OutboxEvent.FAILED_THRESHOLD);
+    }
+
+    @Test
+    void markAsSentBatchEmptyListIsNoop() {
+        adapter.markAsSentBatch(List.of());
+        adapter.markAsSentBatch(null);
+        verifyNoInteractions(jpaRepository);
+    }
+
+    @Test
+    void incrementRetryBatchEmptyListIsNoop() {
+        adapter.incrementRetryBatch(List.of());
+        adapter.incrementRetryBatch(null);
+        verifyNoInteractions(jpaRepository);
     }
 }

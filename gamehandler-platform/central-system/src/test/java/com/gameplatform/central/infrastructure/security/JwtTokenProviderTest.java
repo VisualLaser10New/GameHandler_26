@@ -30,8 +30,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *   <li>Blank / null inputs are handled gracefully.</li>
  * </ul>
  *
- * <p>The provider is initialised without a PEM file, so it falls back to a
- * freshly generated RSA key pair — perfectly valid for unit testing.</p>
+ * <p>The provider is initialised with a real test-scoped PEM file ({@code alt-private.pem});
+ * per B15 the JwtTokenProvider now fails fast when the key file is missing rather than
+ * silently generating an ephemeral key pair.</p>
  */
 @DisplayName("JwtTokenProvider")
 class JwtTokenProviderTest {
@@ -43,9 +44,9 @@ class JwtTokenProviderTest {
 
     /** Builds and initialises a provider with the given expiration value. */
     private JwtTokenProvider buildProvider(long expirationMs) {
-        // "classpath:non-existent.pem" forces the fallback key pair generation
+        // "classpath:alt-private.pem" is a real test-scoped RSA key pair (per B15 fail-fast, no ephemeral fallback anymore)
         JwtTokenProvider provider = new JwtTokenProvider(
-                resourceLoader, "classpath:non-existent.pem", expirationMs);
+                resourceLoader, "classpath:alt-private.pem", expirationMs);
         provider.init();
         return provider;
     }
@@ -212,7 +213,12 @@ class JwtTokenProviderTest {
         @DisplayName("returns false for a token signed by a different key pair")
         void validateToken_returnsFalseForDifferentKeyPair() {
             JwtTokenProvider provider1 = buildProvider(EXPIRATION_MS_24H);
-            JwtTokenProvider provider2 = buildProvider(EXPIRATION_MS_24H);
+            // Per B15 buildProvider always loads the same alt-private.pem; to obtain a
+            // genuinely different key pair, point provider2 at the main private.pem fixture
+            // (a distinct RSA key — confirmed by hash).
+            JwtTokenProvider provider2 = new JwtTokenProvider(
+                    resourceLoader, "classpath:private.pem", EXPIRATION_MS_24H);
+            provider2.init();
 
             String tokenFromProvider1 = provider1.generateToken(buildUser("frank"));
             // provider2 has a different key pair — must reject the token
@@ -248,6 +254,25 @@ class JwtTokenProviderTest {
 
             assertThatThrownBy(() -> provider.getClaims(token))
                     .isInstanceOf(ExpiredJwtException.class);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // init fail-fast (B15)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("init fail-fast (B15)")
+    class InitFailFastTests {
+
+        @Test
+        @DisplayName("init throws IllegalStateException when private key file is missing")
+        void init_throwsWhenPrivateKeyMissing() {
+            JwtTokenProvider provider = new JwtTokenProvider(
+                    resourceLoader, "classpath:does-not-exist.pem", EXPIRATION_MS_24H);
+            assertThatThrownBy(provider::init)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Private key file not found");
         }
     }
 }

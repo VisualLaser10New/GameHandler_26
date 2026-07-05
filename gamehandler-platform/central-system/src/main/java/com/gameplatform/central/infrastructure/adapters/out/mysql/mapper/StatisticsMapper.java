@@ -47,6 +47,7 @@ public class StatisticsMapper {
                 entity.getTotalSessions(),
                 entity.getAvgDurationSeconds(),
                 entity.getTotalReservations(),
+                entity.getTotalAbortedSessions(),
                 dataMap
         );
     }
@@ -73,6 +74,7 @@ public class StatisticsMapper {
                 domain.getTotalSessions(),
                 domain.getAvgDurationSeconds(),
                 domain.getTotalReservations(),
+                domain.getTotalAbortedSessions(),
                 dataStr
         );
     }

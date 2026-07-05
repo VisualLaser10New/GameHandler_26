@@ -2,6 +2,7 @@ package com.gameplatform.local.infrastructure.security;
 
 import com.gameplatform.local.domain.model.User;
 import com.gameplatform.local.domain.ports.out.TokenGeneratorPort;
+import com.gameplatform.shared.domain.security.TokenWithExpiry;
 import io.jsonwebtoken.Jwts;
 import java.security.PrivateKey;
 import java.time.Clock;
@@ -25,10 +26,16 @@ public class JwtTokenProvider implements TokenGeneratorPort {
     }
 
     @Override
+    @Deprecated(since = "B11", forRemoval = true)
     public String generateToken(User user, Instant now) {
+        return generateTokenWithExpiry(user, now).token();
+    }
+
+    @Override
+    public TokenWithExpiry generateTokenWithExpiry(User user, Instant now) {
         Instant expiresAt = now.plus(1, ChronoUnit.HOURS);
 
-        return Jwts.builder()
+        String token = Jwts.builder()
                 .subject(user.getUsername())
                 .claim("userId", user.getUserId().value())
                 .claim("roles", user.getRoles())
@@ -36,6 +43,7 @@ public class JwtTokenProvider implements TokenGeneratorPort {
                 .expiration(Date.from(expiresAt))
                 .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
+        return new TokenWithExpiry(token, expiresAt);
     }
 
     public String generateToken(User user) {

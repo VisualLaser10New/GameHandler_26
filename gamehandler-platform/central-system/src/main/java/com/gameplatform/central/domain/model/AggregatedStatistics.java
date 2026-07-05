@@ -18,9 +18,14 @@ public class AggregatedStatistics {
     private int totalSessions;
     private int avgDurationSeconds;
     private int totalReservations;
+    private int totalAbortedSessions;
     private Map<String, Object> data;
 
     public AggregatedStatistics(String id, BuildingId buildingId, GameType gameType, LocalDate periodStart, LocalDate periodEnd, int totalSessions, int avgDurationSeconds, int totalReservations, Map<String, Object> data) {
+        this(id, buildingId, gameType, periodStart, periodEnd, totalSessions, avgDurationSeconds, totalReservations, 0, data);
+    }
+
+    public AggregatedStatistics(String id, BuildingId buildingId, GameType gameType, LocalDate periodStart, LocalDate periodEnd, int totalSessions, int avgDurationSeconds, int totalReservations, int totalAbortedSessions, Map<String, Object> data) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("Id cannot be null or empty");
         }
@@ -45,6 +50,9 @@ public class AggregatedStatistics {
         if (totalReservations < 0) {
             throw new IllegalArgumentException("totalReservations cannot be negative");
         }
+        if (totalAbortedSessions < 0) {
+            throw new IllegalArgumentException("totalAbortedSessions cannot be negative");
+        }
         this.id = id;
         this.buildingId = buildingId;
         this.gameType = gameType;
@@ -53,6 +61,7 @@ public class AggregatedStatistics {
         this.totalSessions = totalSessions;
         this.avgDurationSeconds = avgDurationSeconds;
         this.totalReservations = totalReservations;
+        this.totalAbortedSessions = totalAbortedSessions;
         this.data = data != null ? new java.util.HashMap<>(data) : new java.util.HashMap<>();
     }
 
@@ -85,6 +94,7 @@ public class AggregatedStatistics {
 
         this.totalSessions = combinedTotalSessions;
         this.totalReservations += other.totalReservations;
+        this.totalAbortedSessions += other.totalAbortedSessions;
 
         if (this.periodStart == null || other.periodStart.isBefore(this.periodStart)) {
             this.periodStart = other.periodStart;
@@ -181,6 +191,9 @@ public class AggregatedStatistics {
     }
     public int getTotalReservations() {
         return totalReservations;
+    }
+    public int getTotalAbortedSessions() {
+        return totalAbortedSessions;
     }
     public Map<String, Object> getData() {
         return java.util.Collections.unmodifiableMap(data);

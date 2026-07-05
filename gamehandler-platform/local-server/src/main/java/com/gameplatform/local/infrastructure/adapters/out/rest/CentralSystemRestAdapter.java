@@ -32,7 +32,7 @@ public class CentralSystemRestAdapter implements SyncCentralSystemPort {
     public CentralSystemRestAdapter(
             SSLContext sslContext,
             @Value("${app.central-system-url}") String centralSystemUrl,
-            @Value("${internal.api-key}") String internalApiKey) {
+            @Value("${internal.api-key:secret}") String internalApiKey) {
         this.centralSystemUrl = centralSystemUrl;
         this.internalApiKey = internalApiKey;
 

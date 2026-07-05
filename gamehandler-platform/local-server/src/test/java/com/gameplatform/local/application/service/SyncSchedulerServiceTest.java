@@ -44,6 +44,8 @@ class SyncSchedulerServiceTest {
         service.syncWithCentral();
         verify(syncCentralSystemPort, never()).isReachable();
         verify(syncCentralSystemPort, never()).sendSyncPayload(any());
+        verify(outboxEventRepository, never()).markAsSentBatch(any());
+        verify(outboxEventRepository, never()).incrementRetryBatch(any());
     }
 
     @Test
@@ -52,8 +54,8 @@ class SyncSchedulerServiceTest {
         when(syncCentralSystemPort.isReachable()).thenReturn(false);
         service.syncWithCentral();
         verify(syncCentralSystemPort, never()).sendSyncPayload(any());
-        verify(outboxEventRepository, never()).markAsSent(any());
-        verify(outboxEventRepository, never()).incrementRetry(any());
+        verify(outboxEventRepository, never()).markAsSentBatch(any());
+        verify(outboxEventRepository, never()).incrementRetryBatch(any());
     }
 
     @Test
@@ -65,9 +67,8 @@ class SyncSchedulerServiceTest {
         service.syncWithCentral();
 
         verify(syncCentralSystemPort).sendSyncPayload(argThat(p -> "building-1".equals(p.buildingId()) && p.events().size() == 2));
-        verify(outboxEventRepository).markAsSent("e-1");
-        verify(outboxEventRepository).markAsSent("e-2");
-        verify(outboxEventRepository, never()).incrementRetry(any());
+        verify(outboxEventRepository).markAsSentBatch(List.of("e-1", "e-2"));
+        verify(outboxEventRepository, never()).incrementRetryBatch(any());
     }
 
     @Test
@@ -78,8 +79,7 @@ class SyncSchedulerServiceTest {
 
         service.syncWithCentral();
 
-        verify(outboxEventRepository, never()).markAsSent(any());
-        verify(outboxEventRepository).incrementRetry("e-1");
-        verify(outboxEventRepository).incrementRetry("e-2");
+        verify(outboxEventRepository, never()).markAsSentBatch(any());
+        verify(outboxEventRepository).incrementRetryBatch(List.of("e-1", "e-2"));
     }
 }

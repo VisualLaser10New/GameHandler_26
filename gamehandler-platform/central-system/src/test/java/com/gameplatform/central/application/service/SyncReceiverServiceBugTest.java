@@ -93,6 +93,26 @@ class SyncReceiverServiceBugTest {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // BUG-01 (variant): Single duplicate event — batch is empty after dedup,
+    // heartbeat still fires. Ported from the consolidated duplicate test file.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("BUG-01 (variant): Single duplicate event is skipped and heartbeat is still called")
+    void singleDuplicateEventIsSkippedAndHeartbeatIsCalled() {
+        String validPayload = "{\"gameType\":\"DARTS\",\"occurredAt\":\"2026-03-10T14:00:00Z\",\"durationSeconds\":60}";
+        OutboxEventDto duplicateEvent = new OutboxEventDto("evt-dup", "GAME_SESSION_COMPLETED",
+                validPayload, Instant.parse("2026-03-10T14:00:00Z"));
+        SyncPayloadDto payload = new SyncPayloadDto("building-D", List.of(duplicateEvent));
+
+        when(processedEventRepository.existsByEventId("evt-dup")).thenReturn(true);
+
+        assertDoesNotThrow(() -> service.receiveSyncPayload(payload));
+
+        verify(localServerRegistryPort).updateLastSeenAt(eq(new BuildingId("building-D")), any(Instant.class));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // BUG-02: ProcessedEvent uses event.createdAt instead of Instant.now()
     // ──────────────────────────────────────────────────────────────────────────
 

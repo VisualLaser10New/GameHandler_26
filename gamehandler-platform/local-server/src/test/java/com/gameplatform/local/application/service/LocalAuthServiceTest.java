@@ -10,6 +10,7 @@ import com.gameplatform.local.domain.ports.out.TokenGeneratorPort;
 import com.gameplatform.local.domain.ports.out.UserRepository;
 import com.gameplatform.local.infrastructure.security.JwtTokenProvider;
 import com.gameplatform.shared.domain.model.UserId;
+import com.gameplatform.shared.domain.security.TokenWithExpiry;
 import com.gameplatform.shared.dto.LoginResponseDto;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -46,7 +47,8 @@ class LocalAuthServiceTest {
     void shouldAuthenticateAndReturnToken() {
         User user = userWithPassword("password");
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
-        when(jwtTokenProvider.generateToken(eq(user), any(Instant.class))).thenReturn("jwt-token");
+        when(jwtTokenProvider.generateTokenWithExpiry(eq(user), any(Instant.class)))
+                .thenReturn(new TokenWithExpiry("jwt-token", Instant.now().plus(1, ChronoUnit.HOURS)));
 
         LoginResponseDto response = service.authenticate("alice", "password");
 
@@ -61,7 +63,7 @@ class LocalAuthServiceTest {
     void shouldFailWhenUserNotFound() {
         when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
         assertThrows(UserNotFoundException.class, () -> service.authenticate("ghost", "pwd"));
-        verify(jwtTokenProvider, never()).generateToken(any(), any());
+        verify(jwtTokenProvider, never()).generateTokenWithExpiry(any(), any());
     }
 
     @Test
@@ -69,6 +71,6 @@ class LocalAuthServiceTest {
         User user = userWithPassword("password");
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
         assertThrows(BadCredentialsException.class, () -> service.authenticate("alice", "wrong"));
-        verify(jwtTokenProvider, never()).generateToken(any(), any());
+        verify(jwtTokenProvider, never()).generateTokenWithExpiry(any(), any());
     }
 }

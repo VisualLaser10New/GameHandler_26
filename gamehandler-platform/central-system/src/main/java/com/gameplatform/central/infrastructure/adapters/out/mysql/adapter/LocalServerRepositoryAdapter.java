@@ -1,5 +1,6 @@
 package com.gameplatform.central.infrastructure.adapters.out.mysql.adapter;
 
+import com.gameplatform.central.application.service.LateRegistrationCatchUpService;
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.RegisteredLocalServerJpaEntity;
@@ -10,15 +11,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Component
 public class LocalServerRepositoryAdapter implements LocalServerRegistryPort {
 
     private final LocalServerJpaRepository jpaRepository;
+    private final LateRegistrationCatchUpService lateRegistrationCatchUpService;
 
-    public LocalServerRepositoryAdapter(LocalServerJpaRepository jpaRepository) {
+    public LocalServerRepositoryAdapter(LocalServerJpaRepository jpaRepository,
+                                        LateRegistrationCatchUpService lateRegistrationCatchUpService) {
         this.jpaRepository = jpaRepository;
+        this.lateRegistrationCatchUpService = lateRegistrationCatchUpService;
     }
 
     @Override
@@ -34,17 +39,28 @@ public class LocalServerRepositoryAdapter implements LocalServerRegistryPort {
     }
 
     @Override
+    @Transactional
     public void register(RegisteredLocalServer server) {
-        if (server == null) {
+        if (server == null || server.getBuildingId() == null) {
             return;
         }
-        RegisteredLocalServerJpaEntity entity = new RegisteredLocalServerJpaEntity(
-                server.getBuildingId() != null ? server.getBuildingId().id() : null,
-                server.getBaseUrl(),
-                server.getLastSeenAt(),
-                server.isActive()
-        );
+        String buildingId = server.getBuildingId().id();
+        Optional<RegisteredLocalServerJpaEntity> existing = jpaRepository.findById(buildingId);
+        boolean isNewRegistration = existing.isEmpty();
+        RegisteredLocalServerJpaEntity entity = existing.orElseGet(() -> new RegisteredLocalServerJpaEntity(
+                        buildingId,
+                        server.getBaseUrl(),
+                        server.getLastSeenAt(),
+                        server.isActive()
+                ));
+        entity.setBaseUrl(server.getBaseUrl());
+        entity.setLastSeenAt(server.getLastSeenAt());
+        entity.setActive(server.isActive());
         jpaRepository.save(entity);
+
+        if (isNewRegistration) {
+            lateRegistrationCatchUpService.catchUpNewlyRegisteredServer(server);
+        }
     }
 
     @Override

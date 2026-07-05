@@ -90,7 +90,7 @@ public class SessionRecoveryHelper {
 
         OutboxEvent outboxEvent = new OutboxEvent(
                 UUID.randomUUID().toString(),
-                "GAME_SESSION_COMPLETED",
+                "GAME_SESSION_ABORTED",
                 payloadJson,
                 "PENDING",
                 Instant.now(clock),

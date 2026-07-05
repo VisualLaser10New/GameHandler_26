@@ -45,7 +45,7 @@ class AuthServiceJwtExpirationBugTest {
     void setUp() {
         jwtTokenProvider = new JwtTokenProvider(
                 new DefaultResourceLoader(),
-                "classpath:missing-test-private-key.pem",
+                "classpath:alt-private.pem",
                 Duration.ofMinutes(1).toMillis()
         );
         jwtTokenProvider.init();

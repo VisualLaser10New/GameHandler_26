@@ -90,7 +90,7 @@ public class HealthCheckService {
         }
     }
 
-    @Scheduled(fixedRate = 300000)
+    @Scheduled(fixedRateString = "${app.healthcheck-interval-ms:300000}")
     public void performHealthCheck() {
         List<Game> games = gameRepository.findAll();
 
@@ -136,7 +136,7 @@ public class HealthCheckService {
 
                             OutboxEvent outboxEvent = new OutboxEvent(
                                     UUID.randomUUID().toString(),
-                                    "GAME_SESSION_COMPLETED",
+                                    "GAME_SESSION_ABORTED",
                                     payloadJson,
                                     "PENDING",
                                     Instant.now(clock),

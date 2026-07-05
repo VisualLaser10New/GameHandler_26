@@ -228,6 +228,38 @@ class SyncReceiverServiceTest {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // GAME_SESSION_ABORTED branch (B4.7)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void processEventGameSessionAborted_updatesAbortedStatsOnly() {
+        // Aborted sessions must increment totalAbortedSessions and NOT totalSessions.
+        String payload = "{\"eventId\":\"e-aborted\",\"occurredAt\":\"" + Instant.now() + "\","
+                + "\"sessionId\":\"s-aborted\",\"gameType\":\"DARTS\","
+                + "\"durationSeconds\":0,\"status\":\"ABORTED\",\"stopReason\":\"TIMEOUT\"}";
+        OutboxEventDto event = new OutboxEventDto("e-aborted",
+                "GAME_SESSION_ABORTED", payload, Instant.now());
+        SyncPayloadDto syncPayload = new SyncPayloadDto("building-1", List.of(event));
+
+        when(processedEventRepository.existsByEventId("e-aborted")).thenReturn(false);
+        when(statisticsRepository.findByBuildingAndTypeAndPeriodWithLock(
+                any(BuildingId.class), eq(GameType.DARTS), any(LocalDate.class)))
+                .thenReturn(Optional.empty());
+        when(statisticsRepository.save(any())).thenReturn(buildEmptyStats());
+
+        syncReceiverService.receiveSyncPayload(syncPayload);
+
+        // Stats saved with totalAbortedSessions=1 and totalSessions=0 (insert path).
+        ArgumentCaptor<AggregatedStatistics> statsCaptor = ArgumentCaptor.forClass(AggregatedStatistics.class);
+        verify(statisticsRepository).save(statsCaptor.capture());
+        AggregatedStatistics saved = statsCaptor.getValue();
+        assertThat(saved.getTotalAbortedSessions()).isEqualTo(1);
+        assertThat(saved.getTotalSessions()).isZero();
+        // Aborted sessions must not register users.
+        verify(registerUserFromSyncUseCase, never()).registerFromSync(any());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // helpers
     // ──────────────────────────────────────────────────────────────────────────
 

@@ -18,6 +18,6 @@
       ]
     }
   },
-  "forwardPorts": [8080, 8081, 8883, 3306],
+  "forwardPorts": [8080, 8081, 8883, 3306, 1883, 3307],
   "postCreateCommand": "mvn clean install -DskipTests"
 }
