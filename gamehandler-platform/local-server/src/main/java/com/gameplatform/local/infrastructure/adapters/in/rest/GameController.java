@@ -13,7 +13,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/games")
-@PreAuthorize("hasAuthority('USER')")
+@PreAuthorize("hasRole('USER')")
 public class GameController {
 
     private final GetAvailableGamesUseCase getAvailableGamesUseCase;

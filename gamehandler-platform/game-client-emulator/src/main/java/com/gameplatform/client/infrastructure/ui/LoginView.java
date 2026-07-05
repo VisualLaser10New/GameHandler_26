@@ -138,10 +138,21 @@ public class LoginView {
                         javafx.application.Platform.runLater(() -> {
                             loginButton.setDisable(false);
                             if (response.statusCode() == 200) {
-                                errorLabel.setStyle("-fx-text-fill: #2ecc71;");
-                                errorLabel.setText("Login successful");
-                                if (onLoginSuccess != null) {
-                                    onLoginSuccess.run();
+                                try {
+                                    ObjectMapper responseMapper = new ObjectMapper();
+                                    responseMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+                                    com.gameplatform.shared.dto.LoginResponseDto loginResponse =
+                                            responseMapper.readValue(response.body(), com.gameplatform.shared.dto.LoginResponseDto.class);
+                                    com.gameplatform.client.infrastructure.security.HttpClientHelper.setToken(loginResponse.token());
+                                    
+                                    errorLabel.setStyle("-fx-text-fill: #2ecc71;");
+                                    errorLabel.setText("Login successful");
+                                    if (onLoginSuccess != null) {
+                                        onLoginSuccess.run();
+                                    }
+                                } catch (Exception e) {
+                                    errorLabel.setStyle("-fx-text-fill: #e74c3c;");
+                                    errorLabel.setText("Token error: " + e.getMessage());
                                 }
                             } else if (response.statusCode() == 401) {
                                 errorLabel.setStyle("-fx-text-fill: #e74c3c;");

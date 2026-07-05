@@ -28,6 +28,7 @@ public class StatisticsView {
 
     public StatisticsView() {
         mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
         root = new VBox(10);
         root.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
 
@@ -61,10 +62,14 @@ public class StatisticsView {
         try {
             String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
             HttpClient client = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl);
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(localServerUrl + "/api/statistics"))
-                    .GET()
-                    .build();
+                    .GET();
+            String token = com.gameplatform.client.infrastructure.security.HttpClientHelper.getToken();
+            if (token != null) {
+                requestBuilder.header("Authorization", "Bearer " + token);
+            }
+            HttpRequest request = requestBuilder.build();
             client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                     .thenAccept(response -> Platform.runLater(() -> {
                         if (response.statusCode() == 200) {

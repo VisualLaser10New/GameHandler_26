@@ -92,3 +92,10 @@ CREATE TABLE local_statistics_cache (
     computed_at     DATETIME NOT NULL,
     UNIQUE KEY      uk_type_period (game_type, period_date)
 );
+
+-- Seed game catalog
+INSERT INTO game_catalog (id, game_type, name, building_id, status) VALUES
+('chess-machine-1', 'CHESS', 'Chess Table 1', 'building-1', 'AVAILABLE'),
+('foosball-machine-1', 'FOOSBALL', 'Foosball Table 1', 'building-1', 'AVAILABLE'),
+('darts-machine-1', 'DARTS', 'Darts Board 1', 'building-1', 'AVAILABLE'),
+('slot-machine-1', 'SLOT_MACHINE', 'Slot Machine 1', 'building-1', 'AVAILABLE');

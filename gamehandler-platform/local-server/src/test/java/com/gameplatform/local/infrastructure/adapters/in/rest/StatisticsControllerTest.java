@@ -28,7 +28,7 @@ class StatisticsControllerTest {
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.standaloneSetup(new StatisticsController(useCase, objectMapper))
+        mvc = MockMvcBuilders.standaloneSetup(new StatisticsController(useCase, objectMapper, "building-1"))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }

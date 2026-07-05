@@ -83,7 +83,11 @@ public class MainView extends Application {
         stage.show();
 
         navigateTo(VIEW_LOGIN);
-        statusBar.updateStatus("Disconnected");
+        if (mqttAdapter != null && mqttAdapter.isConnected()) {
+            statusBar.updateStatus("Connected to MQTT");
+        } else {
+            statusBar.updateStatus("Disconnected");
+        }
     }
 
     private Button createNavButton(String text, String viewName) {
@@ -120,6 +124,26 @@ public class MainView extends Application {
 
             MqttClientConfig mqttConfig = new MqttClientConfig(brokerUrl, clientId, buildingId);
             mqttAdapter = new MqttClientAdapter(mqttConfig);
+            mqttAdapter.setCallback(new org.eclipse.paho.client.mqttv3.MqttCallbackExtended() {
+                @Override
+                public void connectComplete(boolean reconnect, String serverURI) {
+                    javafx.application.Platform.runLater(() -> statusBar.updateStatus("Connected to MQTT"));
+                }
+
+                @Override
+                public void connectionLost(Throwable cause) {
+                    javafx.application.Platform.runLater(() -> {
+                        String msg = cause != null ? cause.getMessage() : "unknown reason";
+                        statusBar.updateStatus("Disconnected: " + msg);
+                    });
+                }
+
+                @Override
+                public void messageArrived(String topic, org.eclipse.paho.client.mqttv3.MqttMessage message) {}
+
+                @Override
+                public void deliveryComplete(org.eclipse.paho.client.mqttv3.IMqttDeliveryToken token) {}
+            });
             mqttAdapter.connect();
             statusBar.updateStatus("Connected to MQTT");
         } catch (Exception e) {

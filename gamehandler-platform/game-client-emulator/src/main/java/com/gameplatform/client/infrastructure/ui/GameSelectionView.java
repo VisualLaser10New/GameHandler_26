@@ -132,10 +132,14 @@ public class GameSelectionView {
         try {
             String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
             java.net.http.HttpClient client = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl);
-            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+            java.net.http.HttpRequest.Builder requestBuilder = java.net.http.HttpRequest.newBuilder()
                     .uri(java.net.URI.create(localServerUrl + "/api/games"))
-                    .GET()
-                    .build();
+                    .GET();
+            String token = com.gameplatform.client.infrastructure.security.HttpClientHelper.getToken();
+            if (token != null) {
+                requestBuilder.header("Authorization", "Bearer " + token);
+            }
+            java.net.http.HttpRequest request = requestBuilder.build();
             client.sendAsync(request, java.net.http.HttpResponse.BodyHandlers.ofString())
                     .thenAccept(response -> {
                         Platform.runLater(() -> {

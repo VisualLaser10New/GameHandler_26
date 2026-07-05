@@ -16,6 +16,16 @@ import java.security.SecureRandom;
  */
 public class HttpClientHelper {
 
+    private static volatile String token;
+
+    public static void setToken(String t) {
+        token = t;
+    }
+
+    public static String getToken() {
+        return token;
+    }
+
     public static HttpClient getHttpClient(String localServerUrl) {
         if (localServerUrl.startsWith("https://")) {
             try {
