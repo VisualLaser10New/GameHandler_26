@@ -18,9 +18,11 @@ import com.gameplatform.shared.mqtt.payload.SessionStartPayload;
 import com.gameplatform.local.domain.ports.in.CreateLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.JoinLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.StartLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.CancelLobbyUseCase;
 import com.gameplatform.shared.mqtt.payload.LobbyCreatePayload;
 import com.gameplatform.shared.mqtt.payload.LobbyJoinPayload;
 import com.gameplatform.shared.mqtt.payload.LobbyStartPayload;
+import com.gameplatform.shared.mqtt.payload.LobbyCancelPayload;
 import com.gameplatform.shared.domain.model.GameType;
 import org.springframework.stereotype.Component;
 
@@ -36,6 +38,7 @@ public class GameSessionListener {
     private final CreateLobbyUseCase createLobbyUseCase;
     private final JoinLobbyUseCase joinLobbyUseCase;
     private final StartLobbyUseCase startLobbyUseCase;
+    private final CancelLobbyUseCase cancelLobbyUseCase;
     private final ObjectMapper objectMapper;
 
     public GameSessionListener(
@@ -46,6 +49,7 @@ public class GameSessionListener {
             CreateLobbyUseCase createLobbyUseCase,
             JoinLobbyUseCase joinLobbyUseCase,
             StartLobbyUseCase startLobbyUseCase,
+            CancelLobbyUseCase cancelLobbyUseCase,
             ObjectMapper objectMapper) {
         this.startGameSessionUseCase = startGameSessionUseCase;
         this.endGameSessionUseCase = endGameSessionUseCase;
@@ -54,6 +58,7 @@ public class GameSessionListener {
         this.createLobbyUseCase = createLobbyUseCase;
         this.joinLobbyUseCase = joinLobbyUseCase;
         this.startLobbyUseCase = startLobbyUseCase;
+        this.cancelLobbyUseCase = cancelLobbyUseCase;
         this.objectMapper = objectMapper;
     }
 
@@ -78,6 +83,10 @@ public class GameSessionListener {
                         case "start" -> {
                             LobbyStartPayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyStartPayload.class);
                             startLobbyUseCase.startLobby(new GameSessionId(payloadDto.sessionId()));
+                        }
+                        case "cancel" -> {
+                            LobbyCancelPayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyCancelPayload.class);
+                            cancelLobbyUseCase.cancelLobby(new GameSessionId(payloadDto.sessionId()), new UserId(payloadDto.userId()));
                         }
                     }
                 }

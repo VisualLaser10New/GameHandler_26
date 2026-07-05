@@ -7,7 +7,10 @@ import com.gameplatform.shared.dto.LoginRequestDto;
 import com.gameplatform.shared.dto.LoginResponseDto;
 import com.gameplatform.shared.dto.SignupRequestDto;
 import com.gameplatform.shared.dto.SignupResponseDto;
+import com.gameplatform.shared.dto.UserInfoDto;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,5 +45,17 @@ public class AuthController {
                 user.getEmail()
         );
         return ResponseEntity.status(201).body(response);
+    }
+
+    /**
+     * Returns the username of the currently authenticated user.
+     * Used by the Game Client Emulator after login to identify itself.
+     *
+     * @param auth the Spring Security authentication object
+     * @return a {@link UserInfoDto} with the authenticated username
+     */
+    @GetMapping("/me")
+    public ResponseEntity<UserInfoDto> getCurrentUser(Authentication auth) {
+        return ResponseEntity.ok(new UserInfoDto(auth.getName()));
     }
 }

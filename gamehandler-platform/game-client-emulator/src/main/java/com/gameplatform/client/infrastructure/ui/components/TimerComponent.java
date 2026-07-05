@@ -57,4 +57,13 @@ public class TimerComponent extends HBox {
     public void stopTimer() {
         timeline.stop();
     }
+
+    /**
+     * Resumes the timer from where it was stopped, without resetting
+     * the elapsed time. Use this after {@link #stopTimer()} to continue
+     * counting from the last value (e.g. after a pause).
+     */
+    public void resumeTimer() {
+        timeline.play();
+    }
 }

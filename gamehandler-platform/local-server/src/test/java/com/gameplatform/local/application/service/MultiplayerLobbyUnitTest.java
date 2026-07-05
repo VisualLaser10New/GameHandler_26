@@ -76,7 +76,10 @@ class MultiplayerLobbyUnitTest {
         lenient().when(gameSessionRepository.findActiveByGameId(any())).thenAnswer(invocation -> {
             GameId id = invocation.getArgument(0);
             return sessionDb.values().stream()
-                    .filter(s -> s.getGameId().equals(id) && s.getStatus() == GameStatus.IN_PROGRESS)
+                    .filter(s -> s.getGameId().equals(id)
+                            && (s.getStatus() == GameStatus.IN_PROGRESS
+                                    || s.getStatus() == GameStatus.WAITING
+                                    || s.getStatus() == GameStatus.PAUSED))
                     .findFirst();
         });
 
@@ -261,5 +264,69 @@ class MultiplayerLobbyUnitTest {
         // Verify lobby aborted and game released (AVAILABLE)
         assertEquals(GameStatus.ABORTED, sessionDb.get(s1.getId().value()).getStatus());
         assertEquals(GameMachineStatus.AVAILABLE, gameDb.get("game-1").getStatus());
+    }
+
+    @Test
+    void testCreatorCancelLobbyWhenAloneReleasesGameMachine() {
+        Game g1 = new Game(new GameId("game-1"), GameType.FOOSBALL, "Foosball 1", new BuildingId("b-1"), GameMachineStatus.AVAILABLE);
+        gameDb.put("game-1", g1);
+
+        GameSession s1 = service.createLobby(g1.getId(), GameType.FOOSBALL, new UserId("user-1"));
+        assertEquals(GameMachineStatus.LOBBY, gameDb.get("game-1").getStatus());
+
+        // Creator goes back with no other players joined -> lobby cancelled, game released
+        service.cancelLobby(s1.getId(), new UserId("user-1"));
+
+        assertEquals(GameStatus.ABORTED, sessionDb.get(s1.getId().value()).getStatus());
+        assertEquals(GameMachineStatus.AVAILABLE, gameDb.get("game-1").getStatus());
+    }
+
+    @Test
+    void testCreatorCancelLobbyFailsWhenOthersJoined() {
+        Game g1 = new Game(new GameId("game-1"), GameType.FOOSBALL, "Foosball 1", new BuildingId("b-1"), GameMachineStatus.AVAILABLE);
+        gameDb.put("game-1", g1);
+
+        GameSession s1 = service.createLobby(g1.getId(), GameType.FOOSBALL, new UserId("user-1"));
+        service.joinLobby(s1.getId(), new UserId("user-2"));
+
+        // Creator attempts to cancel but another player has joined -> rejected, lobby stays active
+        assertThrows(IllegalStateException.class, () -> service.cancelLobby(s1.getId(), new UserId("user-1")));
+
+        assertEquals(GameStatus.WAITING, sessionDb.get(s1.getId().value()).getStatus());
+        assertEquals(GameMachineStatus.LOBBY, gameDb.get("game-1").getStatus());
+    }
+
+    @Test
+    void testNonCreatorCannotCancelLobby() {
+        Game g1 = new Game(new GameId("game-1"), GameType.FOOSBALL, "Foosball 1", new BuildingId("b-1"), GameMachineStatus.AVAILABLE);
+        gameDb.put("game-1", g1);
+
+        GameSession s1 = service.createLobby(g1.getId(), GameType.FOOSBALL, new UserId("user-1"));
+
+        // A user who is not the creator cannot cancel
+        assertThrows(IllegalStateException.class, () -> service.cancelLobby(s1.getId(), new UserId("someone-else")));
+        assertEquals(GameStatus.WAITING, sessionDb.get(s1.getId().value()).getStatus());
+        assertEquals(GameMachineStatus.LOBBY, gameDb.get("game-1").getStatus());
+    }
+
+    @Test
+    void testGetActiveLobbyReturnsWaitingSessionForGame() {
+        Game g1 = new Game(new GameId("game-1"), GameType.FOOSBALL, "Foosball 1", new BuildingId("b-1"), GameMachineStatus.AVAILABLE);
+        gameDb.put("game-1", g1);
+
+        // No lobby yet -> empty
+        assertTrue(service.getActiveLobby(g1.getId()).isEmpty());
+
+        GameSession s1 = service.createLobby(g1.getId(), GameType.FOOSBALL, new UserId("user-1"));
+
+        // Lobby created -> returned
+        java.util.Optional<GameSession> active = service.getActiveLobby(g1.getId());
+        assertTrue(active.isPresent());
+        assertEquals(s1.getId().value(), active.get().getId().value());
+        assertEquals(GameStatus.WAITING, active.get().getStatus());
+
+        // After cancellation (ABORTED) -> not returned as active lobby anymore
+        service.cancelLobby(s1.getId(), new UserId("user-1"));
+        assertTrue(service.getActiveLobby(g1.getId()).isEmpty());
     }
 }

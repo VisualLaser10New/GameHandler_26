@@ -2,6 +2,8 @@ package com.gameplatform.local.infrastructure.adapters.in.rest;
 
 import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.ports.in.GetAvailableGamesUseCase;
+import com.gameplatform.shared.domain.game.GameFactory;
+import com.gameplatform.shared.domain.game.GameLifecycle;
 import com.gameplatform.shared.dto.GameStateDto;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -41,12 +43,15 @@ public class GameController {
     }
 
     private GameStateDto toDto(Game game) {
+        GameLifecycle lifecycle = GameFactory.createGame(game.getGameType(), null);
         return new GameStateDto(
                 game.getId().id(),
                 game.getGameType(),
                 game.getName(),
                 game.getBuildingId().id(),
-                game.getStatus()
+                game.getStatus(),
+                lifecycle.getMinPlayers(),
+                lifecycle.getMaxPlayers()
         );
     }
 }

@@ -113,7 +113,7 @@ public class MqttConfig {
 
         // Subscribe to relevant topics
         String gameStateTopic = "building/" + buildingId + "/game/+/state";
-        String sessionTopic = "building/" + buildingId + "/game/+/session/+";
+        String sessionTopic = "building/" + buildingId + "/game/+/session/#";
         String heartbeatTopic = "building/" + buildingId + "/game/+/heartbeat";
         String heartbeatAckTopic = "building/" + buildingId + "/game/+/heartbeat/ack";
 

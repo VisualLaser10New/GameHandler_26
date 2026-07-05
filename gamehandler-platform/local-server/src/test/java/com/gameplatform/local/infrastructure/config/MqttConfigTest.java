@@ -65,7 +65,7 @@ class MqttConfigTest {
 
             // Assert subscriptions are now made
             verify(mockClientInstance).subscribe(eq("building/test-building/game/+/state"), eq(1), any());
-            verify(mockClientInstance).subscribe(eq("building/test-building/game/+/session/+"), eq(1), any());
+            verify(mockClientInstance).subscribe(eq("building/test-building/game/+/session/#"), eq(1), any());
             verify(mockClientInstance).subscribe(eq("building/test-building/game/+/heartbeat"), eq(0), any());
             verify(mockClientInstance).subscribe(eq("building/test-building/game/+/heartbeat/ack"), eq(0), any());
         }

@@ -68,6 +68,19 @@ class GameStateServiceTest {
     }
 
     @Test
+    void shouldNotSaveOrPublishWhenStatusIsUnchanged() {
+        // Guards against the MQTT echo loop: the local-server subscribes to the
+        // same state topic it publishes to, so an idempotent updateState must
+        // not re-save/re-publish when the status did not actually change.
+        Game g = game(GameMachineStatus.AVAILABLE);
+        when(gameRepository.findById(any())).thenReturn(Optional.of(g));
+        service.updateState(new GameId("game-1"), GameMachineStatus.AVAILABLE);
+        assertEquals(GameMachineStatus.AVAILABLE, g.getStatus());
+        verify(gameRepository, never()).save(any());
+        verify(publishGameStatePort, never()).publishState(any(), any());
+    }
+
+    @Test
     void shouldFailUpdateWhenGameNotFound() {
         when(gameRepository.findById(any())).thenReturn(Optional.empty());
         assertThrows(GameNotAvailableException.class, () ->

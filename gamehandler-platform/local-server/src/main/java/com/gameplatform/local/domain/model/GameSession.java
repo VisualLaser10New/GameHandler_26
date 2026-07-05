@@ -29,6 +29,11 @@ public class GameSession {
     private GameResult result;
     private List<UserId> participants;
 
+    // Pause tracking: when the session was paused, and how many seconds
+    // of pause have accumulated across all pause/resume cycles.
+    private Instant pausedAt;
+    private int accumulatedPausedSeconds;
+
     // Costruttore con partecipanti
     public GameSession(GameSessionId id, GameId gameId, GameType gameType, BuildingId buildingId, GameStatus status,
                        Instant startedAt, Instant endedAt, Integer durationSeconds, UserId winnerId,
@@ -125,22 +130,42 @@ public class GameSession {
     }
 
     public void pause() {
+        pause(Instant.now());
+    }
+
+    public void pause(Instant pausedAt) {
         if (this.status != GameStatus.IN_PROGRESS) {
             throw new InvalidGameStateTransitionException("Cannot pause session because its current status is: " + this.status);
         }
         this.status = GameStatus.PAUSED;
+        this.pausedAt = pausedAt;
     }
 
     public void resume() {
+        resume(Instant.now());
+    }
+
+    public void resume(Instant resumedAt) {
         if (this.status != GameStatus.PAUSED) {
             throw new InvalidGameStateTransitionException("Cannot resume session because its current status is: " + this.status);
         }
         this.status = GameStatus.IN_PROGRESS;
+        if (this.pausedAt != null) {
+            this.accumulatedPausedSeconds += (int) Duration.between(this.pausedAt, resumedAt).toSeconds();
+            this.pausedAt = null;
+        }
     }
 
     public void calculateDuration() {
         if (startedAt != null && endedAt != null) {
-            this.durationSeconds = (int) Duration.between(startedAt, endedAt).toSeconds();
+            int totalSeconds = (int) Duration.between(startedAt, endedAt).toSeconds();
+            // Subtract time spent in pause to get the effective play duration.
+            int pausedSeconds = accumulatedPausedSeconds;
+            if (pausedAt != null && !endedAt.isBefore(pausedAt)) {
+                // Session ended while paused — include the final pause interval.
+                pausedSeconds += (int) Duration.between(pausedAt, endedAt).toSeconds();
+            }
+            this.durationSeconds = Math.max(0, totalSeconds - pausedSeconds);
         }
     }
 
@@ -174,6 +199,14 @@ public class GameSession {
 
     public Integer getDurationSeconds() {
         return durationSeconds;
+    }
+
+    public Instant getPausedAt() {
+        return pausedAt;
+    }
+
+    public int getAccumulatedPausedSeconds() {
+        return accumulatedPausedSeconds;
     }
 
     public UserId getWinnerId() {

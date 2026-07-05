@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.*;
 import com.gameplatform.local.domain.ports.in.CreateLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.JoinLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.StartLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.CancelLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.GetActiveLobbyUseCase;
 import com.gameplatform.shared.dto.JoinSessionRequestDto;
 import java.util.List;
 
@@ -37,6 +39,8 @@ public class GameSessionController {
     private final CreateLobbyUseCase createLobbyUseCase;
     private final JoinLobbyUseCase joinLobbyUseCase;
     private final StartLobbyUseCase startLobbyUseCase;
+    private final CancelLobbyUseCase cancelLobbyUseCase;
+    private final GetActiveLobbyUseCase getActiveLobbyUseCase;
     private final ObjectMapper objectMapper;
 
     public GameSessionController(
@@ -47,6 +51,8 @@ public class GameSessionController {
             CreateLobbyUseCase createLobbyUseCase,
             JoinLobbyUseCase joinLobbyUseCase,
             StartLobbyUseCase startLobbyUseCase,
+            CancelLobbyUseCase cancelLobbyUseCase,
+            GetActiveLobbyUseCase getActiveLobbyUseCase,
             ObjectMapper objectMapper) {
         this.startGameSessionUseCase = startGameSessionUseCase;
         this.endGameSessionUseCase = endGameSessionUseCase;
@@ -55,6 +61,8 @@ public class GameSessionController {
         this.createLobbyUseCase = createLobbyUseCase;
         this.joinLobbyUseCase = joinLobbyUseCase;
         this.startLobbyUseCase = startLobbyUseCase;
+        this.cancelLobbyUseCase = cancelLobbyUseCase;
+        this.getActiveLobbyUseCase = getActiveLobbyUseCase;
         this.objectMapper = objectMapper;
     }
 
@@ -104,6 +112,26 @@ public class GameSessionController {
     public ResponseEntity<GameSessionDto> startLobby(@PathVariable String id) {
         GameSession session = startLobbyUseCase.startLobby(new GameSessionId(id));
         return ResponseEntity.ok(toDto(session));
+    }
+
+    @PostMapping("/{id}/cancel-lobby")
+    public ResponseEntity<GameSessionDto> cancelLobby(@PathVariable String id, @RequestBody JoinSessionRequestDto req) {
+        GameSession session = cancelLobbyUseCase.cancelLobby(new GameSessionId(id), new UserId(req.userId()));
+        return ResponseEntity.ok(toDto(session));
+    }
+
+    /**
+     * Returns the active lobby session (status = WAITING) for the given game
+     * machine, if any. Used by clients to discover the session id of an
+     * existing lobby so they can join it without relying on MQTT events.
+     * Returns 404 if no lobby is active for the game machine.
+     */
+    @GetMapping("/lobby/active")
+    public ResponseEntity<GameSessionDto> getActiveLobby(@RequestParam("gameId") String gameId) {
+        return getActiveLobbyUseCase.getActiveLobby(new GameId(gameId))
+                .map(this::toDto)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping("/{id}/end")

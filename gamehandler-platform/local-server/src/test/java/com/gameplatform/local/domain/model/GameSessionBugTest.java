@@ -22,16 +22,14 @@ class GameSessionBugTest {
     private static final BuildingId BUILDING_ID = new BuildingId("bld-1");
 
     /**
-     * BUG #1: calculateDuration() produces negative values when endedAt < startedAt.
+     * BUG #1 (FIXED): calculateDuration() now clamps to 0 when endedAt < startedAt.
      *
-     * In GameSession.calculateDuration() (line 133), Duration.between(startedAt, endedAt).toSeconds()
-     * will return a negative value if endedAt is before startedAt. This can happen due to clock
-     * skew or bugs in callers. The domain model does NOT guard against this.
-     *
-     * Impact: Negative duration stored in database, corrupts statistics.
+     * Previously Duration.between(startedAt, endedAt).toSeconds() returned a negative
+     * value when endedAt was before startedAt (clock skew). Now Math.max(0, ...)
+     * prevents negative durations from corrupting statistics.
      */
     @Test
-    @DisplayName("BUG #1: calculateDuration produces negative durationSeconds when endedAt < startedAt")
+    @DisplayName("BUG #1 FIXED: calculateDuration clamps to 0 when endedAt < startedAt")
     void calculateDuration_negativeWhenEndedAtBeforeStartedAt() {
         Instant startedAt = Instant.parse("2025-01-01T12:00:00Z");
         Instant endedAtBefore = startedAt.minus(Duration.ofMinutes(5));
@@ -42,13 +40,12 @@ class GameSessionBugTest {
                 null, null, null, List.of()
         );
 
-        // Complete with endedAt BEFORE startedAt
         session.complete(null, endedAtBefore);
 
-        // BUG: durationSeconds is negative (-300)
+        // FIXED: durationSeconds is clamped to 0, no longer negative
         assertNotNull(session.getDurationSeconds());
-        assertTrue(session.getDurationSeconds() < 0,
-                "BUG CONFIRMED: durationSeconds is negative: " + session.getDurationSeconds());
+        assertEquals(0, session.getDurationSeconds(),
+                "FIXED: durationSeconds is clamped to 0, was negative before fix");
     }
 
     /**

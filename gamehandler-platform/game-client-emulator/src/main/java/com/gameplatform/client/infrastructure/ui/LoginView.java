@@ -144,7 +144,27 @@ public class LoginView {
                                     com.gameplatform.shared.dto.LoginResponseDto loginResponse =
                                             responseMapper.readValue(response.body(), com.gameplatform.shared.dto.LoginResponseDto.class);
                                     com.gameplatform.client.infrastructure.security.HttpClientHelper.setToken(loginResponse.token());
-                                    
+
+                                    // Fetch the current username from /api/auth/me
+                                    String localServerUrl2 = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
+                                    java.net.http.HttpClient meClient = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl2);
+                                    java.net.http.HttpRequest meRequest = java.net.http.HttpRequest.newBuilder()
+                                            .uri(java.net.URI.create(localServerUrl2 + "/api/auth/me"))
+                                            .header("Authorization", "Bearer " + loginResponse.token())
+                                            .GET()
+                                            .build();
+                                    meClient.sendAsync(meRequest, java.net.http.HttpResponse.BodyHandlers.ofString())
+                                            .thenAccept(meResponse -> {
+                                                if (meResponse.statusCode() == 200) {
+                                                    try {
+                                                        ObjectMapper meMapper = new ObjectMapper();
+                                                        com.gameplatform.shared.dto.UserInfoDto userInfo =
+                                                                meMapper.readValue(meResponse.body(), com.gameplatform.shared.dto.UserInfoDto.class);
+                                                        com.gameplatform.client.infrastructure.security.HttpClientHelper.setCurrentUsername(userInfo.username());
+                                                    } catch (Exception ignored) {}
+                                                }
+                                            });
+
                                     errorLabel.setStyle("-fx-text-fill: #2ecc71;");
                                     errorLabel.setText("Login successful");
                                     if (onLoginSuccess != null) {

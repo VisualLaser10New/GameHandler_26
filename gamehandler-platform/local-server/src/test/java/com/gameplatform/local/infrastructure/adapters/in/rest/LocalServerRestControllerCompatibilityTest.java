@@ -78,6 +78,8 @@ class LocalServerRestControllerCompatibilityTest {
             assertThat(dto.name()).isEqualTo("Slot Machine 1");
             assertThat(dto.buildingId()).isEqualTo("bld-1");
             assertThat(dto.status()).isEqualTo(GameMachineStatus.AVAILABLE);
+            assertThat(dto.minPlayers()).isEqualTo(1);
+            assertThat(dto.maxPlayers()).isEqualTo(1);
         }
 
         @Test

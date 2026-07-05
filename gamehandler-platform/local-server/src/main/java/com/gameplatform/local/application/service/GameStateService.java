@@ -30,12 +30,24 @@ public class GameStateService implements UpdateGameStateUseCase, GetAvailableGam
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new GameNotAvailableException("Game machine not found: " + gameId.id()));
 
+        GameMachineStatus previousStatus = game.getStatus();
+
         // Enforce Clean Architecture state validation via domain methods
         switch (newStatus) {
             case AVAILABLE -> game.release();
             case RESERVED -> game.reserve();
             case IN_USE -> game.startUse();
             case MAINTENANCE -> game.setMaintenance();
+        }
+
+        // Idempotency: skip persistence and MQTT re-publish when the status is
+        // unchanged. The local-server is subscribed to the same
+        // building/{id}/game/+/state topic it publishes to, so echoing a
+        // no-op transition (e.g. AVAILABLE -> AVAILABLE, since Game.release()
+        // returns silently when already AVAILABLE) would otherwise cause an
+        // infinite MQTT echo loop hammering the database.
+        if (game.getStatus() == previousStatus) {
+            return;
         }
 
         gameRepository.save(game);

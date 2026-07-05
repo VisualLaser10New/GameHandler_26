@@ -42,7 +42,9 @@ class GameControllerTest {
                 .andExpect(jsonPath("$[0].gameType").value("CHESS"))
                 .andExpect(jsonPath("$[0].name").value("Chess Table"))
                 .andExpect(jsonPath("$[0].buildingId").value("b1"))
-                .andExpect(jsonPath("$[0].status").value("AVAILABLE"));
+                .andExpect(jsonPath("$[0].status").value("AVAILABLE"))
+                .andExpect(jsonPath("$[0].minPlayers").value(2))
+                .andExpect(jsonPath("$[0].maxPlayers").value(2));
     }
 
     @Test

@@ -133,6 +133,27 @@ public class StateSubscriber {
     }
 
     /**
+     * Subscribes to lobby event topics for a specific game.
+     * Topic pattern: {@code building/{buildingId}/game/{gameId}/session/lobby/+}
+     *
+     * @param gameId the game machine identifier to filter on
+     */
+    public void subscribeToLobbyEvents(String gameId) {
+        try {
+            String topicFilter = "building/" + buildingId + "/game/" + gameId + "/session/lobby/+";
+            log.info("Subscribing to lobby events topic: {}", topicFilter);
+            adapter.subscribe(topicFilter, 1, (topic, message) -> {
+                log.debug("Received lobby event on topic {}: {}", topic, new String(message.getPayload()));
+                if (messageHandler != null) {
+                    messageHandler.accept(topic, message.getPayload());
+                }
+            });
+        } catch (MqttException e) {
+            log.error("Failed to subscribe to lobby event topics: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
      * Subscribes to heartbeat acknowledgement topics for all games.
      * Topic pattern: {@code building/{buildingId}/game/+/heartbeat/ack}
      * QoS 0 (fire-and-forget).

@@ -452,14 +452,15 @@ class GameSessionTest {
         }
 
         @Test
-        void calculateDurationYieldsNegativeWhenEndedAtIsBeforeStartedAt() {
+        void calculateDurationClampsToZeroWhenEndedAtIsBeforeStartedAt() {
             GameSession session = new GameSession(new GameSessionId("s"), new GameId("g"),
                     GameType.CHESS, new BuildingId("b"), GameStatus.IN_PROGRESS, STARTED_AT,
                     STARTED_AT.minusSeconds(30), null, null, null, null, PARTICIPANTS);
 
             session.calculateDuration();
 
-            assertThat(session.getDurationSeconds()).isEqualTo(-30);
+            // Duration is clamped to 0 (no negative durations allowed)
+            assertThat(session.getDurationSeconds()).isZero();
         }
 
         @Test
@@ -488,7 +489,7 @@ class GameSessionTest {
         }
 
         @Test
-        void calculateDurationOverflowTruncatesToIntRangeWhenTooLarge() {
+        void calculateDurationClampsToZeroOnOverflowWhenTooLarge() {
             long seconds = (long) Integer.MAX_VALUE + 10L;
             GameSession session = new GameSession(new GameSessionId("s"), new GameId("g"),
                     GameType.CHESS, new BuildingId("b"), GameStatus.IN_PROGRESS, STARTED_AT,
@@ -497,8 +498,48 @@ class GameSessionTest {
 
             session.calculateDuration();
 
-            int expected = (int) seconds;
-            assertThat(session.getDurationSeconds()).isEqualTo(expected);
+            // The cast to int overflows to a negative value; Math.max(0, ...) clamps it to 0
+            assertThat(session.getDurationSeconds()).isZero();
+        }
+
+        @Test
+        void calculateDurationSubtractsPausedTime() {
+            GameSession session = new GameSession(new GameSessionId("s"), new GameId("g"),
+                    GameType.CHESS, new BuildingId("b"), GameStatus.IN_PROGRESS, STARTED_AT,
+                    null, null, null, null, null, PARTICIPANTS);
+
+            // Pause after 10s of play
+            Instant pausedAt = STARTED_AT.plusSeconds(10);
+            session.pause(pausedAt);
+            assertThat(session.getStatus()).isEqualTo(GameStatus.PAUSED);
+
+            // Resume 20s later (so 20s of pause)
+            Instant resumedAt = pausedAt.plusSeconds(20);
+            session.resume(resumedAt);
+            assertThat(session.getStatus()).isEqualTo(GameStatus.IN_PROGRESS);
+
+            // End 30s after resume (so 10 + 30 = 40s of actual play, 20s paused)
+            Instant endedAt = resumedAt.plusSeconds(30);
+            session.complete(null, endedAt);
+
+            // Total wall-clock = 60s, paused = 20s, effective = 40s
+            assertThat(session.getDurationSeconds()).isEqualTo(40);
+        }
+
+        @Test
+        void calculateDurationWhenEndedWhilePausedIncludesFinalPause() {
+            GameSession session = new GameSession(new GameSessionId("s"), new GameId("g"),
+                    GameType.CHESS, new BuildingId("b"), GameStatus.IN_PROGRESS, STARTED_AT,
+                    null, null, null, null, null, PARTICIPANTS);
+
+            // Pause after 10s
+            session.pause(STARTED_AT.plusSeconds(10));
+
+            // Abort while still paused, 15s into the pause
+            // Total wall = 25s, paused = 15s, effective = 10s
+            session.abort(StopReason.TIMEOUT, STARTED_AT.plusSeconds(25));
+
+            assertThat(session.getDurationSeconds()).isEqualTo(10);
         }
     }
 

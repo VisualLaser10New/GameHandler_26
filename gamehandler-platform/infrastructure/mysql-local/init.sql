@@ -16,7 +16,7 @@ CREATE TABLE game_catalog (
     game_type   VARCHAR(50) NOT NULL,
     name        VARCHAR(100) NOT NULL,
     building_id VARCHAR(36) NOT NULL,
-    status      ENUM('AVAILABLE','RESERVED','IN_USE','MAINTENANCE') DEFAULT 'AVAILABLE',
+    status      ENUM('AVAILABLE','RESERVED','IN_USE','MAINTENANCE','LOBBY') DEFAULT 'AVAILABLE',
     INDEX idx_building (building_id),
     INDEX idx_type (game_type)
 );

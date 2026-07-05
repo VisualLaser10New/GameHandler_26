@@ -17,6 +17,7 @@ import java.security.SecureRandom;
 public class HttpClientHelper {
 
     private static volatile String token;
+    private static volatile String currentUsername;
 
     public static void setToken(String t) {
         token = t;
@@ -26,6 +27,13 @@ public class HttpClientHelper {
         return token;
     }
 
+    public static void setCurrentUsername(String username) {
+        currentUsername = username;
+    }
+
+    public static String getCurrentUsername() {
+        return currentUsername;
+    }
     public static HttpClient getHttpClient(String localServerUrl) {
         if (localServerUrl.startsWith("https://")) {
             try {

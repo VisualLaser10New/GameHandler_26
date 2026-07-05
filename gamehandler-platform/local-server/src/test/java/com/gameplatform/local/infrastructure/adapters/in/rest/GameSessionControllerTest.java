@@ -31,6 +31,8 @@ class GameSessionControllerTest {
     @Mock private CreateLobbyUseCase createLobbyUseCase;
     @Mock private JoinLobbyUseCase joinLobbyUseCase;
     @Mock private StartLobbyUseCase startLobbyUseCase;
+    @Mock private CancelLobbyUseCase cancelLobbyUseCase;
+    @Mock private GetActiveLobbyUseCase getActiveLobbyUseCase;
     private MockMvc mvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -42,7 +44,7 @@ class GameSessionControllerTest {
                 com.gameplatform.local.infrastructure.config.JacksonConfig.GameResultMixIn.class);
 
         mvc = MockMvcBuilders.standaloneSetup(
-                new GameSessionController(startUseCase, endUseCase, pauseUseCase, resumeUseCase, createLobbyUseCase, joinLobbyUseCase, startLobbyUseCase, testMapper))
+                new GameSessionController(startUseCase, endUseCase, pauseUseCase, resumeUseCase, createLobbyUseCase, joinLobbyUseCase, startLobbyUseCase, cancelLobbyUseCase, getActiveLobbyUseCase, testMapper))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(testMapper))
                 .build();
@@ -113,5 +115,27 @@ class GameSessionControllerTest {
         mvc.perform(post("/api/sessions/s1/resume"))
                 .andExpect(status().isOk());
         verify(resumeUseCase).resume(new GameSessionId("s1"));
+    }
+
+    @Test
+    void getActiveLobbyReturns200WhenLobbyExists() throws Exception {
+        GameSession lobby = new GameSession(new GameSessionId("s1"), new GameId("g1"), GameType.CHESS,
+                new BuildingId("b1"), GameStatus.WAITING, Instant.parse("2026-02-01T10:00:00Z"),
+                null, null, null, null, null, List.of(new UserId("u1")));
+        when(getActiveLobbyUseCase.getActiveLobby(eq(new GameId("g1")))).thenReturn(java.util.Optional.of(lobby));
+
+        mvc.perform(get("/api/sessions/lobby/active").param("gameId", "g1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("s1"))
+                .andExpect(jsonPath("$.gameId").value("g1"))
+                .andExpect(jsonPath("$.status").value("WAITING"));
+    }
+
+    @Test
+    void getActiveLobbyReturns404WhenNoLobby() throws Exception {
+        when(getActiveLobbyUseCase.getActiveLobby(any())).thenReturn(java.util.Optional.empty());
+
+        mvc.perform(get("/api/sessions/lobby/active").param("gameId", "g1"))
+                .andExpect(status().isNotFound());
     }
 }

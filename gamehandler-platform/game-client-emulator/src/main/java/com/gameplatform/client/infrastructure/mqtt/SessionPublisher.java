@@ -159,4 +159,16 @@ public class SessionPublisher {
             log.error("Failed to publish lobby start", e);
         }
     }
+
+    public void publishLobbyCancel(String gameId, String sessionId, String userId) {
+        try {
+            String topic = "building/" + buildingId + "/game/" + gameId + "/session/lobby/cancel";
+            com.gameplatform.shared.mqtt.payload.LobbyCancelPayload payload = new com.gameplatform.shared.mqtt.payload.LobbyCancelPayload(sessionId, userId);
+            byte[] bytes = MqttPayloadSerializer.serialize(payload);
+            log.info("Publishing lobby cancel to topic {}: {}", topic, payload);
+            adapter.publish(topic, bytes, MqttQos.SESSION, false);
+        } catch (MqttException e) {
+            log.error("Failed to publish lobby cancel", e);
+        }
+    }
 }

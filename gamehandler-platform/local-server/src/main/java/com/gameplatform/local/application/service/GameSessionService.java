@@ -19,6 +19,8 @@ import com.gameplatform.local.domain.ports.in.StartGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.CreateLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.JoinLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.StartLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.CancelLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.GetActiveLobbyUseCase;
 import com.gameplatform.shared.domain.game.GameFactory;
 import com.gameplatform.shared.domain.game.GameLifecycle;
 import com.gameplatform.local.domain.ports.out.GameRepository;
@@ -43,7 +45,7 @@ import java.util.UUID;
 
 @Service
 @Transactional
-public class GameSessionService implements StartGameSessionUseCase, EndGameSessionUseCase, PauseGameSessionUseCase, ResumeGameSessionUseCase, CreateLobbyUseCase, JoinLobbyUseCase, StartLobbyUseCase {
+public class GameSessionService implements StartGameSessionUseCase, EndGameSessionUseCase, PauseGameSessionUseCase, ResumeGameSessionUseCase, CreateLobbyUseCase, JoinLobbyUseCase, StartLobbyUseCase, CancelLobbyUseCase, GetActiveLobbyUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(GameSessionService.class);
 
@@ -258,7 +260,7 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         GameSession session = gameSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Game session not found: " + sessionId.value()));
 
-        session.pause();
+        session.pause(Instant.now(clock));
         gameSessionRepository.save(session);
 
         Game game = gameRepository.findById(session.getGameId())
@@ -290,7 +292,7 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         GameSession session = gameSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Game session not found: " + sessionId.value()));
 
-        session.resume();
+        session.resume(Instant.now(clock));
         gameSessionRepository.save(session);
 
         Game game = gameRepository.findById(session.getGameId())
@@ -353,8 +355,14 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         // Publish to MQTT
         deferMqttPublish(() -> {
             publishGameStatePort.publishState(gameId, game.getStatus());
-            String topic = MqttTopics.sessionStart(game.getBuildingId().id(), gameId.id());
-            publishGameStatePort.publishSessionEvent(topic, savedSession);
+            String topic = lobbyTopic(session, "create");
+            com.gameplatform.shared.mqtt.payload.SessionStartPayload payload =
+                    new com.gameplatform.shared.mqtt.payload.SessionStartPayload(
+                            savedSession.getId().value(),
+                            savedSession.getGameType(),
+                            savedSession.getParticipants().stream().map(UserId::value).toList()
+                    );
+            publishGameStatePort.publishSessionEvent(topic, payload);
         });
 
         return savedSession;
@@ -381,8 +389,13 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
 
         // Publish to MQTT
         deferMqttPublish(() -> {
-            String topic = "building/" + session.getBuildingId().id() + "/game/" + session.getGameId().id() + "/session/join";
-            publishGameStatePort.publishSessionEvent(topic, savedSession);
+            String topic = lobbyTopic(session, "join");
+            com.gameplatform.shared.mqtt.payload.LobbyJoinPayload payload =
+                    new com.gameplatform.shared.mqtt.payload.LobbyJoinPayload(
+                            savedSession.getId().value(),
+                            userId.value()
+                    );
+            publishGameStatePort.publishSessionEvent(topic, payload);
         });
 
         return savedSession;
@@ -419,11 +432,64 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         // Publish to MQTT
         deferMqttPublish(() -> {
             publishGameStatePort.publishState(game.getId(), game.getStatus());
-            String topic = MqttTopics.sessionStart(game.getBuildingId().id(), game.getId().id());
+            String topic = lobbyTopic(session, "start");
             publishGameStatePort.publishSessionEvent(topic, savedSession);
         });
 
         return savedSession;
+    }
+
+    @Override
+    public GameSession cancelLobby(GameSessionId sessionId, UserId userId) {
+        GameSession session = gameSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Game session not found: " + sessionId.value()));
+
+        if (session.getStatus() != GameStatus.WAITING) {
+            throw new IllegalStateException("Session is not in WAITING (lobby) state");
+        }
+
+        // Only the creator (first participant) can cancel, and only if no other players have joined.
+        // If someone else has joined, the lobby must remain active.
+        if (session.getParticipants().isEmpty()
+                || !session.getParticipants().get(0).equals(userId)) {
+            throw new IllegalStateException("Only the lobby creator can cancel the lobby");
+        }
+        if (session.getParticipants().size() > 1) {
+            throw new IllegalStateException("Cannot cancel lobby: other players have joined");
+        }
+
+        // Cancel the lobby session
+        session.cancelLobby(Instant.now(clock));
+        GameSession savedSession = gameSessionRepository.save(session);
+
+        // Release the game machine back to AVAILABLE
+        Game game = gameRepository.findByIdForUpdate(session.getGameId())
+                .or(() -> gameRepository.findById(session.getGameId()))
+                .orElseThrow(() -> new GameNotAvailableException("Game machine not found: " + session.getGameId().id()));
+        game.release();
+        gameRepository.save(game);
+
+        // Publish game state change (AVAILABLE) and a lobby cancel event to MQTT
+        deferMqttPublish(() -> {
+            publishGameStatePort.publishState(game.getId(), game.getStatus());
+            String topic = lobbyTopic(session, "cancel");
+            publishGameStatePort.publishSessionEvent(topic, savedSession);
+        });
+
+        return savedSession;
+    }
+
+    private static String lobbyTopic(GameSession session, String action) {
+        return "building/" + session.getBuildingId().id()
+                + "/game/" + session.getGameId().id()
+                + "/session/lobby/" + action;
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public Optional<GameSession> getActiveLobby(GameId gameId) {
+        return gameSessionRepository.findActiveByGameId(gameId)
+                .filter(s -> s.getStatus() == GameStatus.WAITING);
     }
 
     private void deferMqttPublish(Runnable publishRunnable) {
