@@ -34,6 +34,7 @@ public class FoosballPanel implements GamePanel {
     private int score1 = 0;
     private int score2 = 0;
     private Consumer<Map<String, Integer>> scoreConsumer;
+    private ScorePublisher scorePublisher;
 
     public FoosballPanel() {
         root = new VBox(16);
@@ -133,12 +134,52 @@ public class FoosballPanel implements GamePanel {
         this.scoreConsumer = scoreConsumer;
     }
 
+    @Override
+    public void setScorePublisher(ScorePublisher scorePublisher) {
+        this.scorePublisher = scorePublisher;
+    }
+
+    @Override
+    public void onRemoteScore(Map<String, Integer> remoteScores) {
+        // Apply a score snapshot from a remote client so both emulators
+        // show the same score.  Look up by team name to preserve the
+        // local name mapping (which may differ from the remote's).
+        if (remoteScores != null) {
+            Integer s1 = remoteScores.get(team1Name);
+            Integer s2 = remoteScores.get(team2Name);
+            // Fall back to positional lookup if names differ.
+            if (s1 == null && remoteScores.size() >= 1) {
+                s1 = remoteScores.values().stream().findFirst().orElse(score1);
+            }
+            if (s2 == null && remoteScores.size() >= 2) {
+                s2 = remoteScores.values().stream().skip(1).findFirst().orElse(score2);
+            }
+            if (s1 != null) score1 = s1;
+            if (s2 != null) score2 = s2;
+            updateScoreLabels();
+        }
+    }
+
     private void publishScore() {
         if (scoreConsumer != null) {
             Map<String, Integer> snapshot = new LinkedHashMap<>();
             snapshot.put(team1Name, score1);
             snapshot.put(team2Name, score2);
             scoreConsumer.accept(snapshot);
+        }
+    }
+
+    /**
+     * Broadcasts the current score snapshot to the other emulators so
+     * every client shows the same score.  Called after a local goal /
+     * undo.
+     */
+    private void broadcastScore() {
+        if (scorePublisher != null) {
+            Map<String, Integer> snapshot = new LinkedHashMap<>();
+            snapshot.put(team1Name, score1);
+            snapshot.put(team2Name, score2);
+            scorePublisher.publish(snapshot);
         }
     }
 
@@ -158,12 +199,14 @@ public class FoosballPanel implements GamePanel {
         if (team == 1) score1++;
         else score2++;
         updateScoreLabels();
+        broadcastScore();
     }
 
     private void undoGoal(int team) {
         if (team == 1 && score1 > 0) score1--;
         else if (team == 2 && score2 > 0) score2--;
         updateScoreLabels();
+        broadcastScore();
     }
 
     private void updateScoreLabels() {

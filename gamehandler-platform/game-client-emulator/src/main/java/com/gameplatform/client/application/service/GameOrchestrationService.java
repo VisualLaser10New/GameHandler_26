@@ -117,6 +117,24 @@ public class GameOrchestrationService {
         stopGame(reason, null, WinCondition.DRAW, null);
     }
 
+    /**
+     * Clears all internal game state without publishing an MQTT
+     * session/end event. Used when the <em>remote</em> player ends
+     * the match: the local client must release its state so a new
+     * game can be started later, but must NOT re-publish the end
+     * event (which would cause an echo loop or double-processing
+     * on the server).
+     */
+    public void forceClear() {
+        log.info("Force-clearing game state (remote end). Session was: {}",
+                currentSessionId != null ? currentSessionId.value() : "none");
+        currentGame = null;
+        currentSessionId = null;
+        currentGameType = null;
+        currentParticipants = null;
+        pendingStarts.clear();
+    }
+
     public void pauseGame() {
         if (currentGame == null) {
             log.warn("pauseGame called but no game is currently running");

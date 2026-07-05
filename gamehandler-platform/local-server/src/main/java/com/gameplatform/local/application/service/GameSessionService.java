@@ -330,6 +330,16 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                 .or(() -> gameRepository.findById(gameId))
                 .orElseThrow(() -> new GameNotAvailableException("Game machine not found: " + gameId.id()));
 
+        // If the game machine is stuck in a stale LOBBY status (a previous
+        // lobby session was aborted/cancelled but the game_catalog was not
+        // updated back to AVAILABLE — e.g. client crash before the cancel
+        // MQTT echo arrived), release it first so we can create a new
+        // lobby.  This is safe because we already verified above that no
+        // active session (WAITING/IN_PROGRESS/PAUSED) exists for this game.
+        if (game.getStatus() == GameMachineStatus.LOBBY) {
+            game.release();
+        }
+
         // Set game status to LOBBY
         game.setLobby();
         gameRepository.save(game);
@@ -448,14 +458,13 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
             throw new IllegalStateException("Session is not in WAITING (lobby) state");
         }
 
-        // Only the creator (first participant) can cancel, and only if no other players have joined.
-        // If someone else has joined, the lobby must remain active.
+        // Only the creator (first participant) can cancel.  We no longer
+        // restrict cancellation based on participant count: if the creator
+        // leaves, the lobby should be torn down regardless of whether other
+        // players had joined (they may have already disconnected).
         if (session.getParticipants().isEmpty()
                 || !session.getParticipants().get(0).equals(userId)) {
             throw new IllegalStateException("Only the lobby creator can cancel the lobby");
-        }
-        if (session.getParticipants().size() > 1) {
-            throw new IllegalStateException("Cannot cancel lobby: other players have joined");
         }
 
         // Cancel the lobby session

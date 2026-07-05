@@ -3,8 +3,8 @@ package com.gameplatform.client.infrastructure.ui.panels;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
+import javafx.scene.input.*;
 import javafx.scene.layout.*;
-import javafx.scene.text.Text;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,9 +18,9 @@ import java.util.List;
  */
 public class ChessPanel implements GamePanel {
 
-    // Unicode chess pieces: index 0=white, 1=black; piece order: K,Q,R,B,N,P
-    private static final String[] WHITE = {"♔", "♕", "♖", "♗", "♘", "♙"};
-    private static final String[] BLACK = {"♚", "♛", "♜", "♝", "♞", "♟"};
+    // Unicode chess pieces
+    private static final java.util.Set<String> WHITE_PIECES = java.util.Set.of("♔","♕","♖","♗","♘","♙");
+    private static final java.util.Set<String> BLACK_PIECES = java.util.Set.of("♚","♛","♜","♝","♞","♟");
 
     private static final String[][] INITIAL_BOARD = {
         {"♜","♞","♝","♛","♚","♝","♞","♜"},
@@ -46,6 +46,9 @@ public class ChessPanel implements GamePanel {
 
     private List<String> players = new ArrayList<>();
     private int turnIndex = 0;
+    private TurnPublisher turnPublisher;
+    private MovePublisher movePublisher;
+    private String currentUser = "";
 
     public ChessPanel() {
         root = new VBox(12);
@@ -110,9 +113,51 @@ public class ChessPanel implements GamePanel {
         capturedLabel.setText("Mangiati: nessuno");
         initBoard();
         updateTurnLabel();
-        endTurnButton.setDisable(false);
-        captureButton.setDisable(false);
-        captureCombo.setDisable(false);
+        applyTurnControls();
+    }
+
+    @Override
+    public void setTurnContext(TurnPublisher turnPublisher, String currentUser) {
+        this.turnPublisher = turnPublisher;
+        this.currentUser = currentUser != null ? currentUser : "";
+        applyTurnControls();
+    }
+
+    @Override
+    public void setMovePublisher(MovePublisher movePublisher) {
+        this.movePublisher = movePublisher;
+    }
+
+    @Override
+    public void onRemoteTurnUpdate(int newTurnIndex, String playerName) {
+        if (newTurnIndex >= 0 && newTurnIndex < players.size()) {
+            this.turnIndex = newTurnIndex;
+            updateTurnLabel();
+            applyTurnControls();
+        }
+    }
+
+    @Override
+    public void onRemoteMove(int fromRow, int fromCol, int toRow, int toCol, String capturedPiece) {
+        // Apply a move made by the remote player so the local board
+        // stays in sync with the opponent's view.  This is invoked from
+        // the JavaFX thread by GamePlayView.
+        String piece = board[fromRow][fromCol];
+        if (piece.isEmpty()) return; // stale/invalid move
+        // Record a capture if the remote reported one (or if the local
+        // board still has an enemy piece on the target cell).
+        String target = board[toRow][toCol];
+        if (capturedPiece != null && !capturedPiece.isEmpty()) {
+            capturedPieces.add(capturedPiece);
+            capturedLabel.setText("Mangiati: " + String.join(", ", capturedPieces));
+        } else if (!target.isEmpty() && !target.equals(piece)) {
+            capturedPieces.add(target);
+            capturedLabel.setText("Mangiati: " + String.join(", ", capturedPieces));
+        }
+        board[toRow][toCol] = piece;
+        board[fromRow][fromCol] = "";
+        cells[toRow][toCol].setText(piece);
+        cells[fromRow][fromCol].setText("");
     }
 
     @Override
@@ -129,25 +174,129 @@ public class ChessPanel implements GamePanel {
         for (int row = 0; row < 8; row++) {
             for (int col = 0; col < 8; col++) {
                 board[row][col] = INITIAL_BOARD[row][col];
+                final int r = row;
+                final int c = col;
                 boolean lightSquare = (row + col) % 2 == 0;
                 Label cell = new Label(board[row][col]);
-                cell.setMinSize(46, 46);
+                cell.setMinSize(52, 52);
                 cell.setAlignment(Pos.CENTER);
                 cell.setStyle(
-                    "-fx-font-size: 26; " +
+                    "-fx-font-size: 28; " +
                     "-fx-background-color: " + (lightSquare ? "#f0d9b5" : "#b58863") + "; " +
                     "-fx-border-color: transparent;"
                 );
                 cells[row][col] = cell;
+
+                // ── Drag-and-drop: start dragging a piece ──
+                cell.setOnDragDetected(e -> {
+                    String piece = board[r][c];
+                    if (piece.isEmpty() || !isMyTurn() || !isMyPiece(piece)) {
+                        e.consume();
+                        return;
+                    }
+                    Dragboard db = cell.startDragAndDrop(TransferMode.MOVE);
+                    ClipboardContent content = new ClipboardContent();
+                    content.putString(r + "," + c);
+                    db.setContent(content);
+                    e.consume();
+                });
+
+                // ── Drag-and-drop: accept drag over a target cell ──
+                cell.setOnDragOver(e -> {
+                    if (e.getGestureSource() != cell
+                            && e.getDragboard().hasString()
+                            && isMyTurn()) {
+                        e.acceptTransferModes(TransferMode.MOVE);
+                    }
+                    e.consume();
+                });
+
+                // ── Drag-and-drop: drop the piece on this cell ──
+                cell.setOnDragDropped(e -> {
+                    Dragboard db = e.getDragboard();
+                    boolean success = false;
+                    if (db.hasString()) {
+                        String[] src = db.getString().split(",");
+                        int srcRow = Integer.parseInt(src[0]);
+                        int srcCol = Integer.parseInt(src[1]);
+                        String piece = board[srcRow][srcCol];
+                        if (!piece.isEmpty() && isMyPiece(piece)
+                                && !(srcRow == r && srcCol == c)) {
+                            // Capture: if target has an enemy piece, record it
+                            String target = board[r][c];
+                            String captured = null;
+                            if (!target.isEmpty()) {
+                                capturedPieces.add(target);
+                                captured = target;
+                                capturedLabel.setText("Mangiati: " + String.join(", ", capturedPieces));
+                            }
+                            // Move the piece
+                            board[r][c] = piece;
+                            board[srcRow][srcCol] = "";
+                            cells[r][c].setText(piece);
+                            cells[srcRow][srcCol].setText("");
+                            // Broadcast the move to the remote emulator
+                            if (movePublisher != null) {
+                                movePublisher.publish(srcRow, srcCol, r, c, captured);
+                            }
+                            success = true;
+                        }
+                    }
+                    e.setDropCompleted(success);
+                    e.consume();
+                });
+
+                cell.setOnDragDone(DragEvent::consume);
+
                 boardGrid.add(cell, col, row);
             }
         }
+    }
+
+    /** Returns true if it is the local user's turn. */
+    private boolean isMyTurn() {
+        return !players.isEmpty()
+                && !currentUser.isBlank()
+                && currentUser.equals(players.get(turnIndex));
+    }
+
+    /**
+     * Returns true if the given Unicode chess piece belongs to the
+     * player whose turn it currently is. Player 0 (turnIndex even)
+     * controls White; player 1 (turnIndex odd) controls Black.
+     */
+    private boolean isMyPiece(String piece) {
+        boolean white = turnIndex % 2 == 0;
+        return white ? WHITE_PIECES.contains(piece) : BLACK_PIECES.contains(piece);
     }
 
     private void endTurn() {
         if (players.isEmpty()) return;
         turnIndex = (turnIndex + 1) % players.size();
         updateTurnLabel();
+        applyTurnControls();
+        broadcastTurn();
+    }
+
+    private void broadcastTurn() {
+        if (turnPublisher != null && !players.isEmpty()) {
+            turnPublisher.publish(turnIndex, players.get(turnIndex));
+        }
+    }
+
+    /**
+     * Enables the "Fine Turno" / capture controls only when it is the
+     * local user's turn. Prevents both emulators from acting at the
+     * same time — the root cause of the bug where both players saw
+     * simultaneously "their" turn.
+     */
+    private void applyTurnControls() {
+        boolean myTurn = !players.isEmpty()
+                && !currentUser.isBlank()
+                && currentUser.equals(players.get(turnIndex));
+        endTurnButton.setDisable(!myTurn);
+        captureButton.setDisable(!myTurn);
+        captureCombo.setDisable(!myTurn);
     }
 
     private void updateTurnLabel() {

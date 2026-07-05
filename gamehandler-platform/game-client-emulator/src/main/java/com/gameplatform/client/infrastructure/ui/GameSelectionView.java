@@ -5,6 +5,7 @@ import com.gameplatform.client.infrastructure.mqtt.StateSubscriber;
 import com.gameplatform.shared.dto.GameStateDto;
 import com.gameplatform.shared.domain.model.GameMachineStatus;
 import com.gameplatform.shared.mqtt.MqttPayloadSerializer;
+import com.gameplatform.shared.mqtt.payload.GameStatePayload;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -60,9 +61,12 @@ public class GameSelectionView {
                 if (empty || item == null) {
                     setText(null);
                 } else {
-                    setText(item.name() + "  [" + item.gameType() + "]  -  " + item.status());
+                    String suffix = item.status() == GameMachineStatus.LOBBY ? "  (lobby aperta)" : "";
+                    setText(item.name() + "  [" + item.gameType() + "]  -  " + item.status() + suffix);
                     if (item.status() == GameMachineStatus.AVAILABLE) {
                         setStyle("-fx-text-fill: #2ecc71;");
+                    } else if (item.status() == GameMachineStatus.LOBBY) {
+                        setStyle("-fx-text-fill: #9b59b6;");
                     } else if (item.status() == GameMachineStatus.IN_USE) {
                         setStyle("-fx-text-fill: #e74c3c;");
                     } else {
@@ -96,14 +100,28 @@ public class GameSelectionView {
             }
         });
         gameList.getSelectionModel().selectedItemProperty().addListener((obs, old, sel) -> {
-            playButton.setDisable(sel == null || sel.status() != GameMachineStatus.AVAILABLE);
+            // Allow selecting AVAILABLE games (to create a new lobby) and
+            // LOBBY games (to join an existing lobby). IN_USE, RESERVED and
+            // MAINTENANCE games cannot be joined.
+            boolean selectable = sel != null
+                    && (sel.status() == GameMachineStatus.AVAILABLE
+                        || sel.status() == GameMachineStatus.LOBBY);
+            playButton.setDisable(!selectable);
         });
 
         if (mqttAdapter != null && buildingId != null) {
             StateSubscriber subscriber = new StateSubscriber(mqttAdapter, buildingId, (topic, payload) -> {
                 try {
-                    GameStateDto state = MqttPayloadSerializer.deserialize(payload, GameStateDto.class);
-                    Platform.runLater(() -> updateGameState(state));
+                    // The server publishes a lightweight GameStatePayload
+                    // ({gameId, status, userId}) on the state topic — NOT a
+                    // full GameStateDto.  Deserializing it as GameStateDto
+                    // fails (unknown 'userId' property) and the update is
+                    // silently dropped, leaving the list stale.  Parse the
+                    // correct type and merge only the status into the
+                    // existing cached game entry, preserving name/gameType/
+                    // minPlayers/maxPlayers/buildingId from the REST load.
+                    GameStatePayload stateMsg = MqttPayloadSerializer.deserialize(payload, GameStatePayload.class);
+                    Platform.runLater(() -> updateGameStatus(stateMsg.gameId(), stateMsg.status()));
                 } catch (Exception e) {
                     // ignore deserialize errors on wildcard topics
                 }
@@ -169,19 +187,33 @@ public class GameSelectionView {
     }
 
     /**
-     * Merges a single state update (received via MQTT) into the current
-     * game list, adding the game if it is not yet present.
+     * Merges a status update (received via MQTT as a
+     * {@link GameStatePayload}) into the current game list, preserving
+     * the full game descriptor (name, gameType, min/max players,
+     * buildingId) loaded from REST. Only the {@code status} field is
+     * replaced.
      *
-     * @param state the updated game state
+     * @param gameId   the game machine identifier whose status changed
+     * @param newStatus the new machine status
      */
-    private void updateGameState(GameStateDto state) {
+    private void updateGameStatus(String gameId, GameMachineStatus newStatus) {
         for (int i = 0; i < games.size(); i++) {
-            if (games.get(i).gameId().equals(state.gameId())) {
-                games.set(i, state);
+            GameStateDto existing = games.get(i);
+            if (existing.gameId().equals(gameId)) {
+                games.set(i, new GameStateDto(
+                        existing.gameId(),
+                        existing.gameType(),
+                        existing.name(),
+                        existing.buildingId(),
+                        newStatus,
+                        existing.minPlayers(),
+                        existing.maxPlayers()
+                ));
                 return;
             }
         }
-        games.add(state);
+        // Game not in the list yet (shouldn't happen for state-only
+        // updates); ignore rather than add a corrupted partial entry.
     }
 
     /**

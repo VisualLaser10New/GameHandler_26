@@ -30,6 +30,8 @@ public class RiskPanel implements GamePanel {
     private final Map<String, Integer> armies = new LinkedHashMap<>();
     private int turnIndex = 0;
     private final Random rng = new Random();
+    private TurnPublisher turnPublisher;
+    private String currentUser = "";
 
     public RiskPanel() {
         root = new VBox(14);
@@ -102,14 +104,25 @@ public class RiskPanel implements GamePanel {
         if (!participants.isEmpty()) attackerCombo.setValue(participants.get(0));
         if (participants.size() >= 2) defenderCombo.setValue(participants.get(1));
 
-        attackerCombo.setDisable(false);
-        defenderCombo.setDisable(false);
-        diceCombo.setDisable(false);
-        attackButton.setDisable(false);
-        endTurnButton.setDisable(false);
-
         updateTurnLabel();
+        applyTurnControls();
         refreshArmiesBox();
+    }
+
+    @Override
+    public void setTurnContext(TurnPublisher turnPublisher, String currentUser) {
+        this.turnPublisher = turnPublisher;
+        this.currentUser = currentUser != null ? currentUser : "";
+        applyTurnControls();
+    }
+
+    @Override
+    public void onRemoteTurnUpdate(int newTurnIndex, String playerName) {
+        if (newTurnIndex >= 0 && newTurnIndex < players.size()) {
+            this.turnIndex = newTurnIndex;
+            updateTurnLabel();
+            applyTurnControls();
+        }
     }
 
     @Override
@@ -177,6 +190,29 @@ public class RiskPanel implements GamePanel {
         turnIndex = (turnIndex + 1) % players.size();
         updateTurnLabel();
         battleResultLabel.setText(" ");
+        applyTurnControls();
+        broadcastTurn();
+    }
+
+    private void broadcastTurn() {
+        if (turnPublisher != null && !players.isEmpty()) {
+            turnPublisher.publish(turnIndex, players.get(turnIndex));
+        }
+    }
+
+    /**
+     * Enables attack / end-turn controls only when it is the local
+     * user's turn, so all emulators agree on the active player.
+     */
+    private void applyTurnControls() {
+        boolean myTurn = !players.isEmpty()
+                && !currentUser.isBlank()
+                && currentUser.equals(players.get(turnIndex));
+        endTurnButton.setDisable(!myTurn);
+        attackerCombo.setDisable(!myTurn);
+        defenderCombo.setDisable(!myTurn);
+        diceCombo.setDisable(!myTurn);
+        attackButton.setDisable(!myTurn);
     }
 
     private void updateTurnLabel() {

@@ -223,7 +223,7 @@ class MultiplayerLobbyUnitTest {
     }
 
     @Test
-    void testLobbyExpirationAfter10Minutes() {
+    void testLobbyExpirationAfter2Minutes() {
         // Setup Foosball game
         Game g1 = new Game(new GameId("game-1"), GameType.FOOSBALL, "Foosball 1", new BuildingId("b-1"), GameMachineStatus.AVAILABLE);
         gameDb.put("game-1", g1);
@@ -231,35 +231,35 @@ class MultiplayerLobbyUnitTest {
         // Create Lobby
         GameSession s1 = service.createLobby(g1.getId(), GameType.FOOSBALL, new UserId("user-1"));
 
-        // Before 10 minutes (e.g. 5 minutes later)
-        Instant fiveMinLater = NOW.plus(5, java.time.temporal.ChronoUnit.MINUTES);
-        Clock clockFiveMin = mock(Clock.class);
-        when(clockFiveMin.instant()).thenReturn(fiveMinLater);
-        
-        LobbyExpirationService expirationService5 = new LobbyExpirationService(
+        // Before 2 minutes (e.g. 1 minute later) — lobby should still be active
+        Instant oneMinLater = NOW.plus(1, java.time.temporal.ChronoUnit.MINUTES);
+        Clock clockOneMin = mock(Clock.class);
+        when(clockOneMin.instant()).thenReturn(oneMinLater);
+
+        LobbyExpirationService expirationService1 = new LobbyExpirationService(
                 gameSessionRepository,
                 gameRepository,
                 publishGameStatePort,
-                clockFiveMin
+                clockOneMin
         );
-        expirationService5.expireLobbies();
+        expirationService1.expireLobbies();
 
         // Verify lobby still WAITING and game still LOBBY
         assertEquals(GameStatus.WAITING, sessionDb.get(s1.getId().value()).getStatus());
         assertEquals(GameMachineStatus.LOBBY, gameDb.get("game-1").getStatus());
 
-        // After 10 minutes (e.g. 11 minutes later)
-        Instant elevenMinLater = NOW.plus(11, java.time.temporal.ChronoUnit.MINUTES);
-        Clock clockElevenMin = mock(Clock.class);
-        when(clockElevenMin.instant()).thenReturn(elevenMinLater);
+        // After 2 minutes (e.g. 3 minutes later)
+        Instant threeMinLater = NOW.plus(3, java.time.temporal.ChronoUnit.MINUTES);
+        Clock clockThreeMin = mock(Clock.class);
+        when(clockThreeMin.instant()).thenReturn(threeMinLater);
 
-        LobbyExpirationService expirationService11 = new LobbyExpirationService(
+        LobbyExpirationService expirationService3 = new LobbyExpirationService(
                 gameSessionRepository,
                 gameRepository,
                 publishGameStatePort,
-                clockElevenMin
+                clockThreeMin
         );
-        expirationService11.expireLobbies();
+        expirationService3.expireLobbies();
 
         // Verify lobby aborted and game released (AVAILABLE)
         assertEquals(GameStatus.ABORTED, sessionDb.get(s1.getId().value()).getStatus());
@@ -282,18 +282,22 @@ class MultiplayerLobbyUnitTest {
     }
 
     @Test
-    void testCreatorCancelLobbyFailsWhenOthersJoined() {
+    void testCreatorCancelLobbySucceedsEvenWhenOthersJoined() {
+        // The creator can cancel the lobby even if other players have
+        // joined — they may have already disconnected, and leaving the
+        // lobby stuck would block the game machine until the expiration
+        // timer kicks in.  Only the creator (first participant) may cancel.
         Game g1 = new Game(new GameId("game-1"), GameType.FOOSBALL, "Foosball 1", new BuildingId("b-1"), GameMachineStatus.AVAILABLE);
         gameDb.put("game-1", g1);
 
         GameSession s1 = service.createLobby(g1.getId(), GameType.FOOSBALL, new UserId("user-1"));
         service.joinLobby(s1.getId(), new UserId("user-2"));
 
-        // Creator attempts to cancel but another player has joined -> rejected, lobby stays active
-        assertThrows(IllegalStateException.class, () -> service.cancelLobby(s1.getId(), new UserId("user-1")));
+        // Creator cancels — should succeed, lobby aborted, game released
+        service.cancelLobby(s1.getId(), new UserId("user-1"));
 
-        assertEquals(GameStatus.WAITING, sessionDb.get(s1.getId().value()).getStatus());
-        assertEquals(GameMachineStatus.LOBBY, gameDb.get("game-1").getStatus());
+        assertEquals(GameStatus.ABORTED, sessionDb.get(s1.getId().value()).getStatus());
+        assertEquals(GameMachineStatus.AVAILABLE, gameDb.get("game-1").getStatus());
     }
 
     @Test

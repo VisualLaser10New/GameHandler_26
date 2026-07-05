@@ -107,12 +107,12 @@ public class DartsGame implements GameLifecycle {
 
     @Override
     public int getMinPlayers() {
-        return 1;
+        return 2;
     }
 
     @Override
     public int getMaxPlayers() {
-        return 8;
+        return 3;
     }
 
     public void recordScore(UserId player, int delta) {

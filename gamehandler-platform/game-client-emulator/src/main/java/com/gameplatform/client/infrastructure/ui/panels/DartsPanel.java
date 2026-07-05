@@ -31,6 +31,9 @@ public class DartsPanel implements GamePanel {
     private final Map<String, Integer> scores = new LinkedHashMap<>();
     private int turnIndex = 0;
     private Consumer<Map<String, Integer>> scoreConsumer;
+    private TurnPublisher turnPublisher;
+    private ScorePublisher scorePublisher;
+    private String currentUser = "";
 
     public DartsPanel() {
         root = new VBox(14);
@@ -82,10 +85,30 @@ public class DartsPanel implements GamePanel {
         scores.clear();
         for (String p : participants) scores.put(p, 0);
 
-        scoreSpinner.setDisable(false);
-        recordButton.setDisable(false);
-        endTurnButton.setDisable(false);
         updateTurnLabel();
+        applyTurnControls();
+        refreshScoreboard();
+    }
+
+    @Override
+    public void setScoreConsumer(Consumer<Map<String, Integer>> scoreConsumer) {
+        this.scoreConsumer = scoreConsumer;
+    }
+
+    @Override
+    public void setScorePublisher(ScorePublisher scorePublisher) {
+        this.scorePublisher = scorePublisher;
+    }
+
+    @Override
+    public void onRemoteScore(Map<String, Integer> remoteScores) {
+        // Apply a score snapshot from a remote player so the local
+        // panel and scoreboard stay in sync.  Replace the entire map
+        // (the snapshot is authoritative) and refresh the UI.
+        scores.clear();
+        if (remoteScores != null) {
+            scores.putAll(remoteScores);
+        }
         refreshScoreboard();
     }
 
@@ -99,8 +122,19 @@ public class DartsPanel implements GamePanel {
     }
 
     @Override
-    public void setScoreConsumer(Consumer<Map<String, Integer>> scoreConsumer) {
-        this.scoreConsumer = scoreConsumer;
+    public void setTurnContext(TurnPublisher turnPublisher, String currentUser) {
+        this.turnPublisher = turnPublisher;
+        this.currentUser = currentUser != null ? currentUser : "";
+        applyTurnControls();
+    }
+
+    @Override
+    public void onRemoteTurnUpdate(int newTurnIndex, String playerName) {
+        if (newTurnIndex >= 0 && newTurnIndex < players.size()) {
+            this.turnIndex = newTurnIndex;
+            updateTurnLabel();
+            applyTurnControls();
+        }
     }
 
     private void publishScore() {
@@ -131,6 +165,18 @@ public class DartsPanel implements GamePanel {
         scores.merge(current, val, Integer::sum);
         scoreSpinner.getValueFactory().setValue(0);
         refreshScoreboard();
+        broadcastScore();
+    }
+
+    /**
+     * Broadcasts the current score snapshot to the other emulators so
+     * every client shows the same scoreboard.  Called after a local
+     * throw is recorded.
+     */
+    private void broadcastScore() {
+        if (scorePublisher != null) {
+            scorePublisher.publish(new LinkedHashMap<>(scores));
+        }
     }
 
     private void endTurn() {
@@ -138,6 +184,28 @@ public class DartsPanel implements GamePanel {
         turnIndex = (turnIndex + 1) % players.size();
         scoreSpinner.getValueFactory().setValue(0);
         updateTurnLabel();
+        applyTurnControls();
+        broadcastTurn();
+    }
+
+    private void broadcastTurn() {
+        if (turnPublisher != null && !players.isEmpty()) {
+            turnPublisher.publish(turnIndex, players.get(turnIndex));
+        }
+    }
+
+    /**
+     * Enables the throw controls only when it is the local user's turn,
+     * so every emulator reflects the same active player and only that
+     * player's client can record throws / end the turn.
+     */
+    private void applyTurnControls() {
+        boolean myTurn = !players.isEmpty()
+                && !currentUser.isBlank()
+                && currentUser.equals(players.get(turnIndex));
+        scoreSpinner.setDisable(!myTurn);
+        recordButton.setDisable(!myTurn);
+        endTurnButton.setDisable(!myTurn);
     }
 
     private void updateTurnLabel() {

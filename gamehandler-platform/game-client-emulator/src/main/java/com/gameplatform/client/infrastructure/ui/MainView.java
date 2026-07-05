@@ -201,6 +201,7 @@ public class MainView extends Application {
         gamePlayView.setOrchestrationService(orchestrationService);
         gamePlayView.setSessionPublisher(sessionPublisher);
         gamePlayView.setGameId(gameId);
+        gamePlayView.setMqttContext(mqttAdapter, buildingId);
 
         // ── Login ──────────────────────────────────────────────────────────────
         loginView.setOnLoginSuccess(() -> {

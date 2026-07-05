@@ -112,7 +112,13 @@ public class HealthCheckService {
                     Optional<GameSession> activeSessionOpt = gameSessionRepository.findActiveByGameId(gameId);
                     if (activeSessionOpt.isPresent()) {
                         GameSession session = activeSessionOpt.get();
-                        session.abort(StopReason.TIMEOUT, Instant.now(clock));
+                        // If the session is WAITING (lobby), cancel it;
+                        // otherwise abort it (IN_PROGRESS / PAUSED).
+                        if (session.getStatus() == GameStatus.WAITING) {
+                            session.cancelLobby(Instant.now(clock));
+                        } else {
+                            session.abort(StopReason.TIMEOUT, Instant.now(clock));
+                        }
                         gameSessionRepository.save(session);
 
                         // Generate outbox sync event
@@ -143,8 +149,14 @@ public class HealthCheckService {
                         }
                     }
 
-                    // Release game machine only if its current status is IN_USE
-                    if (game.getStatus() == GameMachineStatus.IN_USE) {
+                    // Release game machine if it is IN_USE or LOBBY (a
+                    // disconnected client leaves the machine stuck in
+                    // either state). Previously only IN_USE was handled,
+                    // so a client that created a lobby and then crashed
+                    // would leave the game in LOBBY forever (until the
+                    // 2-minute LobbyExpirationService kicked in).
+                    if (game.getStatus() == GameMachineStatus.IN_USE
+                            || game.getStatus() == GameMachineStatus.LOBBY) {
                         game.release();
                         gameRepository.save(game);
                         deferMqttPublish(() -> publishGameStatePort.publishState(gameId, game.getStatus()));

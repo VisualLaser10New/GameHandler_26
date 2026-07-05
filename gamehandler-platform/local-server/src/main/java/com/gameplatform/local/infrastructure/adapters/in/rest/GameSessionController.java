@@ -134,6 +134,28 @@ public class GameSessionController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /**
+     * Cancels the active lobby session for the given game machine. Used
+     * by clients that initiated a lobby create but navigated away before
+     * the server's {@code lobby/create} echo arrived (so they don't have
+     * the session id to call {@code /{id}/cancel-lobby}). Looks up the
+     * active WAITING session by gameId and cancels it.
+     *
+     * @param gameId the game machine identifier
+     * @param req    must contain the creator's userId
+     * @return 200 with the cancelled session, or 404 if no active lobby
+     */
+    @PostMapping("/lobby/cancel-by-game")
+    public ResponseEntity<GameSessionDto> cancelLobbyByGame(
+            @RequestParam("gameId") String gameId,
+            @RequestBody JoinSessionRequestDto req) {
+        return getActiveLobbyUseCase.getActiveLobby(new GameId(gameId))
+                .map(session -> cancelLobbyUseCase.cancelLobby(session.getId(), new UserId(req.userId())))
+                .map(this::toDto)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @PostMapping("/{id}/end")
     public ResponseEntity<Void> end(@PathVariable String id, @RequestBody GameResult result) {
         endGameSessionUseCase.end(new GameSessionId(id), result);
@@ -178,7 +200,10 @@ public class GameSessionController {
                 session.getDurationSeconds(),
                 winnerIdStr,
                 session.getWinCondition(),
-                resultDataStr
+                resultDataStr,
+                session.getParticipants() != null
+                        ? session.getParticipants().stream().map(UserId::value).toList()
+                        : java.util.List.of()
         );
     }
 }

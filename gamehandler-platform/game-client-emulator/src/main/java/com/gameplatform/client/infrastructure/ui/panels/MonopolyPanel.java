@@ -28,6 +28,8 @@ public class MonopolyPanel implements GamePanel {
     private List<String> players = new ArrayList<>();
     private final Map<String, Integer> money = new LinkedHashMap<>();
     private int turnIndex = 0;
+    private TurnPublisher turnPublisher;
+    private String currentUser = "";
 
     public MonopolyPanel() {
         root = new VBox(14);
@@ -96,14 +98,25 @@ public class MonopolyPanel implements GamePanel {
         fromCombo.setValue(participants.isEmpty() ? null : participants.get(0));
         toCombo.setValue(participants.size() < 2 ? null : participants.get(1));
 
-        fromCombo.setDisable(false);
-        toCombo.setDisable(false);
-        amountSpinner.setDisable(false);
-        transferButton.setDisable(false);
-        endTurnButton.setDisable(false);
-
         updateTurnLabel();
+        applyTurnControls();
         refreshPlayersBox();
+    }
+
+    @Override
+    public void setTurnContext(TurnPublisher turnPublisher, String currentUser) {
+        this.turnPublisher = turnPublisher;
+        this.currentUser = currentUser != null ? currentUser : "";
+        applyTurnControls();
+    }
+
+    @Override
+    public void onRemoteTurnUpdate(int newTurnIndex, String playerName) {
+        if (newTurnIndex >= 0 && newTurnIndex < players.size()) {
+            this.turnIndex = newTurnIndex;
+            updateTurnLabel();
+            applyTurnControls();
+        }
     }
 
     @Override
@@ -143,6 +156,31 @@ public class MonopolyPanel implements GamePanel {
         if (players.isEmpty()) return;
         turnIndex = (turnIndex + 1) % players.size();
         updateTurnLabel();
+        applyTurnControls();
+        broadcastTurn();
+    }
+
+    private void broadcastTurn() {
+        if (turnPublisher != null && !players.isEmpty()) {
+            turnPublisher.publish(turnIndex, players.get(turnIndex));
+        }
+    }
+
+    /**
+     * Enables the transfer / end-turn controls only when it is the
+     * local user's turn, keeping all emulators in sync on the active
+     * player.
+     */
+    private void applyTurnControls() {
+        boolean myTurn = !players.isEmpty()
+                && !currentUser.isBlank()
+                && currentUser.equals(players.get(turnIndex));
+        endTurnButton.setDisable(!myTurn);
+        // Transfer controls: allow the active player to operate.
+        fromCombo.setDisable(!myTurn);
+        toCombo.setDisable(!myTurn);
+        amountSpinner.setDisable(!myTurn);
+        transferButton.setDisable(!myTurn);
     }
 
     private void updateTurnLabel() {

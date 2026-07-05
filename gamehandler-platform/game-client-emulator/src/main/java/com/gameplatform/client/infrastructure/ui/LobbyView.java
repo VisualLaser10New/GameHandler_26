@@ -7,6 +7,7 @@ import com.gameplatform.shared.domain.model.GameMachineStatus;
 import com.gameplatform.shared.dto.GameSessionDto;
 import com.gameplatform.shared.dto.GameStateDto;
 import com.gameplatform.shared.mqtt.MqttPayloadSerializer;
+import com.gameplatform.shared.mqtt.payload.GameStatePayload;
 import com.gameplatform.shared.mqtt.payload.LobbyJoinPayload;
 import com.gameplatform.client.infrastructure.security.HttpClientHelper;
 import javafx.application.Platform;
@@ -52,6 +53,32 @@ public class LobbyView {
     private String currentUsername = "player";
     private String lobbySessionId;       // assigned by server after create
     private final List<String> participants = new ArrayList<>();
+    // Role determined once in configure() based on the game status at
+    // selection time: AVAILABLE → this client creates the lobby; LOBBY →
+    // this client joins an existing lobby.  Stored as a field so that
+    // handleActionButton() does not recompute it with a fragile boolean
+    // expression that would misclassify a joiner (whose lobbySessionId is
+    // still null because fetchActiveLobbySession hasn't returned yet) as
+    // a creator and erroneously try to create a second lobby on an
+    // already-LOBBY game machine.
+    private boolean creatorMode;
+    // Set to true the moment this client publishes a lobby/create
+    // message.  Used to distinguish "I created this lobby" from "someone
+    // else created a lobby" in handleStateMqttMessage: the server
+    // publishes state=LOBBY BEFORE the lobby/create echo, so without
+    // this guard the creator would receive their own state update and
+    // be downgraded to joiner (losing the ability to start the game).
+    private boolean lobbyCreateInitiated;
+
+    // MQTT subscription topics created in configure(); tracked so they
+    // can be unsubscribed in cleanup() when the user navigates away.
+    // Without this, stale subscriptions would deliver lobby events from
+    // OTHER players' sessions to this view, causing the screen to
+    // unexpectedly switch to GamePlayView (the "slot machine opens for
+    // A when B starts a game" bug).
+    private String lobbyTopicFilter;
+    private String stateTopicFilter;
+    private boolean subscribed;
 
     private Runnable onCancel;
     /** Called when the lobby session has started — passes (GameStateDto, sessionId, participants). */
@@ -136,6 +163,8 @@ public class LobbyView {
         this.currentGame = state;
         this.participants.clear();
         this.lobbySessionId = null;
+        this.creatorMode = state.status() == GameMachineStatus.AVAILABLE;
+        this.lobbyCreateInitiated = false;
 
         // Reset button enabled/disabled state — otherwise state from a previous
         // lobby visit (which disabled actionButton/startButton) leaks across
@@ -147,9 +176,7 @@ public class LobbyView {
 
         titleLabel.setText("Lobby — " + state.name() + " [" + state.gameType() + "]");
 
-        boolean isCreator = state.status() == GameMachineStatus.AVAILABLE;
-
-        if (isCreator) {
+        if (creatorMode) {
             boolean singlePlayer = state.maxPlayers() == 1;
             if (singlePlayer) {
                 modeLabel.setText("Gioco per giocatore singolo");
@@ -178,10 +205,32 @@ public class LobbyView {
         // Use the buildingId from the server's GameStateDto (not the local default)
         // to ensure the subscription topic matches the server's publish topic.
         if (mqttAdapter != null && mqttAdapter.isConnected()) {
+            // Clean up any subscription from a previous visit before
+            // creating new ones, otherwise old topics for a different
+            // game machine would keep delivering messages.
+            cleanupSubscriptions();
+
             String mqttBuildingId = state.buildingId() != null ? state.buildingId() : buildingId;
+            // Track the exact topic filters so cleanupSubscriptions()
+            // can unsubscribe later.
+            lobbyTopicFilter = "building/" + mqttBuildingId + "/game/" + state.gameId() + "/session/lobby/+";
+            stateTopicFilter = "building/" + mqttBuildingId + "/game/" + state.gameId() + "/state";
+
             StateSubscriber subscriber = new StateSubscriber(mqttAdapter, mqttBuildingId,
                     (topic, payload) -> Platform.runLater(() -> handleLobbyMqttMessage(topic, payload)));
             subscriber.subscribeToLobbyEvents(state.gameId());
+
+            // Also subscribe to the game-machine state topic so we detect
+            // another player creating a lobby on the same machine while we
+            // are still in creator mode (game was AVAILABLE when we opened
+            // this view but has since transitioned to LOBBY).  Without this,
+            // a second client that opened the lobby view before the first
+            // created the lobby would still show "Crea Lobby" and could
+            // attempt a redundant create that the server would reject.
+            StateSubscriber stateSubscriber = new StateSubscriber(mqttAdapter, mqttBuildingId,
+                    (topic, payload) -> Platform.runLater(() -> handleStateMqttMessage(topic, payload)));
+            stateSubscriber.subscribeToStates(state.gameId());
+            subscribed = true;
         }
 
         refreshParticipantsBox();
@@ -220,16 +269,38 @@ public class LobbyView {
                                 GameSessionDto session = mapper.readValue(response.body(), GameSessionDto.class);
                                 lobbySessionId = session.id();
                                 infoLabel.setText("Lobby attiva trovata. Premi 'Unisciti' per entrare.");
-                                if (!participants.contains(currentUsername)) {
-                                    participants.add(currentUsername);
-                                    refreshParticipantsBox();
+
+                                // Seed the participants list from the server's
+                                // authoritative list so the joiner immediately
+                                // sees who is already in the lobby (e.g. the
+                                // creator). Before this, the DTO had no
+                                // participants field and the joiner only saw
+                                // themselves — the creator was never shown.
+                                participants.clear();
+                                if (session.participants() != null) {
+                                    for (String p : session.participants()) {
+                                        if (p != null && !p.isBlank() && !participants.contains(p)) {
+                                            participants.add(p);
+                                        }
+                                    }
                                 }
+                                refreshParticipantsBox();
                             } catch (Exception e) {
                                 infoLabel.setText("Errore lettura sessione lobby: " + e.getMessage());
                             }
                         } else if (response.statusCode() == 404) {
-                            infoLabel.setText("Nessuna lobby attiva per questo gioco. Torna indietro e riprova.");
-                            actionButton.setDisable(true);
+                            // No active lobby session exists, but the game
+                            // machine may be stuck in a stale LOBBY status
+                            // (a previous lobby was aborted but the
+                            // game_catalog wasn't cleaned up).  Fall back
+                            // to creator mode so the user can create a new
+                            // lobby — the server's createLobby() handles
+                            // the stale LOBBY status by releasing the game
+                            // first.  Without this fallback, the user
+                            // would be stuck: not in creator mode (game
+                            // wasn't AVAILABLE at selection time) and
+                            // unable to join (no session).
+                            fallbackToCreatorMode();
                         } else {
                             infoLabel.setText("Impossibile recuperare la lobby (HTTP " + response.statusCode() + ").");
                         }
@@ -248,11 +319,11 @@ public class LobbyView {
     private void handleActionButton() {
         if (currentGame == null) return;
 
-        boolean isCreator = currentGame.status() == GameMachineStatus.AVAILABLE
-                || lobbySessionId == null;
-
-        if (isCreator && lobbySessionId == null) {
-            // CREATE LOBBY
+        if (creatorMode && lobbySessionId == null) {
+            // CREATE LOBBY — only the first player (game was AVAILABLE at
+            // selection time) and only before the server has confirmed the
+            // lobby session id.
+            this.lobbyCreateInitiated = true;
             if (sessionPublisher != null) {
                 sessionPublisher.publishLobbyCreate(currentGame.gameId(), currentGame.gameType(), currentUsername);
             }
@@ -272,11 +343,19 @@ public class LobbyView {
             actionButton.setDisable(true);
             refreshParticipantsBox();
         } else {
-            // JOIN LOBBY
-            if (sessionPublisher != null && lobbySessionId != null) {
+            // JOIN LOBBY — a joiner must have a lobbySessionId resolved by
+            // fetchActiveLobbySession.  If the REST lookup hasn't returned
+            // yet, do NOT fall back to creating a new lobby (which would
+            // fail on the server because the game is already in LOBBY);
+            // instead ask the user to wait a moment and re-enable the
+            // button so they can retry.
+            if (lobbySessionId == null) {
+                infoLabel.setText("Sessione lobby non ancora disponibile — attendi un momento e riprova.");
+                actionButton.setDisable(false);
+                return;
+            }
+            if (sessionPublisher != null) {
                 sessionPublisher.publishLobbyJoin(currentGame.gameId(), lobbySessionId, currentUsername);
-            } else {
-                infoLabel.setText("Sessione lobby non ancora disponibile — attendi un momento.");
             }
             actionButton.setDisable(true);
         }
@@ -293,16 +372,27 @@ public class LobbyView {
     /**
      * Back button handler.
      * <p>
-     * If this client is the creator of an active lobby and no other players have
-     * joined yet, the lobby is cancelled on the server (the session is aborted
-     * and the game machine is released back to AVAILABLE) before navigating back.
-     * If other players have already joined, the lobby is left active so the
-     * remaining participants can keep playing — only navigation occurs.
+     * If this client is the creator of an active lobby, the lobby is
+     * cancelled on the server (the session is aborted and the game
+     * machine is released back to AVAILABLE) before navigating back.
+     * If the lobby/create echo has not yet arrived (race condition),
+     * a REST fallback cancels the lobby by gameId.
      */
     private void handleBackButton() {
+        cleanupSubscriptions();
         if (isCreatorOfActiveLobby()) {
             try {
-                sessionPublisher.publishLobbyCancel(currentGame.gameId(), lobbySessionId, currentUsername);
+                if (lobbySessionId != null) {
+                    // Normal path: we have the session id, cancel via MQTT.
+                    sessionPublisher.publishLobbyCancel(currentGame.gameId(), lobbySessionId, currentUsername);
+                } else {
+                    // Race condition: the lobby/create echo hasn't arrived
+                    // yet so we don't have lobbySessionId.  Use a REST
+                    // fallback to cancel the active lobby by gameId —
+                    // otherwise the lobby would stay stuck until the
+                    // LobbyExpirationService timer kicks in.
+                    cancelLobbyByGameViaRest(currentGame.gameId());
+                }
             } catch (Exception ignored) {
                 // Best-effort cancel; navigate back regardless
             }
@@ -311,23 +401,210 @@ public class LobbyView {
     }
 
     /**
+     * REST fallback to cancel the active lobby by game machine id.
+     * Used when the creator navigated back before the MQTT
+     * {@code lobby/create} echo arrived (so {@code lobbySessionId}
+     * is still null).  Calls
+     * {@code POST /api/sessions/lobby/cancel-by-game?gameId=...}
+     * with the creator's userId.  Fire-and-forget on a background
+     * thread so the UI navigates immediately.
+     */
+    private void cancelLobbyByGameViaRest(String gameId) {
+        new Thread(() -> {
+            try {
+                String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
+                java.net.http.HttpClient client = HttpClientHelper.getHttpClient(localServerUrl);
+                String body = "{\"userId\":\"" + currentUsername + "\"}";
+                java.net.http.HttpRequest.Builder requestBuilder = java.net.http.HttpRequest.newBuilder()
+                        .uri(java.net.URI.create(localServerUrl + "/api/sessions/lobby/cancel-by-game?gameId=" + gameId))
+                        .header("Content-Type", "application/json")
+                        .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body));
+                String token = HttpClientHelper.getToken();
+                if (token != null) {
+                    requestBuilder.header("Authorization", "Bearer " + token);
+                }
+                client.sendAsync(requestBuilder.build(), java.net.http.HttpResponse.BodyHandlers.ofString())
+                        .thenAccept(response -> {
+                            if (response.statusCode() == 200) {
+                                // Optionally also publish a MQTT cancel so
+                                // other clients are notified immediately.
+                                try {
+                                    com.fasterxml.jackson.databind.ObjectMapper mapper =
+                                            new com.fasterxml.jackson.databind.ObjectMapper();
+                                    GameSessionDto session = mapper.readValue(response.body(), GameSessionDto.class);
+                                    if (session.id() != null && sessionPublisher != null) {
+                                        sessionPublisher.publishLobbyCancel(gameId, session.id(), currentUsername);
+                                    }
+                                } catch (Exception ignored) {}
+                            }
+                        });
+            } catch (Exception ignored) {
+                // Best-effort
+            }
+        }, "cancel-lobby-rest").start();
+    }
+
+    /**
      * Determines whether this client may cancel the lobby on back navigation:
-     * the creator (first participant), with a confirmed session id, and no
-     * other players joined.
+     * the creator who has either a confirmed session id OR has at least
+     * initiated the create (race condition: the lobby/create echo may not
+     * have arrived yet).
      */
     private boolean isCreatorOfActiveLobby() {
-        if (lobbySessionId == null || currentGame == null || sessionPublisher == null) {
+        if (!creatorMode || currentGame == null || sessionPublisher == null) {
+            return false;
+        }
+        // Allow cancellation when we have a confirmed session id, OR when
+        // we initiated the create (lobbyCreateInitiated=true) even if the
+        // echo hasn't arrived yet — in the latter case handleBackButton
+        // will use a REST fallback to cancel by gameId.
+        if (lobbySessionId == null && !lobbyCreateInitiated) {
             return false;
         }
         if (participants.isEmpty() || !participants.get(0).equals(currentUsername)) {
+            // If participants is empty (race: lobby/create echo not arrived),
+            // trust lobbyCreateInitiated — the creator is the first participant.
+            if (lobbyCreateInitiated && participants.isEmpty()) {
+                return true;
+            }
             return false;
         }
-        // Only the creator alone in the lobby -> cancel allowed.
-        // Any other participant -> lobby must stay active.
-        return participants.size() <= 1;
+        return true;
     }
 
     // ─────────────────────────── MQTT ─────────────────────────────────────────
+
+    /**
+     * Unsubscribes from the MQTT topics created in {@link #configure}
+     * (lobby events + game-machine state).  Must be called whenever the
+     * user navigates away from the lobby view — either back to game
+     * selection or forward to GamePlayView after the lobby starts.
+     * Without this, stale subscriptions would keep delivering lobby
+     * events from OTHER players' sessions (the "slot machine opens
+     * unexpectedly for A when B starts a game" bug — affects ALL
+     * games, not just slot machines).
+     */
+    private void cleanupSubscriptions() {
+        if (mqttAdapter != null && subscribed) {
+            if (lobbyTopicFilter != null) {
+                try {
+                    mqttAdapter.unsubscribe(lobbyTopicFilter);
+                } catch (Exception ignored) {
+                    // best-effort
+                }
+            }
+            if (stateTopicFilter != null) {
+                try {
+                    mqttAdapter.unsubscribe(stateTopicFilter);
+                } catch (Exception ignored) {
+                    // best-effort
+                }
+            }
+        }
+        lobbyTopicFilter = null;
+        stateTopicFilter = null;
+        subscribed = false;
+    }
+
+    /**
+     * Falls back from joiner mode to creator mode. Used when the game
+     * machine is in a stale LOBBY status but no active lobby session
+     * exists (REST 404) — the user should be able to create a new
+     * lobby instead of being stuck with a disabled "Unisciti" button.
+     */
+    private void fallbackToCreatorMode() {
+        creatorMode = true;
+        boolean singlePlayer = currentGame != null && currentGame.maxPlayers() == 1;
+        if (singlePlayer) {
+            modeLabel.setText("Gioco per giocatore singolo");
+            actionButton.setText("▶  Gioca!");
+            actionButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 15; -fx-padding: 10 28; -fx-background-radius: 6;");
+            infoLabel.setText("Nessuna lobby attiva. Premi 'Gioca' per iniziare subito la partita.");
+        } else {
+            modeLabel.setText("Sei il primo giocatore — crea la lobby");
+            actionButton.setText("Crea Lobby");
+            actionButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 15; -fx-padding: 10 28; -fx-background-radius: 6;");
+            infoLabel.setText("Nessuna lobby attiva. Crea una nuova lobby per iniziare.");
+        }
+        actionButton.setDisable(false);
+        startButton.setVisible(false);
+        startButton.setDisable(true);
+        participants.clear();
+        refreshParticipantsBox();
+    }
+
+    /**
+     * Handles game-machine state updates received via MQTT. When this
+     * client is in creator mode but another player has already created
+     * a lobby on the same machine (game transitioned AVAILABLE →
+     * LOBBY), it downgrades itself to joiner mode so the user can join
+     * the existing lobby instead of attempting a redundant create.
+     *
+     * <p>The server publishes a lightweight {@link GameStatePayload}
+     * ({@code {gameId, status, userId}}) on the state topic — NOT a
+     * full {@link GameStateDto}.  We deserialize the correct type and
+     * merge only the status into the cached {@code currentGame},
+     * preserving name/gameType/minPlayers/maxPlayers/buildingId from
+     * the initial REST load.</p>
+     */
+    private void handleStateMqttMessage(String topic, byte[] payload) {
+        try {
+            GameStatePayload stateMsg = MqttPayloadSerializer.deserialize(payload, GameStatePayload.class);
+            if (currentGame == null || !stateMsg.gameId().equals(currentGame.gameId())) {
+                return;
+            }
+            // Merge only the status — keep the rest of the cached DTO.
+            currentGame = new GameStateDto(
+                    currentGame.gameId(),
+                    currentGame.gameType(),
+                    currentGame.name(),
+                    currentGame.buildingId(),
+                    stateMsg.status(),
+                    currentGame.minPlayers(),
+                    currentGame.maxPlayers()
+            );
+
+            if (creatorMode && !lobbyCreateInitiated
+                    && stateMsg.status() == GameMachineStatus.LOBBY
+                    && lobbySessionId == null) {
+                // Another player created the lobby while we were still
+                // showing "Crea Lobby" (we did NOT initiate the create
+                // ourselves). Downgrade to joiner and fetch the active
+                // session id so the user can press "Unisciti".
+                //
+                // The lobbyCreateInitiated guard is essential: the server
+                // publishes state=LOBBY BEFORE the lobby/create echo, so
+                // without it the creator would receive their own state
+                // update and be downgraded — losing the "Avvia Partita"
+                // button and wrongly seeing "Unisciti".
+                downgradeToJoiner();
+            }
+        } catch (Exception ignored) {
+            // Ignore malformed state payloads
+        }
+    }
+
+    /**
+     * Switches the view from creator mode to joiner mode, refreshing
+     * labels and fetching the active lobby session id from the server.
+     */
+    private void downgradeToJoiner() {
+        creatorMode = false;
+        participants.clear();
+        startButton.setVisible(false);
+        startButton.setDisable(true);
+
+        modeLabel.setText("Lobby attiva — unisciti alla partita");
+        actionButton.setText("Unisciti alla Lobby");
+        actionButton.setStyle("-fx-background-color: #8e44ad; -fx-text-fill: white; -fx-font-size: 15; -fx-padding: 10 28; -fx-background-radius: 6;");
+        actionButton.setDisable(false);
+        infoLabel.setText("Una lobby è già stata creata da un altro giocatore. Premi 'Unisciti' per entrare.");
+
+        if (currentGame != null) {
+            fetchActiveLobbySession(currentGame.gameId());
+        }
+        refreshParticipantsBox();
+    }
 
     private void handleLobbyMqttMessage(String topic, byte[] payload) {
         try {
@@ -385,7 +662,12 @@ public class LobbyView {
                     }
                 }
                 case "start" -> {
-                    // Server confirmed start — fire the callback to navigate to GamePlayView
+                    // Server confirmed start — fire the callback to navigate
+                    // to GamePlayView.  Clean up subscriptions FIRST so we
+                    // don't receive any more lobby events (e.g. a future
+                    // cancel from a different session) while the game is
+                    // running or after the user navigates away.
+                    cleanupSubscriptions();
                     if (onLobbyStarted != null && currentGame != null) {
                         onLobbyStarted.accept(currentGame, lobbySessionId, new ArrayList<>(participants));
                     }

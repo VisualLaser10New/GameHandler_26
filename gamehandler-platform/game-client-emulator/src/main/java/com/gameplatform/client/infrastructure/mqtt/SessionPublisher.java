@@ -171,4 +171,82 @@ public class SessionPublisher {
             log.error("Failed to publish lobby cancel", e);
         }
     }
+
+    /**
+     * Publishes a turn-change event so that all emulators participating
+     * in a turn-based multiplayer game stay in sync on whose turn it is.
+     * Sent peer-to-peer between clients (the local server does not handle
+     * turn logic); published on {@link MqttTopics#sessionTurn} with QoS 1.
+     *
+     * @param gameId     the game machine identifier
+     * @param sessionId the session identifier
+     * @param turnIndex the new turn index (0-based) into the participants list
+     * @param playerName the username of the player whose turn it now is
+     */
+    public void publishTurn(String gameId, String sessionId, int turnIndex, String playerName) {
+        try {
+            String topic = MqttTopics.sessionTurn(buildingId, gameId);
+            com.gameplatform.shared.mqtt.payload.TurnPayload payload =
+                    new com.gameplatform.shared.mqtt.payload.TurnPayload(sessionId, turnIndex, playerName);
+            byte[] bytes = MqttPayloadSerializer.serialize(payload);
+            log.info("Publishing turn update to topic {}: {}", topic, payload);
+            adapter.publish(topic, bytes, MqttQos.SESSION, false);
+        } catch (MqttException e) {
+            log.error("Failed to publish turn update", e);
+        }
+    }
+
+    /**
+     * Publishes a board-move event so that all emulators participating
+     * in a board-style multiplayer game (currently Chess) show the same
+     * board state. Sent peer-to-peer between clients on
+     * {@link MqttTopics#sessionMove} with QoS 1.
+     *
+     * @param gameId        the game machine identifier
+     * @param sessionId     the session identifier
+     * @param fromRow       source row (0-based)
+     * @param fromCol       source column (0-based)
+     * @param toRow         target row (0-based)
+     * @param toCol         target column (0-based)
+     * @param capturedPiece Unicode glyph of the piece captured on the
+     *                      target cell, or {@code null} if the cell was empty
+     */
+    public void publishMove(String gameId, String sessionId,
+                            int fromRow, int fromCol, int toRow, int toCol,
+                            String capturedPiece) {
+        try {
+            String topic = MqttTopics.sessionMove(buildingId, gameId);
+            com.gameplatform.shared.mqtt.payload.MovePayload payload =
+                    new com.gameplatform.shared.mqtt.payload.MovePayload(
+                            sessionId, fromRow, fromCol, toRow, toCol, capturedPiece);
+            byte[] bytes = MqttPayloadSerializer.serialize(payload);
+            log.info("Publishing move to topic {}: {}", topic, payload);
+            adapter.publish(topic, bytes, MqttQos.SESSION, false);
+        } catch (MqttException e) {
+            log.error("Failed to publish move", e);
+        }
+    }
+
+    /**
+     * Publishes a score snapshot so that all emulators participating
+     * in a multiplayer game show the same scoreboard. Sent peer-to-peer
+     * between clients on {@link MqttTopics#sessionScore} with QoS 1.
+     *
+     * @param gameId   the game machine identifier
+     * @param sessionId the session identifier
+     * @param scores  a full snapshot of player -> score entries
+     */
+    public void publishScore(String gameId, String sessionId,
+                             java.util.Map<String, Integer> scores) {
+        try {
+            String topic = MqttTopics.sessionScore(buildingId, gameId);
+            com.gameplatform.shared.mqtt.payload.ScorePayload payload =
+                    new com.gameplatform.shared.mqtt.payload.ScorePayload(sessionId, scores);
+            byte[] bytes = MqttPayloadSerializer.serialize(payload);
+            log.info("Publishing score to topic {}: {}", topic, payload);
+            adapter.publish(topic, bytes, MqttQos.SESSION, false);
+        } catch (MqttException e) {
+            log.error("Failed to publish score", e);
+        }
+    }
 }

@@ -49,7 +49,12 @@ public class LobbyExpirationService {
 
         for (GameSession session : lobbies) {
             Instant startedAt = session.getStartedAt();
-            if (startedAt != null && startedAt.plus(10, ChronoUnit.MINUTES).isBefore(now)) {
+            // Lobbies are expired after 2 minutes of inactivity. This is
+            // intentionally short: if the creator navigated away without
+            // explicitly cancelling (e.g. client crash, race condition on
+            // lobbySessionId), the game machine should return to AVAILABLE
+            // quickly so other players can use it.
+            if (startedAt != null && startedAt.plus(2, ChronoUnit.MINUTES).isBefore(now)) {
                 log.info("Lobby {} has expired. Aborting session and releasing game machine {}.", 
                         session.getId().value(), session.getGameId().id());
                 
