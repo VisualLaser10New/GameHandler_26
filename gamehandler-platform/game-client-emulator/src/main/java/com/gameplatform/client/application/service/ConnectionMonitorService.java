@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 
-public class ConnectionMonitorService {
+public class ConnectionMonitorService extends Service{
 
     private static final Logger log = LoggerFactory.getLogger(ConnectionMonitorService.class);
 
@@ -38,7 +38,7 @@ public class ConnectionMonitorService {
     private volatile GameType activeGameType;
     private volatile List<String> activeParticipants;
     private ConnectionCallback connectionCallback;
-    private ScheduledExecutorService scheduler;
+
     private ScheduledFuture<?> monitorTask;
 
     public ConnectionMonitorService(MqttConnectionManager connectionManager,
@@ -67,22 +67,7 @@ public class ConnectionMonitorService {
     }
 
     public void stop() {
-        if (monitorTask != null) {
-            monitorTask.cancel(false);
-            monitorTask = null;
-        }
-        if (scheduler != null) {
-            scheduler.shutdown();
-            try {
-                if (!scheduler.awaitTermination(3, TimeUnit.SECONDS)) {
-                    scheduler.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                scheduler.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-            scheduler = null;
-        }
+        stopService();
         log.info("ConnectionMonitorService stopped");
     }
 

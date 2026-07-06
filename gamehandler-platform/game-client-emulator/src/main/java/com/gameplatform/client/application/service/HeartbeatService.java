@@ -9,13 +9,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-public class HeartbeatService {
+public class HeartbeatService extends Service {
 
     private static final Logger log = LoggerFactory.getLogger(HeartbeatService.class);
     private static final long HEARTBEAT_INTERVAL_SECONDS = 5;
     private final HeartbeatPublisher heartbeatPublisher;
-    private ScheduledExecutorService scheduler;
-    private ScheduledFuture<?> scheduledTask;
     private volatile String currentGameId;
 
     public HeartbeatService(HeartbeatPublisher heartbeatPublisher) {
@@ -43,25 +41,12 @@ public class HeartbeatService {
     }
 
     public void stopHeartbeat() {
-        if (scheduledTask != null) {
-            scheduledTask.cancel(false);
-            scheduledTask = null;
-        }
-        if (scheduler != null) {
-            scheduler.shutdown();
-            try {
-                if (!scheduler.awaitTermination(3, TimeUnit.SECONDS)) {
-                    scheduler.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                scheduler.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-            scheduler = null;
-        }
+        stopService();
         log.info("Heartbeat stopped for game {}", currentGameId);
         currentGameId = null;
     }
+
+
 
     public void handleHeartbeat() {
         if (currentGameId == null) {
