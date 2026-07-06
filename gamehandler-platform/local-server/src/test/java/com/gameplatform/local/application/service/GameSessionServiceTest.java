@@ -214,14 +214,15 @@ class GameSessionServiceTest {
         GameSession s = session(new GameId("game-1"), GameStatus.ABORTED);
         when(gameSessionRepository.findById(any())).thenReturn(Optional.of(s));
         when(gameRepository.findById(any())).thenReturn(Optional.of(game(GameMachineStatus.AVAILABLE)));
-        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
         service.end(new GameSessionId("s-1"), result);
 
         assertEquals(GameStatus.COMPLETED, s.getStatus());
         verify(gameRepository, never()).save(any());
         verify(publishGameStatePort, never()).publishState(any(), any());
-        verify(outboxEventRepository).save(any());
+        // S1: a session that was already ABORTED must not emit a second GAME_SESSION_COMPLETED
+        // outbox event (its central-stats contribution was already made via GAME_SESSION_ABORTED).
+        verify(outboxEventRepository, never()).save(any());
         verify(publishGameStatePort).publishSessionEvent(contains("session/end"), eq(s));
     }
 

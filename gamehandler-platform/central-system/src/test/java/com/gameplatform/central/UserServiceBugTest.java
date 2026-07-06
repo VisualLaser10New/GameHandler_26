@@ -1,6 +1,7 @@
 package com.gameplatform.central;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.gameplatform.central.application.service.UserService;
 import com.gameplatform.central.domain.model.User;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
@@ -14,6 +15,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -43,8 +45,8 @@ class UserServiceBugTest {
 
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
-        userService = new UserService(userRepository, outboxEventRepository, objectMapper);
+        objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        userService = new UserService(userRepository, outboxEventRepository, objectMapper, Clock.systemUTC());
     }
 
     @Test

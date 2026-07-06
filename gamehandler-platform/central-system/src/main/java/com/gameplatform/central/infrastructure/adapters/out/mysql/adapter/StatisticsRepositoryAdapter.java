@@ -27,8 +27,13 @@ public class StatisticsRepositoryAdapter implements StatisticsRepository {
 
     @Override
     public AggregatedStatistics save(AggregatedStatistics stats) {
+        // S3 / C-R1: saveAndFlush forces the INSERT/UPDATE to be sent to the DB at the
+        // call site (inside the application service's reachable try-catch) so the unique
+        // constraint uk_building_type_period is enforced here rather than at tx commit.
+        // This makes the first-bucket insert race catchable by SyncEventProcessor, which
+        // then retries via the pessimistic-lock merge path.
         AggregatedStatisticsJpaEntity entity = mapper.toEntity(stats);
-        AggregatedStatisticsJpaEntity savedEntity = jpaRepository.save(entity);
+        AggregatedStatisticsJpaEntity savedEntity = jpaRepository.saveAndFlush(entity);
         return mapper.toDomain(savedEntity);
     }
 

@@ -1,0 +1,188 @@
+# Multi-building override. Usage: docker compose -f docker-compose.yml -f docker-compose.multi.yml up
+version: '3.8'
+
+services:
+  # ============================================
+  # INFRASTRUTTURA LOCALE (Edificio 2)
+  # ============================================
+  local-db-2:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${LOCAL_DB_PASSWORD:-root}
+      MYSQL_DATABASE: local_db
+    ports:
+      - "3308:3306"
+    volumes:
+      - ./infrastructure/mysql-local/init-building-2.sql:/docker-entrypoint-initdb.d/init.sql
+      - local-db-2-data:/var/lib/mysql
+    networks:
+      - local-net-2
+
+  mqtt-broker-2:
+    image: eclipse-mosquitto:2.0
+    volumes:
+      - ./infrastructure/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./infrastructure/mosquitto/certs:/mosquitto/certs:ro
+      - ./infrastructure/mosquitto/password_file:/mosquitto/config/password_file
+    ports:
+      - "8884:1883"
+    networks:
+      - local-net-2
+
+  local-server-2:
+    build:
+      context: ./local-server
+      dockerfile: Dockerfile
+    depends_on:
+      - local-db-2
+      - mqtt-broker-2
+      - central-system
+    ports:
+      - "8082:8081"
+    environment:
+      - BUILDING_ID=building-2
+      - PORT=8081
+      - LOCAL_BASE_URL=https://local-server-2:8081
+      - SPRING_DATASOURCE_URL=jdbc:mysql://local-db-2:3306/local_db
+      - MQTT_BROKER_URL=tcp://mqtt-broker-2:1883
+      - MQTT_USERNAME=local-server-2
+      - MQTT_PASSWORD=localserver_password
+      - CENTRAL_SYSTEM_URL=https://central-system:8080
+      - SYNC_INTERVAL_MS=300000
+      - HEALTHCHECK_INTERVAL_MS=300000
+      - JWT_LOCAL_PRIVATE_KEY_PATH=file:/certs/local-private.pem
+      - JWT_LOCAL_PUBLIC_KEY_PATH=file:/certs/local-public.pem
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - SSL_KEYSTORE_PATH=file:/certs/local-server-https.p12
+      - SSL_KEYSTORE_PASSWORD=changeit
+      - SSL_TRUSTSTORE_PATH=file:/certs/central-truststore.p12
+      - SSL_TRUSTSTORE_PASSWORD=changeit
+      - MQTT_TRUSTSTORE_PATH=file:/certs/local-truststore.p12
+      - MQTT_TRUSTSTORE_PASSWORD=changeit
+      - MQTT_KEYSTORE_PATH=file:/certs/local-server-https.p12
+      - MQTT_KEYSTORE_PASSWORD=changeit
+      - CA_CERT_PATH=file:/mosquitto/certs/ca.crt
+      - CA_KEY_PATH=file:/mosquitto/certs/ca.key
+    volumes:
+      - ./infrastructure/tls:/certs:ro
+      - ./infrastructure/mosquitto/certs:/mosquitto/certs:ro
+    networks:
+      - local-net-2
+      - integration-net
+
+  # ============================================
+  # INFRASTRUTTURA LOCALE (Edificio 3)
+  # ============================================
+  local-db-3:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${LOCAL_DB_PASSWORD:-root}
+      MYSQL_DATABASE: local_db
+    ports:
+      - "3309:3306"
+    volumes:
+      - ./infrastructure/mysql-local/init-building-3.sql:/docker-entrypoint-initdb.d/init.sql
+      - local-db-3-data:/var/lib/mysql
+    networks:
+      - local-net-3
+
+  mqtt-broker-3:
+    image: eclipse-mosquitto:2.0
+    volumes:
+      - ./infrastructure/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./infrastructure/mosquitto/certs:/mosquitto/certs:ro
+      - ./infrastructure/mosquitto/password_file:/mosquitto/config/password_file
+    ports:
+      - "8885:1883"
+    networks:
+      - local-net-3
+
+  local-server-3:
+    build:
+      context: ./local-server
+      dockerfile: Dockerfile
+    depends_on:
+      - local-db-3
+      - mqtt-broker-3
+      - central-system
+    ports:
+      - "8083:8081"
+    environment:
+      - BUILDING_ID=building-3
+      - PORT=8081
+      - LOCAL_BASE_URL=https://local-server-3:8081
+      - SPRING_DATASOURCE_URL=jdbc:mysql://local-db-3:3306/local_db
+      - MQTT_BROKER_URL=tcp://mqtt-broker-3:1883
+      - MQTT_USERNAME=local-server-3
+      - MQTT_PASSWORD=localserver_password
+      - CENTRAL_SYSTEM_URL=https://central-system:8080
+      - SYNC_INTERVAL_MS=300000
+      - HEALTHCHECK_INTERVAL_MS=300000
+      - JWT_LOCAL_PRIVATE_KEY_PATH=file:/certs/local-private.pem
+      - JWT_LOCAL_PUBLIC_KEY_PATH=file:/certs/local-public.pem
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - SSL_KEYSTORE_PATH=file:/certs/local-server-https.p12
+      - SSL_KEYSTORE_PASSWORD=changeit
+      - SSL_TRUSTSTORE_PATH=file:/certs/central-truststore.p12
+      - SSL_TRUSTSTORE_PASSWORD=changeit
+      - MQTT_TRUSTSTORE_PATH=file:/certs/local-truststore.p12
+      - MQTT_TRUSTSTORE_PASSWORD=changeit
+      - MQTT_KEYSTORE_PATH=file:/certs/local-server-https.p12
+      - MQTT_KEYSTORE_PASSWORD=changeit
+      - CA_CERT_PATH=file:/mosquitto/certs/ca.crt
+      - CA_KEY_PATH=file:/mosquitto/certs/ca.key
+    volumes:
+      - ./infrastructure/tls:/certs:ro
+      - ./infrastructure/mosquitto/certs:/mosquitto/certs:ro
+    networks:
+      - local-net-3
+      - integration-net
+
+  # ============================================
+  # EMULATORI CLIENT (Edifici 2 e 3)
+  # ============================================
+  game-client-3:
+    build:
+      context: ./game-client-emulator
+      dockerfile: Dockerfile
+    depends_on:
+      - mqtt-broker-2
+      - local-server-2
+    environment:
+      - GAME_ID=game-chess-2
+      - GAME_TYPE=CHESS
+      - BUILDING_ID=building-2
+      - MQTT_BROKER_URL=tcp://mqtt-broker-2:1883
+      - LOCAL_SERVER_URL=https://local-server-2:8081
+      - MQTT_USERNAME=client-chess-2
+      - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
+    networks:
+      - local-net-2
+
+  game-client-4:
+    build:
+      context: ./game-client-emulator
+      dockerfile: Dockerfile
+    depends_on:
+      - mqtt-broker-3
+      - local-server-3
+    environment:
+      - GAME_ID=game-foosball-3
+      - GAME_TYPE=FOOSBALL
+      - BUILDING_ID=building-3
+      - MQTT_BROKER_URL=tcp://mqtt-broker-3:1883
+      - LOCAL_SERVER_URL=https://local-server-3:8081
+      - MQTT_USERNAME=client-foosball-3
+      - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
+    networks:
+      - local-net-3
+
+volumes:
+  local-db-2-data:
+  local-db-3-data:
+
+networks:
+  local-net-2:
+    driver: bridge
+  local-net-3:
+    driver: bridge

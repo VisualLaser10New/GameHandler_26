@@ -222,36 +222,42 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         }
 
         // Generate Outbox Event
-        try {
-            String resultJsonString = null;
-            if (result != null) {
-                resultJsonString = objectMapper.writeValueAsString(result);
-            }
+        // S1: only emit GAME_SESSION_COMPLETED when the session was not already aborted.
+        // An aborted-then-ended session has already produced its central-stats event
+        // (GAME_SESSION_ABORTED) at abort time; emitting COMPLETED here would double-count
+        // the session in central aggregated_statistics (totalSessions / avgDurationSeconds).
+        if (!wasAborted) {
+            try {
+                String resultJsonString = null;
+                if (result != null) {
+                    resultJsonString = objectMapper.writeValueAsString(result);
+                }
 
-            Map<String, Object> payload = new java.util.HashMap<>();
-            payload.put("eventId", UUID.randomUUID().toString());
-            payload.put("occurredAt", Instant.now(clock).toString());
-            payload.put("sessionId", session.getId().value());
-            payload.put("gameType", session.getGameType().name());
-            payload.put("durationSeconds", session.getDurationSeconds());
-            payload.put("status", session.getStatus().name());
-            if (resultJsonString != null) {
-                payload.put("resultJson", resultJsonString);
-            }
-            String payloadJson = objectMapper.writeValueAsString(payload);
+                Map<String, Object> payload = new java.util.HashMap<>();
+                payload.put("eventId", UUID.randomUUID().toString());
+                payload.put("occurredAt", Instant.now(clock).toString());
+                payload.put("sessionId", session.getId().value());
+                payload.put("gameType", session.getGameType().name());
+                payload.put("durationSeconds", session.getDurationSeconds());
+                payload.put("status", session.getStatus().name());
+                if (resultJsonString != null) {
+                    payload.put("resultJson", resultJsonString);
+                }
+                String payloadJson = objectMapper.writeValueAsString(payload);
 
-            OutboxEvent outboxEvent = new OutboxEvent(
-                    UUID.randomUUID().toString(),
-                    "GAME_SESSION_COMPLETED",
-                    payloadJson,
-                    "PENDING",
-                    Instant.now(clock),
-                    null,
-                    0
-            );
-            outboxEventRepository.save(outboxEvent);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to serialize OutboxEvent payload for GAME_SESSION_COMPLETED", e);
+                OutboxEvent outboxEvent = new OutboxEvent(
+                        UUID.randomUUID().toString(),
+                        "GAME_SESSION_COMPLETED",
+                        payloadJson,
+                        "PENDING",
+                        Instant.now(clock),
+                        null,
+                        0
+                );
+                outboxEventRepository.save(outboxEvent);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to serialize OutboxEvent payload for GAME_SESSION_COMPLETED", e);
+            }
         }
     }
 

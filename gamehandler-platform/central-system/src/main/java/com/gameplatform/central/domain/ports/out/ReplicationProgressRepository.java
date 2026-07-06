@@ -6,4 +6,5 @@ import java.util.List;
 public interface ReplicationProgressRepository {
     List<ReplicationProgress> findByEventId(String eventId);
     void save(ReplicationProgress progress);
+    boolean existsByEventIdAndServerId(String eventId, String serverId);
 }

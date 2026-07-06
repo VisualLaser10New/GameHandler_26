@@ -8,10 +8,21 @@ public class User {
     private final UserId userId;
     private final String username;
     private final String passwordHash;
+    private final String email;
     private final List<String> roles;
-    private final Instant syncedAt;
+    private final Instant eventTime;
+    private final Instant updatedAt;
 
-    public User(UserId userId, String username, String passwordHash, List<String> roles, Instant syncedAt) {
+    public User(UserId userId, String username, String passwordHash, List<String> roles, Instant eventTime) {
+        this(userId, username, passwordHash, null, roles, eventTime, eventTime);
+    }
+
+    public User(UserId userId, String username, String passwordHash, String email, List<String> roles, Instant eventTime) {
+        this(userId, username, passwordHash, email, roles, eventTime, eventTime);
+    }
+
+    public User(UserId userId, String username, String passwordHash, String email, List<String> roles,
+                Instant eventTime, Instant updatedAt) {
         if (userId == null) {
             throw new IllegalArgumentException("UserId cannot be null");
         }
@@ -24,14 +35,19 @@ public class User {
         if (roles == null) {
             throw new IllegalArgumentException("Roles cannot be null");
         }
-        if (syncedAt == null) {
-            throw new IllegalArgumentException("SyncedAt cannot be null");
+        if (eventTime == null) {
+            throw new IllegalArgumentException("EventTime cannot be null");
+        }
+        if (updatedAt == null) {
+            throw new IllegalArgumentException("UpdatedAt cannot be null");
         }
         this.userId = userId;
         this.username = username;
         this.passwordHash = passwordHash;
+        this.email = email;
         this.roles = List.copyOf(roles);
-        this.syncedAt = syncedAt;
+        this.eventTime = eventTime;
+        this.updatedAt = updatedAt;
     }
 
     public UserId getUserId() {
@@ -46,12 +62,24 @@ public class User {
         return passwordHash;
     }
 
+    public String getEmail() {
+        return email;
+    }
+
     public List<String> getRoles() {
         return roles;
     }
 
+    public Instant getEventTime() {
+        return eventTime;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    @Deprecated
     public Instant getSyncedAt() {
-        return syncedAt;
+        return eventTime;
     }
 }
-

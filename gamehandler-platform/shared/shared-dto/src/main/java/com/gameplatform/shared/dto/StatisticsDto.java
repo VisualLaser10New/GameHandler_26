@@ -10,5 +10,6 @@ public record StatisticsDto(
     Integer totalSessions,
     Integer avgDuration,
     Integer totalReservations,
-    String data
+    String data,
+    Integer totalAbortedSessions
 ) {}

@@ -39,16 +39,27 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       table alignment.</li>
  * </ul>
  *
- * <p><b>Note on {@code retry_count}:</b> {@code infrastructure/mysql-central/init.sql}
- * declares {@code outbox_events.retry_count INT DEFAULT 0}, but the central
- * {@link com.gameplatform.central.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity}
- * intentionally does NOT map {@code retry_count} — retry/failed-threshold tracking is a
- * local-server concern (see
+ * <p><b>Note on {@code retry_count} (M6 closed):</b> the central {@code outbox_events}
+ * table intentionally has NO {@code retry_count} column — retry/failed-threshold tracking
+ * is a local-server concern only (see
  * {@link com.gameplatform.local.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity},
- * which DOES declare {@code retry_count}). The central outbox never re-tries, so the column
- * is unused on the central side and is therefore NOT asserted here. The local-server side
- * schema alignment (including {@code retry_count}) is exercised implicitly by any
- * local-server integration test that reads/writes the {@code outbox_events} table.</p>
+ * which DOES declare {@code retry_count}). The central outbox never re-tries, so no
+ * {@code retry_count} column exists in {@code infrastructure/mysql-central/init.sql} and
+ * none is asserted here. The local-server side schema alignment (including
+ * {@code retry_count}) is exercised implicitly by any local-server integration test that
+ * reads/writes the {@code outbox_events} table.</p>
+ *
+ * <p><b>Note on {@code payload} JSON type (schema-asymmetry fix):</b> the central
+ * {@code outbox_events.payload} column is declared {@code JSON NOT NULL} in
+ * {@code infrastructure/mysql-central/init.sql} and mapped with
+ * {@code columnDefinition = "JSON"} on
+ * {@link com.gameplatform.central.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity},
+ * matching the local-server entity exactly (the previous central definition used
+ * {@code TEXT}, which was the asymmetry this test now guards against). H2 (MODE=MySQL) maps
+ * MySQL {@code JSON} to its native {@code JSON} type in the build used by this test; should
+ * a future H2 build map it to {@code CLOB}/{@code VARCHAR} instead, the type assertion below
+ * must be relaxed accordingly — it is intentionally a single accepted value so a regression
+ * back to {@code TEXT} is caught.</p>
  *
  * <p><b>Local-server schema:</b> a dedicated local-server SchemaAlignmentTest is not added
  * here because booting the local-server {@code @SpringBootApplication} eagerly instantiates
@@ -91,9 +102,19 @@ class SchemaAlignmentTest {
             assertThat(columns(md, "processed_events"))
                     .contains("event_id", "processed_at");
 
-            // outbox_events — payload + status + type. retry_count intentionally omitted (see class javadoc).
+            // outbox_events — payload + status + type. retry_count intentionally omitted
+            // (central has NO retry_count — see class javadoc). payload column TYPE is asserted
+            // separately below (JSON NOT NULL — schema-asymmetry fix).
             assertThat(columns(md, "outbox_events"))
                     .contains("payload", "status", "event_type", "created_at", "sent_at");
+
+            // outbox_events.payload — column TYPE must be JSON (symmetry with the local-server
+            // schema; central was previously TEXT). H2 maps MySQL JSON to its native JSON type
+            // in this build — see the class javadoc for the H2-dialect divergence caveat.
+            String outboxPayloadType = columnType(md, "outbox_events", "payload");
+            assertThat(outboxPayloadType)
+                    .as("outbox_events.payload TYPE_NAME (must be JSON, not TEXT)")
+                    .isEqualTo("JSON");
 
             // users — auth columns.
             assertThat(columns(md, "users"))
@@ -124,5 +145,22 @@ class SchemaAlignmentTest {
             }
             return out;
         }
+    }
+
+    /**
+     * Returns the JDBC {@code TYPE_NAME} of the given column of the given table from the H2
+     * catalog, compared case-insensitively (H2 with {@code DATABASE_TO_LOWER=TRUE} stores
+     * identifiers lowercase). {@code null} if the column is not found.
+     */
+    private String columnType(DatabaseMetaData md, String table, String column) throws SQLException {
+        try (ResultSet rs = md.getColumns(null, null, table, null)) {
+            while (rs.next()) {
+                String name = rs.getString("COLUMN_NAME");
+                if (name != null && name.equalsIgnoreCase(column)) {
+                    return rs.getString("TYPE_NAME");
+                }
+            }
+        }
+        return null;
     }
 }

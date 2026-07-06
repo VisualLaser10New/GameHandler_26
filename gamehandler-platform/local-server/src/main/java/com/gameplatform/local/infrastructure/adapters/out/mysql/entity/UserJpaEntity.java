@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 
 @Entity
@@ -20,21 +21,46 @@ public class UserJpaEntity {
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
+    @Column(name = "email", length = 100)
+    private String email;
+
     @Column(name = "roles", length = 255)
     private String roles;
 
     @Column(name = "synced_at", nullable = false)
     private Instant syncedAt;
 
+    @Column(name = "event_time", nullable = false)
+    private Instant eventTime;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     public UserJpaEntity() {
     }
 
     public UserJpaEntity(String userId, String username, String passwordHash, String roles, Instant syncedAt) {
+        this(userId, username, passwordHash, null, roles, syncedAt);
+    }
+
+    public UserJpaEntity(String userId, String username, String passwordHash, String email, String roles, Instant syncedAt) {
+        this(userId, username, passwordHash, email, roles, syncedAt, syncedAt);
+    }
+
+    public UserJpaEntity(String userId, String username, String passwordHash, String email, String roles,
+                        Instant eventTime, Instant updatedAt) {
         this.userId = userId;
         this.username = username;
         this.passwordHash = passwordHash;
+        this.email = email;
         this.roles = roles;
-        this.syncedAt = syncedAt;
+        this.syncedAt = eventTime;
+        this.eventTime = eventTime;
+        this.updatedAt = updatedAt;
     }
 
     public String getUserId() {
@@ -61,6 +87,14 @@ public class UserJpaEntity {
         this.passwordHash = passwordHash;
     }
 
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
     public String getRoles() {
         return roles;
     }
@@ -75,5 +109,29 @@ public class UserJpaEntity {
 
     public void setSyncedAt(Instant syncedAt) {
         this.syncedAt = syncedAt;
+    }
+
+    public Instant getEventTime() {
+        return eventTime;
+    }
+
+    public void setEventTime(Instant eventTime) {
+        this.eventTime = eventTime;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

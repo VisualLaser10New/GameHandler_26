@@ -1,17 +1,13 @@
 package com.gameplatform.local.application.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.model.GameSession;
-import com.gameplatform.local.domain.model.OutboxEvent;
 import com.gameplatform.local.domain.ports.out.GameRepository;
 import com.gameplatform.local.domain.ports.out.GameSessionRepository;
-import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.local.domain.ports.out.PublishAlertPort;
 import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
 import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.GameMachineStatus;
-import com.gameplatform.shared.domain.model.GameStatus;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.mqtt.MqttTopics;
 import com.gameplatform.shared.mqtt.payload.AlertPayload;
@@ -19,30 +15,42 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * R3 (outbox atomicity) — the sweep no longer holds a single class-level tx
+ * across ALL games. The class-level {@code @Transactional} was changed to
+ * {@link Propagation#NEVER} so the per-game abort runs inside its OWN
+ * {@link Propagation#REQUIRES_NEW} transaction on a separate bean
+ * ({@link SessionAbortHelper#abortAndEmit}). If that bean throws (outbox save
+ * failure, serialization failure, transition guard), the inner tx rolls back
+ * entirely → session NOT aborted, game NOT released, NO outbox row — the
+ * contract the previous inline {@code try { ... } catch (Exception e)
+ * { log.error(...); }} silently violated (it swallowed the failure and let
+ * the outer sweep tx commit the abort WITHOUT the outbox row). Each game's
+ * abort is now logged-and-skipped; the next tick retries.
+ */
 @Service
-@Transactional
+@Transactional(propagation = Propagation.NEVER)
 public class HealthCheckService {
 
     private static final Logger log = LoggerFactory.getLogger(HealthCheckService.class);
 
     private final GameSessionRepository gameSessionRepository;
     private final GameRepository gameRepository;
-    private final OutboxEventRepository outboxEventRepository;
     private final PublishGameStatePort publishGameStatePort;
     private final PublishAlertPort publishAlertPort;
     private final Clock clock;
-    private final ObjectMapper objectMapper;
+    private final SessionAbortHelper sessionAbortHelper;
 
     // Tracks responded clients within the current 5-minute cycle
     private final ConcurrentHashMap<GameId, Boolean> respondedInCycle = new ConcurrentHashMap<>();
@@ -53,24 +61,22 @@ public class HealthCheckService {
     public HealthCheckService(
             GameSessionRepository gameSessionRepository,
             GameRepository gameRepository,
-            OutboxEventRepository outboxEventRepository,
             PublishGameStatePort publishGameStatePort,
             PublishAlertPort publishAlertPort,
             Clock clock,
-            ObjectMapper objectMapper) {
+            SessionAbortHelper sessionAbortHelper) {
         this.gameSessionRepository = gameSessionRepository;
         this.gameRepository = gameRepository;
-        this.outboxEventRepository = outboxEventRepository;
         this.publishGameStatePort = publishGameStatePort;
         this.publishAlertPort = publishAlertPort;
         this.clock = clock;
-        this.objectMapper = objectMapper;
+        this.sessionAbortHelper = sessionAbortHelper;
     }
 
     private void deferMqttPublish(Runnable publishRunnable) {
-        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
-            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
-                new org.springframework.transaction.support.TransactionSynchronization() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
                         try {
@@ -108,58 +114,35 @@ public class HealthCheckService {
                 if (missed >= 3) {
                     missedHeartbeatsMap.put(gameId, 0);
 
-                    // Abort any active sessions
+                    // Abort any active session. The abort + game release +
+                    // GAME_SESSION_ABORTED outbox row happen atomically inside a
+                    // REQUIRES_NEW tx on the SessionAbortHelper bean. A failure
+                    // (outbox save, serialization, transition guard) propagates
+                    // and rolls back the ENTIRE inner tx → session NOT aborted,
+                    // game NOT released, NO outbox row. We log-and-skip; the next
+                    // tick retries. This replaces the previous inline try/catch
+                    // that swallowed failures and let the class-level sweep tx
+                    // commit the abort WITHOUT the outbox row (R3 root cause).
                     Optional<GameSession> activeSessionOpt = gameSessionRepository.findActiveByGameId(gameId);
                     if (activeSessionOpt.isPresent()) {
                         GameSession session = activeSessionOpt.get();
-                        // If the session is WAITING (lobby), cancel it;
-                        // otherwise abort it (IN_PROGRESS / PAUSED).
-                        if (session.getStatus() == GameStatus.WAITING) {
-                            session.cancelLobby(Instant.now(clock));
-                        } else {
-                            session.abort(StopReason.TIMEOUT, Instant.now(clock));
-                        }
-                        gameSessionRepository.save(session);
-
-                        // Generate outbox sync event
                         try {
-                            Map<String, Object> payload = new HashMap<>();
-                            payload.put("eventId", UUID.randomUUID().toString());
-                            payload.put("occurredAt", Instant.now(clock).toString());
-                            payload.put("sessionId", session.getId().value());
-                            payload.put("gameType", session.getGameType().name());
-                            payload.put("durationSeconds", session.getDurationSeconds());
-                            payload.put("status", session.getStatus().name());
-                            payload.put("stopReason", "TIMEOUT");
-
-                            String payloadJson = objectMapper.writeValueAsString(payload);
-
-                            OutboxEvent outboxEvent = new OutboxEvent(
-                                    UUID.randomUUID().toString(),
-                                    "GAME_SESSION_ABORTED",
-                                    payloadJson,
-                                    "PENDING",
-                                    Instant.now(clock),
-                                    null,
-                                    0
-                            );
-                            outboxEventRepository.save(outboxEvent);
+                            sessionAbortHelper.abortAndEmit(session, StopReason.TIMEOUT, "TIMEOUT");
                         } catch (Exception e) {
-                            log.error("Failed to serialize or save outbox event during heartbeat health check", e);
+                            log.error("Per-game abort+outbox failed for gameId={}; tx rolled back, will retry next tick", gameId, e);
                         }
-                    }
-
-                    // Release game machine if it is IN_USE or LOBBY (a
-                    // disconnected client leaves the machine stuck in
-                    // either state). Previously only IN_USE was handled,
-                    // so a client that created a lobby and then crashed
-                    // would leave the game in LOBBY forever (until the
-                    // 2-minute LobbyExpirationService kicked in).
-                    if (game.getStatus() == GameMachineStatus.IN_USE
-                            || game.getStatus() == GameMachineStatus.LOBBY) {
-                        game.release();
-                        gameRepository.save(game);
-                        deferMqttPublish(() -> publishGameStatePort.publishState(gameId, game.getStatus()));
+                    } else {
+                        // No active session, but the machine may still be stuck
+                        // IN_USE / LOBBY (a disconnected client leaves the
+                        // machine in either state). Previously this branch ran
+                        // unconditionally; with the abort now owning its own tx
+                        // the standalone release lives in the no-session case.
+                        if (game.getStatus() == GameMachineStatus.IN_USE
+                                || game.getStatus() == GameMachineStatus.LOBBY) {
+                            game.release();
+                            gameRepository.save(game);
+                            deferMqttPublish(() -> publishGameStatePort.publishState(gameId, game.getStatus()));
+                        }
                     }
 
                     // Publish alert to MQTT

@@ -24,8 +24,10 @@ public class UserMapper {
             new UserId(entity.getUserId()),
             entity.getUsername(),
             entity.getPasswordHash(),
+            entity.getEmail(),
             rolesList,
-            entity.getSyncedAt()
+            entity.getEventTime(),
+            entity.getUpdatedAt()
         );
     }
 
@@ -38,8 +40,10 @@ public class UserMapper {
             domain.getUserId().value(),
             domain.getUsername(),
             domain.getPasswordHash(),
+            domain.getEmail(),
             rolesStr,
-            domain.getSyncedAt()
+            domain.getEventTime(),
+            domain.getUpdatedAt()
         );
     }
 

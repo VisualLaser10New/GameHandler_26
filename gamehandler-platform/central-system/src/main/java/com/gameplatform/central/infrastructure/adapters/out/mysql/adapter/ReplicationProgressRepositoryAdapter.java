@@ -38,4 +38,12 @@ public class ReplicationProgressRepositoryAdapter implements ReplicationProgress
         ReplicationProgressJpaEntity entity = mapper.toEntity(progress);
         jpaRepository.save(entity);
     }
+
+    @Override
+    public boolean existsByEventIdAndServerId(String eventId, String serverId) {
+        if (eventId == null || serverId == null) {
+            return false;
+        }
+        return jpaRepository.existsByEventIdAndServerId(eventId, serverId);
+    }
 }

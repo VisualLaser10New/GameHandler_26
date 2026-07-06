@@ -2,11 +2,14 @@ package com.gameplatform.central.infrastructure.adapters.out.rest;
 
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.shared.domain.model.BuildingId;
+import com.gameplatform.shared.dto.UserSyncAckDto;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
@@ -24,6 +27,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class LocalServerRestAdapterTest {
+
+    private ResponseEntity<List<UserSyncAckDto>> ackResponse() {
+        return new ResponseEntity<>(List.of(new UserSyncAckDto("u1", true, null)), HttpStatus.OK);
+    }
 
     @Test
     void shouldConfigureTimeoutsInDefaultConstructor() throws Exception {
@@ -55,12 +62,16 @@ class LocalServerRestAdapterTest {
         RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8081", Instant.now(), true);
         List<UserSyncDto> users = Collections.singletonList(new UserSyncDto("u1", "user1", "hash", List.of("ROLE_USER")));
 
-        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class)))
-                .thenReturn(null);
+        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class)))
+                .thenReturn(ackResponse());
 
-        adapter.pushUsers(users, server);
+        List<UserSyncAckDto> acks = adapter.pushUsers(users, server);
 
-        verify(mockRestTemplate, times(1)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class));
+        assertThat(acks).hasSize(1);
+        assertThat(acks.get(0).applied()).isTrue();
+        verify(mockRestTemplate, times(1)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class));
     }
 
     @Test
@@ -71,13 +82,15 @@ class LocalServerRestAdapterTest {
         List<UserSyncDto> users = Collections.singletonList(new UserSyncDto("u1", "user1", "hash", List.of("ROLE_USER")));
 
         // Throw transient network exception on first call, succeed on second
-        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class)))
+        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class)))
                 .thenThrow(new ResourceAccessException("Timeout occurred"))
-                .thenReturn(null);
+                .thenReturn(ackResponse());
 
         adapter.pushUsers(users, server);
 
-        verify(mockRestTemplate, times(2)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class));
+        verify(mockRestTemplate, times(2)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class));
     }
 
     @Test
@@ -87,14 +100,16 @@ class LocalServerRestAdapterTest {
         RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8081", Instant.now(), true);
         List<UserSyncDto> users = Collections.singletonList(new UserSyncDto("u1", "user1", "hash", List.of("ROLE_USER")));
 
-        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class)))
+        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class)))
                 .thenThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR, "Server Error"));
 
         assertThatThrownBy(() -> adapter.pushUsers(users, server))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Failed to push users to local server");
 
-        verify(mockRestTemplate, times(3)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class));
+        verify(mockRestTemplate, times(3)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class));
     }
 
     @Test
@@ -104,13 +119,15 @@ class LocalServerRestAdapterTest {
         RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8081", Instant.now(), true);
         List<UserSyncDto> users = Collections.singletonList(new UserSyncDto("u1", "user1", "hash", List.of("ROLE_USER")));
 
-        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class)))
+        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class)))
                 .thenThrow(new HttpClientErrorException(HttpStatus.BAD_REQUEST, "Bad Request"));
 
         assertThatThrownBy(() -> adapter.pushUsers(users, server))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Failed to push users to local server");
 
-        verify(mockRestTemplate, times(1)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class));
+        verify(mockRestTemplate, times(1)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class));
     }
 }

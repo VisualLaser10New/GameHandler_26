@@ -139,3 +139,29 @@ curl -k https://localhost:8080/actuator/health
 # Health check local
 curl -k https://localhost:8081/actuator/health
 ```
+
+---
+
+## Multi-building smoke test
+
+Run the multi-building composition (building-1 from `docker-compose.yml` + building-2 and building-3 from the override):
+```bash
+docker compose -f docker-compose.yml -f docker-compose.multi.yml up
+```
+
+Recommended environment overrides for a 15-minute smoke run (avoids health-monitor flapping and reconciliation re-push noise):
+- `SERVER_STALE_THRESHOLD_MS=3600000` (1 hour — prevents `LocalServerHealthMonitorService` from deactivating buildings during the smoke)
+- `RECONCILIATION_INTERVAL_MS` left at the 1-hour default OR set high to silence `UserReplicationReconciliationService` INFO logs
+
+The composition provisions `local-db-2`/`local-db-3` (host ports 3308/3309) with `init-building-2.sql`/`init-building-3.sql`, `mqtt-broker-2`/`mqtt-broker-3` (host ports 8884/8885 — separate brokers for namespace isolation because the base `mosquitto.conf` has no ACL), and `local-server-2`/`local-server-3` with `BUILDING_ID=building-2`/`building-3`.
+
+### Smoke scenarios (also covered by `MultiBuildingEndToEndIT`)
+1. building-2 + building-3 self-register → both rows in `local_servers`.
+2. `USER_REGISTERED` at building-2 → replicated to building-1 AND building-3 (two `replication_progress` rows; event SENT).
+3. `GAME_SESSION_COMPLETED` for building-2/CHESS and building-3/FOOSBALL → two distinct `aggregated_statistics` rows, no cross-building pollution.
+4. re-send same `USER_REGISTERED` from building-2 → no second push (`processed_events` dedup).
+
+### Operator notes
+- **TLS SAN**: verify the per-building TLS certificate generation covers `local-server-2`/`local-server-3` in the SAN list. If `infrastructure/tls/generate-certs.ps1` only covers `local-server`/`local-server-1`, regenerate (or extend) to include `local-server-2`/`local-server-3`. Mismatched SANs will cause TLS handshake failures between central and the new local servers.
+- **MQTT namespaces**: each building uses its own broker (`mqtt-broker-2`/`mqtt-broker-3`) so topic paths like `building/bld-1/...` and `building/bld-2/...` are physically separated (the brokers don't share state).
+- **Heartbeats**: send one `POST /internal/servers/register` from each building within the `SERVER_STALE_THRESHOLD_MS` window to keep `is_active=true` (the build is auto-registered on startup; the heartbeat guidance is for long smoke runs that exceed the threshold).

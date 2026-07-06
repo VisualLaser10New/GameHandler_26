@@ -9,4 +9,6 @@ public interface ReplicationProgressJpaRepository extends JpaRepository<Replicat
     List<ReplicationProgressJpaEntity> findByEventId(String eventId);
 
     List<ReplicationProgressJpaEntity> findByEventIdInAndServerId(Collection<String> eventIds, String serverId);
+
+    boolean existsByEventIdAndServerId(String eventId, String serverId);
 }

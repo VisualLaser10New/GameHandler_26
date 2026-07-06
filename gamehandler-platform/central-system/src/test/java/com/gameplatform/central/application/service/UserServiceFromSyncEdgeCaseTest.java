@@ -39,7 +39,7 @@ class UserServiceFromSyncEdgeCaseTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, outboxEventRepository, new ObjectMapper());
+        userService = new UserService(userRepository, outboxEventRepository, new ObjectMapper(), java.time.Clock.systemUTC());
     }
 
     private UserRegisteredEventDto dto(String userId, String username, String email, String hash, List<String> roles) {

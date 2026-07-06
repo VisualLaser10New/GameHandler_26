@@ -2,14 +2,17 @@ package com.gameplatform.central.infrastructure.adapters.out.rest;
 
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
+import com.gameplatform.shared.dto.UserSyncAckDto;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.retry.RetryContext;
 import org.springframework.retry.support.RetryTemplate;
@@ -58,7 +61,7 @@ public class LocalServerRestAdapter implements PushUserToLocalServersPort {
     }
 
     @Override
-    public void pushUsers(List<UserSyncDto> users, RegisteredLocalServer server) {
+    public List<UserSyncAckDto> pushUsers(List<UserSyncDto> users, RegisteredLocalServer server) {
         String url = server.getBaseUrl() + "/internal/users/sync";
         log.info("Pushing {} users to local server at {}", users.size(), url);
 
@@ -69,13 +72,15 @@ public class LocalServerRestAdapter implements PushUserToLocalServersPort {
         HttpEntity<List<UserSyncDto>> entity = new HttpEntity<>(users, headers);
 
         try {
-            retryTemplate.execute(new org.springframework.retry.RetryCallback<Void, Exception>() {
+            return retryTemplate.execute(new org.springframework.retry.RetryCallback<List<UserSyncAckDto>, Exception>() {
                 @Override
-                public Void doWithRetry(RetryContext context) throws Exception {
+                public List<UserSyncAckDto> doWithRetry(RetryContext context) throws Exception {
                     try {
-                        restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);
+                        ResponseEntity<List<UserSyncAckDto>> response = restTemplate.exchange(
+                                url, HttpMethod.PUT, entity, new ParameterizedTypeReference<List<UserSyncAckDto>>() {});
+                        List<UserSyncAckDto> acks = response.getBody();
                         log.info("Successfully pushed users to local server at {}", url);
-                        return null;
+                        return acks == null ? List.of() : acks;
                     } catch (Exception e) {
                         if (isTransient(e)) {
                             log.warn("Transient failure pushing users to local server at {} (attempt {}). Retrying...",

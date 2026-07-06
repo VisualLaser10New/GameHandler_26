@@ -2,11 +2,14 @@ package com.gameplatform.central.infrastructure.adapters.out.rest;
 
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.shared.domain.model.BuildingId;
+import com.gameplatform.shared.dto.UserSyncAckDto;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
@@ -15,6 +18,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,18 +44,24 @@ class LocalServerRestAdapterRetryTest {
         return Collections.singletonList(new UserSyncDto("u1", "user1", "hash", List.of("ROLE_USER")));
     }
 
+    private ResponseEntity<List<UserSyncAckDto>> ackResponse() {
+        return new ResponseEntity<>(List.of(new UserSyncAckDto("u1", true, null)), HttpStatus.OK);
+    }
+
     @Test
     void retriesOn503ThenSucceeds() {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
         LocalServerRestAdapter adapter = new LocalServerRestAdapter(mockRestTemplate, "test-api-key");
 
-        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class)))
+        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class)))
                 .thenThrow(new HttpServerErrorException(HttpStatus.SERVICE_UNAVAILABLE, "Service Unavailable"))
-                .thenReturn(null);
+                .thenReturn(ackResponse());
 
         assertThatCode(() -> adapter.pushUsers(users(), server())).doesNotThrowAnyException();
 
-        verify(mockRestTemplate, times(2)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class));
+        verify(mockRestTemplate, times(2)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class));
     }
 
     @Test
@@ -59,14 +69,16 @@ class LocalServerRestAdapterRetryTest {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
         LocalServerRestAdapter adapter = new LocalServerRestAdapter(mockRestTemplate, "test-api-key");
 
-        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class)))
+        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class)))
                 .thenThrow(new HttpClientErrorException(HttpStatus.BAD_REQUEST, "Bad Request"));
 
         assertThatThrownBy(() -> adapter.pushUsers(users(), server()))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Failed to push users to local server");
 
-        verify(mockRestTemplate, times(1)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class));
+        verify(mockRestTemplate, times(1)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class));
     }
 
     @Test
@@ -74,13 +86,31 @@ class LocalServerRestAdapterRetryTest {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
         LocalServerRestAdapter adapter = new LocalServerRestAdapter(mockRestTemplate, "test-api-key");
 
-        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class)))
+        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class)))
                 .thenThrow(new HttpServerErrorException(HttpStatus.SERVICE_UNAVAILABLE, "Service Unavailable"));
 
         assertThatThrownBy(() -> adapter.pushUsers(users(), server()))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Failed to push users to local server");
 
-        verify(mockRestTemplate, times(3)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class), eq(Void.class));
+        verify(mockRestTemplate, times(3)).exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class));
+    }
+
+    @Test
+    void returnsAckListFromResponseBody() {
+        RestTemplate mockRestTemplate = mock(RestTemplate.class);
+        LocalServerRestAdapter adapter = new LocalServerRestAdapter(mockRestTemplate, "test-api-key");
+
+        when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class)))
+                .thenReturn(ackResponse());
+
+        List<UserSyncAckDto> acks = adapter.pushUsers(users(), server());
+
+        assertThat(acks).hasSize(1);
+        assertThat(acks.get(0).userId()).isEqualTo("u1");
+        assertThat(acks.get(0).applied()).isTrue();
     }
 }

@@ -77,7 +77,7 @@ Durante l'implementazione, qualora emergessero discrepanze, ambiguità o problem
 
 # altri prompt
 
-### analisi dei sistemi server distribuiti
+## analisi dei sistemi server distribuiti
 
 Sei un ingegnere del software specializzato in Java, Clean Architecture (Hexagonal Ports and Adapters) e sistemi distribuiti resilienti offline.
 Il nostro compito ora è di analizzare e rendere pienamente funzionante la comunicazione tra local-server e central sytem. Analizza entrambi i sistemi per comprendere per ora solo il loro funzionamento. Non modificare codice
@@ -96,4 +96,30 @@ crea un piano di risoluzione dei bugs e implementazione delle funzionalità rile
 - si rileva la causa sorgente primaria dei bugs, e se vi sono possibili altri malfunzionamenti introdotti dallo stesso bug, o se vi è lo stesso bug in altre sezioni del codice
 - si applica la patch di correzione, che deve essere una soluzione permanente e alla radice assoluta del problema
 Per leggere il codice utilizza diversi subagent
-- 
+
+
+## Verifica e termine implementazione del piano
+È stato appena implementato l'intero piano @race_condition_analisys_central_local.md.
+Leggi il file e i sorgenti non ancora committati.
+Verifica la sua funzionalità completa nel seguente modo:
+- si analizzano i messaggi inviabili e il codice che li gestisce
+- si esegue una simulazione virtuale (anche attraverso test junit) passo passo, per verificare tutta la logica implementata
+- si trovano le eventuali problematiche, bug o errori di: logica e/o sintassi
+- si rileva la causa sorgente primaria dei bugs, e se vi sono possibili altri malfunzionamenti introdotti dallo stesso bug, o se vi è lo stesso bug in altre sezioni del codice
+- si applica la patch di correzione, che deve essere una soluzione permanente e alla radice assoluta del problema
+
+Infine esegui il central-system e il local-server (non da docker):
+- verifica gli output delle esecuzioni
+- se ci sono errori, trova la causa sorgente, verifica il codice inerente e applica la patch di correzione
+  (Ogni patch deve essere di correzione della causa sorgente primaria e non temporanea. Inoltre verifica che la patch non abbia effetto su altre parti del codice o se ci sono altre parti del codice che presentano le stesse problematiche)
+  
+- Riesegui i due sistemi e verifica che non crashino, altrimenti ripeti il processo
+- Se non ci sono errori, termina il processo e riporta un output di ciò che è stato verificato e risolto, mostrando qual è la situazione attuale del sistema.
+
+Vincoli:
+- utilizza obbligatoriamente i subagents per ogni simulazione, esecuzione, write, read dei file.
+
+## Verifica esecuzione codice e scambio messaggi
+run the local-server and the central-system (not on docker). 
+inspect their outputs, and check if match with the expected execution flows by reading the source code. 
+Strictly use only subagent to think, read files and execute code by splitting the job into multiple tasks and delegating them

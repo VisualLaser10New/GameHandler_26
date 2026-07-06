@@ -51,7 +51,8 @@ class StatisticsControllerTest {
                 5,
                 120,
                 3,
-                "{}"
+                "{}",
+                2
         );
         when(getGlobalStatisticsUseCase.getStatistics(any(), any(), any(), any())).thenReturn(List.of(stats));
 
@@ -63,7 +64,8 @@ class StatisticsControllerTest {
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].buildingId").value("building-1"))
-                .andExpect(jsonPath("$[0].gameType").value("CHESS"));
+                .andExpect(jsonPath("$[0].gameType").value("CHESS"))
+                .andExpect(jsonPath("$[0].totalAbortedSessions").value(2));
     }
 
     @Test

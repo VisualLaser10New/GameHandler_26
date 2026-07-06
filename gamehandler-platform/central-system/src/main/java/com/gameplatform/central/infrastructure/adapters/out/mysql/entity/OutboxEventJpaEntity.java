@@ -20,7 +20,7 @@ public class OutboxEventJpaEntity {
     @Column(name = "event_type", nullable = false, length = 100)
     private String eventType;
 
-    @Column(name = "payload", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "payload", nullable = false, columnDefinition = "JSON")
     private String payload;
 
     @Column(name = "status", nullable = false, length = 20)

@@ -33,6 +33,33 @@ central:
     connect-timeout-ms: ${CENTRAL_REPLICATION_CONNECT_TIMEOUT_MS:5000}
     read-timeout-ms: ${CENTRAL_REPLICATION_READ_TIMEOUT_MS:5000}
 
+# ThreadPool sizing for the central-system scheduler / replication push path.
+#   scheduler.pool-size        → threads backing @Scheduled methods (see SchedulerConfig#taskScheduler)
+#   replication.push-parallelism → threads backing the per-server push executor (see SchedulerConfig#replicationPushExecutor)
+app:
+  scheduler:
+    pool-size: ${SCHEDULER_POOL_SIZE:4}
+  replication:
+    push-parallelism: ${REPLICATION_PUSH_PARALLELISM:4}
+  # M13 — local server health monitoring. Two independent properties:
+  #   monitor-interval-ms         → @Scheduled fixedDelay (how often the monitor runs)
+  #   server-stale-threshold-ms   → staleness window (lastSeenAt < now − threshold → deactivate)
+  # Both default to 900000 ms (15 min) per the plan. The threshold is > 2× the
+  # replication SYNC_INTERVAL_MS (300000) so a single missed replication cycle
+  # never falsely deactivates a healthy-but-slow server.
+  health:
+    monitor-interval-ms: ${HEALTH_MONITOR_INTERVAL_MS:900000}
+    server-stale-threshold-ms: ${SERVER_STALE_THRESHOLD_MS:900000}
+  # M4 — periodic reconciliation between central users and each active local
+  # server's replicated_users table. The reconciliation job queries each
+  # server's GET /internal/users/count, compares it against the central user
+  # count (UserService#getAllUsersForSync), and re-pushes the full snapshot
+  # when they differ (idempotent because of the local R2 ordering guard).
+  # The re-push also backfills R4's email column on pre-R4 local rows.
+  # Default 1 hour (3600000 ms).
+  reconciliation:
+    interval-ms: ${RECONCILIATION_INTERVAL_MS:3600000}
+
 # CORS allowed origins (comma-separated list, or '*' for wildcard without credentials).
 # Default: http://localhost:3000 for local development.
 cors:

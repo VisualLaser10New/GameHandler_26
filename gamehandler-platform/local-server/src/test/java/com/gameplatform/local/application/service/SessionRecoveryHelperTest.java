@@ -31,6 +31,20 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+/**
+ * R3 (outbox atomicity) — covers the delegation from
+ * {@link SessionRecoveryHelper#abortSession} to
+ * {@link SessionAbortHelper#abortAndEmit}.
+ *
+ * <p>{@code SessionRecoveryHelper} is now a thin wrapper around the helper so
+ * the existing SERVER_RESTART recovery path shares the same atomic
+ * abort+release+outbox unit as the heartbeat TIMEOUT path. The test constructs
+ * the wrapper with a REAL {@code SessionAbortHelper} wired to the same mocked
+ * ports — the pre-R3 assertions (session aborted, game released + saved,
+ * publishState called, outbox row saved with stopReason=SERVER_RESTART) still
+ * hold because the helper performs exactly the same sequence the inline body
+ * used to.</p>
+ */
 @ExtendWith(MockitoExtension.class)
 class SessionRecoveryHelperTest {
 
@@ -46,7 +60,9 @@ class SessionRecoveryHelperTest {
 
     @BeforeEach
     void setUp() {
-        helper = new SessionRecoveryHelper(
+        // Real helper so the delegation chain runs the actual abort+release+
+        // outbox body against the mocked ports — preserving the pre-R3 contract.
+        SessionAbortHelper abortHelper = new SessionAbortHelper(
                 gameSessionRepository,
                 gameRepository,
                 outboxEventRepository,
@@ -54,6 +70,7 @@ class SessionRecoveryHelperTest {
                 clock,
                 objectMapper
         );
+        helper = new SessionRecoveryHelper(abortHelper);
     }
 
     private GameSession createSession(GameId gameId, GameStatus status) {

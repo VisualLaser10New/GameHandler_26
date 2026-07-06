@@ -94,7 +94,8 @@ class SharedCentralSystemCompatibilityTest {
                 localServerRegistryPort,
                 null, // PushUserToLocalServersPort not needed for these tests
                 replicationProgressRepository,
-                objectMapper
+                objectMapper,
+                Runnable::run // synchronous executor keeps these non-replication tests single-threaded
         );
     }
 

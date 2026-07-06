@@ -50,7 +50,8 @@ public class StatisticsAggregationService implements GetGlobalStatisticsUseCase 
                 stats.getTotalSessions(),
                 stats.getAvgDurationSeconds(),
                 stats.getTotalReservations(),
-                jsonData
+                jsonData,
+                stats.getTotalAbortedSessions()
         );
     }
 }

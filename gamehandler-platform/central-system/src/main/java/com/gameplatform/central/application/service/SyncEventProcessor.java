@@ -3,7 +3,7 @@ package com.gameplatform.central.application.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gameplatform.central.domain.exception.DuplicateEventException;
+import com.gameplatform.central.domain.exception.FirstBucketRaceHandledException;
 import com.gameplatform.central.domain.model.AggregatedStatistics;
 import com.gameplatform.central.domain.model.ProcessedEvent;
 import com.gameplatform.central.domain.ports.in.RegisterUserFromSyncUseCase;
@@ -13,6 +13,8 @@ import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.dto.OutboxEventDto;
 import com.gameplatform.shared.dto.UserRegisteredEventDto;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -48,17 +50,34 @@ public class SyncEventProcessor {
     private final RegisterUserFromSyncUseCase registerUserFromSyncUseCase;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final StatisticsFirstBucketRaceRetryHelper retryHelper;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    @org.springframework.beans.factory.annotation.Autowired
     public SyncEventProcessor(ProcessedEventRepository processedEventRepository,
                               StatisticsRepository statisticsRepository,
                               RegisterUserFromSyncUseCase registerUserFromSyncUseCase,
                               ObjectMapper objectMapper,
-                              Clock clock) {
+                              Clock clock,
+                              StatisticsFirstBucketRaceRetryHelper retryHelper) {
         this.processedEventRepository = processedEventRepository;
         this.statisticsRepository = statisticsRepository;
         this.registerUserFromSyncUseCase = registerUserFromSyncUseCase;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.retryHelper = retryHelper;
+    }
+
+    SyncEventProcessor(ProcessedEventRepository processedEventRepository,
+                       StatisticsRepository statisticsRepository,
+                       RegisterUserFromSyncUseCase registerUserFromSyncUseCase,
+                       ObjectMapper objectMapper,
+                       Clock clock) {
+        this(processedEventRepository, statisticsRepository,
+                registerUserFromSyncUseCase, objectMapper, clock,
+                new StatisticsFirstBucketRaceRetryHelper(statisticsRepository, processedEventRepository, clock));
     }
 
     /**
@@ -76,6 +95,11 @@ public class SyncEventProcessor {
         boolean processed;
         try {
             processed = processEvent(buildingId, event);
+        } catch (FirstBucketRaceHandledException race) {
+            // First-bucket insert race resolved in a fresh REQUIRES_NEW tx by the retry
+            // helper, which already committed BOTH the merged stats AND the processed_events
+            // record. Skip the normal processed_events save and return success.
+            return true;
         } catch (DataIntegrityViolationException dup) {
             // race-condition duplicate of processed_events PK
             log.info("Duplicate sync event caught by DB constraint, skipping: {}", event.eventId());
@@ -117,8 +141,9 @@ public class SyncEventProcessor {
             Instant occurredAt = payloadNode.has("occurredAt")
                     ? Instant.parse(payloadNode.get("occurredAt").asText()) : Instant.now(clock);
             LocalDate periodStart = LocalDate.ofInstant(occurredAt, ZoneOffset.UTC);
-            int durationSeconds = extractDuration(payloadNode, eventDto.eventId());
-            updateSessionStats(buildingId, gameType, periodStart, durationSeconds);
+            Optional<Integer> durationSecondsOpt = extractDuration(payloadNode, eventDto.eventId());
+            int durationSeconds = durationSecondsOpt.orElse(0);
+            updateSessionStats(buildingId, gameType, periodStart, durationSeconds, eventDto.eventId());
             return true;
 
         } else if ("GAME_SESSION_ABORTED".equals(eventDto.eventType())) {
@@ -129,7 +154,7 @@ public class SyncEventProcessor {
             Instant occurredAt = payloadNode.has("occurredAt")
                     ? Instant.parse(payloadNode.get("occurredAt").asText()) : Instant.now(clock);
             LocalDate periodStart = LocalDate.ofInstant(occurredAt, ZoneOffset.UTC);
-            updateAbortedStats(buildingId, gameType, periodStart);
+            updateAbortedStats(buildingId, gameType, periodStart, eventDto.eventId());
             return true;
 
         } else if ("RESERVATION_CREATED".equals(eventDto.eventType())) {
@@ -140,7 +165,7 @@ public class SyncEventProcessor {
             Instant occurredAt = payloadNode.has("occurredAt")
                     ? Instant.parse(payloadNode.get("occurredAt").asText()) : Instant.now(clock);
             LocalDate periodStart = LocalDate.ofInstant(occurredAt, ZoneOffset.UTC);
-            updateReservationStats(buildingId, gameType, periodStart, 1);
+            updateReservationStats(buildingId, gameType, periodStart, 1, eventDto.eventId());
             return true;
 
         } else if ("RESERVATION_CANCELLED".equals(eventDto.eventType())) {
@@ -148,7 +173,7 @@ public class SyncEventProcessor {
             if (parsed == null) {
                 return false;
             }
-            updateReservationStats(buildingId, parsed.gameType(), parsed.periodStart(), -1);
+            updateReservationStats(buildingId, parsed.gameType(), parsed.periodStart(), -1, eventDto.eventId());
             return true;
         } else if ("USER_REGISTERED".equals(eventDto.eventType())) {
             UserRegisteredEventDto dto = objectMapper.readValue(eventDto.payload(), UserRegisteredEventDto.class);
@@ -196,29 +221,50 @@ public class SyncEventProcessor {
 
     private record ParsedGameTypePeriod(GameType gameType, LocalDate periodStart) {}
 
-    private int extractDuration(JsonNode payloadNode, String eventId) throws JsonProcessingException {
+    private Optional<Integer> extractDuration(JsonNode payloadNode, String eventId) throws JsonProcessingException {
         if (payloadNode.has("durationSeconds")) {
-            return payloadNode.get("durationSeconds").asInt();
+            JsonNode n = payloadNode.get("durationSeconds");
+            if (isUsableInt(n)) {
+                return Optional.of(n.asInt());
+            }
+            String failure = (n == null || n.isNull()) ? "null" : "non-numeric: " + n.toString();
+            log.warn("Event [{}] 'durationSeconds' present but {} – assuming 0 for statistics.", eventId, failure);
+            return Optional.empty();
         }
         if (payloadNode.has("resultJson")) {
-            String resultJson = payloadNode.get("resultJson").asText();
-            JsonNode resultNode = objectMapper.readTree(resultJson);
+            JsonNode resultNode = objectMapper.readTree(payloadNode.get("resultJson").asText());
             if (resultNode.has("durationSeconds")) {
-                return resultNode.get("durationSeconds").asInt();
+                JsonNode n = resultNode.get("durationSeconds");
+                if (isUsableInt(n)) {
+                    return Optional.of(n.asInt());
+                }
+                String failure = (n == null || n.isNull()) ? "null" : "non-numeric: " + n.toString();
+                log.warn("Event [{}] resultJson.durationSeconds present but {} – assuming 0 for statistics.", eventId, failure);
+                return Optional.empty();
             }
             if (resultNode.has("duration_s")) {
-                return resultNode.get("duration_s").asInt();
+                JsonNode n = resultNode.get("duration_s");
+                if (isUsableInt(n)) {
+                    return Optional.of(n.asInt());
+                }
+                String failure = (n == null || n.isNull()) ? "null" : "non-numeric: " + n.toString();
+                log.warn("Event [{}] resultJson.duration_s present but {} – assuming 0 for statistics.", eventId, failure);
+                return Optional.empty();
             }
         }
-        log.warn("Event [{}] missing 'durationSeconds' field – assuming 0 for statistics.", eventId);
-        return 0;
+        log.warn("Event [{}] missing 'durationSeconds' (resultJson fallback missing) – assuming 0 for statistics.", eventId);
+        return Optional.empty();
+    }
+
+    private static boolean isUsableInt(JsonNode n) {
+        return n != null && !n.isNull() && n.isNumber() && n.canConvertToInt();
     }
 
     /**
      * Updates session statistics using a pessimistic write lock to prevent lost updates
      * when multiple sync requests arrive concurrently for the same building/game/period.
      */
-    private void updateSessionStats(BuildingId buildingId, GameType gameType, LocalDate period, int durationSeconds) {
+    private void updateSessionStats(BuildingId buildingId, GameType gameType, LocalDate period, int durationSeconds, String eventId) {
         // Use locked query to prevent concurrent lost-update race conditions (TOCTOU)
         Optional<AggregatedStatistics> existing =
                 statisticsRepository.findByBuildingAndTypeAndPeriodWithLock(buildingId, gameType, period);
@@ -250,7 +296,18 @@ public class SyncEventProcessor {
                     0,
                     new java.util.HashMap<>()
             );
-            statisticsRepository.save(newStats);
+            try {
+                statisticsRepository.save(newStats);
+            } catch (DataIntegrityViolationException dup) {
+                log.info("First-bucket race on aggregated_statistics insert [{}|{}|{}], retrying in fresh tx",
+                        buildingId, gameType, period);
+                if (entityManager != null) {
+                    entityManager.clear();
+                }
+                retryHelper.retryMergeAndMarkProcessed(buildingId, gameType, period, newStats, eventId);
+                throw new FirstBucketRaceHandledException(
+                        "First-bucket race resolved for [" + buildingId + "|" + gameType + "|" + period + "]");
+            }
         }
     }
 
@@ -261,7 +318,7 @@ public class SyncEventProcessor {
      * {@code totalSessions}, so average duration and completion counts are not
      * distorted by sessions that did not reach a natural end.
      */
-    private void updateAbortedStats(BuildingId buildingId, GameType gameType, LocalDate period) {
+    private void updateAbortedStats(BuildingId buildingId, GameType gameType, LocalDate period, String eventId) {
         Optional<AggregatedStatistics> existing =
                 statisticsRepository.findByBuildingAndTypeAndPeriodWithLock(buildingId, gameType, period);
 
@@ -294,14 +351,25 @@ public class SyncEventProcessor {
                     1,
                     new java.util.HashMap<>()
             );
-            statisticsRepository.save(newStats);
+            try {
+                statisticsRepository.save(newStats);
+            } catch (DataIntegrityViolationException dup) {
+                log.info("First-bucket race on aggregated_statistics insert [{}|{}|{}], retrying in fresh tx",
+                        buildingId, gameType, period);
+                if (entityManager != null) {
+                    entityManager.clear();
+                }
+                retryHelper.retryMergeAndMarkProcessed(buildingId, gameType, period, newStats, eventId);
+                throw new FirstBucketRaceHandledException(
+                        "First-bucket race resolved for [" + buildingId + "|" + gameType + "|" + period + "]");
+            }
         }
     }
 
     /**
      * Updates reservation statistics using a pessimistic write lock.
      */
-    private void updateReservationStats(BuildingId buildingId, GameType gameType, LocalDate period, int reservationDelta) {
+    private void updateReservationStats(BuildingId buildingId, GameType gameType, LocalDate period, int reservationDelta, String eventId) {
         // Use locked query to prevent concurrent lost-update race conditions (TOCTOU)
         Optional<AggregatedStatistics> existing =
                 statisticsRepository.findByBuildingAndTypeAndPeriodWithLock(buildingId, gameType, period);
@@ -336,7 +404,18 @@ public class SyncEventProcessor {
                     0,
                     new java.util.HashMap<>()
             );
-            statisticsRepository.save(newStats);
+            try {
+                statisticsRepository.save(newStats);
+            } catch (DataIntegrityViolationException dup) {
+                log.info("First-bucket race on aggregated_statistics insert [{}|{}|{}], retrying in fresh tx",
+                        buildingId, gameType, period);
+                if (entityManager != null) {
+                    entityManager.clear();
+                }
+                retryHelper.retryMergeAndMarkProcessed(buildingId, gameType, period, newStats, eventId);
+                throw new FirstBucketRaceHandledException(
+                        "First-bucket race resolved for [" + buildingId + "|" + gameType + "|" + period + "]");
+            }
         }
     }
 }

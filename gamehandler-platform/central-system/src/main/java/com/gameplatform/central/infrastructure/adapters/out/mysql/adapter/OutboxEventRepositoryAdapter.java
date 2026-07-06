@@ -71,4 +71,13 @@ public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
             jpaRepository.save(entity);
         });
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countPendingReplicationForServer(String serverId) {
+        if (serverId == null || serverId.isBlank()) {
+            return 0L;
+        }
+        return jpaRepository.countPendingReplicationForServer(serverId);
+    }
 }

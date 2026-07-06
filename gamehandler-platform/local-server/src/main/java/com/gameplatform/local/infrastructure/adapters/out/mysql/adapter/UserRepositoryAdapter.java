@@ -6,6 +6,7 @@ import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.UserJpaEn
 import com.gameplatform.local.infrastructure.adapters.out.mysql.mapper.UserMapper;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.repository.LocalUserJpaRepository;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.repository.UserJpaRepository;
+import com.gameplatform.shared.domain.model.UserId;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -33,6 +34,14 @@ public class UserRepositoryAdapter implements UserRepository {
     }
 
     @Override
+    public Optional<User> findById(UserId userId) {
+        if (userId == null) {
+            return Optional.empty();
+        }
+        return jpaRepository.findById(userId.value()).map(mapper::toDomain);
+    }
+
+    @Override
     public Optional<User> findByUsername(String username) {
         Optional<User> replicated = jpaRepository.findByUsername(username).map(mapper::toDomain);
         if (replicated.isPresent()) {
@@ -50,5 +59,14 @@ public class UserRepositoryAdapter implements UserRepository {
             .map(mapper::toEntity)
             .collect(Collectors.toList());
         jpaRepository.saveAll(entities);
+    }
+
+    @Override
+    public long count() {
+        // M4 — backed by JpaRepository#count() (inherited), which counts the
+        // replicated_users rows. The local_users table is intentionally
+        // excluded: it is a separate identity store for users registered
+        // directly on the local server (not subject to central reconciliation).
+        return jpaRepository.count();
     }
 }

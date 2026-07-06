@@ -97,8 +97,13 @@ CREATE TABLE replicated_users (
     user_id       VARCHAR(36) PRIMARY KEY,
     username      VARCHAR(100) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    email         VARCHAR(100),
     roles         VARCHAR(255),
-    synced_at     DATETIME(6) NOT NULL
+    synced_at     DATETIME(6) NOT NULL,
+    event_time    DATETIME(6) NOT NULL,
+    updated_at    DATETIME(6) NOT NULL,
+    version       BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT uk_replicated_users_username UNIQUE (username)
 );
 
 CREATE TABLE local_statistics_cache (

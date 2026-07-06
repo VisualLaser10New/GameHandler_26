@@ -54,7 +54,8 @@ class UserReplicationSchedulerPoisonedOutboxBugTest {
                 localServerRegistryPort,
                 pushUserToLocalServersPort,
                 replicationProgressRepository,
-                objectMapper
+                objectMapper,
+                Runnable::run // synchronous executor keeps this bug test single-threaded & deterministic
         );
         server = new RegisteredLocalServer(new BuildingId("building-repl"), "http://local-server", Instant.now(), true);
         lenient().when(replicationProgressRepository.findByEventId(any())).thenReturn(List.of());

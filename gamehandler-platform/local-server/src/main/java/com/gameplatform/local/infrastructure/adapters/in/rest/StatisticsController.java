@@ -57,7 +57,8 @@ public class StatisticsController {
                                 stats.getTotalSessions(),
                                 (int) Math.round(stats.getAvgDuration()),
                                 stats.getTotalReservations(),
-                                serializedWinRates
+                                serializedWinRates,
+                                null
                         );
                     })
                     .toList();

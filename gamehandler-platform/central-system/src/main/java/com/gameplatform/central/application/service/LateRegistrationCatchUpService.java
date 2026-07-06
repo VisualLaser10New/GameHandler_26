@@ -2,35 +2,43 @@ package com.gameplatform.central.application.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
+import com.gameplatform.central.domain.model.ReplicationProgress;
+import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity;
-import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.ReplicationProgressJpaEntity;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.repository.OutboxEventJpaRepository;
-import com.gameplatform.central.infrastructure.adapters.out.mysql.repository.ReplicationProgressJpaRepository;
+import com.gameplatform.shared.dto.UserSyncAckDto;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
- * Closes the late-registration gap (FASE 4 step 3).
+ * Closes the late-registration gap (FASE 4 step 3 / R1).
  *
  * <p>When a new local server registers AFTER user outbox events have already
- * been marked SENT (because the active-server list was empty when they were
+ * been processed (because the active-server list was empty when they were
  * processed), those events are never replicated to the new server by the
  * periodic scheduler — which only inspects PENDING events. This service replays
- * all SENT {@code USER_REGISTERED}/{@code USER_UPDATED} events that have not
- * yet been recorded in {@code replication_progress} for the newly-registered
- * server, pushing them in a single best-effort batch.</p>
+ * all SENT <em>and</em> PENDING {@code USER_REGISTERED}/{@code USER_UPDATED}
+ * events that have not yet been recorded in {@code replication_progress} for the
+ * newly-registered server, pushing them one event at a time so a poison user
+ * never aborts the rest of the batch.</p>
  *
- * <p>Best-effort: if the push fails the error is logged and swallowed —
+ * <p>R1: replays {@code SENT} + {@code PENDING} ({@link #REPLAY_STATUSES});
+ * per-event push ({@code List.of(user)}) for poison isolation; records
+ * {@code replication_progress} per-event via the domain
+ * {@link ReplicationProgressRepository} port, swallowing
+ * {@link DataIntegrityViolationException} on duplicate (event_id, server_id)
+ * inserts; consumes the M3 {@link UserSyncAckDto} contract —
+ * {@code applied=true} or {@code STALE_EVENT} → record progress;
+ * {@code VALIDATION_ERROR} → mark the event FAILED and skip the progress write.</p>
+ *
+ * <p>Best-effort: if a push fails the error is logged and swallowed —
  * registration must still succeed. The local side deduplicates via the
  * upsert semantics of {@code PUT /internal/users/sync}.</p>
  */
@@ -39,78 +47,134 @@ public class LateRegistrationCatchUpService {
 
     private static final Logger log = LoggerFactory.getLogger(LateRegistrationCatchUpService.class);
 
-    private static final String STATUS_SENT = "SENT";
+    /** R1: replay both SENT (already broadcast to old servers) and PENDING (never sent). */
+    private static final List<String> REPLAY_STATUSES = List.of("SENT", "PENDING");
     private static final List<String> USER_REPLICATION_EVENT_TYPES = List.of("USER_REGISTERED", "USER_UPDATED");
 
     private final OutboxEventJpaRepository outboxEventJpaRepository;
+    private final OutboxEventRepository outboxEventRepository;
     private final PushUserToLocalServersPort pushUserToLocalServersPort;
     private final ObjectMapper objectMapper;
-    private final ReplicationProgressJpaRepository replicationProgressJpaRepository;
+    private final ReplicationProgressRepository replicationProgressRepository;
 
     public LateRegistrationCatchUpService(OutboxEventJpaRepository outboxEventJpaRepository,
+                                          OutboxEventRepository outboxEventRepository,
                                           PushUserToLocalServersPort pushUserToLocalServersPort,
                                           ObjectMapper objectMapper,
-                                          ReplicationProgressJpaRepository replicationProgressJpaRepository) {
+                                          ReplicationProgressRepository replicationProgressRepository) {
         this.outboxEventJpaRepository = outboxEventJpaRepository;
+        this.outboxEventRepository = outboxEventRepository;
         this.pushUserToLocalServersPort = pushUserToLocalServersPort;
         this.objectMapper = objectMapper;
-        this.replicationProgressJpaRepository = replicationProgressJpaRepository;
+        this.replicationProgressRepository = replicationProgressRepository;
     }
 
     /**
-     * Run in a new tx so that the external PUT side-effect is decoupled from the
-     * registration save tx.
+     * Intentionally <b>NOT</b> transactional.
+     *
+     * <p>This method iterates SENT/PENDING user outbox events and, per event,
+     * performs an external REST push ({@code pushUserToLocalServersPort.pushUsers})
+     * followed by a {@code replication_progress} write. Running the whole loop
+     * inside one tx would be the poison-isolation / long-tx anti-pattern
+     * (BUG-SYNC-01 / C-01) flagged by
+     * {@code ArchitectureInvariantTest.noTransactionalMethodWithLoopCallingOutboundPort}:
+     * a long tx holding locks while iterating external calls lets a single
+     * failure poison the entire batch.</p>
+     *
+     * <p>Instead, each per-event step commits independently:
+     * <ul>
+     *   <li>{@code replicationProgressRepository.save(...)} commits via the
+     *       adapter / Spring Data {@code SimpleJpaRepository.save}'s own
+     *       {@code @Transactional};</li>
+     *   <li>{@code outboxEventRepository.markAsFailed(eventId)} commits via the
+     *       adapter's own {@code @Transactional}.</li>
+     * </ul>
+     * So a duplicate (DIVE) or a failure on one event does NOT roll back
+     * progress already recorded for other events — partial catch-up progress
+     * is preserved. The {@code pushUsers} REST call needs no tx.</p>
+     *
+     * <p>M8 invokes this from {@code TransactionSynchronization.afterCommit}
+     * inside {@code LocalServerRepositoryAdapter.register}, so by the time it
+     * runs the registration has already committed and there is no surrounding
+     * registration tx to either join or conflict with — hence no
+     * {@code @Transactional(propagation = REQUIRES_NEW)} is required here.</p>
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void catchUpNewlyRegisteredServer(RegisteredLocalServer server) {
         String serverId = server.getBuildingId().id();
 
-        List<OutboxEventJpaEntity> sentUserEvents =
-                outboxEventJpaRepository.findByStatusAndEventTypeInOrderByCreatedAtAsc(
-                        STATUS_SENT, USER_REPLICATION_EVENT_TYPES);
+        List<OutboxEventJpaEntity> replayableEvents =
+                outboxEventJpaRepository.findByStatusInAndEventTypeInOrderByCreatedAtAsc(
+                        REPLAY_STATUSES, USER_REPLICATION_EVENT_TYPES);
 
-        if (sentUserEvents.isEmpty()) {
-            log.info("Catch-up: no SENT user events to replicate to newly-registered server building={}", serverId);
+        if (replayableEvents.isEmpty()) {
+            log.info("Catch-up: no SENT/PENDING user events to replicate to newly-registered server building={}", serverId);
             return;
         }
 
-        List<String> eventIds = sentUserEvents.stream()
-                .map(OutboxEventJpaEntity::getId)
-                .toList();
-        Set<String> alreadyReplicatedEventIds = replicationProgressJpaRepository
-                .findByEventIdInAndServerId(eventIds, serverId).stream()
-                .map(ReplicationProgressJpaEntity::getEventId)
-                .collect(Collectors.toSet());
+        int pushed = 0;
+        int skipped = 0;
+        for (OutboxEventJpaEntity event : replayableEvents) {
+            String eventId = event.getId();
+            String eventType = event.getEventType();
 
-        List<UserSyncDto> usersToPush = new ArrayList<>();
-        for (OutboxEventJpaEntity event : sentUserEvents) {
-            if (alreadyReplicatedEventIds.contains(event.getId())) {
+            if (replicationProgressRepository.existsByEventIdAndServerId(eventId, serverId)) {
+                log.info("Catch-up: eventId={} already replicated to building={} — skipping push", eventId, serverId);
+                skipped++;
                 continue;
             }
+
+            UserSyncDto user;
             try {
-                UserSyncDto user = objectMapper.readValue(event.getPayload(), UserSyncDto.class);
-                usersToPush.add(user);
+                user = objectMapper.readValue(event.getPayload(), UserSyncDto.class);
             } catch (Exception e) {
-                log.warn("Catch-up: skipping SENT event [{}] due to malformed payload: {}",
-                        event.getId(), e.getMessage());
+                log.warn("Catch-up: skipping event [{}] due to malformed payload: {}", eventId, e.getMessage());
+                continue;
+            }
+
+            List<UserSyncAckDto> acks;
+            try {
+                acks = pushUserToLocalServersPort.pushUsers(List.of(user), server);
+            } catch (Exception e) {
+                // Best-effort: a failing push for one event must NOT abort the rest.
+                log.error("Catch-up: failed to push event [{}] (type={}) to building={}: {}",
+                        eventId, eventType, serverId, e.getMessage(), e);
+                continue;
+            }
+
+            UserSyncAckDto ack = (acks == null || acks.isEmpty()) ? null : acks.get(0);
+
+            if (ack != null && !ack.applied() && ack.reason() != null && ack.reason().startsWith("VALIDATION_ERROR")) {
+                // Poison user: quarantine this event, do NOT record progress, continue.
+                log.warn("Catch-up: poison user isolation for eventId={} building={} type={} reason={}",
+                        eventId, serverId, eventType, ack.reason());
+                try {
+                    outboxEventRepository.markAsFailed(eventId);
+                } catch (Exception dbEx) {
+                    log.error("Catch-up: failed to mark event [{}] as FAILED", eventId, dbEx);
+                }
+                continue;
+            }
+
+            // applied=true OR STALE_EVENT OR (no ack body → legacy success) → record progress.
+            if (replicationProgressRepository.existsByEventIdAndServerId(eventId, serverId)) {
+                log.info("Catch-up: replication_progress already present (pre-check) for eventId={}, building={}", eventId, serverId);
+            } else {
+                try {
+                    replicationProgressRepository.save(new ReplicationProgress(eventId, serverId));
+                    pushed++;
+                } catch (DataIntegrityViolationException dup) {
+                    log.info("Catch-up: replication_progress already present for eventId={}, building={} — treating as success",
+                            eventId, serverId);
+                }
             }
         }
 
-        if (usersToPush.isEmpty()) {
-            log.info("Catch-up: nothing to push to newly-registered server building={} (all already replicated or malformed)",
+        if (pushed == 0 && skipped == 0) {
+            log.info("Catch-up: nothing pushed to newly-registered server building={} (all already replicated, malformed, or poison)",
                     serverId);
-            return;
-        }
-
-        try {
-            pushUserToLocalServersPort.pushUsers(usersToPush, server);
-            log.info("Catch-up: pushed {} user records to newly-registered server building={}",
-                    usersToPush.size(), serverId);
-        } catch (Exception e) {
-            // Best-effort: registration must still succeed even if catch-up fails.
-            log.error("Catch-up: failed to push {} user records to newly-registered server building={}: {}. " +
-                            "Local upsert dedup makes a later replay safe.",
-                    usersToPush.size(), serverId, e.getMessage(), e);
+        } else {
+            log.info("Catch-up: pushed {} user records to newly-registered server building={} ({} already replicated)",
+                    pushed, serverId, skipped);
         }
     }
 }

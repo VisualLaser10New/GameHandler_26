@@ -4,12 +4,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.model.GameSession;
 import com.gameplatform.local.domain.ports.out.GameRepository;
 import com.gameplatform.local.domain.ports.out.GameSessionRepository;
-import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.local.domain.ports.out.PublishAlertPort;
 import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
 import com.gameplatform.shared.domain.model.*;
@@ -31,18 +29,16 @@ class HealthCheckServiceTest {
 
     @Mock GameSessionRepository gameSessionRepository;
     @Mock GameRepository gameRepository;
-    @Mock OutboxEventRepository outboxEventRepository;
     @Mock PublishGameStatePort publishGameStatePort;
     @Mock PublishAlertPort publishAlertPort;
     @Mock Clock clock;
-    @Mock ObjectMapper objectMapper;
+    @Mock SessionAbortHelper sessionAbortHelper;
 
     @InjectMocks HealthCheckService service;
 
     @BeforeEach
-    void stubClock() throws Exception {
+    void stubClock() {
         lenient().when(clock.instant()).thenReturn(NOW);
-        lenient().when(objectMapper.writeValueAsString(any())).thenReturn("{}");
     }
 
     private Game game(GameId id, GameMachineStatus status) {
@@ -87,22 +83,22 @@ class HealthCheckServiceTest {
     }
 
     @Test
-    void shouldAbortSessionAfterThreeConsecutiveMisses() {
+    void shouldAbortSessionAfterThreeConsecutiveMisses() throws Exception {
         GameId gameId = new GameId("game-1");
         when(gameRepository.findAll()).thenAnswer(i -> List.of(game(gameId, GameMachineStatus.IN_USE)));
         when(gameSessionRepository.findActiveByGameId(gameId)).thenReturn(Optional.of(activeSession(gameId)));
-        when(gameRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         service.performHealthCheck(); // miss 1
         service.performHealthCheck(); // miss 2
         service.performHealthCheck(); // miss 3 -> abort
 
+        // The abort + game release + outbox emission now run atomically inside
+        // SessionAbortHelper.abortAndEmit (separate bean, REQUIRES_NEW tx). The
+        // HealthCheckService merely delegates — verifying the delegation is the
+        // contract; the helper itself is covered by SessionAbortHelperTest.
         verify(gameSessionRepository).findActiveByGameId(gameId);
-        verify(gameSessionRepository).save(any());
-        verify(gameRepository).save(any());
-        verify(publishGameStatePort).publishState(eq(gameId), eq(GameMachineStatus.AVAILABLE));
+        verify(sessionAbortHelper).abortAndEmit(any(GameSession.class), eq(StopReason.TIMEOUT), eq("TIMEOUT"));
         verify(publishAlertPort).publishAlert(argThat(a -> "UNREACHABLE".equals(a.alertType())));
-        verify(outboxEventRepository).save(any());
     }
 
     @Test
@@ -121,11 +117,10 @@ class HealthCheckServiceTest {
     }
 
     @Test
-    void shouldNotRepeatRecoveryActionsOnFourthMiss() {
+    void shouldNotRepeatRecoveryActionsOnFourthMiss() throws Exception {
         GameId gameId = new GameId("game-1");
         when(gameRepository.findAll()).thenAnswer(i -> List.of(game(gameId, GameMachineStatus.IN_USE)));
         when(gameSessionRepository.findActiveByGameId(gameId)).thenReturn(Optional.of(activeSession(gameId)));
-        when(gameRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         service.performHealthCheck(); // miss 1
         service.performHealthCheck(); // miss 2
@@ -134,9 +129,7 @@ class HealthCheckServiceTest {
 
         // Verify recovery actions were executed exactly once (during the 3rd miss)
         verify(gameSessionRepository, times(1)).findActiveByGameId(gameId);
-        verify(gameSessionRepository, times(1)).save(any());
-        verify(gameRepository, times(1)).save(any());
-        verify(publishGameStatePort, times(1)).publishState(eq(gameId), eq(GameMachineStatus.AVAILABLE));
+        verify(sessionAbortHelper, times(1)).abortAndEmit(any(GameSession.class), eq(StopReason.TIMEOUT), eq("TIMEOUT"));
         verify(publishAlertPort, times(1)).publishAlert(argThat(a -> "UNREACHABLE".equals(a.alertType())));
     }
 

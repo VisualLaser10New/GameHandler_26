@@ -1,6 +1,7 @@
 package com.gameplatform.central.application.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.gameplatform.central.domain.exception.UserAlreadyExistsException;
 import com.gameplatform.central.domain.exception.UserNotFoundException;
 import com.gameplatform.central.domain.model.OutboxEvent;
@@ -17,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -43,7 +45,8 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, outboxEventRepository, new ObjectMapper());
+        userService = new UserService(userRepository, outboxEventRepository,
+                new ObjectMapper().registerModule(new JavaTimeModule()), Clock.systemUTC());
     }
 
     // ──────────────────────────────────────────────────────────────────────────

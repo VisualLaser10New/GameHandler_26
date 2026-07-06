@@ -64,7 +64,7 @@ CREATE TABLE local_servers (
 CREATE TABLE outbox_events (
     id          VARCHAR(36) PRIMARY KEY,
     event_type  VARCHAR(100) NOT NULL,
-    payload     TEXT NOT NULL,
+    payload     JSON NOT NULL,
     status      VARCHAR(20) NOT NULL,
     created_at  DATETIME(6) NOT NULL,
     sent_at     DATETIME(6),

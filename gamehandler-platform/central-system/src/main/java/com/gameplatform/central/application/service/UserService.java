@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,18 +38,21 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
     private final UserRepository userRepository;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final Clock clock;
 
-    public UserService(UserRepository userRepository, OutboxEventRepository outboxEventRepository, ObjectMapper objectMapper) {
+    public UserService(UserRepository userRepository, OutboxEventRepository outboxEventRepository,
+                      ObjectMapper objectMapper, Clock clock) {
         this.userRepository = userRepository;
         this.outboxEventRepository = outboxEventRepository;
         this.objectMapper = objectMapper;
+        this.clock = clock;
     }
 
     @Transactional
     @Override
     public List<UserSyncDto> getAllUsersForSync() {
         return userRepository.findAll().stream().map(user ->
-            new UserSyncDto(user.getId().value(), user.getUsername(), user.getPasswordHash(), user.getRoles())
+            new UserSyncDto(user.getId().value(), user.getUsername(), user.getEmail(), user.getPasswordHash(), user.getRoles(), Instant.now(clock))
         ).collect(Collectors.toList());
     }
 
@@ -94,7 +98,8 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
             userRepository.save(user);
             log.info("Created central user from sync: {}", dto.userId());
         } catch (DataIntegrityViolationException e) {
-            log.warn("Database unique constraint violation during sync registration for userId: {}", dto.userId(), e);
+            log.warn("Central user already exists for userId={}; username={}; buildingId={}; keeping existing password; the losing building is still locally consistent",
+                    dto.userId(), dto.username(), null, e);
         }
     }
 
@@ -123,7 +128,7 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
     private User saveUserOnDB(User user, String eventType) {
         User savedUser = userRepository.save(user);
 
-        UserSyncDto userSyncDto = new UserSyncDto(savedUser.getId().value(), savedUser.getUsername(), savedUser.getPasswordHash(), savedUser.getRoles());
+        UserSyncDto userSyncDto = new UserSyncDto(savedUser.getId().value(), savedUser.getUsername(), savedUser.getEmail(), savedUser.getPasswordHash(), savedUser.getRoles(), Instant.now(clock));
 
         String jsonPayLoad;
         try {
