@@ -6,6 +6,7 @@ import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.RegisteredLocalServerJpaEntity;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.repository.LocalServerJpaRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -65,7 +66,21 @@ public class LocalServerRepositoryAdapter implements LocalServerRegistryPort {
         entity.setBaseUrl(server.getBaseUrl());
         entity.setLastSeenAt(server.getLastSeenAt());
         entity.setActive(server.isActive());
-        jpaRepository.save(entity);
+        try {
+            jpaRepository.save(entity);
+        } catch (DataIntegrityViolationException e) {
+            // Concurrent registration race: another thread inserted the row
+            // between our findById and save. Reload the now-stable row, copy
+            // the incoming fields onto the managed entity, and save again.
+            // The winning thread owns the M8 catch-up; we skip it (wasInactive=false).
+            RegisteredLocalServerJpaEntity reloaded = jpaRepository.findById(buildingId)
+                    .orElseThrow(() -> e);
+            reloaded.setBaseUrl(server.getBaseUrl());
+            reloaded.setLastSeenAt(server.getLastSeenAt());
+            reloaded.setActive(server.isActive());
+            jpaRepository.save(reloaded);
+            wasInactive = false;
+        }
 
         if (wasInactive) {
             // M8: decouple the catch-up REST + progress writes from the registration tx.

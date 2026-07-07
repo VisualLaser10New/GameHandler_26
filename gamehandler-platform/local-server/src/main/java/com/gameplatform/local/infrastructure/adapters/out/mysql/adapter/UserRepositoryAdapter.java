@@ -28,8 +28,22 @@ public class UserRepositoryAdapter implements UserRepository {
 
     @Override
     public User save(User user) {
-        UserJpaEntity entity = mapper.toEntity(user);
-        UserJpaEntity saved = jpaRepository.save(entity);
+        UserJpaEntity incoming = mapper.toEntity(user);
+        Optional<UserJpaEntity> existing = jpaRepository.findById(incoming.getUserId());
+        if (existing.isPresent()) {
+            // Update the managed entity in-place so @Version is preserved.
+            UserJpaEntity managed = existing.get();
+            managed.setUsername(incoming.getUsername());
+            managed.setPasswordHash(incoming.getPasswordHash());
+            managed.setEmail(incoming.getEmail());
+            managed.setRoles(incoming.getRoles());
+            managed.setSyncedAt(incoming.getSyncedAt());
+            managed.setEventTime(incoming.getEventTime());
+            managed.setUpdatedAt(incoming.getUpdatedAt());
+            UserJpaEntity saved = jpaRepository.save(managed);
+            return mapper.toDomain(saved);
+        }
+        UserJpaEntity saved = jpaRepository.save(incoming);
         return mapper.toDomain(saved);
     }
 
@@ -58,6 +72,16 @@ public class UserRepositoryAdapter implements UserRepository {
         List<UserJpaEntity> entities = users.stream()
             .map(mapper::toEntity)
             .collect(Collectors.toList());
+        // For existing rows, copy the @Version from the persisted row onto the
+        // incoming detached entity so Hibernate's isNew() check returns false
+        // and saveAll() performs an UPDATE (merge) rather than an INSERT —
+        // which on a row that already exists raises NonUniqueObjectException.
+        // New rows keep version=null so Hibernate assigns the initial 0 on insert.
+        for (UserJpaEntity incoming : entities) {
+            jpaRepository.findById(incoming.getUserId()).ifPresent(existing -> {
+                incoming.setVersion(existing.getVersion());
+            });
+        }
         jpaRepository.saveAll(entities);
     }
 

@@ -67,78 +67,87 @@ public class GameSessionListener {
         String gameId = tokens[3];
         String action = tokens[5];
 
-        switch (action) {
-            case "lobby" -> {
-                if (tokens.length >= 7) {
-                    String lobbyAction = tokens[6];
-                    switch (lobbyAction) {
-                        case "create" -> {
-                            LobbyCreatePayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyCreatePayload.class);
-                            createLobbyUseCase.createLobby(new GameId(gameId), payloadDto.gameType(), new UserId(payloadDto.creatorId()));
-                        }
-                        case "join" -> {
-                            LobbyJoinPayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyJoinPayload.class);
-                            joinLobbyUseCase.joinLobby(new GameSessionId(payloadDto.sessionId()), new UserId(payloadDto.userId()));
-                        }
-                        case "start" -> {
-                            LobbyStartPayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyStartPayload.class);
-                            startLobbyUseCase.startLobby(new GameSessionId(payloadDto.sessionId()));
-                        }
-                        case "cancel" -> {
-                            LobbyCancelPayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyCancelPayload.class);
-                            cancelLobbyUseCase.cancelLobby(new GameSessionId(payloadDto.sessionId()), new UserId(payloadDto.userId()));
+        try {
+            switch (action) {
+                case "lobby" -> {
+                    if (tokens.length >= 7) {
+                        String lobbyAction = tokens[6];
+                        switch (lobbyAction) {
+                            case "create" -> {
+                                LobbyCreatePayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyCreatePayload.class);
+                                createLobbyUseCase.createLobby(new GameId(gameId), payloadDto.gameType(), new UserId(payloadDto.creatorId()));
+                            }
+                            case "join" -> {
+                                LobbyJoinPayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyJoinPayload.class);
+                                joinLobbyUseCase.joinLobby(new GameSessionId(payloadDto.sessionId()), new UserId(payloadDto.userId()));
+                            }
+                            case "start" -> {
+                                LobbyStartPayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyStartPayload.class);
+                                startLobbyUseCase.startLobby(new GameSessionId(payloadDto.sessionId()));
+                            }
+                            case "cancel" -> {
+                                LobbyCancelPayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyCancelPayload.class);
+                                cancelLobbyUseCase.cancelLobby(new GameSessionId(payloadDto.sessionId()), new UserId(payloadDto.userId()));
+                            }
                         }
                     }
                 }
-            }
-            case "start" -> {
-                SessionStartPayload startPayload = MqttPayloadSerializer.deserialize(payload, SessionStartPayload.class);
-                List<UserId> participants = startPayload.participants() != null
-                        ? startPayload.participants().stream().map(UserId::new).toList()
-                        : List.of();
-                startGameSessionUseCase.start(new GameId(gameId), startPayload.gameType(), participants, null);
-            }
-            case "end" -> {
-                SessionEndPayload endPayload = MqttPayloadSerializer.deserialize(payload, SessionEndPayload.class);
-                GameResult result = null;
-                if (endPayload.resultData() != null && !endPayload.resultData().isBlank()) {
-                    try {
-                        result = objectMapper.readValue(endPayload.resultData(), GameResult.class);
-                    } catch (Exception e) {
-                        // Fallback mapping on parsing exception
+                case "start" -> {
+                    SessionStartPayload startPayload = MqttPayloadSerializer.deserialize(payload, SessionStartPayload.class);
+                    List<UserId> participants = startPayload.participants() != null
+                            ? startPayload.participants().stream().map(UserId::new).toList()
+                            : List.of();
+                    startGameSessionUseCase.start(new GameId(gameId), startPayload.gameType(), participants, null);
+                }
+                case "end" -> {
+                    SessionEndPayload endPayload = MqttPayloadSerializer.deserialize(payload, SessionEndPayload.class);
+                    GameResult result = null;
+                    if (endPayload.resultData() != null && !endPayload.resultData().isBlank()) {
+                        try {
+                            result = objectMapper.readValue(endPayload.resultData(), GameResult.class);
+                        } catch (Exception e) {
+                            // Fallback mapping on parsing exception
+                        }
                     }
+                    if (result == null) {
+                        final String winnerIdVal = endPayload.winnerId();
+                        final WinCondition winConditionVal = endPayload.winCondition();
+                        result = new GameResult() {
+                            @Override
+                            public UserId getWinnerId() {
+                                return winnerIdVal != null ? new UserId(winnerIdVal) : null;
+                            }
+                            @Override
+                            public List<UserId> getWinnerIds() {
+                                return winnerIdVal != null ? List.of(new UserId(winnerIdVal)) : List.of();
+                            }
+                            @Override
+                            public WinCondition getWinCondition() {
+                                return winConditionVal;
+                            }
+                        };
+                    }
+                    endGameSessionUseCase.end(new GameSessionId(endPayload.sessionId()), result);
                 }
-                if (result == null) {
-                    final String winnerIdVal = endPayload.winnerId();
-                    final WinCondition winConditionVal = endPayload.winCondition();
-                    result = new GameResult() {
-                        @Override
-                        public UserId getWinnerId() {
-                            return winnerIdVal != null ? new UserId(winnerIdVal) : null;
-                        }
-                        @Override
-                        public List<UserId> getWinnerIds() {
-                            return winnerIdVal != null ? List.of(new UserId(winnerIdVal)) : List.of();
-                        }
-                        @Override
-                        public WinCondition getWinCondition() {
-                            return winConditionVal;
-                        }
-                    };
+                case "pause" -> {
+                    SessionPausePayload pausePayload = MqttPayloadSerializer.deserialize(payload, SessionPausePayload.class);
+                    pauseGameSessionUseCase.pause(new GameSessionId(pausePayload.sessionId()));
                 }
-                endGameSessionUseCase.end(new GameSessionId(endPayload.sessionId()), result);
-            }
-            case "pause" -> {
-                SessionPausePayload pausePayload = MqttPayloadSerializer.deserialize(payload, SessionPausePayload.class);
-                pauseGameSessionUseCase.pause(new GameSessionId(pausePayload.sessionId()));
-            }
-            case "resume" -> {
-                SessionResumePayload resumePayload = MqttPayloadSerializer.deserialize(payload, SessionResumePayload.class);
-                if (resumePayload.sessionId() == null || resumePayload.sessionId().isBlank()) {
-                    throw new NullPointerException("Session ID is missing");
+                case "resume" -> {
+                    SessionResumePayload resumePayload = MqttPayloadSerializer.deserialize(payload, SessionResumePayload.class);
+                    if (resumePayload.sessionId() == null || resumePayload.sessionId().isBlank()) {
+                        throw new NullPointerException("Session ID is missing");
+                    }
+                    resumeGameSessionUseCase.resume(new GameSessionId(resumePayload.sessionId()));
                 }
-                resumeGameSessionUseCase.resume(new GameSessionId(resumePayload.sessionId()));
             }
+        } catch (com.gameplatform.local.domain.exception.InvalidGameStateTransitionException
+                | com.gameplatform.local.domain.exception.SessionAlreadyActiveException e) {
+            // MQTT QoS 1 may redeliver messages; the first delivery already
+            // applied the state change, so a redelivery hitting the same
+            // state is a no-op, not an error.
+            org.slf4j.LoggerFactory.getLogger(GameSessionListener.class)
+                    .debug("Ignoring idempotent/no-op session message on topic {}: {}", topic, e.getMessage());
         }
     }
 }

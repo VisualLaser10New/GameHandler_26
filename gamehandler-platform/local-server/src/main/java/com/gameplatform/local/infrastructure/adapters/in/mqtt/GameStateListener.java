@@ -25,6 +25,11 @@ public class GameStateListener {
         String[] tokens = topic.split("/");
         String gameId = tokens[3];
 
-        updateGameStateUseCase.updateState(new GameId(gameId), statePayload.status());
+        try {
+            updateGameStateUseCase.updateState(new GameId(gameId), statePayload.status());
+        } catch (com.gameplatform.local.domain.exception.InvalidGameStateTransitionException e) {
+            org.slf4j.LoggerFactory.getLogger(GameStateListener.class)
+                    .debug("Ignoring idempotent/no-op game state message on topic {}: {}", topic, e.getMessage());
+        }
     }
 }

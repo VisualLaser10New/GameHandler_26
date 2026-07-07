@@ -1,6 +1,8 @@
 package com.gameplatform.central.infrastructure.adapters.out.mysql.entity;
 
+import com.gameplatform.central.infrastructure.adapters.out.mysql.converter.JsonStringUnwrappingConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
@@ -21,6 +23,7 @@ public class OutboxEventJpaEntity {
     private String eventType;
 
     @Column(name = "payload", nullable = false, columnDefinition = "JSON")
+    @Convert(converter = JsonStringUnwrappingConverter.class)
     private String payload;
 
     @Column(name = "status", nullable = false, length = 20)

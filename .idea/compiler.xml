@@ -6,12 +6,13 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="shared-domain" />
+        <module name="e2e-tests" />
         <module name="shared-mqtt" />
-        <module name="local-server" />
         <module name="shared-dto" />
         <module name="central-system" />
         <module name="game-client-emulator" />
+        <module name="shared-domain" />
+        <module name="local-server" />
       </profile>
     </annotationProcessing>
   </component>
@@ -19,6 +20,7 @@
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="boardgame-platform" options="-parameters" />
       <module name="central-system" options="-parameters" />
+      <module name="e2e-tests" options="-parameters" />
       <module name="game-client-emulator" options="-parameters" />
       <module name="local-server" options="-parameters" />
       <module name="shared-domain" options="-parameters" />

@@ -3,7 +3,7 @@
 This note documents the central system's global-username-uniqueness contract and the
 first-registration-wins semantics implemented by `UserService.registerFromSync`. It is the
 "doc" half of plan §C-R6 (see
-[`workflow/analisi/race_condition_analisys_central_local.md`](../../workflow/analisi/race_condition_analisys_central_local.md)
+[`workflow/analisi/race_condition_analisys_central_local.md`](race_condition_analisys_central_local.md)
 §C-R6). The louder-log half is already implemented in
 `central-system/.../application/service/UserService.java` (`registerFromSync`).
 

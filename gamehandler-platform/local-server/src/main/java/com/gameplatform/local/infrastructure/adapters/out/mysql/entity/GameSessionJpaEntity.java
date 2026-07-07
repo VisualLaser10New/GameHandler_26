@@ -1,7 +1,9 @@
 package com.gameplatform.local.infrastructure.adapters.out.mysql.entity;
 
+import com.gameplatform.local.infrastructure.adapters.out.mysql.converter.JsonStringUnwrappingConverter;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
@@ -48,6 +50,7 @@ public class GameSessionJpaEntity {
     private String winCondition;
 
     @Column(name = "result_data", columnDefinition = "JSON")
+    @Convert(converter = JsonStringUnwrappingConverter.class)
     private String resultData;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)

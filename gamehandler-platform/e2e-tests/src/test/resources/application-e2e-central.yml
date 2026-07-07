@@ -1,0 +1,48 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:central_e2e;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+    properties:
+      hibernate:
+        format_sql: false
+  sql:
+    init:
+      mode: never
+
+server:
+  port: 0
+  ssl:
+    enabled: false
+
+app:
+  building-id: building-test
+  local-base-url: http://localhost:0
+  central-system-url: http://localhost:0
+  sync-interval-ms: 999999999
+  healthcheck-interval-ms: 999999999
+  health:
+    monitor-interval-ms: 999999999
+    server-stale-threshold-ms: 900000
+  reconciliation:
+    interval-ms: 999999999
+
+internal:
+  api-key: test-key
+
+jwt:
+  expiration-ms: 3600000
+  private-key-path: classpath:alt-private.pem
+
+central:
+  replication:
+    connect-timeout-ms: 5000
+    read-timeout-ms: 5000
+
+cors:
+  allowed-origins: http://localhost:3000

@@ -1,0 +1,46 @@
+spring:
+  main:
+    allow-circular-references: true
+  datasource:
+    url: jdbc:h2:mem:local_e2e;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+
+server:
+  port: 0
+  ssl:
+    enabled: false
+
+app:
+  building-id: building-1
+  local-base-url: http://localhost:0
+  central-system-url: http://localhost:0
+  sync-interval-ms: 999999999
+  healthcheck-interval-ms: 999999999
+  dlq-promotion-interval-ms: 999999999
+  outbox-purge-interval-ms: 999999999
+
+ssl:
+  trust-store:
+  trust-store-password:
+
+internal:
+  api-key: test-key
+
+jwt:
+  local-private-key-path: classpath:local-private.pem
+  local-public-key-path: classpath:local-public.pem
+
+mqtt:
+  broker-url: tcp://localhost:0
+  trust-store:
+  trust-store-password:
+  key-store:
+  key-store-password:
+  username:
+  password:
