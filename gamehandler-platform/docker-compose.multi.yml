@@ -15,6 +15,11 @@ services:
     volumes:
       - ./infrastructure/mysql-local/init-building-2.sql:/docker-entrypoint-initdb.d/init.sql
       - local-db-2-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - local-net-2
 
@@ -23,7 +28,6 @@ services:
     volumes:
       - ./infrastructure/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
       - ./infrastructure/mosquitto/certs:/mosquitto/certs:ro
-      - ./infrastructure/mosquitto/password_file:/mosquitto/config/password_file
     ports:
       - "8884:1883"
     networks:
@@ -34,9 +38,18 @@ services:
       context: ./local-server
       dockerfile: Dockerfile
     depends_on:
-      - local-db-2
-      - mqtt-broker-2
-      - central-system
+      local-db-2:
+        condition: service_healthy
+      mqtt-broker-2:
+        condition: service_started
+      central-system:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -kfsS https://localhost:8081/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     ports:
       - "8082:8081"
     environment:
@@ -83,6 +96,11 @@ services:
     volumes:
       - ./infrastructure/mysql-local/init-building-3.sql:/docker-entrypoint-initdb.d/init.sql
       - local-db-3-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - local-net-3
 
@@ -91,7 +109,6 @@ services:
     volumes:
       - ./infrastructure/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
       - ./infrastructure/mosquitto/certs:/mosquitto/certs:ro
-      - ./infrastructure/mosquitto/password_file:/mosquitto/config/password_file
     ports:
       - "8885:1883"
     networks:
@@ -102,9 +119,18 @@ services:
       context: ./local-server
       dockerfile: Dockerfile
     depends_on:
-      - local-db-3
-      - mqtt-broker-3
-      - central-system
+      local-db-3:
+        condition: service_healthy
+      mqtt-broker-3:
+        condition: service_started
+      central-system:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -kfsS https://localhost:8081/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     ports:
       - "8083:8081"
     environment:

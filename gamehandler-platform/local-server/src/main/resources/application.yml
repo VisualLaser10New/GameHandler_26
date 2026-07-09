@@ -30,6 +30,8 @@ app:
   dlq-promotion-interval-ms: ${DLQ_PROMOTION_INTERVAL_MS:600000}
   outbox-purge-retention-days: ${OUTBOX_PURGE_RETENTION_DAYS:7}
   outbox-purge-interval-ms: ${OUTBOX_PURGE_INTERVAL_MS:86400000}
+  outbox:
+    batch-size: ${OUTBOX_BATCH_SIZE:50}
 
 ssl:
   trust-store: ${SSL_TRUSTSTORE_PATH:classpath:central-truststore.p12}
@@ -52,3 +54,11 @@ jwt:
 
 internal:
   api-key: ${INTERNAL_API_KEY:secret}
+
+# Actuator — expose only the health endpoint for Docker healthchecks (GET /actuator/health).
+# Only "health" is exposed on the web to keep the actuator surface minimal.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

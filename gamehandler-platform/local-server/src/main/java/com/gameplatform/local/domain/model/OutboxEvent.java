@@ -55,6 +55,10 @@ public class OutboxEvent {
         }
     }
 
+    public void markAsFailed() {
+        this.status = "FAILED";
+    }
+
     public boolean hasFailed() {
         return "FAILED".equalsIgnoreCase(status);
     }

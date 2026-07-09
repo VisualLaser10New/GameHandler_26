@@ -30,8 +30,13 @@ public class ReservationRepositoryAdapter implements ReservationRepository {
     @Override
     public Reservation save(Reservation reservation) {
         ReservationJpaEntity entity = mapper.toEntity(reservation);
-        ReservationJpaEntity saved = jpaRepository.save(entity);
-        return mapper.toDomain(saved);
+        try {
+            ReservationJpaEntity saved = jpaRepository.saveAndFlush(entity);
+            return mapper.toDomain(saved);
+        } catch (org.springframework.dao.OptimisticLockingFailureException ex) {
+            throw new com.gameplatform.local.domain.exception.ConcurrentStateException(
+                "Concurrent modification of reservation " + reservation.getId().value(), ex);
+        }
     }
 
     @Override

@@ -15,12 +15,14 @@ public class GameMapper {
         if (entity == null) {
             return null;
         }
+        long version = entity.getVersion() == null ? 0L : entity.getVersion();
         return new Game(
             new GameId(entity.getId()),
             GameType.valueOf(entity.getGameType()),
             entity.getName(),
             new BuildingId(entity.getBuildingId()),
-            entity.getStatus()
+            entity.getStatus(),
+            version
         );
     }
 
@@ -28,12 +30,19 @@ public class GameMapper {
         if (domain == null) {
             return null;
         }
-        return new GameJpaEntity(
+        GameJpaEntity entity = new GameJpaEntity(
             domain.getId().id(),
             domain.getGameType().name(),
             domain.getName(),
             domain.getBuildingId().id(),
             domain.getStatus()
         );
+        // Always carry the domain version onto the entity so Spring Data uses
+        // merge (version != null) instead of persist: merge honours @Version
+        // (compares detached.version vs DB.version via SELECT and throws
+        // StaleObjectStateException on mismatch) — giving true optimistic
+        // locking. New rows carry version=0L which merge INSERTs as initial.
+        entity.setVersion(domain.getVersion());
+        return entity;
     }
 }

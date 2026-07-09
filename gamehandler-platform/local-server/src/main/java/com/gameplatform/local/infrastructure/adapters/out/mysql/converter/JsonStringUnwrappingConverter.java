@@ -30,15 +30,25 @@ public class JsonStringUnwrappingConverter implements AttributeConverter<String,
         if (dbData == null || dbData.isEmpty()) {
             return dbData;
         }
-        if (dbData.charAt(0) == '"') {
+        // H2 (MODE=MySQL) may wrap a JSON column value in one or more JSON-string
+        // scalar layers on read-back (e.g. "\"{\\\"gameType\\\":...}\""). Unwrap
+        // repeatedly until the value is no longer a JSON string scalar. On MySQL
+        // the value never starts with '"' so this loop is a transparent no-op.
+        String current = dbData;
+        while (current != null && !current.isEmpty() && current.charAt(0) == '"') {
             try {
-                JsonNode node = MAPPER.readTree(dbData);
+                JsonNode node = MAPPER.readTree(current);
                 if (node.isTextual()) {
-                    return node.asText();
+                    String unwrapped = node.asText();
+                    if (unwrapped != null && !unwrapped.equals(current)) {
+                        current = unwrapped;
+                        continue;
+                    }
                 }
             } catch (Exception ignored) {
             }
+            break;
         }
-        return dbData;
+        return current;
     }
 }

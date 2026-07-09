@@ -33,11 +33,19 @@ public class GameSession {
     // of pause have accumulated across all pause/resume cycles.
     private Instant pausedAt;
     private int accumulatedPausedSeconds;
+    private long version;
 
     // Costruttore con partecipanti
     public GameSession(GameSessionId id, GameId gameId, GameType gameType, BuildingId buildingId, GameStatus status,
                        Instant startedAt, Instant endedAt, Integer durationSeconds, UserId winnerId,
                        WinCondition winCondition, GameResult result, List<UserId> participants) {
+        this(id, gameId, gameType, buildingId, status, startedAt, endedAt, durationSeconds, winnerId,
+             winCondition, result, participants, 0L);
+    }
+
+    public GameSession(GameSessionId id, GameId gameId, GameType gameType, BuildingId buildingId, GameStatus status,
+                       Instant startedAt, Instant endedAt, Integer durationSeconds, UserId winnerId,
+                       WinCondition winCondition, GameResult result, List<UserId> participants, long version) {
         if (id == null) {
             throw new IllegalArgumentException("GameSessionId cannot be null");
         }
@@ -68,6 +76,7 @@ public class GameSession {
         this.winCondition = winCondition;
         this.result = result;
         this.participants = participants != null ? List.copyOf(participants) : List.of();
+        this.version = version;
     }
 
     // Costruttore per compatibilità esatta con workflow.md (senza partecipanti)
@@ -239,6 +248,10 @@ public class GameSession {
 
     public void setStatus(GameStatus status) {
         this.status = status;
+    }
+
+    public long getVersion() {
+        return version;
     }
 }
 

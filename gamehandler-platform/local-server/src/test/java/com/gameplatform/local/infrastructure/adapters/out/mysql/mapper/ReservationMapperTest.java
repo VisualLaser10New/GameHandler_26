@@ -56,4 +56,45 @@ class ReservationMapperTest {
         assertThatThrownBy(() -> mapper.toDomain(entity))
             .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void toDomainCopiesEntityVersion() {
+        Instant start = Instant.parse("2026-01-01T10:00:00Z");
+        Instant end = Instant.parse("2026-01-01T11:00:00Z");
+        Instant created = Instant.parse("2026-01-01T09:00:00Z");
+        ReservationJpaEntity persisted = new ReservationJpaEntity(
+            "res-1", "game-1", "user-1", "CONFIRMED", start, end, created);
+        persisted.setVersion(9L);
+
+        Reservation domain = mapper.toDomain(persisted);
+
+        assertThat(domain.getVersion()).isEqualTo(9L);
+    }
+
+    @Test
+    void toDomainFallsBackToZeroWhenEntityVersionIsNull() {
+        Instant start = Instant.parse("2026-01-01T10:00:00Z");
+        Instant end = Instant.parse("2026-01-01T11:00:00Z");
+        Instant created = Instant.parse("2026-01-01T09:00:00Z");
+        ReservationJpaEntity fresh = new ReservationJpaEntity(
+            "res-1", "game-1", "user-1", "CONFIRMED", start, end, created);
+
+        assertThat(mapper.toDomain(fresh).getVersion()).isEqualTo(0L);
+    }
+
+    @Test
+    void toEntitySetsVersionForNewDomainAndExisting() {
+        Instant start = Instant.parse("2026-01-01T10:00:00Z");
+        Instant end = Instant.parse("2026-01-01T11:00:00Z");
+        Instant created = Instant.parse("2026-01-01T09:00:00Z");
+        Reservation fresh = new Reservation(
+            new ReservationId("res-1"), new GameId("game-1"), new UserId("user-1"),
+            ReservationStatus.CONFIRMED, start, end, created);
+        assertThat(mapper.toEntity(fresh).getVersion()).isEqualTo(0L);
+
+        Reservation existing = new Reservation(
+            new ReservationId("res-1"), new GameId("game-1"), new UserId("user-1"),
+            ReservationStatus.CONFIRMED, start, end, created, 5L);
+        assertThat(mapper.toEntity(existing).getVersion()).isEqualTo(5L);
+    }
 }

@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,6 +57,10 @@ public class GameSessionJpaEntity {
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @JoinColumn(name = "session_id")
     private List<SessionParticipantJpaEntity> participants = new ArrayList<>();
+
+    @Version
+    @Column(name = "version", nullable = false, columnDefinition = "BIGINT NOT NULL DEFAULT 0")
+    private Long version;
 
     public GameSessionJpaEntity() {
     }
@@ -169,5 +174,13 @@ public class GameSessionJpaEntity {
 
     public void setParticipants(List<SessionParticipantJpaEntity> participants) {
         this.participants = participants;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

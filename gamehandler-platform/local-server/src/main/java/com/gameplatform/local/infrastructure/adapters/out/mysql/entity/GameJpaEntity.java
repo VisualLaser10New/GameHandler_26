@@ -24,6 +24,10 @@ public class GameJpaEntity {
     @Column(name = "status", nullable = false)
     private GameMachineStatus status;
 
+    @Version
+    @Column(name = "version", nullable = false, columnDefinition = "BIGINT NOT NULL DEFAULT 0")
+    private Long version;
+
     public GameJpaEntity() {
     }
 
@@ -73,5 +77,13 @@ public class GameJpaEntity {
 
     public void setStatus(GameMachineStatus status) {
         this.status = status;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

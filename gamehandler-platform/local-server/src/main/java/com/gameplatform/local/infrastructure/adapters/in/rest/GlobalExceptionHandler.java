@@ -1,5 +1,6 @@
 package com.gameplatform.local.infrastructure.adapters.in.rest;
 
+import com.gameplatform.local.domain.exception.ConcurrentStateException;
 import com.gameplatform.local.domain.exception.UserAlreadyExistsException;
 import com.gameplatform.local.domain.exception.UserNotFoundException;
 import org.slf4j.Logger;
@@ -42,6 +43,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Void> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
         log.warn("Access denied: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+
+    @ExceptionHandler(ConcurrentStateException.class)
+    public ResponseEntity<Void> handleConcurrentState(ConcurrentStateException ex) {
+        log.warn("Optimistic lock conflict: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).build();
     }
 
     @ExceptionHandler(Exception.class)

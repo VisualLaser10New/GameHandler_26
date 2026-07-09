@@ -30,6 +30,9 @@ public class GameStateListener {
         } catch (com.gameplatform.local.domain.exception.InvalidGameStateTransitionException e) {
             org.slf4j.LoggerFactory.getLogger(GameStateListener.class)
                     .debug("Ignoring idempotent/no-op game state message on topic {}: {}", topic, e.getMessage());
+        } catch (com.gameplatform.local.domain.exception.ConcurrentStateException e) {
+            org.slf4j.LoggerFactory.getLogger(GameStateListener.class)
+                    .warn("Concurrent game-state modification on topic {}; dropping message (another tx won): {}", topic, e.getMessage());
         }
     }
 }

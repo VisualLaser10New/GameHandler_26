@@ -935,7 +935,7 @@ Firmato con RSA-256 (chiave privata PEM, 2048 bit). Scadenza: 24 ore (configurab
 - ✅ Zero perdita di dati garantita atomicamente
 - ✅ No dipendenze esterne (nessun Kafka/RabbitMQ)
 - ❌ Latenza di sincronizzazione pari all'intervallo dello scheduler (5 min)
-- ❌ Crescita unbounded della tabella outbox (problema noto **POF-3**: nessun TTL/cleanup)
+- ❌ Crescita unbounded della tabella outbox (problema noto **POF-3**: risolto lato Local Server con `OutboxPurgeService` + `OutboxDlqPromotionService`; lato Central System ancora aperto, nessun TTL/cleanup centrale)
 
 **Alternativa scartata:** Message queue dedicata — complessità infrastrutturale elevata per un sistema universitario; richiede deploy e tuning di Kafka.
 

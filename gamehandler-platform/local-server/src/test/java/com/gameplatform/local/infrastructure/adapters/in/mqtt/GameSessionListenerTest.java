@@ -1,6 +1,7 @@
 package com.gameplatform.local.infrastructure.adapters.in.mqtt;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
@@ -74,10 +75,11 @@ class GameSessionListenerTest {
     }
 
     @Test
-    void resumeWithMissingSessionIdThrows() {
+    void resumeWithMissingSessionIdIsNoOpAndDoesNotCallResume() {
         byte[] payload = MqttPayloadSerializer.serialize(new SessionResumePayload(null));
-        assertThatThrownBy(() -> listener.handleSessionMessage(resumeTopic(), payload))
-                .isInstanceOf(NullPointerException.class);
+        assertThatCode(() -> listener.handleSessionMessage(resumeTopic(), payload))
+                .doesNotThrowAnyException();
+        verify(resumeGameSessionUseCase, never()).resume(any());
     }
 
     @Test

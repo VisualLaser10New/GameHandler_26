@@ -1,6 +1,7 @@
 package com.gameplatform.local.infrastructure.adapters.out.mysql.repository;
 
 import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -13,6 +14,7 @@ import java.util.List;
 @Repository
 public interface OutboxEventJpaRepository extends JpaRepository<OutboxEventJpaEntity, String> {
     List<OutboxEventJpaEntity> findByStatusOrderByCreatedAtAsc(String status);
+    List<OutboxEventJpaEntity> findByStatusOrderByCreatedAtAsc(String status, Pageable pageable);
     List<OutboxEventJpaEntity> findByEventTypeAndStatus(String eventType, String status);
 
     /**
@@ -23,7 +25,7 @@ public interface OutboxEventJpaRepository extends JpaRepository<OutboxEventJpaEn
     @Query("UPDATE OutboxEventJpaEntity e " +
            "SET e.status = 'SENT', e.sentAt = :now " +
            "WHERE e.id IN :ids AND e.status = 'PENDING'")
-    int markAsSentBatch(List<String> ids, Instant now);
+    int markAsSentBatch(@Param("ids") List<String> ids, @Param("now") Instant now);
 
     /**
      * Bulk increment-retry UPDATE. Bumps retryCount by 1 for each id currently
@@ -35,13 +37,13 @@ public interface OutboxEventJpaRepository extends JpaRepository<OutboxEventJpaEn
     @Query("UPDATE OutboxEventJpaEntity e " +
            "SET e.retryCount = e.retryCount + 1 " +
            "WHERE e.id IN :ids AND e.status = 'PENDING'")
-    int incrementRetryBatch(List<String> ids);
+    int incrementRetryBatch(@Param("ids") List<String> ids);
 
     @Modifying
     @Query("UPDATE OutboxEventJpaEntity e " +
            "SET e.status = 'FAILED' " +
            "WHERE e.id IN :ids AND e.status = 'PENDING' AND e.retryCount >= :threshold")
-    int markAsFailedAboveThreshold(List<String> ids, int threshold);
+    int markAsFailedAboveThreshold(@Param("ids") List<String> ids, @Param("threshold") int threshold);
 
     /**
      * Bulk delete SENT outbox rows older than the given cutoff. Single SQL statement.

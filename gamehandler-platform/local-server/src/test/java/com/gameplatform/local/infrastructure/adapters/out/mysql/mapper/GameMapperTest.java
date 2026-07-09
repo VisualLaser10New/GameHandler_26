@@ -42,4 +42,36 @@ class GameMapperTest {
     void toEntityNullReturnsNull() {
         assertThat(mapper.toEntity(null)).isNull();
     }
+
+    @Test
+    void toDomainCopiesEntityVersion() {
+        GameJpaEntity persisted = new GameJpaEntity(
+            "game-1", "CHESS", "Scacchi", "b-1", GameMachineStatus.IN_USE);
+        persisted.setVersion(7L);
+
+        Game domain = mapper.toDomain(persisted);
+
+        assertThat(domain.getVersion()).isEqualTo(7L);
+    }
+
+    @Test
+    void toDomainFallsBackToZeroWhenEntityVersionIsNull() {
+        GameJpaEntity fresh = new GameJpaEntity(
+            "game-1", "CHESS", "Scacchi", "b-1", GameMachineStatus.AVAILABLE);
+
+        assertThat(mapper.toDomain(fresh).getVersion()).isEqualTo(0L);
+    }
+
+    @Test
+    void toEntitySetsVersionForNewDomainAndExisting() {
+        Game fresh = new Game(
+            new GameId("game-1"), GameType.CHESS, "Scacchi",
+            new BuildingId("b-1"), GameMachineStatus.AVAILABLE);
+        assertThat(mapper.toEntity(fresh).getVersion()).isEqualTo(0L);
+
+        Game existing = new Game(
+            new GameId("game-1"), GameType.CHESS, "Scacchi",
+            new BuildingId("b-1"), GameMachineStatus.IN_USE, 5L);
+        assertThat(mapper.toEntity(existing).getVersion()).isEqualTo(5L);
+    }
 }

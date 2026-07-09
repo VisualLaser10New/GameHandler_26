@@ -112,7 +112,7 @@
 
 #### RF-PR-01 — Creazione Prenotazione
 - **Priorità:** M
-- **Stato:** ⚠️ Implementato (con Known Issue POF-5)
+- **Stato:** ✅ Implementato e documentato (POF-5 risolto)
 - **Descrizione:** Un utente autenticato può prenotare un tavolo da gioco specificando `gameId`, orario di inizio e orario di fine.
 - **API:** `POST /api/reservations` (Local Server, richiede `ROLE_USER`)
 - **Fonte:** `[ReservationService.java]`, `[init.sql local — tabella reservations]`
@@ -122,7 +122,7 @@
   - Alla creazione, lo stato del gioco transisce da `AVAILABLE` a `RESERVED`.
   - La transizione viene pubblicata sul topic MQTT `building/{buildingId}/game/{gameId}/state` (QoS 1, Retained).
   - L'evento `RESERVATION_CREATED` viene scritto nell'outbox per sync con il Central System.
-  - ⚠️ **Known Issue POF-5:** assenza di `@Version` per optimistic locking; in caso di richieste concorrenti per lo stesso `gameId` è possibile una race condition.
+  - ✅ **POF-5 risolto:** `@Version` (ottimistic lock) su `GameJpaEntity` e `ReservationJpaEntity`; in caso di richieste concorrenti per lo stesso `gameId` il perdente ottiene `ConcurrentStateException` → 409 (REST) o ack-and-drop (MQTT). Race condition su prenotazione non più possibile.
 
 #### RF-PR-02 — Cancellazione Prenotazione
 - **Priorità:** M
@@ -263,15 +263,15 @@
 
 #### RF-SY-01 — Sync Local → Central (Outbox Pattern)
 - **Priorità:** M
-- **Stato:** ⚠️ Parzialmente implementato (Known Issues POF-3, POF-7)
+- **Stato:** ✅ Implementato e documentato (POF-7 risolto; POF-3 risolto lato Local, residuo Central)
 - **Descrizione:** Gli eventi locali (sessioni completate, prenotazioni create/cancellate) vengono accumulati nella tabella `outbox_events` del Local Server e inviati periodicamente al Central System.
 - **Fonte:** `[SyncSchedulerService.java]` — `@Scheduled(fixedRate = 300000)`
 - **Criteri di accettazione:**
   - Il sync avviene ogni 5 minuti (300 000 ms) o alla prima opportunità dopo una disconnessione.
   - Prima di inviare, viene verificata la raggiungibilità del Central System.
   - In caso di successo, gli eventi vengono marcati `SENT`; in caso di fallimento, viene incrementato il contatore `retry_count`.
-  - ⚠️ **POF-3:** nessun meccanismo di cleanup/TTL per eventi `SENT`; la tabella `outbox_events` può crescere indefinitamente.
-  - ⚠️ **POF-7:** `findPending()` recupera tutti gli eventi `PENDING` senza paginazione, potenzialmente caricando set di dati illimitati in memoria.
+  - ✅ **POF-3 risolto (Local):** `OutboxPurgeService` (purge SENT > `app.outbox-purge-retention-days`, default 7gg) + `OutboxDlqPromotionService` (FAILED → `outbox_dead_letter`). ⚠️ **Residuo Central:** la tabella `outbox_events` centrale SENT cresce ancora senza limite (nessun purge/DLQ centrale).
+  - ✅ **POF-7 risolto:** lettura limitata via `findPendingLimit(batchSize)` (`app.outbox.batch-size`, default 50); isolamento del poison event per-event su fallimento del trasporto; `markAsSentBatch` atomico sul successo; promozione DLQ dopo 10 retry.
 
 #### RF-SY-02 — Ricezione Sync (Central System)
 - **Priorità:** M
@@ -375,7 +375,7 @@
 |-------------|----------------------------------------------------------------------------------------------------------------------|
 | **Metrica** | Entro 5 minuti dalla riconnessione, tutti gli eventi `PENDING` vengono inviati al Central System                    |
 | **Soglia**  | Max 300 000 ms (fixedRate del `SyncSchedulerService`)                                                               |
-| **Stato**   | ✅ Implementato — ⚠️ soggetto a POF-7 in caso di backlog molto grande                                              |
+| **Stato**   | ✅ Implementato — POF-7 risolto (lettura limitata `findPendingLimit(batchSize)` + isolamento poison per-event)   |
 
 ### RNF-03 — Latenza di Risposta API
 
@@ -550,13 +550,14 @@ building/{buildingId}/alerts                       QoS 1
 | Dispositivi per edificio     | 2 (prototipo: foosball, chess)     | 10–50                       |
 | Prenotazioni/giorno/edificio | < 50                               | [DA CHIARIRE]               |
 | Sessioni/giorno/edificio     | < 100                              | [DA CHIARIRE]               |
-| Outbox events (picco)        | < 1 000                            | [DA CHIARIRE] — ⚠️ POF-3   |
+| Outbox events (picco)        | < 1 000                            | [DA CHIARIRE] — ⚠️ POF-3 residuo Central |
 
 ### 4.4 Retention e Privacy
 
 | Dato                            | Retention attuale              | Nota                                                               |
 |---------------------------------|--------------------------------|---------------------------------------------------------------------|
-| `outbox_events` (SENT)          | Nessuna politica di cleanup    | ⚠️ **POF-3:** crescita illimitata; nessun TTL configurato          |
+| `outbox_events` (SENT) — Local  | Purge dopo 7gg (`OutboxPurgeService`)   | ✅ **POF-3 risolto (Local):** cleanup via `app.outbox-purge-retention-days` (default 7) |
+| `outbox_events` (SENT) — Central | Nessuna politica di cleanup           | ⚠️ **POF-3 (residuo Central):** crescita illimitata; nessun TTL/purge centrale configurato |
 | `processed_events`              | Nessuna politica di cleanup    | [DA CHIARIRE] può generare crescita indefinita                     |
 | `game_sessions` / `reservations`| Permanenti                     | Nessun archivio o purge pianificato                                |
 | Password utente                 | Hash BCrypt; mai in chiaro     | ✅ Conforme                                                        |
@@ -647,7 +648,7 @@ graph LR
 | RF-AU-03  | Local Server                 | `LocalAuthService.java`, `replicated_users` (local)                  | ✅              |
 | RF-AU-04  | Central System               | `UserController.java`, `UserService.java`                            | ✅              |
 | RF-AU-05  | Central System, Local Server | `SecurityConfig.java`, `JwtAuthenticationFilter.java`                | ✅              |
-| RF-PR-01  | Local Server                 | `ReservationService.java`, `reservations` (local)                    | ⚠️ POF-5       |
+| RF-PR-01  | Local Server                 | `ReservationService.java`, `reservations` (local)                    | ✅             |
 | RF-PR-02  | Local Server                 | `ReservationService.java`                                            | ✅              |
 | RF-PR-03  | Local Server                 | `ReservationService.java`, `ReservationRepository`                   | ✅              |
 | RF-PR-04  | Local Server                 | `ReservationExpirationService.java`                                  | ✅              |
@@ -661,7 +662,7 @@ graph LR
 | RF-GS-04  | Local Server, Game Client    | `HealthCheckService.java`, `HeartbeatService.java`                   | ✅              |
 | RF-ST-01  | Local Server                 | `StatisticsService.java`, `LocalStatistics.java`                     | ✅              |
 | RF-ST-02  | Central System               | `StatisticsController.java`, `StatisticsAggregationService.java`     | ✅              |
-| RF-SY-01  | Local Server                 | `SyncSchedulerService.java`                                          | ⚠️ POF-3, POF-7|
+| RF-SY-01  | Local Server                 | `SyncSchedulerService.java`                                          | ✅             |
 | RF-SY-02  | Central System               | `SyncController.java`, `SyncReceiverService.java`                    | ✅              |
 | RF-SY-03  | Central System               | `UserReplicationSchedulerService.java`                               | ✅              |
 | RF-SY-04  | Central System               | `SyncController.java`, `LocalServerRepositoryAdapter.java`           | ✅              |
@@ -676,11 +677,11 @@ graph LR
 
 ### 6.2 Known Issues ↔ Requisiti Impattati
 
-| Issue | Descrizione                                                                                            | RF impattati | Severità |
-|-------|--------------------------------------------------------------------------------------------------------|--------------|----------|
-| POF-3 | Outbox unbounded growth: nessun cleanup/TTL su `outbox_events` (SENT)                                 | RF-SY-01     | Media    |
-| POF-5 | Race condition MQTT/REST: assenza di `@Version` per optimistic locking su `game_catalog`              | RF-PR-01     | Alta     |
-| POF-7 | Sync starvation: `findPending()` senza paginazione; con backlog grande può saturare memoria           | RF-SY-01     | Alta     |
+| Issue | Descrizione                                                                                            | RF impattati | Severità | Stato risoluzione |
+|-------|--------------------------------------------------------------------------------------------------------|--------------|----------|-------------------|
+| POF-3 | Outbox unbounded growth: cleanup/TTL su `outbox_events` (SENT)                                         | RF-SY-01     | Media    | 🟡 Risolto lato Local (`OutboxPurgeService` + `OutboxDlqPromotionService`); **aperto lato Central** (nessun purge/DLQ centrale) |
+| POF-5 | Race condition MQTT/REST: optimistic locking su `game_catalog`/`reservations`                          | RF-PR-01     | Alta     | 🟢 Risolto (`@Version` su `GameJpaEntity`/`ReservationJpaEntity` + `ConcurrentStateException` → 409 REST / ack-and-drop MQTT); residuo: `GameSessionJpaEntity` senza `@Version` |
+| POF-7 | Sync starvation: lettura outbox senza paginazione; backlog grande può saturare memoria                 | RF-SY-01     | Alta     | 🟢 Risolto (`findPendingLimit(batchSize)` + poison isolation per-event + `markAsSentBatch` atomico + promozione DLQ via `OutboxDlqPromotionService`) |
 
 ### 6.3 Giochi Supportati ↔ Stato
 

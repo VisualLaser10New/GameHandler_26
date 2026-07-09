@@ -12,8 +12,13 @@ public class Game {
     private final String name;
     private final BuildingId buildingId;
     private GameMachineStatus status;
+    private long version;
 
     public Game(GameId id, GameType gameType, String name, BuildingId buildingId, GameMachineStatus status) {
+        this(id, gameType, name, buildingId, status, 0L);
+    }
+
+    public Game(GameId id, GameType gameType, String name, BuildingId buildingId, GameMachineStatus status, long version) {
         if (id == null) {
             throw new IllegalArgumentException("GameId cannot be null");
         }
@@ -34,6 +39,7 @@ public class Game {
         this.name = name;
         this.buildingId = buildingId;
         this.status = status;
+        this.version = version;
     }
 
     public void reserve() {
@@ -97,6 +103,10 @@ public class Game {
 
     public GameMachineStatus getStatus() {
         return status;
+    }
+
+    public long getVersion() {
+        return version;
     }
 }
 

@@ -24,6 +24,8 @@ app:
   healthcheck-interval-ms: 999999999
   dlq-promotion-interval-ms: 999999999
   outbox-purge-interval-ms: 999999999
+  outbox:
+    batch-size: 50
 
 ssl:
   trust-store:

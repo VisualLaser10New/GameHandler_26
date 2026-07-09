@@ -45,6 +45,7 @@ public class GameSessionMapper {
                 .collect(Collectors.toList());
         }
 
+        long version = entity.getVersion() == null ? 0L : entity.getVersion();
         return new GameSession(
             new GameSessionId(entity.getId()),
             new GameId(entity.getGameId()),
@@ -57,7 +58,8 @@ public class GameSessionMapper {
             entity.getWinnerId() != null ? new UserId(entity.getWinnerId()) : null,
             entity.getWinCondition() != null ? WinCondition.valueOf(entity.getWinCondition()) : null,
             result,
-            participants
+            participants,
+            version
         );
     }
 
@@ -95,6 +97,8 @@ public class GameSessionMapper {
                 .collect(Collectors.toList());
         }
         entity.setParticipants(participantEntities);
+
+        entity.setVersion(domain.getVersion());
 
         return entity;
     }

@@ -50,13 +50,13 @@ class ReservationRepositoryAdapterTest {
         ReservationJpaEntity entity = new ReservationJpaEntity();
         ReservationJpaEntity saved = new ReservationJpaEntity();
         when(mapper.toEntity(domain)).thenReturn(entity);
-        when(jpaRepository.save(entity)).thenReturn(saved);
+        when(jpaRepository.saveAndFlush(entity)).thenReturn(saved);
         when(mapper.toDomain(saved)).thenReturn(domain);
 
         Reservation result = adapter.save(domain);
 
         assertThat(result).isSameAs(domain);
-        verify(jpaRepository).save(entity);
+        verify(jpaRepository).saveAndFlush(entity);
         verify(mapper).toDomain(saved);
     }
 

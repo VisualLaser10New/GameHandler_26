@@ -136,7 +136,9 @@ public class GameSessionListener {
                 case "resume" -> {
                     SessionResumePayload resumePayload = MqttPayloadSerializer.deserialize(payload, SessionResumePayload.class);
                     if (resumePayload.sessionId() == null || resumePayload.sessionId().isBlank()) {
-                        throw new NullPointerException("Session ID is missing");
+                        org.slf4j.LoggerFactory.getLogger(GameSessionListener.class)
+                                .warn("Ignoring resume message on topic {} with missing sessionId", topic);
+                        return;
                     }
                     resumeGameSessionUseCase.resume(new GameSessionId(resumePayload.sessionId()));
                 }
@@ -148,6 +150,12 @@ public class GameSessionListener {
             // state is a no-op, not an error.
             org.slf4j.LoggerFactory.getLogger(GameSessionListener.class)
                     .debug("Ignoring idempotent/no-op session message on topic {}: {}", topic, e.getMessage());
+        } catch (com.gameplatform.local.domain.exception.ConcurrentStateException e) {
+            // A concurrent REST/MQTT transaction won the optimistic lock; the
+            // loser's stale transition must not be retried (QoS-1 redelivery
+            // would replay a now-stale state). Ack by returning normally.
+            org.slf4j.LoggerFactory.getLogger(GameSessionListener.class)
+                    .warn("Concurrent game-state modification on topic {}; dropping message (another tx won): {}", topic, e.getMessage());
         }
     }
 }

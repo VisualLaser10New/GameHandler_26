@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.time.Instant;
 
@@ -32,6 +33,10 @@ public class ReservationJpaEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    @Version
+    @Column(name = "version", nullable = false, columnDefinition = "BIGINT NOT NULL DEFAULT 0")
+    private Long version;
 
     public ReservationJpaEntity() {
     }
@@ -100,5 +105,13 @@ public class ReservationJpaEntity {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

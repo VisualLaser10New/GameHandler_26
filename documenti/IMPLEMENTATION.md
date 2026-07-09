@@ -714,9 +714,9 @@ INFO  c.g.l.i.a.o.r.CentralSystemRestAdapter - Sync payload sent successfully to
 
 ### 10.2 Health Check
 
-Il Local Server implementa un `HealthCheckService` che verifica periodicamente i client tramite heartbeat MQTT. Non è implementato un endpoint `/actuator/health` standard di Spring Boot Actuator.
+Il Local Server implementa un `HealthCheckService` che verifica periodicamente i client tramite heartbeat MQTT. È inoltre ora esposto l'endpoint standard `/actuator/health` di Spring Boot Actuator su entrambi i microservizi.
 
-[DA CHIARIRE: non sono presenti dipendenze `spring-boot-starter-actuator` nei `pom.xml`. Aggiungere Actuator permetterebbe di esporre `/actuator/health` per monitoring esterno.]
+La dipendenza `spring-boot-starter-actuator` (scope runtime) è stata aggiunta ai `pom.xml` di `central-system` e `local-server`. In entrambi gli `application.yml` è stato configurato `management.endpoints.web.exposure.include: health` (solo `health`, per mantenere minima la superficie esposta) e `/actuator/health` è in `permitAll` in entrambi i `SecurityConfig`. `curl` è installato dentro entrambe le immagini Docker, così i blocchi `healthcheck:` del `docker-compose.yml` (e del `docker-compose.multi.yml`) usano `curl -kfsS https://localhost:808x/actuator/health`; le condizioni `depends_on: service_healthy` sui DB fanno sì che i server partano solo a DB sano.
 
 ### 10.3 Metriche
 
@@ -805,14 +805,16 @@ Attendere 60 secondi oppure eliminare i record.
 
 **Sintomo noto:** La tabella `outbox_events` (locale e centrale) non ha TTL né job di cleanup.
 
-**Workaround attuale:**
+**Stato attuale — RISOLTO lato Local Server, ANCORA APERTO lato Central System:**
+- **Local Server:** implementato `OutboxPurgeService` (`@Scheduled`, elimina gli eventi `SENT` più vecchi di `app.outbox-purge-retention-days`, default 7 giorni) e `OutboxDlqPromotionService` (`@Scheduled`, promuove i `FAILED` in `outbox_dead_letter` e li rimuove da `outbox_events`). Le query manuali di workaround qui sotto non sono più necessarie lato Local.
+- **Central System:** non esiste ancora un servizio di purge/DLQ equivalente; la tabella centrale `outbox_events` SENT continua a crescere senza limite. Residuo aperto.
+
+**Workaround manuale (valido solo per il Central System finché non viene portato il purge):**
 ```sql
 -- Eliminare gli eventi già inviati (SENT) più vecchi di 30 giorni
 DELETE FROM outbox_events
 WHERE status = 'SENT' AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY);
 ```
-
-**Fix proposto (non implementato):** Aggiungere un `@Scheduled` che esegue periodicamente il cleanup.
 
 ---
 
@@ -820,9 +822,15 @@ WHERE status = 'SENT' AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY);
 
 **Sintomo noto:** In scenari di carico, è teoricamente possibile che due richieste concorrenti creino due sessioni attive sullo stesso gioco.
 
-**Causa:** Mancanza di `@Version` (ottimistic lock) su `GameJpaEntity` e `ReservationJpaEntity`.
+**Causa (storica):** Mancanza di `@Version` (ottimistic lock) su `GameJpaEntity` e `ReservationJpaEntity`.
 
-**Fix proposto (non implementato):** Aggiungere `@Version private Long version;` alle entità JPA coinvolte.
+**Stato attuale — IMPLEMENTATO (con residuo su `GameSessionJpaEntity`):**
+- Aggiunta `@Version` (colonna `version BIGINT NOT NULL DEFAULT 0`) su `GameJpaEntity` e `ReservationJpaEntity`.
+- `GameRepositoryAdapter` e `ReservationRepositoryAdapter` usano `saveAndFlush` e traducono `OptimisticLockingFailureException` → `com.gameplatform.local.domain.exception.ConcurrentStateException`.
+- Lato REST: `GlobalExceptionHandler` mappa `ConcurrentStateException` → **409 Conflict**.
+- Lato MQTT: `GameSessionListener` e `GameStateListener` catturano `ConcurrentStateException`, loggano e fanno ack (drop senza retry).
+- Test: `BugL10`/`BugL11`/`BugL12`, guard test `GameRepositoryAdapterOptimisticLockGuardTest` / `ReservationRepositoryAdapterOptimisticLockGuardTest`, e2e `B17ConcurrentGameMachineStartOptimisticLockTest`.
+- **Residuo accettato:** `GameSessionJpaEntity` è stata lasciata intenzionalmente senza `@Version`; un `end()` concorrente può ancora produrre un doppio `GAME_SESSION_COMPLETED`.
 
 ---
 
@@ -830,7 +838,13 @@ WHERE status = 'SENT' AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY);
 
 **Sintomo noto:** Se `outbox_events` locale ha migliaia di record PENDING, `findPending()` carica tutto in memoria.
 
-**Fix proposto (non implementato):** Aggiungere paginazione (`LIMIT 100`) e una Dead Letter Queue (DLQ) per eventi con `retry_count` elevato.
+**Stato attuale — IMPLEMENTATO:**
+- `SyncSchedulerService` riscritto come ibrido Option-C: lettura limitata via `findPendingLimit(batchSize)` con `app.outbox.batch-size` (default 50) al posto dell'illimitato `findPending()`.
+- Sul successo del trasporto del batch → `markAsSentBatch` atomico (preserva il contratto `BugL05`).
+- Sul fallimento del trasporto → retry per-event con isolamento del poison: per-event `markAsSent(id)` / `incrementRetry(id)`, `try/catch` per singolo evento e `continue`. Un evento poison non blocca il resto del batch.
+- Dopo 10 retry l'evento va in `FAILED` e viene promosso in `outbox_dead_letter` dal `OutboxDlqPromotionService`.
+- Nuove port methods `findPendingLimit(int)` e `markAsFailed(String)`; indice composito `idx_outbox_status_created_at (status, created_at)` su `outbox_events`.
+- Test: `BugL07_SyncStarvationPoisonIsolationTest`; `SyncSchedulerServiceTest` e `BugL05` aggiornati al nuovo contratto.
 
 ---
 

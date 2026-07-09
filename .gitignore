@@ -1,3 +1,40 @@
 /local-server-building-1-81e29fb5-tcplocalhost1883/.lck
 /game-client-30d6999c-tcplocalhost1883/.lck
 .lck
+
+# Build output
+target/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# TLS / keys (sample dev certs under gamehandler-platform/infrastructure remain tracked)
+*.pem
+*.p12
+*.jks
+*.key
+*.crt
+*.pfx
+password_file
+
+# Moquette / runtime locks
+*.lck
+**/*.lck
+
+# Moquette persistence artifact files
+*.msg

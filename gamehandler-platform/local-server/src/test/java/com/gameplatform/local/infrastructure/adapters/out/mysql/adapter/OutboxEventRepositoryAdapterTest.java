@@ -126,4 +126,53 @@ class OutboxEventRepositoryAdapterTest {
         adapter.incrementRetryBatch(null);
         verifyNoInteractions(jpaRepository);
     }
+
+    // ── POF-7: bounded fetch + markAsFailed ─────────────────────────────────
+
+    @Test
+    void findPendingLimitDelegatesToPagedQuery() {
+        OutboxEventJpaEntity entity = new OutboxEventJpaEntity();
+        OutboxEvent domain = sample();
+        when(jpaRepository.findByStatusOrderByCreatedAtAsc(
+                eq("PENDING"),
+                argThat(p -> p.getPageSize() == 5 && p.getPageNumber() == 0)))
+                .thenReturn(List.of(entity));
+        when(mapper.toDomain(entity)).thenReturn(domain);
+
+        List<OutboxEvent> result = adapter.findPendingLimit(5);
+
+        assertThat(result).containsExactly(domain);
+        verify(jpaRepository).findByStatusOrderByCreatedAtAsc(
+                eq("PENDING"),
+                argThat(p -> p.getPageSize() == 5 && p.getPageNumber() == 0));
+    }
+
+    @Test
+    void findPendingLimitZeroOrNegativeReturnsEmpty() {
+        assertThat(adapter.findPendingLimit(0)).isEmpty();
+        assertThat(adapter.findPendingLimit(-1)).isEmpty();
+        verifyNoInteractions(jpaRepository);
+    }
+
+    @Test
+    void markAsFailedSetsStatusToFailed() {
+        OutboxEventJpaEntity entity = new OutboxEventJpaEntity();
+        OutboxEvent domain = sample();
+        OutboxEventJpaEntity updated = new OutboxEventJpaEntity();
+        when(jpaRepository.findById("e-1")).thenReturn(Optional.of(entity));
+        when(mapper.toDomain(entity)).thenReturn(domain);
+        when(mapper.toEntity(domain)).thenReturn(updated);
+
+        adapter.markAsFailed("e-1");
+
+        verify(jpaRepository).save(updated);
+        assertThat(domain.getStatus()).isEqualTo("FAILED");
+    }
+
+    @Test
+    void markAsFailedMissingIdDoesNothing() {
+        when(jpaRepository.findById("nope")).thenReturn(Optional.empty());
+        adapter.markAsFailed("nope");
+        verify(jpaRepository, never()).save(any());
+    }
 }

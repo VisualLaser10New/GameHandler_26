@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
 /**
@@ -27,6 +28,10 @@ import static org.mockito.Mockito.*;
  * which execute a single bulk UPDATE statement inside one transaction. This test
  * verifies the scheduler triggers exactly one batch call (atomic by construction)
  * instead of N per-id calls.</p>
+ *
+ * <p>POF-7 update: on batch-transport failure the scheduler now falls back to
+ * per-event retry (poison isolation), so the failure-path assertion changed from
+ * {@code incrementRetryBatch} to per-event {@code incrementRetry(String)}.</p>
  */
 class BugL05_SyncSchedulerNonAtomicMarkAsSentTest {
 
@@ -44,7 +49,8 @@ class BugL05_SyncSchedulerNonAtomicMarkAsSentTest {
                 outboxEventRepository,
                 syncCentralSystemPort,
                 new OutboxSyncHelper(outboxEventRepository),
-                "building-1"
+                "building-1",
+                50
         );
     }
 
@@ -56,7 +62,7 @@ class BugL05_SyncSchedulerNonAtomicMarkAsSentTest {
         OutboxEvent event3 = new OutboxEvent("evt-3", "GAME_SESSION_COMPLETED", "{}", "PENDING", NOW, null, 0);
         OutboxEvent event4 = new OutboxEvent("evt-4", "GAME_SESSION_COMPLETED", "{}", "PENDING", NOW, null, 0);
 
-        when(outboxEventRepository.findPending()).thenReturn(List.of(event1, event2, event3, event4));
+        when(outboxEventRepository.findPendingLimit(anyInt())).thenReturn(List.of(event1, event2, event3, event4));
         when(syncCentralSystemPort.isReachable()).thenReturn(true);
         when(syncCentralSystemPort.sendSyncPayload(any(SyncPayloadDto.class))).thenReturn(true);
 
@@ -71,19 +77,20 @@ class BugL05_SyncSchedulerNonAtomicMarkAsSentTest {
     }
 
     @Test
-    @DisplayName("FIX L-05: failed sync issues a single atomic incrementRetryBatch call")
-    void failedSyncUsesSingleAtomicBatchIncrementRetry() {
+    @DisplayName("FIX L-05 + POF-7: failed batch sync retries per-event (poison isolation), not batch retry")
+    void failedSyncRetriesPerEvent() {
         OutboxEvent event1 = new OutboxEvent("evt-1", "GAME_SESSION_COMPLETED", "{}", "PENDING", NOW, null, 0);
         OutboxEvent event2 = new OutboxEvent("evt-2", "GAME_SESSION_COMPLETED", "{}", "PENDING", NOW, null, 0);
 
-        when(outboxEventRepository.findPending()).thenReturn(List.of(event1, event2));
+        when(outboxEventRepository.findPendingLimit(anyInt())).thenReturn(List.of(event1, event2));
         when(syncCentralSystemPort.isReachable()).thenReturn(true);
         when(syncCentralSystemPort.sendSyncPayload(any(SyncPayloadDto.class))).thenReturn(false);
 
         syncSchedulerService.syncWithCentral();
 
-        verify(outboxEventRepository, times(1)).incrementRetryBatch(List.of("evt-1", "evt-2"));
         verify(outboxEventRepository, never()).markAsSentBatch(any());
-        verify(outboxEventRepository, never()).incrementRetry(any());
+        verify(outboxEventRepository, never()).incrementRetryBatch(any());
+        verify(outboxEventRepository).incrementRetry("evt-1");
+        verify(outboxEventRepository).incrementRetry("evt-2");
     }
 }

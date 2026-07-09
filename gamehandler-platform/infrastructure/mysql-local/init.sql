@@ -25,6 +25,7 @@ CREATE TABLE game_catalog (
     name        VARCHAR(100) NOT NULL,
     building_id VARCHAR(50) NOT NULL,
     status      ENUM('AVAILABLE','RESERVED','IN_USE','MAINTENANCE','LOBBY') NOT NULL DEFAULT 'AVAILABLE',
+    version     BIGINT NOT NULL DEFAULT 0,
     INDEX idx_building (building_id),
     INDEX idx_type (game_type)
 );
@@ -39,6 +40,7 @@ CREATE TABLE reservations (
     start_time  DATETIME(6) NOT NULL,
     end_time    DATETIME(6) NOT NULL,
     created_at  DATETIME(6) NOT NULL,
+    version     BIGINT NOT NULL DEFAULT 0,
     INDEX idx_game (game_id),
     INDEX idx_user (user_id),
     INDEX idx_expiration (status, end_time),
@@ -57,6 +59,7 @@ CREATE TABLE game_sessions (
     winner_id     VARCHAR(36),
     win_condition VARCHAR(30),
     result_data   JSON,
+    version       BIGINT NOT NULL DEFAULT 0,
     INDEX idx_game_type (game_type),
     INDEX idx_building (building_id),
     INDEX idx_status (status),
@@ -78,7 +81,7 @@ CREATE TABLE outbox_events (
     created_at  DATETIME(6) NOT NULL,
     sent_at     DATETIME(6),
     retry_count INT NOT NULL,
-    INDEX idx_status (status)
+    INDEX idx_outbox_status_created_at (status, created_at)
 );
 
 CREATE TABLE outbox_dead_letter (

@@ -36,7 +36,25 @@ build/
 ### Environment ###
 # Per i progetti universitari potreste voler committare il .env se non contiene vere credenziali, 
 # ma di norma si ignora e si committa un .env.example
-#.env
+.env
 
 ### Docker ###
 *-data/
+
+### Secrets / env / TLS (sample dev certs under infrastructure/ remain tracked) ###
+.env.*
+!.env.example
+*.pem
+*.p12
+*.jks
+*.key
+*.crt
+*.pfx
+password_file
+
+### Moquette persistence artifacts ###
+*.msg
+client-*/
+local-server-building-*/
+e2e-tests/client-*/
+e2e-tests/local-server-building-*/

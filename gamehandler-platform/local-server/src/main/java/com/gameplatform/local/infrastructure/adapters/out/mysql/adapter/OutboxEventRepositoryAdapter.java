@@ -5,6 +5,7 @@ import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.mapper.OutboxEventMapper;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.repository.OutboxEventJpaRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,29 @@ public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
         return jpaRepository.findByStatusOrderByCreatedAtAsc("PENDING").stream()
             .map(mapper::toDomain)
             .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<OutboxEvent> findPendingLimit(int limit) {
+        if (limit <= 0) {
+            return java.util.Collections.emptyList();
+        }
+        return jpaRepository.findByStatusOrderByCreatedAtAsc("PENDING", PageRequest.of(0, limit)).stream()
+            .map(mapper::toDomain)
+            .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void markAsFailed(String id) {
+        if (id == null) {
+            return;
+        }
+        jpaRepository.findById(id).ifPresent(entity -> {
+            OutboxEvent domain = mapper.toDomain(entity);
+            domain.markAsFailed();
+            jpaRepository.save(mapper.toEntity(domain));
+        });
     }
 
     @Override

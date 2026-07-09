@@ -73,7 +73,7 @@ Questo vi permette di usare il Debugger di IntelliJ in modo fulmineo, senza riav
 
 Mentre l'Approccio Ibrido è perfetto per lo *sviluppo*, il professore dovrà poter eseguire il progetto completo in un solo click, senza dover aprire IntelliJ o configurare Java. 
 
-Per l'ambiente di produzione (o "Test Finale" per voi prima della consegna), si sfrutta **interamente** la potenza di Docker. Il file `docker-compose.yml` è configurato in modo che i `Dockerfile` prelevino il codice sorgente, lo compilino all'interno del container isolato e avviino i server.
+Per l'ambiente di produzione (o "Test Finale" per voi prima della consegna), si sfrutta **interamente** la potenza di Docker. I `Dockerfile` **non compilano** il sorgente dentro il container: consumano artefatti Maven **già buildati** (`COPY target/*.jar`), quindi il `mvn clean package -DskipTests` dello step 2 è prerequisito obbligatorio prima del `docker-compose up --build`. Il file `docker-compose.yml` inoltre dichiara blocchi `healthcheck:` per `central-system`/`local-server` e per i rispettivi DB, con `depends_on` a condizione `service_healthy` per i DB (e `service_started` per il broker MQTT): in questo modo `docker-compose up` attende che i database siano sani prima di avviare i server.
 
 ### Come simulare la Produzione:
 1. Fermate tutte le istanze avviate in IntelliJ.
@@ -133,12 +133,17 @@ mvn spring-boot:run -pl local-server
 5. **Log**: nessun `ERROR` o `WARN` inatteso.
 
 ### Comandi curl di verifica
+
+La dipendenza `spring-boot-starter-actuator` (runtime) è ora presente nei `pom.xml` di `central-system` e `local-server`, e in entrambi gli `application.yml` è esposto solo l'endpoint `health` (`management.endpoints.web.exposure.include: health`). Il path `/actuator/health` è inoltre in `permitAll` in entrambi i `SecurityConfig`, quindi i seguenti curl funzionano senza credenziali:
+
 ```bash
 # Health check central
 curl -k https://localhost:8080/actuator/health
 # Health check local
 curl -k https://localhost:8081/actuator/health
 ```
+
+> Nota: `curl` è installato anche dentro le immagini Docker (entry `RUN apt-get install -y curl` nei `Dockerfile`), così gli `healthcheck:` del compose possono usare `curl -kfsS https://localhost:808x/actuator/health`.
 
 ---
 
@@ -162,6 +167,6 @@ The composition provisions `local-db-2`/`local-db-3` (host ports 3308/3309) with
 4. re-send same `USER_REGISTERED` from building-2 → no second push (`processed_events` dedup).
 
 ### Operator notes
-- **TLS SAN**: verify the per-building TLS certificate generation covers `local-server-2`/`local-server-3` in the SAN list. If `infrastructure/tls/generate-certs.ps1` only covers `local-server`/`local-server-1`, regenerate (or extend) to include `local-server-2`/`local-server-3`. Mismatched SANs will cause TLS handshake failures between central and the new local servers.
+- **TLS SAN**: `infrastructure/tls/generate-certs.ps1` attualmente include nella SAN solo `local-server-1`/`localhost`/`127.0.0.1` (vedi `local-server-https.ext`). Lo smoke multi-building richiede pertanto di estendere lo script per aggiungere `local-server-2`/`local-server-3` alla SAN; SAN mancanti causano failure di handshake TLS tra central e i nuovi local server.
 - **MQTT namespaces**: each building uses its own broker (`mqtt-broker-2`/`mqtt-broker-3`) so topic paths like `building/bld-1/...` and `building/bld-2/...` are physically separated (the brokers don't share state).
 - **Heartbeats**: send one `POST /internal/servers/register` from each building within the `SERVER_STALE_THRESHOLD_MS` window to keep `is_active=true` (the build is auto-registered on startup; the heartbeat guidance is for long smoke runs that exceed the threshold).

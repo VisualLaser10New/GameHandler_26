@@ -40,8 +40,13 @@ public class GameSessionRepositoryAdapter implements GameSessionRepository {
     @Override
     public GameSession save(GameSession session) {
         GameSessionJpaEntity entity = mapper.toEntity(session);
-        GameSessionJpaEntity saved = jpaRepository.save(entity);
-        return mapper.toDomain(saved);
+        try {
+            GameSessionJpaEntity saved = jpaRepository.saveAndFlush(entity);
+            return mapper.toDomain(saved);
+        } catch (org.springframework.dao.OptimisticLockingFailureException ex) {
+            throw new com.gameplatform.local.domain.exception.ConcurrentStateException(
+                "Concurrent modification of game session " + session.getId().value(), ex);
+        }
     }
 
     @Override

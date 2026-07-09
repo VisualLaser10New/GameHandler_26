@@ -64,3 +64,11 @@ app:
 # Default: http://localhost:3000 for local development.
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+# Actuator — expose only the health endpoint for Docker healthchecks (GET /actuator/health).
+# Only "health" is exposed on the web to keep the actuator surface minimal.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

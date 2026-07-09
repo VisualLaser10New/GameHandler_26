@@ -17,9 +17,15 @@ public class Reservation {
     private final Instant startTime;
     private final Instant endTime;
     private final Instant createdAt;
+    private long version;
 
     public Reservation(ReservationId id, GameId gameId, UserId userId, ReservationStatus status,
                        Instant startTime, Instant endTime, Instant createdAt) {
+        this(id, gameId, userId, status, startTime, endTime, createdAt, 0L);
+    }
+
+    public Reservation(ReservationId id, GameId gameId, UserId userId, ReservationStatus status,
+                       Instant startTime, Instant endTime, Instant createdAt, long version) {
         if (id == null) {
             throw new IllegalArgumentException("ReservationId cannot be null");
         }
@@ -51,6 +57,7 @@ public class Reservation {
         this.startTime = startTime;
         this.endTime = endTime;
         this.createdAt = createdAt;
+        this.version = version;
     }
 
     public boolean canBeCancelled(Clock clock) {
@@ -108,6 +115,10 @@ public class Reservation {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public long getVersion() {
+        return version;
     }
 }
 

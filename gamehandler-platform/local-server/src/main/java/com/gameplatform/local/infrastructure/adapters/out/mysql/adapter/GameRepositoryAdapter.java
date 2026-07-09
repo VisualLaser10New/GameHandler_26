@@ -28,8 +28,13 @@ public class GameRepositoryAdapter implements GameRepository {
     @Override
     public Game save(Game game) {
         GameJpaEntity entity = mapper.toEntity(game);
-        GameJpaEntity saved = jpaRepository.save(entity);
-        return mapper.toDomain(saved);
+        try {
+            GameJpaEntity saved = jpaRepository.saveAndFlush(entity);
+            return mapper.toDomain(saved);
+        } catch (org.springframework.dao.OptimisticLockingFailureException ex) {
+            throw new com.gameplatform.local.domain.exception.ConcurrentStateException(
+                "Concurrent modification of game " + game.getId().id(), ex);
+        }
     }
 
     @Override

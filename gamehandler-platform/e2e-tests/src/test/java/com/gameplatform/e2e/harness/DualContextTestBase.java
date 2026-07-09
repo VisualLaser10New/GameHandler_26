@@ -1,6 +1,7 @@
 package com.gameplatform.e2e.harness;
 
 import com.gameplatform.local.LocalServerApplication;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Extends {@link E2ETestBase} and additionally boots the <b>local</b> Spring
@@ -88,6 +90,23 @@ public abstract class DualContextTestBase extends E2ETestBase {
 
         DataSource localDataSource = localContext.getBean(DataSource.class);
         this.localJdbcTemplate = new JdbcTemplate(localDataSource);
+
+        // A3 race barrier: the local's LocalServerRegistrationService (SmartLifecycle)
+        // retries-with-backoff until registered=true, INSERTing a building-1 row into
+        // central's local_servers. The @BeforeEach wipeAllTables() DELETEs that row; if a
+        // daemon INSERT is in flight while a test's registerBuildingAtCentral also INSERTs,
+        // they collide on the local_servers(building_id) PRIMARY KEY → DataIntegrityViolation.
+        // The central adapter's catch(DataIntegrityViolation) reload-retry runs in the same
+        // rollback-only tx and cannot recover. Blocking here ONCE (per class, in @BeforeAll)
+        // until the daemon has finished its single registration guarantees that afterwards the
+        // daemon only ever calls updateLastSeenAt, which is findById().ifPresent(save) →
+        // UPDATE-only, so it can never race the wipe or the test's explicit INSERT.
+        Awaitility.await()
+                .atMost(20, TimeUnit.SECONDS)
+                .pollInterval(200, TimeUnit.MILLISECONDS)
+                .until(() -> !centralJdbcTemplate.queryForList(
+                        "SELECT building_id FROM local_servers WHERE building_id = 'building-1'",
+                        String.class).isEmpty());
     }
 
     /**

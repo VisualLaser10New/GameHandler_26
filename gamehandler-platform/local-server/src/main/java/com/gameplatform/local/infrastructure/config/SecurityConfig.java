@@ -32,6 +32,7 @@ public class SecurityConfig {
             .addFilterBefore(internalApiKeyFilter, UsernamePasswordAuthenticationFilter.class)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/devices/register").permitAll()
                 .requestMatchers("/internal/**").permitAll() // Handled by InternalApiKeyFilter

@@ -15,6 +15,7 @@ public class ReservationMapper {
         if (entity == null) {
             return null;
         }
+        long version = entity.getVersion() == null ? 0L : entity.getVersion();
         return new Reservation(
             new ReservationId(entity.getId()),
             new GameId(entity.getGameId()),
@@ -22,7 +23,8 @@ public class ReservationMapper {
             ReservationStatus.valueOf(entity.getStatus()),
             entity.getStartTime(),
             entity.getEndTime(),
-            entity.getCreatedAt()
+            entity.getCreatedAt(),
+            version
         );
     }
 
@@ -30,7 +32,7 @@ public class ReservationMapper {
         if (domain == null) {
             return null;
         }
-        return new ReservationJpaEntity(
+        ReservationJpaEntity entity = new ReservationJpaEntity(
             domain.getId().value(),
             domain.getGameId().id(),
             domain.getUserId().value(),
@@ -39,5 +41,12 @@ public class ReservationMapper {
             domain.getEndTime(),
             domain.getCreatedAt()
         );
+        // Always carry the domain version onto the entity so Spring Data uses
+        // merge (version != null) instead of persist: merge honours @Version
+        // (compares detached.version vs DB.version via SELECT and throws
+        // StaleObjectStateException on mismatch) — giving true optimistic
+        // locking. New rows carry version=0L which merge INSERTs as initial.
+        entity.setVersion(domain.getVersion());
+        return entity;
     }
 }

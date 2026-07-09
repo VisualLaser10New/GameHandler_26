@@ -30,7 +30,8 @@ class SyncSchedulerServiceTest {
                 outboxEventRepository,
                 syncCentralSystemPort,
                 new OutboxSyncHelper(outboxEventRepository),
-                "building-1"
+                "building-1",
+                50
         );
     }
 
@@ -40,7 +41,7 @@ class SyncSchedulerServiceTest {
 
     @Test
     void shouldDoNothingWhenNoPendingEvents() {
-        when(outboxEventRepository.findPending()).thenReturn(List.of());
+        when(outboxEventRepository.findPendingLimit(anyInt())).thenReturn(List.of());
         service.syncWithCentral();
         verify(syncCentralSystemPort, never()).isReachable();
         verify(syncCentralSystemPort, never()).sendSyncPayload(any());
@@ -50,7 +51,7 @@ class SyncSchedulerServiceTest {
 
     @Test
     void shouldSkipWhenCentralUnreachable() {
-        when(outboxEventRepository.findPending()).thenReturn(List.of(event("e-1")));
+        when(outboxEventRepository.findPendingLimit(anyInt())).thenReturn(List.of(event("e-1")));
         when(syncCentralSystemPort.isReachable()).thenReturn(false);
         service.syncWithCentral();
         verify(syncCentralSystemPort, never()).sendSyncPayload(any());
@@ -60,7 +61,7 @@ class SyncSchedulerServiceTest {
 
     @Test
     void shouldMarkEventsAsSentOnSuccess() {
-        when(outboxEventRepository.findPending()).thenReturn(List.of(event("e-1"), event("e-2")));
+        when(outboxEventRepository.findPendingLimit(anyInt())).thenReturn(List.of(event("e-1"), event("e-2")));
         when(syncCentralSystemPort.isReachable()).thenReturn(true);
         when(syncCentralSystemPort.sendSyncPayload(any(SyncPayloadDto.class))).thenReturn(true);
 
@@ -72,14 +73,16 @@ class SyncSchedulerServiceTest {
     }
 
     @Test
-    void shouldIncrementRetryOnFailure() {
-        when(outboxEventRepository.findPending()).thenReturn(List.of(event("e-1"), event("e-2")));
+    void shouldRetryPerEventWhenBatchTransportFails() {
+        when(outboxEventRepository.findPendingLimit(anyInt())).thenReturn(List.of(event("e-1"), event("e-2")));
         when(syncCentralSystemPort.isReachable()).thenReturn(true);
         when(syncCentralSystemPort.sendSyncPayload(any(SyncPayloadDto.class))).thenReturn(false);
 
         service.syncWithCentral();
 
+        // Batch transport failed → no atomic batch markAsSent; instead each event is retried per-event.
         verify(outboxEventRepository, never()).markAsSentBatch(any());
-        verify(outboxEventRepository).incrementRetryBatch(List.of("e-1", "e-2"));
+        verify(outboxEventRepository).incrementRetry("e-1");
+        verify(outboxEventRepository).incrementRetry("e-2");
     }
 }

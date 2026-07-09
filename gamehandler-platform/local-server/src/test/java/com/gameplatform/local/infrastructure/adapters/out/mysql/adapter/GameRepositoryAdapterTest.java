@@ -42,11 +42,11 @@ class GameRepositoryAdapterTest {
         GameJpaEntity saved = new GameJpaEntity();
         Game domain = sample();
         when(mapper.toEntity(domain)).thenReturn(entity);
-        when(jpaRepository.save(entity)).thenReturn(saved);
+        when(jpaRepository.saveAndFlush(entity)).thenReturn(saved);
         when(mapper.toDomain(saved)).thenReturn(domain);
 
         assertThat(adapter.save(domain)).isSameAs(domain);
-        verify(jpaRepository).save(entity);
+        verify(jpaRepository).saveAndFlush(entity);
     }
 
     @Test
