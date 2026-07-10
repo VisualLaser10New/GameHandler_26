@@ -28,7 +28,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 /**
  * POF-5 optimistic-locking guard at the {@link ReservationRepositoryAdapter}
  * boundary. Mockito-level twin of
- * {@link GameRepositoryAdapterOptimisticLockGuardTest} (see that class's javadoc
+ * {@link GameOptimisticLockGuardTest} (see that class's javadoc
  * for the {@code @DataJpaTest}/MQTT rationale).
  *
  * <p><b>What IS verified here:</b></p>
@@ -46,7 +46,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
  * </ol>
  */
 @ExtendWith(MockitoExtension.class)
-class ReservationRepositoryAdapterOptimisticLockGuardTest {
+class ReservationOptimisticLockGuardTest {
 
     private static final Instant START = Instant.parse("2026-01-01T10:00:00Z");
     private static final Instant END = Instant.parse("2026-01-01T11:00:00Z");

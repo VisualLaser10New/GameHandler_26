@@ -50,7 +50,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
  * </ol>
  */
 @ExtendWith(MockitoExtension.class)
-class GameRepositoryAdapterOptimisticLockGuardTest {
+class GameOptimisticLockGuardTest {
 
     @Mock private GameJpaRepository jpaRepository;
 
