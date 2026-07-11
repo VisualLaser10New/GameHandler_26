@@ -45,8 +45,8 @@ public class GameSelectionView {
      *                    may be {@code null}
      */
     public GameSelectionView(MqttClientAdapter mqttAdapter, String buildingId) {
-        root = new VBox(10);
-        root.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
+        VBox content = new VBox(10);
+        content.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
 
         Label title = new Label("Available Games");
         title.setStyle("-fx-font-size: 18; -fx-font-weight: bold; -fx-text-fill: #eee;");
@@ -90,7 +90,17 @@ public class GameSelectionView {
         playButton.setDisable(true);
 
         buttonBar.getChildren().addAll(refreshButton, playButton);
-        root.getChildren().addAll(title, gameList, statusLabel, buttonBar);
+        content.getChildren().addAll(title, gameList, statusLabel, buttonBar);
+
+        ScrollPane scrollPane = new ScrollPane();
+        scrollPane.setContent(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background: #1e1e1e; -fx-background-color: #1e1e1e;");
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+
+        root = new VBox(scrollPane);
+        root.setStyle("-fx-padding: 0; -fx-background-color: #1e1e1e;");
 
         refreshButton.setOnAction(e -> refreshGames());
         playButton.setOnAction(e -> {

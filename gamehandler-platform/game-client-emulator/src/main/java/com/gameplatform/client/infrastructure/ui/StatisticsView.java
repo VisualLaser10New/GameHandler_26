@@ -4,6 +4,7 @@ import com.gameplatform.shared.dto.StatisticsDto;
 import javafx.application.Platform;
 import javafx.scene.Parent;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.VBox;
 
 import java.net.URI;
@@ -29,8 +30,7 @@ public class StatisticsView {
     public StatisticsView() {
         mapper = new com.fasterxml.jackson.databind.ObjectMapper();
         mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
-        root = new VBox(10);
-        root.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
+        VBox content = new VBox(10);
 
         titleLabel = new Label("Game Statistics");
         titleLabel.setStyle("-fx-font-size: 18; -fx-font-weight: bold; -fx-text-fill: #eee;");
@@ -40,7 +40,17 @@ public class StatisticsView {
         statusLabel = new Label("Loading statistics...");
         statusLabel.setStyle("-fx-text-fill: #aaa;");
 
-        root.getChildren().addAll(titleLabel, statsContainer, statusLabel);
+        content.getChildren().addAll(titleLabel, statsContainer, statusLabel);
+
+        ScrollPane scrollPane = new ScrollPane();
+        scrollPane.setContent(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background: #1e1e1e; -fx-background-color: #1e1e1e;");
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+
+        root = new VBox(scrollPane);
+        root.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
     }
 
     /**
