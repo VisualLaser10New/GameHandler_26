@@ -62,11 +62,15 @@ Ora che l'infrastruttura è attiva in background, potete scrivere il codice.
 > Per provare il sistema ricordarsi sempre di aver avviato i container Docker.
 
 Quando volete testare il sistema:
-1. Cercate nel progetto le classi `main` dei tre microservizi (es. `CentralSystemApplication.java`, `LocalServerApplication.java`).
+1. Cercate nel progetto le classi `main` dei tre microservizi 
+   - `CentralSystemApplication.java`
+   - `LocalServerApplication.java`
+   - `GameClientEmulatorApplication.java`
 2. Cliccate sulla freccia verde **Play** (Run) a fianco della classe in IntelliJ.
 3. Le applicazioni Spring Boot partiranno nativamente sul vostro PC, leggeranno i file `application.yml` che puntano a `localhost:3306` (dove Docker sta inoltrando il DB) e si connetteranno correttamente.
 Questo vi permette di usare il Debugger di IntelliJ in modo fulmineo, senza riavviare Docker a ogni singola riga di codice modificata!
 
+> Attenzione: Se volete avviare i sistemi dal docker, ricordarsi di averli compilati in jar prima (altrimenti si ottiene l'errore di targen mancante).
 ---
 
 ## 4. Ambiente di Produzione (Per l'Esame e la Consegna)

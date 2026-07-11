@@ -1,4 +1,4 @@
-package com.gameplatform.central.infrastructure.adapters.out.rest;
+package com.gameplatform.central.domain.exception;
 
 /** Marker exception for transient HTTP failures that should be retried. */
 public class TransientPushException extends RuntimeException {

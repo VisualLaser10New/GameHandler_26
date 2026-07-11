@@ -120,7 +120,7 @@ CREATE TABLE local_statistics_cache (
 
 -- Seed game catalog
 INSERT INTO game_catalog (id, game_type, name, building_id, status) VALUES
-('chess-machine-1',   'CHESS',       'Chess Table 1',    'building-2', 'AVAILABLE'),
-('foosball-machine-1','FOOSBALL',    'Foosball Table 1', 'building-2', 'AVAILABLE'),
-('darts-machine-1',   'DARTS',       'Darts Board 1',    'building-2', 'AVAILABLE'),
-('slot-machine-1',    'SLOT_MACHINE','Slot Machine 1',   'building-2', 'AVAILABLE');
+('game-chess-2',   'CHESS',       'Chess Table 1',    'building-2', 'AVAILABLE'),
+('game-foosball-2','FOOSBALL',    'Foosball Table 1', 'building-2', 'AVAILABLE'),
+('game-darts-2',   'DARTS',       'Darts Board 1',    'building-2', 'AVAILABLE'),
+('game-slot-2',    'SLOT_MACHINE','Slot Machine 1',   'building-2', 'AVAILABLE');

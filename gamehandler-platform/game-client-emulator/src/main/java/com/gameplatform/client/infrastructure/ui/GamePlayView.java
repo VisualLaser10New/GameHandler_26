@@ -316,7 +316,7 @@ public class GamePlayView {
         if (activePanel != null) activePanel.onGameStopped();
 
         // Publish session/end to the server so it can release the game machine.
-        // We must use the gameId from currentGameState (e.g. "slot-machine-1"),
+        // We must use the gameId from currentGameState (e.g. "game-slot-1"),
         // not the local GAME_ID env var, and the sessionId from the lobby or
         // orchestrationService — whichever is available.
         String effectiveGameId = currentGameState != null ? currentGameState.gameId() : gameId;

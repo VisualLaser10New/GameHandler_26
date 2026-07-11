@@ -26,7 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-class LocalServerRestAdapterTest {
+class LocalRestAdapterTest {
 
     private ResponseEntity<List<UserSyncAckDto>> ackResponse() {
         return new ResponseEntity<>(List.of(new UserSyncAckDto("u1", true, null)), HttpStatus.OK);
@@ -34,9 +34,11 @@ class LocalServerRestAdapterTest {
 
     @Test
     void shouldConfigureTimeoutsInDefaultConstructor() throws Exception {
-        LocalServerRestAdapter adapter = new LocalServerRestAdapter("test-api-key", 5000, 5000);
+        javax.net.ssl.SSLContext sslContext = javax.net.ssl.SSLContext.getInstance("TLS");
+        sslContext.init(null, null, new java.security.SecureRandom());
+        LocalRestAdapter adapter = new LocalRestAdapter(sslContext, "test-api-key", 5000, 5000);
 
-        java.lang.reflect.Field rtField = LocalServerRestAdapter.class.getDeclaredField("restTemplate");
+        java.lang.reflect.Field rtField = LocalRestAdapter.class.getDeclaredField("restTemplate");
         rtField.setAccessible(true);
         RestTemplate restTemplate = (RestTemplate) rtField.get(adapter);
 
@@ -58,7 +60,7 @@ class LocalServerRestAdapterTest {
     @Test
     void shouldSuccessfullyPushUsersWithoutRetry() {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
-        LocalServerRestAdapter adapter = new LocalServerRestAdapter(mockRestTemplate, "test-api-key");
+        LocalRestAdapter adapter = new LocalRestAdapter(mockRestTemplate, "test-api-key");
         RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8081", Instant.now(), true);
         List<UserSyncDto> users = Collections.singletonList(new UserSyncDto("u1", "user1", "hash", List.of("ROLE_USER")));
 
@@ -77,7 +79,7 @@ class LocalServerRestAdapterTest {
     @Test
     void shouldRetryOnTransientFailureAndSucceed() {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
-        LocalServerRestAdapter adapter = new LocalServerRestAdapter(mockRestTemplate, "test-api-key");
+        LocalRestAdapter adapter = new LocalRestAdapter(mockRestTemplate, "test-api-key");
         RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8081", Instant.now(), true);
         List<UserSyncDto> users = Collections.singletonList(new UserSyncDto("u1", "user1", "hash", List.of("ROLE_USER")));
 
@@ -96,7 +98,7 @@ class LocalServerRestAdapterTest {
     @Test
     void shouldRetryOnTransientHttp500FailureAndEventuallyFail() {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
-        LocalServerRestAdapter adapter = new LocalServerRestAdapter(mockRestTemplate, "test-api-key");
+        LocalRestAdapter adapter = new LocalRestAdapter(mockRestTemplate, "test-api-key");
         RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8081", Instant.now(), true);
         List<UserSyncDto> users = Collections.singletonList(new UserSyncDto("u1", "user1", "hash", List.of("ROLE_USER")));
 
@@ -115,7 +117,7 @@ class LocalServerRestAdapterTest {
     @Test
     void shouldNotRetryOnNonTransientHttp400Failure() {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
-        LocalServerRestAdapter adapter = new LocalServerRestAdapter(mockRestTemplate, "test-api-key");
+        LocalRestAdapter adapter = new LocalRestAdapter(mockRestTemplate, "test-api-key");
         RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8081", Instant.now(), true);
         List<UserSyncDto> users = Collections.singletonList(new UserSyncDto("u1", "user1", "hash", List.of("ROLE_USER")));
 

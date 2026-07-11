@@ -29,12 +29,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Validates the non-blocking retry behavior of {@link LocalServerRestAdapter} without
+ * Validates the non-blocking retry behavior of {@link LocalRestAdapter} without
  * spinning up a Spring context: the adapter delegates retrying to a programmatic
  * {@link org.springframework.retry.support.RetryTemplate}, which works whether or not
  * an AOP proxy is present.
  */
-class LocalServerRestAdapterRetryTest {
+class LocalRestAdapterRetryTest {
 
     private RegisteredLocalServer server() {
         return new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8081", Instant.now(), true);
@@ -51,7 +51,7 @@ class LocalServerRestAdapterRetryTest {
     @Test
     void retriesOn503ThenSucceeds() {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
-        LocalServerRestAdapter adapter = new LocalServerRestAdapter(mockRestTemplate, "test-api-key");
+        LocalRestAdapter adapter = new LocalRestAdapter(mockRestTemplate, "test-api-key");
 
         when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)))
@@ -67,7 +67,7 @@ class LocalServerRestAdapterRetryTest {
     @Test
     void noRetryOn400NonTransient() {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
-        LocalServerRestAdapter adapter = new LocalServerRestAdapter(mockRestTemplate, "test-api-key");
+        LocalRestAdapter adapter = new LocalRestAdapter(mockRestTemplate, "test-api-key");
 
         when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)))
@@ -84,7 +84,7 @@ class LocalServerRestAdapterRetryTest {
     @Test
     void givesUpAfter3AttemptsOnContinued503() {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
-        LocalServerRestAdapter adapter = new LocalServerRestAdapter(mockRestTemplate, "test-api-key");
+        LocalRestAdapter adapter = new LocalRestAdapter(mockRestTemplate, "test-api-key");
 
         when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)))
@@ -101,7 +101,7 @@ class LocalServerRestAdapterRetryTest {
     @Test
     void returnsAckListFromResponseBody() {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
-        LocalServerRestAdapter adapter = new LocalServerRestAdapter(mockRestTemplate, "test-api-key");
+        LocalRestAdapter adapter = new LocalRestAdapter(mockRestTemplate, "test-api-key");
 
         when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)))

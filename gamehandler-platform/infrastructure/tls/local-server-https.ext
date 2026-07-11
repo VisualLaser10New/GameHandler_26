@@ -4,5 +4,7 @@ keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
 subjectAltName = @alt_names
 [alt_names]
 DNS.1 = local-server-1
-DNS.2 = localhost
+DNS.2 = local-server-2
+DNS.3 = local-server-3
+DNS.4 = localhost
 IP.1 = 127.0.0.1

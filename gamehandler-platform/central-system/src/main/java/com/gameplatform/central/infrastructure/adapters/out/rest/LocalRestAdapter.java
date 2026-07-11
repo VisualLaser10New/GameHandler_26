@@ -1,5 +1,6 @@
 package com.gameplatform.central.infrastructure.adapters.out.rest;
 
+import com.gameplatform.central.domain.exception.TransientPushException;
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.shared.dto.UserSyncAckDto;
@@ -21,23 +22,35 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import java.net.HttpURLConnection;
 import java.util.List;
 
 @Component
-public class LocalServerRestAdapter implements PushUserToLocalServersPort {
+public class LocalRestAdapter implements PushUserToLocalServersPort {
 
-    private static final Logger log = LoggerFactory.getLogger(LocalServerRestAdapter.class);
+    private static final Logger log = LoggerFactory.getLogger(LocalRestAdapter.class);
 
     private final RestTemplate restTemplate;
     private final String apiKey;
     private final RetryTemplate retryTemplate;
 
     @org.springframework.beans.factory.annotation.Autowired
-    public LocalServerRestAdapter(
+    public LocalRestAdapter(
+            SSLContext sslContext,
             @Value("${internal.api-key}") String apiKey,
             @Value("${central.replication.connect-timeout-ms:5000}") int connectTimeoutMs,
             @Value("${central.replication.read-timeout-ms:5000}") int readTimeoutMs) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory() {
+            @Override
+            protected void prepareConnection(HttpURLConnection connection, String httpMethod) throws java.io.IOException {
+                super.prepareConnection(connection, httpMethod);
+                if (connection instanceof HttpsURLConnection httpsConnection) {
+                    httpsConnection.setSSLSocketFactory(sslContext.getSocketFactory());
+                }
+            }
+        };
         factory.setConnectTimeout(connectTimeoutMs);
         factory.setReadTimeout(readTimeoutMs);
         this.restTemplate = new RestTemplate(factory);
@@ -46,7 +59,7 @@ public class LocalServerRestAdapter implements PushUserToLocalServersPort {
     }
 
     // Package-private constructor for testing
-    LocalServerRestAdapter(RestTemplate restTemplate, String apiKey) {
+    LocalRestAdapter(RestTemplate restTemplate, String apiKey) {
         this.restTemplate = restTemplate;
         this.apiKey = apiKey;
         this.retryTemplate = buildDefaultRetryTemplate();

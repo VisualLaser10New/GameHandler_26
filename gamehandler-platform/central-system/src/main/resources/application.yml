@@ -28,6 +28,10 @@ jwt:
 internal:
   api-key: ${INTERNAL_API_KEY:secret}
 
+ssl:
+  trust-store: ${SSL_TRUSTSTORE_PATH:classpath:local-truststore.p12}
+  trust-store-password: ${SSL_TRUSTSTORE_PASSWORD:changeit}
+
 central:
   replication:
     connect-timeout-ms: ${CENTRAL_REPLICATION_CONNECT_TIMEOUT_MS:5000}

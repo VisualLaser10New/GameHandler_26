@@ -45,6 +45,8 @@ services:
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
       - SSL_KEYSTORE_PATH=file:/certs/central-system-https.p12
       - SSL_KEYSTORE_PASSWORD=changeit
+      - SSL_TRUSTSTORE_PATH=file:/certs/local-truststore.p12
+      - SSL_TRUSTSTORE_PASSWORD=changeit
     volumes:
       - ./infrastructure/tls:/certs:ro
     networks:

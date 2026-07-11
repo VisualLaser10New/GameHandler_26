@@ -25,7 +25,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * M4 — Mockito unit tests for {@link LocalServerUserCountRestAdapter}.
+ * M4 — Mockito unit tests for {@link LocalUserCountRestAdapter}.
  *
  * <p>Covers:</p>
  * <ul>
@@ -37,10 +37,10 @@ import static org.mockito.Mockito.when;
  *   <li>the {@code X-Internal-Api-Key} header is set on the request;</li>
  *   <li>the default constructor configures the same
  *       {@code central.replication.connect-timeout-ms}/{@code read-timeout-ms}
- *       timeouts as {@link LocalServerRestAdapter}.</li>
+ *       timeouts as {@link LocalRestAdapter}.</li>
  * </ul>
  */
-class LocalServerUserCountRestAdapterTest {
+class LocalServerUserCountRestTest {
 
     private RegisteredLocalServer server() {
         return new RegisteredLocalServer(
@@ -53,7 +53,7 @@ class LocalServerUserCountRestAdapterTest {
     @Test
     void shouldReturnCountOnHappyPath() {
         RestTemplate mockRest = mock(RestTemplate.class);
-        LocalServerUserCountRestAdapter adapter = new LocalServerUserCountRestAdapter(mockRest, "test-api-key");
+        LocalUserCountRestAdapter adapter = new LocalUserCountRestAdapter(mockRest, "test-api-key");
         when(mockRest.exchange(
                 eq("http://localhost:8081/internal/users/count"),
                 eq(HttpMethod.GET),
@@ -71,7 +71,7 @@ class LocalServerUserCountRestAdapterTest {
     @Test
     void shouldRetryOnTransientFailureAndSucceed() {
         RestTemplate mockRest = mock(RestTemplate.class);
-        LocalServerUserCountRestAdapter adapter = new LocalServerUserCountRestAdapter(mockRest, "test-api-key");
+        LocalUserCountRestAdapter adapter = new LocalUserCountRestAdapter(mockRest, "test-api-key");
         when(mockRest.exchange(
                 any(String.class), eq(HttpMethod.GET), any(HttpEntity.class), eq(Long.class)))
                 .thenThrow(new ResourceAccessException("connection timed out"))
@@ -87,7 +87,7 @@ class LocalServerUserCountRestAdapterTest {
     @Test
     void shouldReturnCountUnavailableOnNonTransient4xxWithoutRetry() {
         RestTemplate mockRest = mock(RestTemplate.class);
-        LocalServerUserCountRestAdapter adapter = new LocalServerUserCountRestAdapter(mockRest, "test-api-key");
+        LocalUserCountRestAdapter adapter = new LocalUserCountRestAdapter(mockRest, "test-api-key");
         when(mockRest.exchange(
                 any(String.class), eq(HttpMethod.GET), any(HttpEntity.class), eq(Long.class)))
                 .thenThrow(HttpClientErrorException.create(HttpStatus.NOT_FOUND, "Not Found", null, null, null));
@@ -103,7 +103,7 @@ class LocalServerUserCountRestAdapterTest {
     @Test
     void shouldReturnCountUnavailableAfterExhaustingRetriesOn5xx() {
         RestTemplate mockRest = mock(RestTemplate.class);
-        LocalServerUserCountRestAdapter adapter = new LocalServerUserCountRestAdapter(mockRest, "test-api-key");
+        LocalUserCountRestAdapter adapter = new LocalUserCountRestAdapter(mockRest, "test-api-key");
         when(mockRest.exchange(
                 any(String.class), eq(HttpMethod.GET), any(HttpEntity.class), eq(Long.class)))
                 .thenThrow(HttpServerErrorException.create(HttpStatus.INTERNAL_SERVER_ERROR, "Server Error", null, null, null));
@@ -119,7 +119,7 @@ class LocalServerUserCountRestAdapterTest {
     @Test
     void shouldReturnCountUnavailableWhenBodyIsNull() {
         RestTemplate mockRest = mock(RestTemplate.class);
-        LocalServerUserCountRestAdapter adapter = new LocalServerUserCountRestAdapter(mockRest, "test-api-key");
+        LocalUserCountRestAdapter adapter = new LocalUserCountRestAdapter(mockRest, "test-api-key");
         when(mockRest.exchange(
                 any(String.class), eq(HttpMethod.GET), any(HttpEntity.class), eq(Long.class)))
                 .thenReturn(new ResponseEntity<>(null, HttpStatus.OK));
@@ -132,9 +132,11 @@ class LocalServerUserCountRestAdapterTest {
 
     @Test
     void shouldConfigureTimeoutsInDefaultConstructor() throws Exception {
-        LocalServerUserCountRestAdapter adapter = new LocalServerUserCountRestAdapter("test-api-key", 5000, 5000);
+        javax.net.ssl.SSLContext sslContext = javax.net.ssl.SSLContext.getInstance("TLS");
+        sslContext.init(null, null, new java.security.SecureRandom());
+        LocalUserCountRestAdapter adapter = new LocalUserCountRestAdapter(sslContext, "test-api-key", 5000, 5000);
 
-        java.lang.reflect.Field rtField = LocalServerUserCountRestAdapter.class.getDeclaredField("restTemplate");
+        java.lang.reflect.Field rtField = LocalUserCountRestAdapter.class.getDeclaredField("restTemplate");
         rtField.setAccessible(true);
         RestTemplate restTemplate = (RestTemplate) rtField.get(adapter);
 

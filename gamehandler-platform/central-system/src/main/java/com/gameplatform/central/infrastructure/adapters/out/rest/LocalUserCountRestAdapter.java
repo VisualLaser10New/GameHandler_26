@@ -1,5 +1,6 @@
 package com.gameplatform.central.infrastructure.adapters.out.rest;
 
+import com.gameplatform.central.domain.exception.TransientPushException;
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.ports.out.QueryLocalServerUserCountPort;
 import org.slf4j.Logger;
@@ -14,19 +15,23 @@ import org.springframework.retry.RetryContext;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import java.net.HttpURLConnection;
 /**
  * M4 — central REST adapter that queries the local-server
  * {@code GET /internal/users/count} endpoint and returns the number of
  * {@code replicated_users} rows the server currently holds.
  *
- * <p>Wiring conventions are deliberately identical to {@link LocalServerRestAdapter}
+ * <p>Wiring conventions are deliberately identical to {@link LocalRestAdapter}
  * so that both REST clients share the same api-key header
  * ({@code X-Internal-Api-Key}), the same {@link SimpleClientHttpRequestFactory}
  * timeouts ({@code central.replication.connect-timeout-ms} /
  * {@code central.replication.read-timeout-ms}, both default 5000 ms), and the
  * same {@link RetryTemplate} shape (3 attempts, exponential backoff 100 ms →
  * 10 s, retry on {@link TransientPushException} only). Transient classification
- * is delegated to {@link LocalServerRestAdapter#isTransient(Exception)} so the
+ * is delegated to {@link LocalRestAdapter#isTransient(Exception)} so the
  * policy stays in a single place (DRY).</p>
  *
  * <p><b>Failure contract (chosen over throwing):</b> on any exception or non-2xx
@@ -43,20 +48,29 @@ import org.springframework.web.client.RestTemplate;
  * lets the service decide policy.</p>
  */
 @Component
-public class LocalServerUserCountRestAdapter implements QueryLocalServerUserCountPort {
+public class LocalUserCountRestAdapter implements QueryLocalServerUserCountPort {
 
-    private static final Logger log = LoggerFactory.getLogger(LocalServerUserCountRestAdapter.class);
+    private static final Logger log = LoggerFactory.getLogger(LocalUserCountRestAdapter.class);
 
     private final RestTemplate restTemplate;
     private final String apiKey;
     private final RetryTemplate retryTemplate;
 
     @org.springframework.beans.factory.annotation.Autowired
-    public LocalServerUserCountRestAdapter(
+    public LocalUserCountRestAdapter(
+            SSLContext sslContext,
             @Value("${internal.api-key}") String apiKey,
             @Value("${central.replication.connect-timeout-ms:5000}") int connectTimeoutMs,
             @Value("${central.replication.read-timeout-ms:5000}") int readTimeoutMs) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory() {
+            @Override
+            protected void prepareConnection(HttpURLConnection connection, String httpMethod) throws java.io.IOException {
+                super.prepareConnection(connection, httpMethod);
+                if (connection instanceof HttpsURLConnection httpsConnection) {
+                    httpsConnection.setSSLSocketFactory(sslContext.getSocketFactory());
+                }
+            }
+        };
         factory.setConnectTimeout(connectTimeoutMs);
         factory.setReadTimeout(readTimeoutMs);
         this.restTemplate = new RestTemplate(factory);
@@ -65,7 +79,7 @@ public class LocalServerUserCountRestAdapter implements QueryLocalServerUserCoun
     }
 
     // Package-private constructor for testing — mirrors LocalServerRestAdapter.
-    LocalServerUserCountRestAdapter(RestTemplate restTemplate, String apiKey) {
+    LocalUserCountRestAdapter(RestTemplate restTemplate, String apiKey) {
         this.restTemplate = restTemplate;
         this.apiKey = apiKey;
         this.retryTemplate = buildDefaultRetryTemplate();
@@ -102,7 +116,7 @@ public class LocalServerUserCountRestAdapter implements QueryLocalServerUserCoun
                         }
                         return body;
                     } catch (Exception e) {
-                        if (LocalServerRestAdapter.isTransient(e)) {
+                        if (LocalRestAdapter.isTransient(e)) {
                             log.warn("Transient failure querying count from {} (attempt {}). Retrying...",
                                     url, context.getRetryCount() + 1, e);
                             throw new TransientPushException("Transient failure querying count from " + url, e);
