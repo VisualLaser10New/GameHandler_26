@@ -232,7 +232,7 @@ You are a software engineer specializing in Java, Clean Architecture (Hexagonal 
 Read the file `PIANO_UTENTI_TORNEI.md` to understand the project's development plan.
 Your task is to implement only the following items from the plan:
 
->> Fase 4
+>> Fase 5
 
 To successfully complete this task, you must strictly adhere to the architectural specifications and follow the implementation protocol described below step-by-step.
 Mandatory: Create a subagent and pass the entire prompt to it inside the <prompt> section.
@@ -273,7 +273,7 @@ Instruct the subagent to define the structural layout without writing the intern
     - Adapters must implement a domain port (`ports/out/` or `ports/in/`).
 
 **OUTPUT REQUIRED FROM THE COORDINATOR FOR PHASE 2:**
-No output is required.
+No output is required. Automatically proceed.
 
 
 ## STEP 3: INCREMENTAL IMPLEMENTATION (Atomic Writing and Concurrency)

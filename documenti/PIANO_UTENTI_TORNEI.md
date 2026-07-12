@@ -606,12 +606,12 @@ Le fasi sono ordinate per minimizzare dipendenze. Ogni fase è una PR reviewabil
 
 ### FASE 4 — Dominio Torneo (CRUD + registrazione)
 **Obiettivo**: amministratore crea tornei; giocatori/squadre si iscrivono.
-- [ ] `shared-domain`: `TournamentId`, `TeamId`, `TournamentMatchId`, `TournamentStatus`, `TournamentMatchStatus`, `TournamentFormat`, 5 eventi.
-- [ ] `shared-dto`: tutti i DTO tornei (§3.5).
-- [ ] Central: 6 entities + 6 repos + 6 adapters + 6 mappers + 6 tabelle `init.sql`.
-- [ ] Central: `TournamentService`, `TournamentRegistrationService`, controller.
-- [ ] Test: unit per `TournamentService`/`TournamentRegistrationService`; IT per i controller.
-- [ ] Documentazione: RF-TO-01..04 (CRUD torneo + registrazione).
+- [x] `shared-domain`: `TournamentId`, `TeamId`, `TournamentMatchId`, `TournamentStatus`, `TournamentMatchStatus`, `TournamentFormat`, 5 eventi. *(11 file: 3 ID record accessore `.value()` (C.1); 3 enum puri `model/`; 5 event record `implements DomainEvent` con letterale inline — PURE declarations, NO outbox emission in FASE 4 (C.13))*
+- [x] `shared-dto`: tutti i DTO tornei (§3.5). *(10 record: 3 validati con Jakarta, 7 vanilla; `TournamentMatchResultDto` esteso a 4 campi con `status` per disambiguare ABANDONED vs COMPLETED-null-winner per §3.7 line 524 — deviazione C.12 LOCKED)*
+- [x] Central: 6 entities + 6 repos + 6 adapters + 6 mappers + 6 tabelle `init.sql`. *(Deviazione C.2 LOCKED: 7 JPA entities + 4 IdClass + 7 JpaRepos per modellare `tournament_team_members` come entità standalone `@IdClass` mirror di `SessionParticipantJpaEntity` — NO `@OneToMany` preserva RNF-08; adapter `TournamentTeamRepositoryAdapter` inietta 2 JpaRepos e scrive atomic delete-all-then-insert in `@Transactional`. Conti effettivi: 6 porte dominio, 6 adapter, 6 mapper, 7 entities, 4 IdClass, 7 JpaRepos, 7 tabelle in `init.sql` linee 167-248. `TournamentMatchRepository`/`TournamentStandingRepository` create come scaffolding (C.8) NON invocate da service FASE 4)*
+- [x] Central: `TournamentService`, `TournamentRegistrationService`, controller. *(2 service `@Service @Transactional` + Clock; 2 controller `TournamentController` 5 endpoint + `TournamentRegistrationController` 3 endpoint; `GlobalExceptionHandler` esteso con 5 handler 400/400/404/409/409. NO outbox (C.13). Captain via `CurrentUserService` (C.4) incluso in `teamMembers.size()==teamSize`. Validate `teamBased` vs `game_definitions.team_allowed` (C.5 typo §3.6 line 472 interpretato come: typo, validazione only `team_allowed`). Tournament transition methods sul POJO `openRegistration()`/`cancel()` ritornano NUOVA istanza immutabile (C.6))*
+- [x] Test: unit per `TournamentService`/`TournamentRegistrationService`; IT per i controller. *(TournamentServiceTest 9 unit, TournamentRegistrationServiceTest 7 unit, TournamentControllerTest 7 slice MockMvc, TournamentRegistrationControllerTest 4 slice MockMvc — 27 test verdi; regression 298 central + 594 local verdi)*
+- [x] Documentazione: RF-TO-01..04. *(RF-TO-01..04 aggiunti a `documenti/REQUIREMENTS.md` §1.1.quinquies + matrice §6.1 + schema §4.1 (7 tabelle) + endpoint RI-02; `workflow/architettura_classi.md` esteso con §13 FASE 4 — decisioni D1-D15 + matrice file 83 totali + contract surface + schema + endpoint + backward-compat + concorrenza + follow-up)*
 
 ### FASE 5 — Bracket e classifiche
 **Obiettivo**: generazione match e calcolo classifica.

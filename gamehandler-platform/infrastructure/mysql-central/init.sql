@@ -163,3 +163,86 @@ CREATE TABLE IF NOT EXISTS player_statistics (
     last_played_at  TIMESTAMP NULL,
     PRIMARY KEY (user_id, game_type)
 ) ENGINE=InnoDB;
+
+-- =============== FASE 4 — Dominio Torneo (CRUD + registrazione) ===============
+-- 7 tabelle centrali per il dominio Torneo (PIANO_UTENTI_TORNEI.md §3.3).
+-- tournament_team_members e' join table (PK composita team_id,user_id) modellata
+-- come entita' standalone (mirror di SessionParticipantJpaEntity) senza
+-- @OneToMany (RNF-08). 6 porte di dominio, 7 JPA entities (C.2 Option B).
+
+CREATE TABLE IF NOT EXISTS tournaments (
+    id          VARCHAR(36)  PRIMARY KEY,
+    name        VARCHAR(200) NOT NULL,
+    game_type   VARCHAR(50)  NOT NULL,
+    team_based  BOOLEAN      NOT NULL DEFAULT FALSE,
+    team_size   INT          NOT NULL DEFAULT 1,
+    format      VARCHAR(30)  NOT NULL DEFAULT 'SINGLE_ELIMINATION',
+    status      VARCHAR(30)  NOT NULL,
+    starts_at   TIMESTAMP    NOT NULL,
+    ends_at     TIMESTAMP    NULL,
+    created_by  VARCHAR(36)  NOT NULL,
+    created_at  TIMESTAMP    NOT NULL,
+    FOREIGN KEY (game_type) REFERENCES game_definitions(game_type)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS tournament_buildings (
+    tournament_id VARCHAR(36) NOT NULL,
+    building_id   VARCHAR(100) NOT NULL,
+    PRIMARY KEY (tournament_id, building_id),
+    FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS tournament_teams (
+    id           VARCHAR(36) PRIMARY KEY,
+    tournament_id VARCHAR(36) NOT NULL,
+    name         VARCHAR(200) NOT NULL,
+    created_at   TIMESTAMP    NOT NULL,
+    UNIQUE(tournament_id, name),
+    FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS tournament_team_members (
+    team_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    PRIMARY KEY (team_id, user_id),
+    FOREIGN KEY (team_id) REFERENCES tournament_teams(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS tournament_participants (
+    tournament_id VARCHAR(36) NOT NULL,
+    participant_id VARCHAR(36) NOT NULL,
+    is_team       BOOLEAN     NOT NULL,
+    display_name  VARCHAR(200) NOT NULL,
+    registered_at TIMESTAMP   NOT NULL,
+    PRIMARY KEY (tournament_id, participant_id),
+    FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS tournament_matches (
+    id               VARCHAR(36) PRIMARY KEY,
+    tournament_id    VARCHAR(36) NOT NULL,
+    round            INT NOT NULL,
+    bracket_position INT NOT NULL,
+    participant_a    VARCHAR(36) NOT NULL,
+    participant_b    VARCHAR(36) NULL,
+    building_id      VARCHAR(100) NULL,
+    game_id          VARCHAR(100) NULL,
+    session_id       VARCHAR(36) NULL,
+    winner           VARCHAR(36) NULL,
+    status           VARCHAR(30) NOT NULL,
+    scheduled_at     TIMESTAMP NULL,
+    played_at        TIMESTAMP NULL,
+    result_data      TEXT NULL,
+    FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS tournament_standings (
+    tournament_id  VARCHAR(36) NOT NULL,
+    participant_id VARCHAR(36) NOT NULL,
+    wins           INT NOT NULL DEFAULT 0,
+    losses         INT NOT NULL DEFAULT 0,
+    points         INT NOT NULL DEFAULT 0,
+    rank           INT NULL,
+    PRIMARY KEY (tournament_id, participant_id),
+    FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
+) ENGINE=InnoDB;

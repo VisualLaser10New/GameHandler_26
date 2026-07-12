@@ -391,5 +391,122 @@ POJO Java puro in `central domain/model/`. `PlayerMatchFact` identity = composit
 
 ---
 
+## 13. FASE 4 — Dominio Torneo (CRUD + registrazione)
+
+> **Stato:** Implementato (FASE 4 di `documenti/PIANO_UTENTI_TORNEI.md`).
+> **Requisiti:** RF-TO-01..04 (vedi `documenti/REQUIREMENTS.md` §1.1.quinquies).
+> **Convenzione:** dominio torneo greenfield central-only. Specchia i pattern FASE 0/1/2/3 per POJO/porte/JPA `@IdClass`/mapper/adapter/service/controller/`GlobalExceptionHandler`. **Nessuna modifica a `local-server`** (FASE 4 è central-only; componenti Local sono FASE 6 — `tournament_matches_local` table, `TournamentMatchLocalSyncService`, `InternalTournamentController`, `PlayerTournamentController`, `GameSessionService` extension, `TeamResult`).
+
+### 13.1 Modello di dominio — Torneo (POJO centrali)
+
+- **`Tournament`** — identity = `TournamentId`. Campi: `name, gameType, teamBased, teamSize, format, status, startsAt, endsAt (nullable), createdBy, createdAt`. **Transizioni immutabili** (mirror `PlayerStatistics.mergeIncrement`): `openRegistration()`, `cancel()`, `startProgress()`, `complete(endedAt)` ritornano NUOVA istanza via `new Tournament(...)`; le guardie `openRegistration`/`cancel` sono usate in FASE 4, `startProgress`/`complete` sono forward-declared per FASE 5/6.
+- **`Team`** — identity = `TeamId`. Campi: `tournamentId, name, members: List<UserId> (defensive List.copyOf), createdAt`. NO mutation methods. Member-count validation è responsabilità del service (non del costruttore, che deve ricostruire Team carichi da DB con qualunque count).
+- **`TournamentParticipant`** — identity = `(tournamentId, participantId)`. Campi: `isTeam, displayName, registeredAt`. Per individual: `participantId = UserId.value()`, `displayName = user.username` (risolto via `UserRepository.findById`). Per team: `participantId = TeamId.value()` UUID fresco, `displayName = teamName`.
+- **`TournamentMatch`** — identity = `TournamentMatchId`. 14 campi (8 nullable). Scaffolding per FASE 5/6 (nessun service FASE 4 lo scrive).
+- **`TournamentStanding`** — identity = `(tournamentId, participantId)`. Campi `wins/losses/points >= 0`, `rank: Integer` boxed nullable. Scaffolding per FASE 5/6.
+
+### 13.2 Decisioni architetturali prese (protocollo §5)
+
+Quindici decisioni sono state approvate nel STEP 1 prima della implementazione. Identificatori D1–D15 (anziché A/B/C/D/E per allineare con la notazione §12 D1-D7):
+
+| Decisione | Scelta | Motivazione |
+|---|---|---|
+| **D1** — Accessori ID record | `.value()` per `TournamentId`, `TeamId`, `TournamentMatchId` | Maggioranza del codebase (3/5 record esistenti: `UserId`/`GameSessionId`/`ReservationId`); analoghi più vicini. |
+| **D2** — `tournament_team_members` modelling | **Option B**: standalone `TournamentTeamMemberJpaEntity @IdClass(TournamentTeamMemberId.class)` (mirror `local-server SessionParticipantJpaEntity`), NO `@OneToMany` su `TournamentTeamJpaEntity`. Singola porta `TournamentTeamRepository`; adapter inietta 2 JpaRepos, scrive atomic delete-all-then-insert in `@Transactional`. | Preserva RNF-08 ( unico `@OneToMany` consentito è `local-server GameSessionJpaEntity.participants`). Specchia il precedente FASE 0. |
+| **D3** — `TournamentMatchOutboxPort` | DEFER a FASE 5 | FASE 4 crea solo le 6 porte di persistenza; il port outbox è usato da `ScheduleTournamentMatchesUseCase` (FASE 5). |
+| **D4** — Captain | Principal via `CurrentUserService.getCurrentUserId()` (NESSUN body field). `teamMembers` contiene TUTTI i `teamSize` userId COMPRESO il capitano; service valida `teamMembers.contains(captainId)`. | Coerente con §3.6 line 491 (notazione informale) e §5.2 RF-TO-04. |
+| **D5** — Typo §3.6 line 472 | Interpretato come TYPO: "valida teamBased vs `game_definitions.team_allowed`, e teamSize vs il teamSize del torneo stesso". NO read di `game_definitions.team_size` (non esiste). | `game_definitions` ha solo `team_allowed BOOLEAN`; `teamSize` è campo di `tournaments`. |
+| **D6** — TournamentStatus state machine | Transizioni FASE 4: `DRAFT→OPEN_REGISTRATION`, `DRAFT/OPEN_REGISTRATION→CANCELLED`. `IN_PROGRESS`/`COMPLETED`/`CANCELLED` terminali. Transizioni invalide → `InvalidTournamentStateException` → HTTP 400. | `startProgress`/`complete` forward-declared per FASE 5/6. |
+| **D7** — TournamentParticipant identity | Individual: `participant_id = UserId.value()`, `displayName` risolto via `UserRepository.findById` (throw `UserNotFoundException` se non trova, popola con `user.getUsername()`). Team: `participant_id = TeamId.value()`, `displayName = teamName`. Member existence NON validato (rinviato a FASE 6). | Coerente con §3.7 line 524 + §7 risk-mitigation line 724. |
+| **D8** — Repo scaffolding | Create in FASE 4 TUTTE 6 porte di persistenza (incluse `TournamentMatchRepository`/`TournamentStandingRepository` NON invocate da service FASE 4) | Scaffolding-first/behavior-later; le tabelle `tournament_matches`/`tournament_standings` sono create nel init.sql FASE 4 block. |
+| **D9** — `tournament_buildings` persistenza | `TournamentService.create` scrive atomic `tournaments` row + N `tournament_buildings` righe nello stesso `@Transactional`. | Evita data-loss: `buildingIds` del creator è salvato a creazione anche se consumato solo in FASE 6 dal replication targeting. |
+| **D10** — Scope DTO | Creati in FASE 4 TUTTI 10 DTO di §3.5 (anche quelli consumati solo in FASE 5/6). | Coerente con testo checklist "tutti i DTO tornei (§3.5)"; dipendenze da `TournamentId/TournamentStatus` introdotti nello stesso step minimizzano churn cross-fase. |
+| **D11** — `TournamentMatchScheduledDto` campi | `(eventId, eventType, matchId, tournamentId, round, bracketPosition, participantA, participantB nullable, gameType, gameId nullable, status, scheduledAt nullable)`. | Specchia colonne `tournament_matches_local` §3.4; pattern `(eventId, eventType, ...)` di `LocalAdminBuildingEventDto`/`GameDefinitionEventDto` per idempotency lato Local. |
+| **D12** — `TournamentMatchResultDto` 4 campi | `(matchId, winner nullable, resultData nullable, status)`. **Deviazione da §3.5 line 450** (che elenca 3 campi). | §3.7 line 524 richiede `status=ABANDONED` per abort; `status` disambigua ABANDONED vs COMPLETED-with-null-winner. Deviazione documentata. |
+| **D13** — Outbox emission FASE 4 | **NO outbox emission**. I 5 event record vivono come PURE declarations in `shared-domain/events` per uso FASE 5/6. | YAGNI: nessun consumer (Local sync, scheduler, MQTT) esiste in FASE 4. Le emissioni sono attivate in FASE 5 (`TOURNAMENT_MATCH_SCHEDULED` via `TournamentBracketService`) e FASE 6 (`TOURNAMENT_MATCH_COMPLETED`/`TOURNAMENT_COMPLETED`). |
+| **D14** — Endpoint set FASE 4 | Solo 5 su `TournamentController` (`POST /`, `POST /{id}/open`, `POST /{id}/cancel`, `GET /`, `GET /{id}`) + 3 su `TournamentRegistrationController` (`POST /`, `DELETE /`, `GET /`). DEFER a FASE 5: `POST /{id}/schedule`, `GET /{id}/standings`, `GET /{id}/matches`. | Servizi bracket/standings sono FASE 5. |
+| **D15** — Use-case port scheduling | Create in FASE 4: 8 use cases (Create, OpenRegistration, Cancel, RegisterParticipant, UnregisterParticipant, ListParticipants, Get, List). DEFER a FASE 5: `ScheduleTournamentMatchesUseCase`, `GetTournamentStandingsUseCase`. | Allineato con D14. Il `ListTournamentParticipantsUseCase` è additive (forced by C.14 GET /participants). |
+
+### 13.3 Matrice file — FASE 4 (83 totali)
+
+**Nuovi (81):**
+- `shared-domain` (11): `model/TournamentId|TeamId|TournamentMatchId|TournamentStatus|TournamentMatchStatus|TournamentFormat` (6); `events/TournamentCreatedEvent|TournamentRegistrationOpenedEvent|TournamentMatchScheduledEvent|TournamentMatchCompletedEvent|TournamentCompletedEvent` (5).
+- `shared-dto` (10): `CreateTournamentRequestDto|TournamentDto|RegisterTournamentParticipantDto|TeamDto|TournamentParticipantDto|TournamentMatchDto|ScheduleTournamentMatchesDto|TournamentStandingDto|TournamentMatchScheduledDto|TournamentMatchResultDto`.
+- Central — `domain/model` (5): `Tournament|Team|TournamentParticipant|TournamentMatch|TournamentStanding`. `domain/exception` (5): `InvalidTournamentException|TournamentNotFoundException|InvalidTournamentStateException|TournamentRegistrationClosedException|DuplicateTournamentParticipantException`. `domain/ports/in` (8): use cases (vedi D15). `domain/ports/out` (6): Repository ports (vedi D3/D8).
+- Central — `infrastructure/adapters/out/mysql/entity` (7+4=11): `TournamentJpaEntity|TournamentBuildingJpaEntity+TournamentBuildingId|TournamentTeamJpaEntity|TournamentTeamMemberJpaEntity+TournamentTeamMemberId|TournamentParticipantJpaEntity+TournamentParticipantId|TournamentMatchJpaEntity|TournamentStandingJpaEntity+TournamentStandingId`.
+- Central — `infrastructure/adapters/out/mysql/repository` (7): `TournamentJpaRepository|TournamentBuildingJpaRepository|TournamentTeamJpaRepository|TournamentTeamMemberJpaRepository|TournamentParticipantJpaRepository|TournamentMatchJpaRepository|TournamentStandingJpaRepository`.
+- Central — `infrastructure/adapters/out/mysql/mapper` (6): `TournamentMapper|TournamentBuildingMapper|TeamMapper|TournamentParticipantMapper|TournamentMatchMapper|TournamentStandingMapper` (TeamMapper absorbs members ↔ `List<UserId>` mapping).
+- Central — `infrastructure/adapters/out/mysql/adapter` (6): `TournamentRepositoryAdapter|TournamentBuildingRepositoryAdapter|TournamentTeamRepositoryAdapter|TournamentParticipantRepositoryAdapter|TournamentMatchRepositoryAdapter|TournamentStandingRepositoryAdapter`.
+- Central — `application/service` (2): `TournamentService|TournamentRegistrationService`.
+- Central — `infrastructure/adapters/in/rest` (2): `TournamentController|TournamentRegistrationController`.
+- Central — tests (4): `TournamentServiceTest|TournamentRegistrationServiceTest|TournamentControllerTest|TournamentRegistrationControllerTest` (27 test totali: 9+7+7+4).
+
+**Modificati (2, additive only):**
+- Central `infrastructure/adapters/in/rest/GlobalExceptionHandler.java` — 5 nuovi `@ExceptionHandler` (400/400/404/409/409), 9 originali intatti.
+- `infrastructure/mysql-central/init.sql` — block **FASE 4** righe 167-248: header `-- =============== FASE 4 — Dominio Torneo (CRUD + registrazione) ===============`, 7 `CREATE TABLE IF NOT EXISTS` (`tournaments`, `tournament_buildings`, `tournament_teams`, `tournament_team_members`, `tournament_participants`, `tournament_matches`, `tournament_standings`), `FK game_type REFERENCES game_definitions(game_type)` su `tournaments` (valido: `game_definitions` creata in FASE 2).
+
+**NON modificati:** `local-server` (zero cambiamenti; i componenti Local sono FASE 6: `tournament_matches_local`, `GameSessionService.start/end` extension, `TournamentMatchLocalSyncService`, `InternalTournamentController`, `PlayerTournamentController`, `TeamResult`/`GameFactory`/`MqttPayloadSerializer`).
+
+### 13.4 Contract surface — eventi + DTO
+
+- **5 eventi** (`shared-domain/events`): `record XEvent(String eventId, Instant occurredAt, <payload>) implements DomainEvent`, letterale inline `getEventType()` return. **PURE declarations — no outbox emission in FASE 4** (D13). Emission sites: FASE 5 `TournamentBracketService.schedule` per `TOURNAMENT_MATCH_SCHEDULED`; FASE 6 `GameSessionService.end`/`SessionAbortHelper.abort` per `TOURNAMENT_MATCH_COMPLETED`; FASE 6 `TournamentService.completeIfDone` per `TOURNAMENT_COMPLETED`. `TournamentCreatedEvent`/`TournamentRegistrationOpenedEvent` non hanno emission sites pianificati (forward-declared per eventuale audit/replica futura).
+- **DTO `TournamentDto`** (risposta assembled): `String id, String name, GameType gameType, boolean teamBased, int teamSize, TournamentStatus status, Instant startsAt, Instant endsAt nullable, List<String> buildings, int participantsCount`. Assemblato dal service (NOT controller) cross-tabella `tournaments` + `tournament_buildings` + `countByTournament`.
+- **DTO `TournamentParticipantDto`** (risposta register/list): `String participantId, boolean isTeam, String displayName`.
+- **Outbox DTOs** (`TournamentMatchScheduledDto` per Central→Local in FASE 6; `TournamentMatchResultDto` 4 campi per Local→Central in FASE 6): creati in FASE 4 (D10), NON emessi in FASE 4.
+
+### 13.5 Schema DB — FASE 4 (centrale)
+
+7 tabelle in `infrastructure/mysql-central/init.sql` (righe 167-248):
+- `tournaments` (PK `id` VARCHAR(36); `FK game_type REFERENCES game_definitions(game_type)`)
+- `tournament_buildings` (PK composita `(tournament_id, building_id)`, `FK tournament_id → tournaments ON DELETE CASCADE`)
+- `tournament_teams` (PK `id`; UNIQUE `(tournament_id, name)`)
+- `tournament_team_members` (PK composita `(team_id, user_id)`, `FK team_id → tournament_teams ON DELETE CASCADE`)
+- `tournament_participants` (PK composita `(tournament_id, participant_id)`, `FK tournament_id → tournaments ON DELETE CASCADE`)
+- `tournament_matches` (PK `id`; nullable: `participant_b`, `building_id`, `game_id`, `session_id`, `winner`, `scheduled_at`, `played_at`, `result_data TEXT`)
+- `tournament_standings` (PK composita `(tournament_id, participant_id)`; `rank INT NULL`)
+
+Tutte `CREATE TABLE IF NOT EXISTS ... ENGINE=InnoDB` coerenti con convenzione FASE 1/2/3. Nessuna tabella Locale aggiunta (D2/D8 — `tournament_matches_local` è FASE 6).
+
+### 13.6 Endpoint `@PreAuthorize` — FASE 4
+
+| Endpoint | Modulo | Ruolo richiesto |
+|---|---|---|
+| `POST /api/tournaments` | central | `PLATFORM_ADMIN` |
+| `POST /api/tournaments/{id}/open` | central | `PLATFORM_ADMIN` |
+| `POST /api/tournaments/{id}/cancel` | central | `PLATFORM_ADMIN` |
+| `GET /api/tournaments` | central | `authenticated` (default `SecurityConfig.anyRequest().authenticated()`) |
+| `GET /api/tournaments/{id}` | central | `authenticated` (404 via `TournamentNotFoundException`) |
+| `GET /api/tournaments?status=...` | central | `authenticated` (filtro opzionale via `TournamentStatus.valueOf`) |
+| `POST /api/tournaments/{id}/participants` | central | `PLAYER` |
+| `DELETE /api/tournaments/{id}/participants` | central | `PLAYER` (idempotent no-op se non trovato → 204) |
+| `GET /api/tournaments/{id}/participants` | central | `authenticated` |
+
+**POST / ritorna 200** (mirror `GameAdminController` upsert convention, non 201).
+
+### 13.7 Backward-compat — FASE 4 incrementi
+
+- Solo 2 file central modificati (`GlobalExceptionHandler` additive + `init.sql` additive). **Zero signature preesistenti rotte.** Zero test FASE 0/1/2/3 toccati. Regression suite: **298 central + 594 local verdi**.
+- `currentUserService` (FASE 3 bean) riusato dal controller per il captain resolution (NESSUNA modifica a `CurrentUserService`).
+- `GameDefinitionRepository` (FASE 2 port) riusato dal `TournamentService` per la validazione `team_allowed` (NESSUNA modifica a `GameDefinitionRepository`).
+- `UserRepository` + `User.getUsername()` (FASE 1 accessori) riusato dal `TournamentRegistrationService` per `displayName` risoluzione.
+
+### 13.8 Concorrenza e atomicità
+
+- `TournamentService.create` atomica: `tournaments` row + N `tournament_buildings` righe nello stesso `@Transactional` class-level.
+- `TournamentTeamRepositoryAdapter.save(Team)` atomica: delete-all-then-insert di team_members + team row nello stesso `@Transactional`. Pattern delete-then-insert è safe per window invisibile (team piccoli, teamSize ≤ ~6 per `game_definitions`).
+- `TournamentRegistrationService.register` NON usa `@Lock` pessimistico (no race condition tra registration concorrenti nella stessa FASE 4: `existsByTournamentAndParticipantId`/`existsByTournamentAndName` check + insert ha narrow TOCTOU window ma è acceptable per FASE 4 alpha; FASE 5/6 possono introdurre `@Lock(PESSIMISTIC_WRITE)` se serve). Documentato come follow-up.
+
+### 13.9 Follow-up noti (fuori scope FASE 4)
+
+- **`TournamentMatchOutboxPort` + `ScheduleTournamentMatchesUseCase` + `GetTournamentStandingsUseCase`** → FASE 5.
+- **`TournamentBracketService` + `TournamentStandingsService` + endpoint `POST /{id}/schedule` + `GET /{id}/standings` + `GET /{id}/matches`** → FASE 5.
+- **Componenti Local** (`tournament_matches_local` table, `InternalTournamentController`, `PlayerTournamentController`, `GameSessionService.start/end` extension per `tournamentMatchId`, `SessionAbortHelper` extension, `TeamResult`/`GameFactory`/`MqttPayloadSerializer`) → FASE 6.
+- **Outbox emission** per i 5 eventi → FASE 5 (`TOURNAMENT_MATCH_SCHEDULED`) + FASE 6 (`TOURNAMENT_MATCH_COMPLETED`, `TOURNAMENT_COMPLETED`).
+- **Member existence validation** alla registration → rinviata a FASE 6 session start (D7).
+- **Race-condition guard su register concorrenti** → eventuale `@Lock(PESSIMISTIC_WRITE)` su `TournamentParticipantRepository` se l'analisi di FASE 5/6 lo richiede.
+- **Emendare typo PIANO §3.6 line 472** ("valida team_size coerente con `game_definitions.team_allowed` e team_size" → chiarire che `game_definitions.team_size` NON esiste; validazione è solo `tournament.teamBased` vs `game_definitions.team_allowed` + `tournament.teamSize` uguaglianza con `teamMembers.size()` alla registrazione).
+
+---
+
 *Fine `architettura_classi.md`.*
-*Cross-riferimenti: `documenti/PIANO_UTENTI_TORNEI.md` FASE 0 + FASE 1 + FASE 2 + FASE 3; `documenti/REQUIREMENTS.md` RF-AU-05, RF-UT-LA-01..04, RF-UT-GA-01..03, RF-UT-PL-01..02; `workflow/analisi/problemi_noti.md`.*
+*Cross-riferimenti: `documenti/PIANO_UTENTI_TORNEI.md` FASE 0 + FASE 1 + FASE 2 + FASE 3 + FASE 4; `documenti/REQUIREMENTS.md` RF-AU-05, RF-UT-LA-01..04, RF-UT-GA-01..03, RF-UT-PL-01..02, RF-TO-01..04; `workflow/analisi/problemi_noti.md`.*

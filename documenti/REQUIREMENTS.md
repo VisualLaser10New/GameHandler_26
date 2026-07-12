@@ -239,6 +239,77 @@
 
 ---
 
+### 1.1.quinquies Modulo: Gestione Tornei — CRUD + Registrazione (FASE 4)
+
+#### RF-TO-01 — Creazione di un torneo
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 4)
+- **Descrizione:** Un `PLATFORM_ADMIN` crea un torneo specificando nome, `gameType`, `teamBased`, `teamSize`, edifici coinvolti (≥2), finestra temporale (`startsAt`). Il torneo è creato in stato `DRAFT` con `format=SINGLE_ELIMINATION` (di default). Il sistema valida la coerenza `teamBased` ↔ `game_definitions.team_allowed` per il `gameType` scelto.
+- **API:** `POST /api/tournaments` (Central, richiede `ROLE_PLATFORM_ADMIN`)
+- **Fonte:** `[TournamentController.java]`, `[TournamentService.java]`, `[CreateTournamentUseCase.java]`, `[Tournament.java]`, `[TournamentRepository.java]`, `[TournamentBuildingRepository.java]`, `[GameDefinitionRepository.java]` (validazione `team_allowed`), `[CurrentUserService.java]` (principal → `createdBy`), `[CreateTournamentRequestDto.java]`, `[TournamentDto.java]`, `init.sql` (central — tabelle `tournaments`/`tournament_buildings`)
+- **Criteri di accettazione:**
+  - Body `CreateTournamentRequestDto` validato Jakarta: `name @NotBlank`, `gameType @NotNull`, `teamSize @Min(1)`, `startsAt @NotNull`, `buildingIds @NotNull @Size(min=2)`.
+  - `TournamentService.create` forza `status=DRAFT` e `format=SINGLE_ELIMINATION` defensively (non si fida del caller).
+  - C.5 coherence: se `teamBased=true` allora `game_definitions.team_allowed` MUST essere `true` (else `InvalidTournamentException` → 400); se `teamBased=false` allora `teamSize` MUST essere `1`.
+  - `createdBy` è risolto via `CurrentUserService.getCurrentUserId()` dal principal JWT (no body field).
+  - Scrittura atomica `@Transactional` class-level: `tournaments` row + N `tournament_buildings` righe committano insieme (no data-loss se una delle due fallisce).
+  - Nessuna emissione outbox in FASE 4 (decisione D13 — i 5 event record sono forward-declared per FASE 5/6).
+  - Ritorna `TournamentDto` con `status=DRAFT`, `participantsCount=0`, `buildings=List.copyOf(buildingIds)`.
+
+#### RF-TO-02 — Vincoli strutturali del torneo
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 4 — parte di RF-TO-01)
+- **Descrizione:** Un torneo coinvolge **≥2 edifici** e riguarda **un solo `gameType`** (FK a `game_definitions`). La tabella `tournament_buildings(tournament_id, building_id)` persiste l'insieme degli edifici coinvolti.
+- **API:** Stesso endpoint di RF-TO-01 (`POST /api/tournaments`).
+- **Fonte:** `init.sql` (central — `tournament_buildings` PK composita + `tournaments.FK game_type REFERENCES game_definitions(game_type)`); `[TournamentBuildingRepository.java]`, `[TournamentBuildingRepositoryAdapter.java]`
+- **Criteri di accettazione:**
+  - `buildingIds.size() >= 2` enforced via `@Size(min=2)` + service-level check.
+  - `tournaments.game_type` è FK a `game_definitions(game_type)` (valido: `game_definitions` creata in FASE 2).
+  - Il `gameType` è singolo per torneo (non c'è lista di gameType).
+  - Gli edifici coinvolti sono persistiti a creazione e consultabili via `TournamentDto.buildings`.
+
+#### RF-TO-03 — Iscrizione individuale a un torneo
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 4)
+- **Descrizione:** Un `PLAYER` può iscriversi a un torneo individuale (`teamBased=false`) quando `status=OPEN_REGISTRATION`. Il sistema registra il `participant_id = UserId.value()` e `display_name = user.username` (risolto via `UserRepository.findById`).
+- **API:** `POST /api/tournaments/{id}/participants` (Central, richiede `ROLE_PLAYER`); body `RegisterTournamentParticipantDto` con `teamName=null, teamMembers=null` per individual.
+- **Fonte:** `[TournamentRegistrationController.java]`, `[TournamentRegistrationService.java]`, `[RegisterTournamentParticipantUseCase.java]`, `[TournamentParticipant.java]`, `[TournamentParticipantRepository.java]`, `[UserRepository.java]` (display name resolution), `[CurrentUserService.java]` (captain = principal)
+- **Criteri di accettazione:**
+  - `TournamentRegistrationService.register` valida `tournament.status == OPEN_REGISTRATION` (else `TournamentRegistrationClosedException` → 409).
+  - Per individual: `teamName == null && teamMembers == null/empty`; rifiuta se `tournament.teamBased == true` (→ `InvalidTournamentException` 400).
+  - `User` risolto via `userRepository.findById(captainId)` (throw `UserNotFoundException` → 404 se non trova). `displayName = user.getUsername()`.
+  - `participant_id = captainId.value()`; se già registrato → `DuplicateTournamentParticipantException` → 409.
+  - Persistenza atomica `@Transactional` di `TournamentParticipant`.
+  - Ritorna `TournamentParticipantDto(participantId, isTeam=false, displayName)`.
+
+#### RF-TO-04 — Iscrizione di una squadra a un torneo a squadre
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 4)
+- **Descrizione:** Un `PLAYER` (capitano) iscrive una squadra di `teamSize` membri a un torneo a squadre (`teamBased=true`). Il sistema registra la squadra (NON i singoli membri come partecipanti separati): `participant_id = TeamId.value()` (UUID freshly-generated), `display_name = teamName`. I membri sono persistiti in `tournament_team_members`.
+- **API:** `POST /api/tournaments/{id}/participants` (Central, richiede `ROLE_PLAYER`); body `RegisterTournamentParticipantDto` con `teamName=<non-blank>, teamMembers=<List<String> di userIds>`.
+- **Fonte:** `[TournamentRegistrationService.java]`, `[Team.java]`, `[TournamentTeamRepository.java]`, `[TournamentTeamRepositoryAdapter.java]` (atomic delete-all-then-insert di team_members), `[TeamMapper.java]` (assorbe members ↔ `List<UserId>`), `[TournamentParticipantRepository.java]`
+- **Criteri di accettazione:**
+  - `tournament.teamBased == true` (else `InvalidTournamentException` 400 — rifiuta team request su torneo individuale).
+  - `teamName` non blank; `teamMembers.size() == tournament.teamSize` (else 400); `teamMembers.contains(captainId.value())` MUST essere true (decisione D4 — il capitano è uno dei `teamSize` membri; else 400).
+  - `tournament_team_repository.existsByTournamentAndName(...)` per evitare duplicati di nome team nello stesso torneo (else 400).
+  - `TeamId = UUID.randomUUID().toString()`; `members = teamMembers.stream().map(UserId::new).toList()`.
+  - **Member existence NON validato** alla registrazione (rinviato a FASE 6 session start — decisione D7, risk-mitigation §7 line 724).
+  - Persistenza atomica `@Transactional`: `Team` (row `tournament_teams` + N righe `tournament_team_members`) + `TournamentParticipant` committano insieme.
+  - Ritorna `TournamentParticipantDto(participantId=teamId.value(), isTeam=true, displayName=teamName)`.
+
+#### Lifecycle addendum (FASE 4 — non RF separati, ma parte di RF-TO-01)
+
+- **`POST /api/tournaments/{id}/open`** (`PLATFORM_ADMIN`): transizione `DRAFT → OPEN_REGISTRATION` sul POJO `Tournament.openRegistration()` (ritorna NUOVA istanza immutabile; throws `InvalidTournamentStateException` se `status != DRAFT` → 400).
+- **`POST /api/tournaments/{id}/cancel`** (`PLATFORM_ADMIN`): transizione `DRAFT/OPEN_REGISTRATION → CANCELLED` sul POJO `Tournament.cancel()` (throws se `status` terminale → 400).
+- **`DELETE /api/tournaments/{id}/participants`** (`PLAYER`): cancella iscrizione (individual via `participant_id = currentUserId.value()`, o team via lookup `findByTournamentAndMember`). Idempotent no-op → 204 se non trova.
+- **`GET /api/tournaments`** (authenticated): lista tutti (`findAll`) o filtra per `?status=OPEN_REGISTRATION` (`TournamentStatus.valueOf` parsing).
+- **`GET /api/tournaments/{id}`** (authenticated): dettaglio; 404 via `TournamentNotFoundException` se assente.
+- **`GET /api/tournaments/{id}/participants`** (authenticated): lista partecipanti iscritti.
+
+> **Endpoint DEFERRED a FASE 5**: `POST /{id}/schedule` (bracket generation), `GET /{id}/standings`, `GET /{id}/matches`.
+
+---
+
 ### 1.2 Modulo: Prenotazioni
 
 #### RF-PR-01 — Creazione Prenotazione
@@ -619,6 +690,14 @@ building/{buildingId}/alerts                       QoS 1
 | `/api/admin/games/definitions`      | GET    | authenticated      | Lista definizioni di gioco (FASE 2)              |
 | `/api/players/me/statistics`        | GET    | ROLE_PLAYER        | Statistiche personali globali (FASE 3)           |
 | `/api/players/{userId}/statistics` | GET    | ROLE_PLATFORM_ADMIN o self | Statistiche di un giocatore (FASE 3)      |
+| `/api/tournaments`                  | POST   | ROLE_PLATFORM_ADMIN | Crea torneo (FASE 4)                              |
+| `/api/tournaments/{id}/open`       | POST   | ROLE_PLATFORM_ADMIN | Apre la registrazione di un torneo (FASE 4)       |
+| `/api/tournaments/{id}/cancel`      | POST   | ROLE_PLATFORM_ADMIN | Cancella un torneo (FASE 4)                        |
+| `/api/tournaments`                  | GET    | authenticated      | Lista tornei (FASE 4; `?status=` filter)          |
+| `/api/tournaments/{id}`             | GET    | authenticated      | Dettaglio torneo (FASE 4)                          |
+| `/api/tournaments/{id}/participants` | POST | ROLE_PLAYER        | Iscrizione individual/team (FASE 4)                |
+| `/api/tournaments/{id}/participants` | DELETE | ROLE_PLAYER        | Disiscrizione (FASE 4)                             |
+| `/api/tournaments/{id}/participants` | GET  | authenticated      | Lista partecipanti (FASE 4)                        |
 
 **Fonte:** `[UserController.java]`, `[AuthController.java]`, `[StatisticsController.java]`, `[SyncController.java]`
 
@@ -676,6 +755,13 @@ building/{buildingId}/alerts                       QoS 1
 | `game_definitions`      | Definizioni di gioco configurabili gestite da GAME_ADMIN (FASE 2; replicato ai Local) | `game_type` |
 | `player_match_facts`    | Fatto per singola partita giocata da un utente (FASE 3 read-model; popolato da `SyncEventProcessor`) | `(session_id, user_id)` |
 | `player_statistics`     | Proiezione aggregata per giocatore e tipo di gioco (FASE 3 read-model) | `(user_id, game_type)` |
+| `tournaments`            | Tornei creati dal PLATFORM_ADMIN (FASE 4; `FK game_type → game_definitions`) | `id` UUID |
+| `tournament_buildings`   | Edifici coinvolti per torneo (FASE 4) | `(tournament_id, building_id)` |
+| `tournament_teams`       | Squadre iscritte a tornei team-based (FASE 4); UNIQUE `(tournament_id, name)` | `id` UUID |
+| `tournament_team_members` | Membri per squadra (FASE 4; join table team↔user, standalone entity NO `@OneToMany` — D2) | `(team_id, user_id)` |
+| `tournament_participants`| Partecipanti iscritti per torneo (individual o team; FASE 4) | `(tournament_id, participant_id)` |
+| `tournament_matches`     | Match del bracket per torneo (FASE 4 scaffolding; popolato in FASE 5) | `id` UUID |
+| `tournament_standings`   | Proiezione classifica per partecipante (FASE 4 scaffolding; popolato in FASE 5/6) | `(tournament_id, participant_id)` |
 
 **Fonte:** `[infrastructure/mysql-central/init.sql]`
 
@@ -811,6 +897,10 @@ graph LR
 | RF-UT-GA-03 | Central System, Local Server | `GameDefinitionService.writeOutboxEvent`, `GameDefinitionEventDto.java`, `UserReplicationSchedulerService.replicateGameDefinitionEvent`, `LateRegistrationCatchUpService`, `PushGameDefinitionToLocalServersPort`, `LocalGameDefinitionRestAdapter.java`, `GameDefinitionSyncService.java`, `InternalGameDefinitionSyncController.java`, `init.sql` (local ×3 — FASE 2) | ✅ (FASE 2) |
 | RF-UT-PL-01 | Central System | `PlayerStatisticsController.java`, `PlayerStatisticsService.java`, `PlayerStatisticsProjectionService.java`, `SyncEventProcessor.handleGameSessionCompleted`, `PlayerMatchFact.java`, `PlayerStatistics.java`, `PlayerMatchFactRepository.java`, `PlayerStatisticsRepository.java`, `CurrentUserService.java`, `PlayerStatisticsDto.java`, `init.sql` (central — FASE 3) | ✅ (FASE 3) |
 | RF-UT-PL-02 | Local Server | `PlayerStatisticsController.java` (local), `StatisticsService.getPlayerStatistics`, `GetPlayerStatisticsUseCase.java` (local), `GameSessionRepository.findByParticipant`, `CurrentUserService.java` (local) | ✅ (FASE 3) |
+| RF-TO-01 | Central System | `TournamentController.java`, `TournamentService.java`, `CreateTournamentUseCase.java`, `Tournament.java`, `TournamentRepository.java`, `TournamentBuildingRepository.java`, `GameDefinitionRepository.java` (validazione `team_allowed`), `CurrentUserService.java` (principal→`createdBy`), `CreateTournamentRequestDto.java`, `TournamentDto.java`, `init.sql` (central — `tournaments`/`tournament_buildings`) | ✅ (FASE 4) |
+| RF-TO-02 | Central System | `init.sql` (`tournament_buildings` PK composita + `tournaments.FK game_type REFERENCES game_definitions`), `TournamentBuildingRepository.java`, `TournamentBuildingRepositoryAdapter.java`, `CreateTournamentRequestDto.@Size(min=2)` | ✅ (FASE 4) |
+| RF-TO-03 | Central System | `TournamentRegistrationController.java`, `TournamentRegistrationService.java` (branch individual), `RegisterTournamentParticipantUseCase.java`, `TournamentParticipant.java`, `TournamentParticipantRepository.java`, `UserRepository.java` (display name resolution), `CurrentUserService.java`, `DuplicateTournamentParticipantException` | ✅ (FASE 4) |
+| RF-TO-04 | Central System | `TournamentRegistrationService.java` (branch team), `Team.java`, `TournamentTeamRepository.java`, `TournamentTeamRepositoryAdapter.java` (atomic delete-all-then-insert team_members, NO `@OneToMany`), `TeamMapper.java`, `TournamentParticipantRepository.java` | ✅ (FASE 4) |
 | RF-PR-01  | Local Server                 | `ReservationService.java`, `reservations` (local)                    | ✅             |
 | RF-PR-02  | Local Server                 | `ReservationService.java`                                            | ✅              |
 | RF-PR-03  | Local Server                 | `ReservationService.java`, `ReservationRepository`                   | ✅              |
