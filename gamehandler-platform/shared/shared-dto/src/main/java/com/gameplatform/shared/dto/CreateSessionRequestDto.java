@@ -7,5 +7,6 @@ public record CreateSessionRequestDto(
     String gameId,
     GameType gameType,
     List<String> participants,
-    String reservationId
+    String reservationId,
+    String tournamentMatchId
 ) {}

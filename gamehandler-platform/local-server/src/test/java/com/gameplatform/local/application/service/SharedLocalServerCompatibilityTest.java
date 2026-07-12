@@ -75,6 +75,9 @@ class SharedLocalServerCompatibilityTest {
     @Mock
     private GameDefinitionLocalRepository gameDefinitionLocalRepository;
 
+    @Mock
+    private TournamentMatchLocalRepository tournamentMatchLocalRepository;
+
     private final Clock fixedClock = Clock.fixed(
             Instant.parse("2026-06-27T10:00:00Z"), ZoneOffset.UTC);
 
@@ -101,7 +104,9 @@ class SharedLocalServerCompatibilityTest {
                 reservationRepository,
                 fixedClock,
                 objectMapper,
-                gameDefinitionLocalRepository
+                gameDefinitionLocalRepository,
+                tournamentMatchLocalRepository,
+                "building-1"
         );
     }
 
@@ -325,7 +330,7 @@ class SharedLocalServerCompatibilityTest {
         @DisplayName("CreateSessionRequestDto can be constructed with String reservationId")
         void createSessionRequestDto() {
             CreateSessionRequestDto dto = new CreateSessionRequestDto(
-                    "game-1", GameType.CHESS, List.of("u1", "u2"), "res-1"
+                    "game-1", GameType.CHESS, List.of("u1", "u2"), "res-1", null
             );
             assertThat(dto.gameId()).isEqualTo("game-1");
             assertThat(dto.gameType()).isEqualTo(GameType.CHESS);

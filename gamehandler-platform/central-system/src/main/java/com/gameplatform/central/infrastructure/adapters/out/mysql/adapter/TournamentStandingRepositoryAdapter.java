@@ -72,4 +72,18 @@ public class TournamentStandingRepositoryAdapter implements TournamentStandingRe
         }
         jpaRepo.deleteByTournamentAndParticipantId(tournamentId.value(), participantId);
     }
+
+    @Override
+    @Transactional
+    public List<TournamentStanding> findByTournamentIdForUpdate(TournamentId tournamentId) {
+        if (tournamentId == null) {
+            return List.of();
+        }
+        List<TournamentStandingJpaEntity> entities =
+                jpaRepo.findByTournamentIdForUpdate(tournamentId.value());
+        if (entities == null) {
+            return List.of();
+        }
+        return entities.stream().map(mapper::toDomain).toList();
+    }
 }

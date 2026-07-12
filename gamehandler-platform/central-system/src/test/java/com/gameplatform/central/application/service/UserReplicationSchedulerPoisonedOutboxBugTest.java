@@ -8,8 +8,11 @@ import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.PushGameDefinitionToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushTournamentMatchToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
+import com.gameplatform.central.domain.ports.out.TournamentBuildingRepository;
+import com.gameplatform.central.domain.ports.out.TournamentMatchRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +53,15 @@ class UserReplicationSchedulerPoisonedOutboxBugTest {
     @Mock
     private ReplicationProgressRepository replicationProgressRepository;
 
+    @Mock
+    private PushTournamentMatchToLocalServersPort pushTournamentMatchToLocalServersPort;
+
+    @Mock
+    private TournamentBuildingRepository tournamentBuildingRepository;
+
+    @Mock
+    private TournamentMatchRepository tournamentMatchRepository;
+
     private ObjectMapper objectMapper;
     private UserReplicationSchedulerService service;
     private RegisteredLocalServer server;
@@ -65,7 +77,10 @@ class UserReplicationSchedulerPoisonedOutboxBugTest {
                 objectMapper,
                 Runnable::run, // synchronous executor keeps this bug test single-threaded & deterministic
                 pushMetadataToLocalServersPort,
-                pushGameDefinitionToLocalServersPort
+                pushGameDefinitionToLocalServersPort,
+                pushTournamentMatchToLocalServersPort,
+                tournamentBuildingRepository,
+                tournamentMatchRepository
         );
         server = new RegisteredLocalServer(new BuildingId("building-repl"), "http://local-server", Instant.now(), true);
         lenient().when(replicationProgressRepository.findByEventId(any())).thenReturn(List.of());

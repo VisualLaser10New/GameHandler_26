@@ -60,10 +60,13 @@ CREATE TABLE game_sessions (
     win_condition VARCHAR(30),
     result_data   JSON,
     version       BIGINT NOT NULL DEFAULT 0,
+    tournament_match_id VARCHAR(36) NULL,
+    tournament_id       VARCHAR(36) NULL,
     INDEX idx_game_type (game_type),
     INDEX idx_building (building_id),
     INDEX idx_status (status),
-    INDEX idx_winner (winner_id)
+    INDEX idx_winner (winner_id),
+    INDEX idx_game_sessions_tournament (tournament_match_id)
 );
 
 CREATE TABLE session_participants (
@@ -163,4 +166,26 @@ CREATE TABLE IF NOT EXISTS game_definitions_local (
     registration_rules JSON         NULL,
     updated_at         TIMESTAMP    NOT NULL,
     PRIMARY KEY (game_type)
+) ENGINE=InnoDB;
+
+-- =============== FASE 6 — Replica tournament matches (read-only) ===============
+-- Replica read-only dei match del torneo destinati a questo building, replicati
+-- dal Central via outbox TOURNAMENT_MATCH_SCHEDULED. Usata da
+-- PlayerTournamentController (GET /me/matches, POST /matches/{id}/start) e da
+-- GameSessionService.start (validazione status / participant / team_allowed).
+-- Nessun buildingId: la tabella contiene SOLO i match instradati a questo
+-- building (ambiguity O). Aggiornata solo dal sync; nessun @Version.
+CREATE TABLE IF NOT EXISTS tournament_matches_local (
+    id              VARCHAR(36) PRIMARY KEY,
+    tournament_id   VARCHAR(36) NOT NULL,
+    round           INT NOT NULL,
+    bracket_position INT NOT NULL,
+    participant_a   VARCHAR(36) NOT NULL,
+    participant_b   VARCHAR(36) NULL,
+    game_type       VARCHAR(50) NOT NULL,
+    game_id         VARCHAR(100) NULL,
+    status          VARCHAR(30) NOT NULL,
+    scheduled_at    TIMESTAMP NULL,
+    INDEX idx_tml_tournament (tournament_id),
+    INDEX idx_tml_status (status)
 ) ENGINE=InnoDB;

@@ -11,4 +11,7 @@ public interface TournamentMatchRepository {
     Optional<TournamentMatch> findById(TournamentMatchId id);
     List<TournamentMatch> findByTournament(TournamentId tournamentId);
     void deleteById(TournamentMatchId id);
+    Optional<TournamentMatch> findByIdForUpdate(TournamentMatchId id);
+    Optional<TournamentMatch> findByTournamentIdAndRoundAndBracketPositionForUpdate(
+            TournamentId tournamentId, int round, int bracketPosition);
 }

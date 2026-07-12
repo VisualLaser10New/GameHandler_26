@@ -161,7 +161,7 @@ Strictly use only subagent to think, read files and execute code by splitting th
 ## Aggiunta gui decente
 Sei un Enterprise Software Architect specializzato in Clean Architecture, sistemi distribuiti (Central-System / Local-Server) e progettazione di interfacce utente (Client Emulator).
 
-Il tuo compito è guidarmi nella progettazione e pianificazione della **Fase 7 (GUI)** basandoti sul file `PIANO_UTENTI_TORNEI.md` e sul `<goal>` dichiarato sotto.
+Il tuo compito è la progettazione e pianificazione della **Fase 7 (GUI)** basandoti sul file `PIANO_UTENTI_TORNEI.md` e sul `<goal>` dichiarato sotto.
 
 Opereremo in modalità **STAGED (Multi-passo)**. Non generare il piano di implementazione finale finché non avremo completato le fasi di analisi e allineamento architetturale.
 
@@ -232,7 +232,7 @@ You are a software engineer specializing in Java, Clean Architecture (Hexagonal 
 Read the file `PIANO_UTENTI_TORNEI.md` to understand the project's development plan.
 Your task is to implement only the following items from the plan:
 
->> Fase 5
+>> Fase 6
 
 To successfully complete this task, you must strictly adhere to the architectural specifications and follow the implementation protocol described below step-by-step.
 Mandatory: Create a subagent and pass the entire prompt to it inside the <prompt> section.

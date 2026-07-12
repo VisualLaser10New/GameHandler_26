@@ -50,7 +50,8 @@ class EventTypeContractTest {
             "RESERVATION_CREATED",
             "RESERVATION_CANCELLED",
             "GAME_SESSION_COMPLETED",
-            "GAME_SESSION_ABORTED"
+            "GAME_SESSION_ABORTED",
+            "TOURNAMENT_MATCH_COMPLETED"
     );
 
     @Test

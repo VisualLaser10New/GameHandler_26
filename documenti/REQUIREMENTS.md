@@ -347,6 +347,79 @@
 
 ---
 
+### 1.1.septimus Modulo: Gestione Tornei — Integrazione Torneo ↔ Local Server (FASE 6)
+
+#### RF-TO-07 — Replica dei match programmati ai Local coinvolti
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 6)
+- **Descrizione:** Il Central replica i match di torneo programmati (`TOURNAMENT_MATCH_SCHEDULED`) ai Local Server coinvolti via outbox. Lo scheduler (`UserReplicationSchedulerService`, esteso in FASE 6 con un nuovo branch `replicateTournamentMatchEvent`) drena le righe outbox `PENDING`, assegna round-robin `buildingId` + `gameId` (UUID) al match centrale, filtra i Local attivi a quello coinvolto, e spedisce via REST `PUT /internal/tournaments/matches/sync`. Il Late-Registration Catch-Up replay è esteso per i nuovi server registrati.
+- **API:** Nessun endpoint pubblico; canale REST interno `PUT /internal/tournaments/matches/sync` (protetto da `InternalApiKeyFilter`).
+- **Fonte:** `[UserReplicationSchedulerService.java]` (+3 ctor params, +`replicateTournamentMatchEvent`), `[LateRegistrationCatchUpService.java]` (+2 ctor params, +branch), `[PushTournamentMatchToLocalServersPort.java]`, `[LocalTournamentMatchRestAdapter.java]`, `[TournamentMatchOutboxAdapter.java]` (+`buildingId=null`), `[TournamentMatchScheduledDto.java]` (+13° campo `buildingId`)
+- **Criteri di accettazione:**
+  - Round-robin assignment: `buildingId = buildingIds[matchIndex % buildingIds.size()]` dove `buildingIds` proviene da `TournamentBuildingRepository.findByTournament`.
+  - `gameId` assegnato come UUID fresco al match centrale.
+  - Push solo al Local server il cui `buildingId` corrisponde.
+  - Idempotenza locale: upsert su `tournament_matches_local` per PK `matchId` (re-delivery sicuro).
+  - Tracciamento via `replication_progress` (event_id + server_id); `markAsSent` quando tutti i Local coinvolti hanno acked.
+
+#### RF-TO-08 — Avvio sessione legata a un match
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 6)
+- **Descrizione:** Il Local avvia una `GameSession` legata a un `tournamentMatchId`. Il sistema valida che il match sia `SCHEDULED` e appartenga a questo building (implicito — il Central pusha solo ai Local coinvolti). Valida che il richiedente sia tra i partecipanti (per match individuali). Inferisce team-based da `GameDefinitionLocal.teamAllowed`. Marca `tournament_matches_local.status = IN_PROGRESS`.
+- **API:** `POST /api/players/tournaments/matches/{matchId}/start` (Local, `ROLE_PLAYER`); `POST /api/sessions/start` con `CreateSessionRequestDto.tournamentMatchId` (Local, `ROLE_PLAYER`).
+- **Fonte:** `[PlayerTournamentController.java]`, `[GameSessionController.java]` (+5-arg `start` overload), `[GameSessionService.java]` (+9°/10° ctor params, +5-arg `start`, +`end` extension), `[TournamentMatchLocal.java]`, `[TournamentMatchLocalRepository.java]`, `[CreateSessionRequestDto.java]` (+5° campo `tournamentMatchId`), 4 nuove eccezioni `TournamentMatch*Exception`
+- **Criteri di accettazione:**
+  - `TournamentMatchLocal.status == SCHEDULED` (else `TournamentMatchNotScheduledException` → 409).
+  - `GameDefinitionLocal.teamAllowed` coerente con la natura del match (else `TournamentMatchValidationException` → 400).
+  - Per individual: richiedente ∈ {participantA, participantB}; per team: skip (limitazione documentata — semplificazione pseudo-participant).
+  - `GameSession` costruit con `tournamentMatchId` + `tournamentId` popolati.
+  - `TournamentMatchLocal` flipato a `IN_PROGRESS` atomicamente nella stessa `@Transactional`.
+
+#### RF-TO-09 — Emissione outbox `TOURNAMENT_MATCH_COMPLETED`
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 6)
+- **Descrizione:** Al termine della sessione, il Local emette outbox `TOURNAMENT_MATCH_COMPLETED` con `{matchId, winner, resultData, status}`. Per sessioni abortite (timeout/abbandono), `SessionAbortHelper` calcola un walkover winner (il partecipante NON tra i `session.participants`) e emette `status=ABANDONED` con `winner=walkoverWinner` (non null) — il torneo continua a scorrere.
+- **API:** Nessun endpoint pubblico; outbox locale drenato da `SyncSchedulerService` → `POST /internal/sync/receive` sul Central.
+- **Fonte:** `[GameSessionService.java].end` (+`TOURNAMENT_MATCH_COMPLETED` outbox row COMPLETED), `[SessionAbortHelper.java].abortAndEmit` (+`TOURNAMENT_MATCH_COMPLETED` outbox row ABANDONED con walkover winner), `[TournamentMatchResultDto.java]`, `[OutboxEvent.java]`/`[OutboxEventRepository.java]`
+- **Criteri di accettazione:**
+  - Per COMPLETED: `TournamentMatchResultDto(matchId, winner, resultData, "COMPLETED")`.
+  - Per ABANDONED: `TournamentMatchResultDto(matchId, walkoverWinner, null, "ABANDONED")` — winner NON null (walkover).
+  - Entrambi gli outbox rows (`GAME_SESSION_COMPLETED`/`_ABORTED` + `TOURNAMENT_MATCH_COMPLETED`) scritti atomicamente nella stessa `@Transactional`.
+  - `TournamentMatchLocal` flipato a `COMPLETED`/`ABANDONED`.
+
+#### RF-TO-10 — Consumo `TOURNAMENT_MATCH_COMPLETED` + bracket advancement
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 6)
+- **Descrizione:** Il Central consuma `TOURNAMENT_MATCH_COMPLETED` via `SyncEventProcessor`. Aggiorna `tournament_matches.winner/played_at/result_data/status`. Ricalcola `tournament_standings` (+3 points/win, +1 loss). Genera il match successivo del bracket via `TournamentBracketService.advanceWinner` (CREA il parent se assente, patcha lo slot, emette `TOURNAMENT_MATCH_SCHEDULED` quando il parent è completo). Quando il match è il finale (no parent round), completa il torneo via `completeIfDone` + assegna rank finali.
+- **API:** Nessun endpoint pubblico; `POST /internal/sync/receive` (protetto da `InternalApiKeyFilter` central-side).
+- **Fonte:** `[SyncEventProcessor.java]` (+4 ctor params, +`handleTournamentMatchCompleted`), `[TournamentBracketService.java]` (+`advanceWinner`, +`completeIfDone`), `[TournamentStandingsService.java]` (+4° ctor param, +`recomputeAfterCompletion`, +`assignFinalRanks`), 3 repo `*ForUpdate` (`@Lock(PESSIMISTIC_WRITE)`), `[EventTypeContractTest.java]` (+`TOURNAMENT_MATCH_COMPLETED`)
+- **Criteri di accettazione:**
+  - Idempotency via `processed_events` table (eventId-based).
+  - `advanceWinner`: `totalRounds = log2(nextPow2(N))`; `parentRound = round+1`; se `parentRound > totalRounds` → null (finale); else CREA o PATCHA il parent; emette outbox quando parent completo.
+  - `completeIfDone`: `@Lock(PESSIMISTIC_WRITE)` su `Tournament`; completa se nessun match `SCHEDULED`/`IN_PROGRESS` rimane; `Tournament.complete(Instant.now(clock))` + `assignFinalRanks`.
+  - `recomputeAfterCompletion`: winner +3 points/+1 win, loser +1 loss; NO-OP per ABANDONED (winner=null case handled by walkover).
+  - `assignFinalRanks`: sort by `points desc, wins desc, participantId asc`; rank 1..N.
+  - Race protection: 3 `@Lock(PESSIMISTIC_WRITE)` queries su `Tournament`/`TournamentMatch`/`TournamentStanding`.
+
+#### RF-TO-11 — Completamento torneo + rank finale (S)
+- **Priorità:** S
+- **Stato:** ✅ Implementato e documentato (FASE 6 — `TournamentBracketService.completeIfDone` + `TournamentStandingsService.assignFinalRanks`)
+- **Descrizione:** Quando tutti i match si concludono (COMPLETED/ABANDONED/BYE — nessun SCHEDULED/IN_PROGRESS rimanente), `Tournament.status=COMPLETED` e il rank finale è calcolato (`assignFinalRanks` ordina per `points desc, wins desc, participantId asc` e assegna `rank = 1..N`).
+- **Fonte:** `[TournamentBracketService.java].completeIfDone`, `[TournamentStandingsService.java].assignFinalRanks`, `[Tournament.java].complete(Instant)`
+
+#### RF-TO-12 — `TeamResult` per match a squadre (S)
+- **Priorità:** S
+- **Stato:** ✅ Implementato e documentato (FASE 6)
+- **Descrizione:** Partita a squadre: il `GameResult` è `TeamResult` con `winnerTeamId: TeamId`. Il `winnerId` è derivato da `new UserId(winnerTeamId.value())` (pseudo-participant). I singoli membri non sono registrati come vincitori (semplicità: Local non replica `tournament_teams`/`tournament_team_members`). `MqttPayloadSerializer` mixin esteso con `@JsonSubTypes.Type(TeamResult.class, "TEAM")`. Deviazione H: `GameFactory` NON aggiornato — `TeamResult` costruito a service-layer in `GameSessionService.end`.
+- **Fonte:** `[TeamResult.java]`, `[WinCondition.java]` (+`TEAM_VICTORY`), `[MqttPayloadSerializer.java]` (+8° subtype), `[GameSessionService.java].end` (produces `TeamResult` at service layer)
+
+#### Lifecycle addendum (FASE 6 — non RF separati, parte di RF-TO-07..10)
+- **`PUT /internal/tournaments/matches/sync`** (Local, API Key): riceve batch di `TournamentMatchScheduledDto` dal Central.
+- **`GET /api/players/tournaments/me/matches`** (Local, `ROLE_PLAYER`): elenco match SCHEDULED per l'utente su questo building.
+- **`POST /api/players/tournaments/matches/{matchId}/start`** (Local, `ROLE_PLAYER`): avvia sessione legata al match.
+
+---
+
 ### 1.2 Modulo: Prenotazioni
 
 #### RF-PR-01 — Creazione Prenotazione
@@ -942,7 +1015,13 @@ graph LR
 | RF-TO-03 | Central System | `TournamentRegistrationController.java`, `TournamentRegistrationService.java` (branch individual), `RegisterTournamentParticipantUseCase.java`, `TournamentParticipant.java`, `TournamentParticipantRepository.java`, `UserRepository.java` (display name resolution), `CurrentUserService.java`, `DuplicateTournamentParticipantException` | ✅ (FASE 4) |
 | RF-TO-04 | Central System | `TournamentRegistrationService.java` (branch team), `Team.java`, `TournamentTeamRepository.java`, `TournamentTeamRepositoryAdapter.java` (atomic delete-all-then-insert team_members, NO `@OneToMany`), `TeamMapper.java`, `TournamentParticipantRepository.java` | ✅ (FASE 4) |
 | RF-TO-05 | Central System | `TournamentController.java`, `TournamentBracketService.java`, `ScheduleTournamentMatchesUseCase.java`, `TournamentMatchOutboxPort.java`, `TournamentMatchOutboxAdapter.java`, `Tournament.startProgress()`, `TournamentMatch.java`, `TournamentParticipantRepository.java` (sort by registeredAt per seeding deterministico), `TournamentMatchScheduledDto.java`, `OutboxEventRepository.java` (outbox pattern), `TournamentStandingsService.seedStandings` | ✅ (FASE 5) |
-| RF-TO-06 | Central System | `TournamentController.java`, `TournamentStandingsService.java`, `GetTournamentStandingsUseCase.java`, `TournamentStanding.java`, `TournamentStandingRepository.java`, `TournamentParticipantRepository.java` (displayName resolution), `TournamentStandingDto.java` | ✅ (FASE 5 — read+seed; recompute-after-completion + final rank FASE 6) |
+| RF-TO-06 | Central System | `TournamentController.java`, `TournamentStandingsService.java`, `GetTournamentStandingsUseCase.java`, `TournamentStanding.java`, `TournamentStandingRepository.java`, `TournamentParticipantRepository.java` (displayName resolution), `TournamentStandingDto.java` | ✅ (FASE 5 read+seed + FASE 6 recompute+final rank) |
+| RF-TO-07 | Central System, Local Server | `UserReplicationSchedulerService.java`, `LateRegistrationCatchUpService.java`, `PushTournamentMatchToLocalServersPort.java`, `LocalTournamentMatchRestAdapter.java`, `TournamentBuildingRepository.findByTournament`, `TournamentMatchLocalSyncService.java`, `InternalTournamentController.java` (Local), `internal/api-key` config | ✅ (FASE 6) |
+| RF-TO-08 | Local Server | `PlayerTournamentController.java`, `GameSessionController.java` (5-arg `start`), `GameSessionService.java` (5-arg `start` overload + `end` extension), `TournamentMatchLocal.java`, `TournamentMatchLocalRepository.java`, `CreateSessionRequestDto.java` (+`tournamentMatchId`), 4 exception classes | ✅ (FASE 6) |
+| RF-TO-09 | Local Server | `GameSessionService.java`.end (+`TOURNAMENT_MATCH_COMPLETED` COMPLETED outbox), `SessionAbortHelper.java`.abortAndEmit (+`TOURNAMENT_MATCH_COMPLETED` ABANDONED outbox con walkover winner), `TournamentMatchResultDto.java`, `OutboxEventRepository.java` (atomic dual outbox write) | ✅ (FASE 6) |
+| RF-TO-10 | Central System | `SyncEventProcessor.java` (+`handleTournamentMatchCompleted`), `TournamentBracketService.java` (+`advanceWinner`, +`completeIfDone`), `TournamentStandingsService.java` (+`recomputeAfterCompletion`, +`assignFinalRanks`), 3 repo `*ForUpdate` (`@Lock(PESSIMISTIC_WRITE)`), `EventTypeContractTest.java` | ✅ (FASE 6) |
+| RF-TO-11 | Central System | `TournamentBracketService.java`.completeIfDone, `TournamentStandingsService.java`.assignFinalRanks, `Tournament.java`.complete(Instant) | ✅ (FASE 6) |
+| RF-TO-12 | shared-domain, shared-mqtt, Local Server | `TeamResult.java`, `WinCondition.java` (+`TEAM_VICTORY`), `MqttPayloadSerializer.java` (+8° subtype), `GameSessionService.java`.end (produces `TeamResult` at service layer — deviazione H: `GameFactory` not updated) | ✅ (FASE 6) |
 | RF-PR-01  | Local Server                 | `ReservationService.java`, `reservations` (local)                    | ✅             |
 | RF-PR-02  | Local Server                 | `ReservationService.java`                                            | ✅              |
 | RF-PR-03  | Local Server                 | `ReservationService.java`, `ReservationRepository`                   | ✅              |

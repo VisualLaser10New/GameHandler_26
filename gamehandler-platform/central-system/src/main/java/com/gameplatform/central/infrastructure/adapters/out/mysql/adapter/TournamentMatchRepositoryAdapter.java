@@ -71,4 +71,24 @@ public class TournamentMatchRepositoryAdapter implements TournamentMatchReposito
         }
         jpaRepo.deleteById(id.value());
     }
+
+    @Override
+    @Transactional
+    public Optional<TournamentMatch> findByIdForUpdate(TournamentMatchId id) {
+        if (id == null) {
+            return Optional.empty();
+        }
+        return jpaRepo.findByIdForUpdate(id.value()).map(mapper::toDomain);
+    }
+
+    @Override
+    @Transactional
+    public Optional<TournamentMatch> findByTournamentIdAndRoundAndBracketPositionForUpdate(
+            TournamentId tournamentId, int round, int bracketPosition) {
+        if (tournamentId == null) {
+            return Optional.empty();
+        }
+        return jpaRepo.findByTournamentIdAndRoundAndBracketPositionForUpdate(
+                tournamentId.value(), round, bracketPosition).map(mapper::toDomain);
+    }
 }

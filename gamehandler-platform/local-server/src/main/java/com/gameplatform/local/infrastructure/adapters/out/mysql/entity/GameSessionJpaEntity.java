@@ -62,10 +62,16 @@ public class GameSessionJpaEntity {
     @Column(name = "version", nullable = false, columnDefinition = "BIGINT NOT NULL DEFAULT 0")
     private Long version;
 
+    @Column(name = "tournament_match_id", length = 36)
+    private String tournamentMatchId;
+
+    @Column(name = "tournament_id", length = 36)
+    private String tournamentId;
+
     public GameSessionJpaEntity() {
     }
 
-    public GameSessionJpaEntity(String id, String gameId, String gameType, String buildingId, String status, Instant startedAt, Instant endedAt, Integer durationSeconds, String winnerId, String winCondition, String resultData, List<SessionParticipantJpaEntity> participants) {
+    public GameSessionJpaEntity(String id, String gameId, String gameType, String buildingId, String status, Instant startedAt, Instant endedAt, Integer durationSeconds, String winnerId, String winCondition, String resultData, List<SessionParticipantJpaEntity> participants, String tournamentMatchId, String tournamentId) {
         this.id = id;
         this.gameId = gameId;
         this.gameType = gameType;
@@ -78,6 +84,8 @@ public class GameSessionJpaEntity {
         this.winCondition = winCondition;
         this.resultData = resultData;
         this.participants = participants != null ? participants : new ArrayList<>();
+        this.tournamentMatchId = tournamentMatchId;
+        this.tournamentId = tournamentId;
     }
 
     public String getId() {
@@ -182,5 +190,21 @@ public class GameSessionJpaEntity {
 
     public void setVersion(Long version) {
         this.version = version;
+    }
+
+    public String getTournamentMatchId() {
+        return tournamentMatchId;
+    }
+
+    public void setTournamentMatchId(String tournamentMatchId) {
+        this.tournamentMatchId = tournamentMatchId;
+    }
+
+    public String getTournamentId() {
+        return tournamentId;
+    }
+
+    public void setTournamentId(String tournamentId) {
+        this.tournamentId = tournamentId;
     }
 }

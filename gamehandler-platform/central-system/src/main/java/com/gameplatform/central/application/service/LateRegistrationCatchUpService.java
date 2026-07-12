@@ -3,15 +3,20 @@ package com.gameplatform.central.application.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.model.ReplicationProgress;
+import com.gameplatform.central.domain.model.TournamentMatch;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.PushGameDefinitionToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushTournamentMatchToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
+import com.gameplatform.central.domain.ports.out.TournamentMatchRepository;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.repository.OutboxEventJpaRepository;
+import com.gameplatform.shared.domain.model.TournamentMatchId;
 import com.gameplatform.shared.dto.GameDefinitionEventDto;
 import com.gameplatform.shared.dto.LocalAdminBuildingEventDto;
+import com.gameplatform.shared.dto.TournamentMatchScheduledDto;
 import com.gameplatform.shared.dto.UserSyncAckDto;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.slf4j.Logger;
@@ -20,6 +25,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Closes the late-registration gap (FASE 4 step 3 / R1).
@@ -57,23 +63,28 @@ public class LateRegistrationCatchUpService {
     private static final List<String> REPLICATION_EVENT_TYPES = List.of(
             "USER_REGISTERED", "USER_UPDATED",
             "LOCAL_ADMIN_BUILDING_ASSIGNED", "LOCAL_ADMIN_BUILDING_REVOKED",
-            "GAME_DEFINITION_UPSERTED");
+            "GAME_DEFINITION_UPSERTED",
+            "TOURNAMENT_MATCH_SCHEDULED");
 
-    private final OutboxEventJpaRepository outboxEventJpaRepository;
+private final OutboxEventJpaRepository outboxEventJpaRepository;
     private final OutboxEventRepository outboxEventRepository;
     private final PushUserToLocalServersPort pushUserToLocalServersPort;
     private final PushMetadataToLocalServersPort pushMetadataToLocalServersPort;
     private final PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort;
     private final ObjectMapper objectMapper;
     private final ReplicationProgressRepository replicationProgressRepository;
+    private final PushTournamentMatchToLocalServersPort pushTournamentMatchToLocalServersPort;
+    private final TournamentMatchRepository tournamentMatchRepository;
 
     public LateRegistrationCatchUpService(OutboxEventJpaRepository outboxEventJpaRepository,
-                                      OutboxEventRepository outboxEventRepository,
-                                      PushUserToLocalServersPort pushUserToLocalServersPort,
-                                      ObjectMapper objectMapper,
-                                      ReplicationProgressRepository replicationProgressRepository,
-                                      PushMetadataToLocalServersPort pushMetadataToLocalServersPort,
-                                      PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort) {
+                                       OutboxEventRepository outboxEventRepository,
+                                       PushUserToLocalServersPort pushUserToLocalServersPort,
+                                       ObjectMapper objectMapper,
+                                       ReplicationProgressRepository replicationProgressRepository,
+                                       PushMetadataToLocalServersPort pushMetadataToLocalServersPort,
+                                       PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort,
+                                       PushTournamentMatchToLocalServersPort pushTournamentMatchToLocalServersPort,
+                                       TournamentMatchRepository tournamentMatchRepository) {
         this.outboxEventJpaRepository = outboxEventJpaRepository;
         this.outboxEventRepository = outboxEventRepository;
         this.pushUserToLocalServersPort = pushUserToLocalServersPort;
@@ -81,6 +92,8 @@ public class LateRegistrationCatchUpService {
         this.replicationProgressRepository = replicationProgressRepository;
         this.pushMetadataToLocalServersPort = pushMetadataToLocalServersPort;
         this.pushGameDefinitionToLocalServersPort = pushGameDefinitionToLocalServersPort;
+        this.pushTournamentMatchToLocalServersPort = pushTournamentMatchToLocalServersPort;
+        this.tournamentMatchRepository = tournamentMatchRepository;
     }
 
     /**
@@ -207,6 +220,62 @@ public class LateRegistrationCatchUpService {
                 continue;
             }
 
+            // FASE 6 — tournament-match scheduled event branch.
+            // Catch-up: the building is ALREADY assigned (the dto carries
+            // buildingId OR the central match row does). Push ONLY if the
+            // server's buildingId matches the resolved buildingId.
+            // No ack / poison isolation: the local upsert is idempotent by PK
+            // (matchId), so a best-effort push (failure swallowed) is enough.
+            if (isTournamentMatchEvent(eventType)) {
+                TournamentMatchScheduledDto dto;
+                try {
+                    dto = objectMapper.readValue(event.getPayload(), TournamentMatchScheduledDto.class);
+                } catch (Exception e) {
+                    log.warn("Catch-up: skipping tournament-match event [{}] due to malformed payload: {}", eventId, e.getMessage());
+                    continue;
+                }
+
+                // Resolve buildingId (dto.buildingId() may be null if the event was
+                // replayed before the drain branch assigned it — load the central
+                // match row then).
+                String matchBuildingId = dto.buildingId();
+                if (matchBuildingId == null) {
+                    Optional<TournamentMatch> matchOpt =
+                            tournamentMatchRepository.findById(new TournamentMatchId(dto.matchId()));
+                    if (matchOpt.isPresent()) {
+                        matchBuildingId = matchOpt.get().getBuildingId();
+                    }
+                }
+                if (matchBuildingId == null || !matchBuildingId.equals(serverId)) {
+                    // Either no building assigned yet, or this match was for a different building — skip.
+                    log.info("Catch-up: tournament-match event [{}] not for building={} (resolved buildingId={}) — skipping",
+                            eventId, serverId, matchBuildingId);
+                    continue;
+                }
+
+                try {
+                    pushTournamentMatchToLocalServersPort.pushTournamentMatch(List.of(dto), server);
+                } catch (Exception e) {
+                    // Best-effort: a failing push for one event must NOT abort the rest.
+                    log.error("Catch-up: failed to push tournament-match event [{}] (type={}) to building={}: {}",
+                            eventId, eventType, serverId, e.getMessage(), e);
+                    continue;
+                }
+
+                if (replicationProgressRepository.existsByEventIdAndServerId(eventId, serverId)) {
+                    log.info("Catch-up: replication_progress already present (pre-check) for tournament-match eventId={}, building={}", eventId, serverId);
+                } else {
+                    try {
+                        replicationProgressRepository.save(new ReplicationProgress(eventId, serverId));
+                        pushed++;
+                    } catch (DataIntegrityViolationException dup) {
+                        log.info("Catch-up: replication_progress already present for tournament-match eventId={}, building={} — treating as success",
+                                eventId, serverId);
+                    }
+                }
+                continue;
+            }
+
             UserSyncDto user;
             try {
                 user = objectMapper.readValue(event.getPayload(), UserSyncDto.class);
@@ -269,5 +338,9 @@ public class LateRegistrationCatchUpService {
 
     private static boolean isGameDefinitionEvent(String eventType) {
         return "GAME_DEFINITION_UPSERTED".equals(eventType);
+    }
+
+    private static boolean isTournamentMatchEvent(String eventType) {
+        return "TOURNAMENT_MATCH_SCHEDULED".equals(eventType);
     }
 }

@@ -13,4 +13,5 @@ public interface TournamentRepository {
     List<Tournament> findByStatus(TournamentStatus status);
     boolean existsById(TournamentId id);
     void deleteById(TournamentId id);
+    Optional<Tournament> findByIdForUpdate(TournamentId id);
 }

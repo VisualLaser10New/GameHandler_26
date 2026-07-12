@@ -15,14 +15,19 @@ import com.gameplatform.shared.domain.model.TournamentFormat;
 import com.gameplatform.shared.domain.model.TournamentId;
 import com.gameplatform.shared.domain.model.TournamentMatchId;
 import com.gameplatform.shared.domain.model.TournamentMatchStatus;
+import com.gameplatform.shared.domain.model.TournamentStatus;
 import com.gameplatform.shared.dto.TournamentMatchDto;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -64,6 +69,8 @@ import java.util.UUID;
 @Service
 @Transactional
 public class TournamentBracketService implements ScheduleTournamentMatchesUseCase, ListTournamentMatchesUseCase {
+
+    private static final Logger log = LoggerFactory.getLogger(TournamentBracketService.class);
 
     private final TournamentRepository tournamentRepository;
     private final TournamentParticipantRepository tournamentParticipantRepository;
@@ -236,5 +243,153 @@ public class TournamentBracketService implements ScheduleTournamentMatchesUseCas
             p <<= 1;
         }
         return p;
+    }
+
+    /**
+     * Advances the winner of a completed match into the parent slot of the
+     * next round. The match row itself is already updated (status/winner/
+     * playedAt) by {@code SyncEventProcessor.handleTournamentMatchCompleted}
+     * before this is called, so this method ONLY computes the parent and
+     * patches the slot.
+     *
+     * <p>parentRound = round + 1; parentBracketPosition =
+     * (bracketPosition + 1) / 2. Total rounds = log2(nextPow2(N)) where N =
+     * participant count. If parentRound > totalRounds → return {@code null}
+     * (the completed match IS the final — caller invokes {@link #completeIfDone}).
+     * Otherwise, parent is loaded via
+     * {@code tournamentMatchRepository.findByTournamentIdAndRoundAndBracketPositionForUpdate(...)}.
+     * If the parent does not exist → CREATE it with participantA=winner,
+     * participantB=null, status=SCHEDULED (the first winner fills slot A).
+     * If the parent exists → patch the empty slot (participantA if null, else
+     * participantB) with the winner. If the parent is now fully populated
+     * (participantA != null AND participantB != null) → call
+     * {@code tournamentMatchOutboxPort.publishScheduled(parent, tournament)} to
+     * emit a new {@code TOURNAMENT_MATCH_SCHEDULED} outbox row. Return the
+     * parent.</p>
+     *
+     * <p>Q2 resolution: {@code winnerId} is normally non-null (the Local side
+     * sends the walkover winner even for ABANDONED matches). As a defensive
+     * fallback, when {@code winnerId == null}: if {@code participantB} is null
+     * (BYE-like, no opponent) → advance {@code participantA}; if both
+     * participants are present but no winner was resolved → skip parent
+     * patching and return {@code null}.</p>
+     *
+     * @param matchId  the completed match id
+     * @param winnerId the winner participant id (normally non-null per Q2)
+     * @return the parent match, or {@code null} if the completed match was the
+     *         final (no parent round) or no winner could be resolved
+     */
+    public TournamentMatch advanceWinner(TournamentMatchId matchId, String winnerId) {
+        if (matchId == null) {
+            return null;
+        }
+        TournamentMatch match = tournamentMatchRepository.findById(matchId)
+                .orElseThrow(() -> new TournamentNotFoundException("Match not found: " + matchId.value()));
+
+        // Q2: resolve the effective winner (normally winnerId is non-null).
+        String effectiveWinner = winnerId;
+        if (effectiveWinner == null) {
+            if (match.getParticipantB() == null) {
+                // BYE-like (no opponent) → advance participantA.
+                effectiveWinner = match.getParticipantA();
+            } else {
+                // Both participants present but no winner resolved — skip advancement.
+                log.warn("advanceWinner: matchId={} has no winner and both participants present — skipping parent patching.",
+                        matchId.value());
+                return null;
+            }
+        }
+
+        int parentRound = match.getRound() + 1;
+        int parentBracketPosition = (match.getBracketPosition() + 1) / 2;
+
+        // Compute total rounds from participant count to decide if this match IS the final.
+        long n = tournamentParticipantRepository.countByTournament(match.getTournamentId());
+        int bracketSize = nextPow2((int) n);
+        int totalRounds = 31 - Integer.numberOfLeadingZeros(bracketSize);
+        if (parentRound > totalRounds) {
+            return null; // this match was the final — tournament completion signal
+        }
+
+        Optional<TournamentMatch> parentOpt = tournamentMatchRepository
+                .findByTournamentIdAndRoundAndBracketPositionForUpdate(
+                        match.getTournamentId(), parentRound, parentBracketPosition);
+
+        TournamentMatch savedParent;
+        if (parentOpt.isEmpty()) {
+            // Create the parent match with the winner in participantA (first completion fills slot A).
+            TournamentMatch newParent = new TournamentMatch(
+                    new TournamentMatchId(UUID.randomUUID().toString()),
+                    match.getTournamentId(), parentRound, parentBracketPosition,
+                    effectiveWinner, null,
+                    null, null, null, null,
+                    TournamentMatchStatus.SCHEDULED,
+                    null, null, null);
+            savedParent = tournamentMatchRepository.save(newParent);
+            // Only one participant — not ready to schedule yet (no outbox emission).
+        } else {
+            TournamentMatch parent = parentOpt.get();
+            // Patch the FIRST empty slot (participantA if null, else participantB).
+            String newParticipantA = parent.getParticipantA();
+            String newParticipantB = parent.getParticipantB();
+            if (newParticipantA == null) {
+                newParticipantA = effectiveWinner;
+            } else {
+                newParticipantB = effectiveWinner;
+            }
+
+            TournamentMatch patchedParent = new TournamentMatch(
+                    parent.getMatchId(), parent.getTournamentId(),
+                    parent.getRound(), parent.getBracketPosition(),
+                    newParticipantA, newParticipantB,
+                    parent.getBuildingId(), parent.getGameId(), parent.getSessionId(),
+                    parent.getWinner(), parent.getStatus(),
+                    parent.getScheduledAt(), parent.getPlayedAt(), parent.getResultData());
+            savedParent = tournamentMatchRepository.save(patchedParent);
+
+            // If the parent is now fully populated, emit a scheduled outbox event for it.
+            if (savedParent.getParticipantA() != null && savedParent.getParticipantB() != null) {
+                Tournament tournament = tournamentRepository.findById(match.getTournamentId())
+                        .orElseThrow(() -> new TournamentNotFoundException(
+                                "Tournament not found: " + match.getTournamentId().value()));
+                tournamentMatchOutboxPort.publishScheduled(savedParent, tournament);
+            }
+        }
+
+        return savedParent;
+    }
+
+    /**
+     * Completes the tournament if all matches are terminal (COMPLETED /
+     * ABANDONED / BYE — no SCHEDULED or IN_PROGRESS remaining). Loads the
+     * tournament via {@code tournamentRepository.findByIdForUpdate(...)};
+     * if status is already COMPLETED → no-op; else if all matches are
+     * terminal → {@code tournament.complete(Instant.now(clock))} + save, then
+     * {@code tournamentStandingsService.assignFinalRanks(tournamentId)}.
+     *
+     * @param tournamentId the tournament id (no-op if null or absent)
+     */
+    public void completeIfDone(TournamentId tournamentId) {
+        if (tournamentId == null) {
+            return;
+        }
+        Optional<Tournament> tournamentOpt = tournamentRepository.findByIdForUpdate(tournamentId);
+        if (tournamentOpt.isEmpty()) {
+            return;
+        }
+        Tournament tournament = tournamentOpt.get();
+        if (tournament.getStatus() == TournamentStatus.COMPLETED) {
+            return;
+        }
+        List<TournamentMatch> matches = tournamentMatchRepository.findByTournament(tournamentId);
+        boolean anyPending = matches.stream().anyMatch(m ->
+                m.getStatus() == TournamentMatchStatus.SCHEDULED
+                        || m.getStatus() == TournamentMatchStatus.IN_PROGRESS);
+        if (anyPending) {
+            return;
+        }
+        Tournament completed = tournament.complete(Instant.now(clock));
+        tournamentRepository.save(completed);
+        tournamentStandingsService.assignFinalRanks(tournamentId);
     }
 }

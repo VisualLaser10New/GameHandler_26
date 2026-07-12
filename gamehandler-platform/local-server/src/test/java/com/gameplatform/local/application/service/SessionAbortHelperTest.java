@@ -13,6 +13,7 @@ import com.gameplatform.local.domain.ports.out.GameRepository;
 import com.gameplatform.local.domain.ports.out.GameSessionRepository;
 import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
+import com.gameplatform.local.domain.ports.out.TournamentMatchLocalRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.GameMachineStatus;
@@ -66,6 +67,7 @@ class SessionAbortHelperTest {
     @Mock GameRepository gameRepository;
     @Mock OutboxEventRepository outboxEventRepository;
     @Mock PublishGameStatePort publishGameStatePort;
+    @Mock TournamentMatchLocalRepository tournamentMatchLocalRepository;
 
     Clock clock = Clock.fixed(NOW, ZoneId.of("UTC"));
     ObjectMapper objectMapper = new ObjectMapper();
@@ -80,7 +82,8 @@ class SessionAbortHelperTest {
                 outboxEventRepository,
                 publishGameStatePort,
                 clock,
-                objectMapper
+                objectMapper,
+                tournamentMatchLocalRepository
         );
     }
 

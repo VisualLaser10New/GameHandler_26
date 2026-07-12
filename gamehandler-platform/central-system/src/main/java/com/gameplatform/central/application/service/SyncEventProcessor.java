@@ -6,13 +6,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.central.domain.exception.FirstBucketRaceHandledException;
 import com.gameplatform.central.domain.model.AggregatedStatistics;
 import com.gameplatform.central.domain.model.ProcessedEvent;
+import com.gameplatform.central.domain.model.TournamentMatch;
 import com.gameplatform.central.domain.ports.in.RegisterUserFromSyncUseCase;
 import com.gameplatform.central.domain.ports.out.ProcessedEventRepository;
 import com.gameplatform.central.domain.ports.out.StatisticsRepository;
+import com.gameplatform.central.domain.ports.out.TournamentMatchRepository;
+import com.gameplatform.central.domain.ports.out.TournamentRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameType;
+import com.gameplatform.shared.domain.model.TournamentMatchId;
+import com.gameplatform.shared.domain.model.TournamentMatchStatus;
 import com.gameplatform.shared.domain.model.WinCondition;
 import com.gameplatform.shared.dto.OutboxEventDto;
+import com.gameplatform.shared.dto.TournamentMatchResultDto;
 import com.gameplatform.shared.dto.UserRegisteredEventDto;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -65,6 +71,20 @@ public class SyncEventProcessor {
      */
     private final PlayerStatisticsProjectionService playerStatisticsProjection;
 
+    /**
+     * FASE 6 tournament-match completion ports/services. May be {@code null}
+     * (the backward-compat constructors used by existing unit tests pass
+     * {@code null} for these via the 7-arg delegating ctor); when {@code null},
+     * the {@code TOURNAMENT_MATCH_COMPLETED} branch logs a warning and skips
+     * (keeping the historical behaviour for legacy tests). In production
+     * Spring injects real beans via the {@code @Autowired} 11-arg constructor
+     * below.
+     */
+    private final TournamentBracketService tournamentBracketService;
+    private final TournamentStandingsService tournamentStandingsService;
+    private final TournamentRepository tournamentRepository;
+    private final TournamentMatchRepository tournamentMatchRepository;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -75,7 +95,11 @@ public class SyncEventProcessor {
                               ObjectMapper objectMapper,
                               Clock clock,
                               StatisticsFirstBucketRaceRetryHelper retryHelper,
-                              PlayerStatisticsProjectionService playerStatisticsProjection) {
+                              PlayerStatisticsProjectionService playerStatisticsProjection,
+                              TournamentBracketService tournamentBracketService,
+                              TournamentStandingsService tournamentStandingsService,
+                              TournamentRepository tournamentRepository,
+                              TournamentMatchRepository tournamentMatchRepository) {
         this.processedEventRepository = processedEventRepository;
         this.statisticsRepository = statisticsRepository;
         this.registerUserFromSyncUseCase = registerUserFromSyncUseCase;
@@ -83,6 +107,22 @@ public class SyncEventProcessor {
         this.clock = clock;
         this.retryHelper = retryHelper;
         this.playerStatisticsProjection = playerStatisticsProjection;
+        this.tournamentBracketService = tournamentBracketService;
+        this.tournamentStandingsService = tournamentStandingsService;
+        this.tournamentRepository = tournamentRepository;
+        this.tournamentMatchRepository = tournamentMatchRepository;
+    }
+
+    SyncEventProcessor(ProcessedEventRepository processedEventRepository,
+                       StatisticsRepository statisticsRepository,
+                       RegisterUserFromSyncUseCase registerUserFromSyncUseCase,
+                       ObjectMapper objectMapper,
+                       Clock clock,
+                       StatisticsFirstBucketRaceRetryHelper retryHelper,
+                       PlayerStatisticsProjectionService playerStatisticsProjection) {
+        this(processedEventRepository, statisticsRepository,
+                registerUserFromSyncUseCase, objectMapper, clock, retryHelper,
+                playerStatisticsProjection, null, null, null, null);
     }
 
     SyncEventProcessor(ProcessedEventRepository processedEventRepository,
@@ -214,6 +254,11 @@ public class SyncEventProcessor {
             UserRegisteredEventDto dto = objectMapper.readValue(eventDto.payload(), UserRegisteredEventDto.class);
             registerUserFromSyncUseCase.registerFromSync(dto);
             return true;
+        } else if ("TOURNAMENT_MATCH_COMPLETED".equals(eventDto.eventType())) {
+            TournamentMatchResultDto dto = objectMapper.readValue(eventDto.payload(),
+                    TournamentMatchResultDto.class);
+            handleTournamentMatchCompleted(buildingId, dto);
+            return true;
         }
 
         // Unknown eventType: mark as processed to avoid re-processing, but log a warning
@@ -221,6 +266,68 @@ public class SyncEventProcessor {
         log.warn("Unknown eventType '{}' from building {} – marking processed without stats update.",
                 eventDto.eventType(), buildingId);
         return true;
+    }
+
+    /**
+     * Handles a {@code TOURNAMENT_MATCH_COMPLETED} event from a local server:
+     * (a) loads the match via
+     *     {@code tournamentMatchRepository.findByIdForUpdate(new TournamentMatchId(dto.matchId()))};
+     * (b) rebuilds the {@link TournamentMatch} with
+     *     {@code status = "ABANDONED".equals(dto.status()) ? ABANDONED : COMPLETED},
+     *     {@code winner = dto.winner()}, {@code resultData = dto.resultData()},
+     *     {@code playedAt = Instant.now(clock)} and saves it;
+     * (c) if {@code status == COMPLETED} →
+     *     {@code tournamentStandingsService.recomputeAfterCompletion(matchId)};
+     * (d) {@code TournamentMatch parent = tournamentBracketService.advanceWinner(matchId, dto.winner())};
+     *     per Q2, {@code dto.winner()} is non-null even for ABANDONED (the Local
+     *     side sends the walkover winner);
+     * (e) if {@code parent == null} →
+     *     {@code tournamentBracketService.completeIfDone(tournamentId)}.
+     *
+     * <p>Runs inside the existing {@code @Transactional(REQUIRES_NEW)} of
+     * {@link #processOne} — match update + standings recompute + bracket
+     * advancement + (optional) next-round outbox emission are atomic.</p>
+     *
+     * <p>Defensive: if the FASE 6 tournament ports are {@code null} (legacy
+     * unit-test ctor), the branch logs a warning and returns without doing
+     * any tournament bookkeeping.</p>
+     */
+    private void handleTournamentMatchCompleted(BuildingId buildingId,
+                                                TournamentMatchResultDto dto) {
+        if (tournamentMatchRepository == null || tournamentBracketService == null
+                || tournamentStandingsService == null || tournamentRepository == null) {
+            log.warn("TOURNAMENT_MATCH_COMPLETED [matchId={}] received but FASE 6 tournament ports are null "
+                    + "(legacy test ctor) — skipping tournament bookkeeping.", dto.matchId());
+            return;
+        }
+        TournamentMatchId matchId = new TournamentMatchId(dto.matchId());
+        TournamentMatch match = tournamentMatchRepository.findByIdForUpdate(matchId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Tournament match not found for TOURNAMENT_MATCH_COMPLETED: " + dto.matchId()));
+
+        TournamentMatchStatus status = "ABANDONED".equals(dto.status())
+                ? TournamentMatchStatus.ABANDONED : TournamentMatchStatus.COMPLETED;
+        TournamentMatch updated = new TournamentMatch(
+                match.getMatchId(), match.getTournamentId(),
+                match.getRound(), match.getBracketPosition(),
+                match.getParticipantA(), match.getParticipantB(),
+                match.getBuildingId(), match.getGameId(), match.getSessionId(),
+                dto.winner(), status,
+                match.getScheduledAt(), Instant.now(clock), dto.resultData());
+        tournamentMatchRepository.save(updated);
+
+        // (c) Recompute standings only for COMPLETED (ABANDONED is bookkeeping-only per Q2).
+        if (status == TournamentMatchStatus.COMPLETED) {
+            tournamentStandingsService.recomputeAfterCompletion(match.getMatchId());
+        }
+
+        // (d) Advance the winner into the parent slot (Q2: winnerId is non-null even for ABANDONED).
+        TournamentMatch parent = tournamentBracketService.advanceWinner(match.getMatchId(), dto.winner());
+
+        // (e) No parent → the tournament may be done.
+        if (parent == null) {
+            tournamentBracketService.completeIfDone(match.getTournamentId());
+        }
     }
 
     /**

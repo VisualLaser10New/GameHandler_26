@@ -8,11 +8,15 @@ import com.gameplatform.local.domain.exception.ReservationExpiredException;
 import com.gameplatform.local.domain.exception.ReservationNotFoundException;
 import com.gameplatform.local.domain.exception.ReservationUserMismatchException;
 import com.gameplatform.local.domain.exception.SessionAlreadyActiveException;
+import com.gameplatform.local.domain.exception.TournamentMatchNotFoundException;
+import com.gameplatform.local.domain.exception.TournamentMatchNotScheduledException;
+import com.gameplatform.local.domain.exception.TournamentMatchValidationException;
 import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.model.GameSession;
 import com.gameplatform.local.domain.model.OutboxEvent;
 import com.gameplatform.local.domain.model.Reservation;
 import com.gameplatform.local.domain.model.GameDefinitionLocal;
+import com.gameplatform.local.domain.model.TournamentMatchLocal;
 import com.gameplatform.local.domain.ports.in.EndGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.PauseGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.ResumeGameSessionUseCase;
@@ -30,11 +34,14 @@ import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
 import com.gameplatform.local.domain.ports.out.ReservationRepository;
 import com.gameplatform.local.domain.ports.out.GameDefinitionLocalRepository;
+import com.gameplatform.local.domain.ports.out.TournamentMatchLocalRepository;
 import com.gameplatform.shared.domain.model.*;
 import com.gameplatform.shared.domain.result.GameResult;
+import com.gameplatform.shared.dto.TournamentMatchResultDto;
 import com.gameplatform.shared.mqtt.MqttTopics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,6 +66,8 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
     private final Clock clock;
     private final ObjectMapper objectMapper;
     private final GameDefinitionLocalRepository gameDefinitionLocalRepository;
+    private final TournamentMatchLocalRepository tournamentMatchLocalRepository;
+    private final String buildingId;
 
     public GameSessionService(
             GameSessionRepository gameSessionRepository,
@@ -68,7 +77,9 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
             ReservationRepository reservationRepository,
             Clock clock,
             ObjectMapper objectMapper,
-            GameDefinitionLocalRepository gameDefinitionLocalRepository) {
+            GameDefinitionLocalRepository gameDefinitionLocalRepository,
+            TournamentMatchLocalRepository tournamentMatchLocalRepository,
+            @Value("${app.building-id}") String buildingId) {
         this.gameSessionRepository = gameSessionRepository;
         this.gameRepository = gameRepository;
         this.outboxEventRepository = outboxEventRepository;
@@ -77,11 +88,97 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         this.clock = clock;
         this.objectMapper = objectMapper;
         this.gameDefinitionLocalRepository = gameDefinitionLocalRepository;
+        this.tournamentMatchLocalRepository = tournamentMatchLocalRepository;
+        this.buildingId = buildingId;
     }
 
     @Override
     public GameSession start(GameId gameId, GameType gameType, List<UserId> participants, ReservationId reservationId) {
+        return start(gameId, gameType, participants, reservationId, null);
+    }
+
+    /**
+     * FASE 6 tournament-aware start. When {@code tournamentMatchId != null}:
+     * load the {@link TournamentMatchLocal} via
+     * {@code tournamentMatchLocalRepository.findById}; validate status==SCHEDULED
+     * (else {@link TournamentMatchNotScheduledException});
+     * NO building validation on Local (ambiguity O — the central push only
+     * sends to the involved building, so receiving the match implies it belongs
+     * here); validate the requester is among participants (participantA ==
+     * userId OR participantB == userId) for INDIVIDUAL matches — for team
+     * matches skip participant check (ambiguity F); load {@link GameDefinitionLocal},
+     * validate {@code team_allowed} against the match (if def.teamAllowed()
+     * doesn't match the tournament's teamBased expectation →
+     * {@link TournamentMatchValidationException});
+     * update the {@link TournamentMatchLocal} status to IN_PROGRESS via
+     * {@code withStatus(...)} + save; pass {@code tournamentMatchId} +
+     * {@code tournamentId} (resolved from the local match) to the
+     * {@link GameSession} constructor. Reuses the existing reservation +
+     * machine-state + min/max validation.
+     */
+    public GameSession start(GameId gameId, GameType gameType, List<UserId> participants,
+                             ReservationId reservationId, TournamentMatchId tournamentMatchId) {
         List<UserId> activeParticipants = participants != null ? participants : List.of();
+
+        // FASE 6 — tournament match binding validation (only when tournamentMatchId != null)
+        TournamentId resolvedTournamentId = null;
+        if (tournamentMatchId != null) {
+            TournamentMatchLocal localMatch = tournamentMatchLocalRepository.findById(tournamentMatchId)
+                    .orElseThrow(() -> new TournamentMatchNotFoundException(
+                            "Tournament match not found: " + tournamentMatchId.value()));
+            if (localMatch.getStatus() != TournamentMatchStatus.SCHEDULED) {
+                throw new TournamentMatchNotScheduledException(
+                        "Tournament match " + tournamentMatchId.value()
+                                + " is not SCHEDULED (current: " + localMatch.getStatus() + ")");
+            }
+            // team_allowed: infer the match's team-based nature from the replicated
+            // game_definitions_local (ambiguity O — no team_based column in
+            // tournament_matches_local). If the definition is missing, fall back to
+            // the in-memory GameFactory team-allowed flag below is not available, so
+            // we just trust the participant count as supplied.
+            Optional<GameDefinitionLocal> tournamentDef = gameDefinitionLocalRepository.findByGameType(gameType);
+            if (tournamentDef.isPresent()) {
+                GameDefinitionLocal def = tournamentDef.get();
+                boolean teamBased = def.isTeamAllowed();
+                if (teamBased) {
+                    // team match: the session carries a single pseudo-participant (team_id).
+                    if (activeParticipants.size() != 1) {
+                        throw new TournamentMatchValidationException(
+                                "Team tournament match " + tournamentMatchId.value()
+                                        + " expects exactly 1 pseudo-participant (team_id), got "
+                                        + activeParticipants.size());
+                    }
+                    // requester validation skipped for team (ambiguity F — the user is not a
+                    // direct participant of the match; the pseudo-participant is the team_id).
+                } else {
+                    // individual match: two user participants.
+                    if (activeParticipants.size() != 2) {
+                        throw new TournamentMatchValidationException(
+                                "Individual tournament match " + tournamentMatchId.value()
+                                        + " expects exactly 2 participants, got " + activeParticipants.size());
+                    }
+                    // validate that the participants are exactly the match's
+                    // participantA / participantB (the requester is among the match
+                    // participants — defensive check against a caller passing arbitrary users).
+                    String pa = localMatch.getParticipantA();
+                    String pb = localMatch.getParticipantB();
+                    for (UserId p : activeParticipants) {
+                        boolean isMatchParticipant =
+                                (pa != null && pa.equals(p.value())) || (pb != null && pb.equals(p.value()));
+                        if (!isMatchParticipant) {
+                            throw new TournamentMatchValidationException(
+                                    "Tournament match " + tournamentMatchId.value()
+                                            + " participant " + p.value()
+                                            + " is not among the match participants ("
+                                            + pa + ", " + pb + ")");
+                        }
+                    }
+                }
+            }
+            // Update the local match to IN_PROGRESS.
+            tournamentMatchLocalRepository.save(localMatch.withStatus(TournamentMatchStatus.IN_PROGRESS));
+            resolvedTournamentId = localMatch.getTournamentId();
+        }
 
         // Check for active session on this game machine
         Optional<GameSession> activeSession = gameSessionRepository.findActiveByGameId(gameId);
@@ -145,20 +242,40 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         gameRepository.save(game);
 
         GameSessionId sessionId = new GameSessionId(UUID.randomUUID().toString());
-        GameSession session = new GameSession(
-                sessionId,
-                gameId,
-                gameType,
-                game.getBuildingId(),
-                GameStatus.IN_PROGRESS,
-                Instant.now(clock),
-                null,
-                null,
-                null,
-                null,
-                null,
-                activeParticipants
-        );
+        GameSession session;
+        if (tournamentMatchId != null) {
+            session = new GameSession(
+                    sessionId,
+                    gameId,
+                    gameType,
+                    game.getBuildingId(),
+                    GameStatus.IN_PROGRESS,
+                    Instant.now(clock),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    activeParticipants,
+                    tournamentMatchId,
+                    resolvedTournamentId
+            );
+        } else {
+            session = new GameSession(
+                    sessionId,
+                    gameId,
+                    gameType,
+                    game.getBuildingId(),
+                    GameStatus.IN_PROGRESS,
+                    Instant.now(clock),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    activeParticipants
+            );
+        }
 
         GameSession savedSession = gameSessionRepository.save(session);
 
@@ -287,6 +404,44 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                         0
                 );
                 outboxEventRepository.save(outboxEvent);
+
+                // FASE 6 — when the session is bound to a tournament match, emit a
+                // second outbox row TOURNAMENT_MATCH_COMPLETED (atomic in this tx)
+                // and flip the local match row to COMPLETED. The payload is a
+                // serialised TournamentMatchResultDto record (per Q5 — NOT a Map)
+                // so the central SyncEventProcessor can readValue it back.
+                if (session.getTournamentMatchId() != null) {
+                    String winner = session.getWinnerId() != null ? session.getWinnerId().value() : null;
+                    String resultData = result != null ? objectMapper.writeValueAsString(result) : null;
+                    TournamentMatchResultDto tournamentDto = new TournamentMatchResultDto(
+                            session.getTournamentMatchId().value(),
+                            winner,
+                            resultData,
+                            "COMPLETED"
+                    );
+                    String tournamentPayloadJson = objectMapper.writeValueAsString(tournamentDto);
+                    OutboxEvent tournamentOutboxEvent = new OutboxEvent(
+                            UUID.randomUUID().toString(),
+                            "TOURNAMENT_MATCH_COMPLETED",
+                            tournamentPayloadJson,
+                            "PENDING",
+                            Instant.now(clock),
+                            null,
+                            0
+                    );
+                    outboxEventRepository.save(tournamentOutboxEvent);
+
+                    // Flip the local match to COMPLETED.
+                    TournamentMatchLocal localMatch = tournamentMatchLocalRepository
+                            .findById(session.getTournamentMatchId())
+                            .orElse(null);
+                    if (localMatch != null) {
+                        tournamentMatchLocalRepository.save(localMatch.withStatus(TournamentMatchStatus.COMPLETED));
+                    } else {
+                        log.warn("Tournament match {} not found locally while completing session {}",
+                                session.getTournamentMatchId().value(), session.getId().value());
+                    }
+                }
             } catch (Exception e) {
                 throw new RuntimeException("Failed to serialize OutboxEvent payload for GAME_SESSION_COMPLETED", e);
             }

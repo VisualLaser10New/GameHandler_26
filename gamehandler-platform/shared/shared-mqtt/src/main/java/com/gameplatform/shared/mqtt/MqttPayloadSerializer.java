@@ -20,7 +20,8 @@ public final class MqttPayloadSerializer {
         @JsonSubTypes.Type(value = com.gameplatform.shared.domain.result.MonopolyResult.class, name = "MONOPOLY"),
         @JsonSubTypes.Type(value = com.gameplatform.shared.domain.result.RiskResult.class, name = "RISK"),
         @JsonSubTypes.Type(value = com.gameplatform.shared.domain.result.RouletteResult.class, name = "ROULETTE"),
-        @JsonSubTypes.Type(value = com.gameplatform.shared.domain.result.SlotResult.class, name = "SLOT")
+        @JsonSubTypes.Type(value = com.gameplatform.shared.domain.result.SlotResult.class, name = "SLOT"),
+        @JsonSubTypes.Type(value = com.gameplatform.shared.domain.result.TeamResult.class, name = "TEAM")
     })
     private interface GameResultMixIn {}
 

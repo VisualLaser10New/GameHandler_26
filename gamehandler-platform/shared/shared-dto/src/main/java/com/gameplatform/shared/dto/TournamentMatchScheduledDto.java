@@ -15,6 +15,7 @@ public record TournamentMatchScheduledDto(
         GameType gameType,
         String gameId,
         String status,
-        Instant scheduledAt
+        Instant scheduledAt,
+        String buildingId
 ) {
 }

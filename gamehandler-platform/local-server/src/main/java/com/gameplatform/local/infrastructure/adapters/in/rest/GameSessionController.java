@@ -1,6 +1,7 @@
 package com.gameplatform.local.infrastructure.adapters.in.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gameplatform.local.application.service.GameSessionService;
 import com.gameplatform.local.domain.model.GameSession;
 import com.gameplatform.local.domain.ports.in.EndGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.PauseGameSessionUseCase;
@@ -9,6 +10,7 @@ import com.gameplatform.local.domain.ports.in.StartGameSessionUseCase;
 import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.GameSessionId;
 import com.gameplatform.shared.domain.model.ReservationId;
+import com.gameplatform.shared.domain.model.TournamentMatchId;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.domain.result.GameResult;
 import com.gameplatform.shared.dto.CreateSessionRequestDto;
@@ -33,6 +35,7 @@ import java.util.List;
 public class GameSessionController {
 
     private final StartGameSessionUseCase startGameSessionUseCase;
+    private final GameSessionService gameSessionService;
     private final EndGameSessionUseCase endGameSessionUseCase;
     private final PauseGameSessionUseCase pauseGameSessionUseCase;
     private final ResumeGameSessionUseCase resumeGameSessionUseCase;
@@ -45,6 +48,7 @@ public class GameSessionController {
 
     public GameSessionController(
             StartGameSessionUseCase startGameSessionUseCase,
+            GameSessionService gameSessionService,
             EndGameSessionUseCase endGameSessionUseCase,
             PauseGameSessionUseCase pauseGameSessionUseCase,
             ResumeGameSessionUseCase resumeGameSessionUseCase,
@@ -55,6 +59,7 @@ public class GameSessionController {
             GetActiveLobbyUseCase getActiveLobbyUseCase,
             ObjectMapper objectMapper) {
         this.startGameSessionUseCase = startGameSessionUseCase;
+        this.gameSessionService = gameSessionService;
         this.endGameSessionUseCase = endGameSessionUseCase;
         this.pauseGameSessionUseCase = pauseGameSessionUseCase;
         this.resumeGameSessionUseCase = resumeGameSessionUseCase;
@@ -71,16 +76,27 @@ public class GameSessionController {
         List<UserId> participants = req.participants() != null
                 ? req.participants().stream().map(UserId::new).toList()
                 : List.of();
-        
+
         ReservationId reservationId = req.reservationId() != null && !req.reservationId().isBlank()
                 ? new ReservationId(req.reservationId())
                 : null;
 
-        GameSession session = startGameSessionUseCase.start(
+        // FASE 6 — extract the optional tournamentMatchId and call the 5-arg
+        // tournament-aware start overload on the concrete GameSessionService
+        // (Q4 — the in-port only exposes the 4-arg signature). When the
+        // tournamentMatchId is null the 5-arg overload behaves identically to
+        // the 4-arg.
+        TournamentMatchId tournamentMatchId = req.tournamentMatchId() != null
+                && !req.tournamentMatchId().isBlank()
+                ? new TournamentMatchId(req.tournamentMatchId())
+                : null;
+
+        GameSession session = gameSessionService.start(
                 new GameId(req.gameId()),
                 req.gameType(),
                 participants,
-                reservationId
+                reservationId,
+                tournamentMatchId
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(toDto(session));

@@ -9,5 +9,6 @@ public interface TournamentStandingRepository {
     TournamentStanding save(TournamentStanding standing);
     Optional<TournamentStanding> findByTournamentAndParticipantId(TournamentId tournamentId, String participantId);
     List<TournamentStanding> findByTournament(TournamentId tournamentId);
+    List<TournamentStanding> findByTournamentIdForUpdate(TournamentId tournamentId);
     void deleteByTournamentAndParticipantId(TournamentId tournamentId, String participantId);
 }

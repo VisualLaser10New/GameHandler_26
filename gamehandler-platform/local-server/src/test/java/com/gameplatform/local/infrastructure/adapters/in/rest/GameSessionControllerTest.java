@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gameplatform.local.application.service.GameSessionService;
 import com.gameplatform.local.domain.model.GameSession;
 import com.gameplatform.local.domain.ports.in.*;
 import com.gameplatform.shared.domain.model.*;
@@ -25,6 +26,7 @@ import java.util.List;
 class GameSessionControllerTest {
 
     @Mock private StartGameSessionUseCase startUseCase;
+    @Mock private GameSessionService gameSessionService;
     @Mock private EndGameSessionUseCase endUseCase;
     @Mock private PauseGameSessionUseCase pauseUseCase;
     @Mock private ResumeGameSessionUseCase resumeUseCase;
@@ -44,7 +46,7 @@ class GameSessionControllerTest {
                 com.gameplatform.local.infrastructure.config.JacksonConfig.GameResultMixIn.class);
 
         mvc = MockMvcBuilders.standaloneSetup(
-                new GameSessionController(startUseCase, endUseCase, pauseUseCase, resumeUseCase, createLobbyUseCase, joinLobbyUseCase, startLobbyUseCase, cancelLobbyUseCase, getActiveLobbyUseCase, testMapper))
+                new GameSessionController(startUseCase, gameSessionService, endUseCase, pauseUseCase, resumeUseCase, createLobbyUseCase, joinLobbyUseCase, startLobbyUseCase, cancelLobbyUseCase, getActiveLobbyUseCase, testMapper))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(testMapper))
                 .build();
@@ -58,7 +60,7 @@ class GameSessionControllerTest {
 
     @Test
     void startReturns201AndDto() throws Exception {
-        when(startUseCase.start(any(), any(), any(), any())).thenReturn(sampleSession());
+        when(gameSessionService.start(any(), any(), any(), any(), any())).thenReturn(sampleSession());
         String body = "{\"gameId\":\"g1\",\"gameType\":\"CHESS\",\"participants\":[\"u1\"],\"reservationId\":\"r1\"}";
         mvc.perform(post("/api/sessions/start").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated())
@@ -70,29 +72,29 @@ class GameSessionControllerTest {
 
     @Test
     void startWithoutReservationIdPassesNull() throws Exception {
-        when(startUseCase.start(any(), any(), any(), any())).thenReturn(sampleSession());
+        when(gameSessionService.start(any(), any(), any(), any(), any())).thenReturn(sampleSession());
         String body = "{\"gameId\":\"g1\",\"gameType\":\"CHESS\",\"participants\":[\"u1\"]}";
         mvc.perform(post("/api/sessions/start").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated());
-        verify(startUseCase).start(eq(new GameId("g1")), eq(GameType.CHESS), anyList(), isNull());
+        verify(gameSessionService).start(eq(new GameId("g1")), eq(GameType.CHESS), anyList(), isNull(), any());
     }
 
     @Test
     void startWithBlankReservationIdPassesNull() throws Exception {
-        when(startUseCase.start(any(), any(), any(), any())).thenReturn(sampleSession());
+        when(gameSessionService.start(any(), any(), any(), any(), any())).thenReturn(sampleSession());
         String body = "{\"gameId\":\"g1\",\"gameType\":\"CHESS\",\"participants\":[\"u1\"],\"reservationId\":\"  \"}";
         mvc.perform(post("/api/sessions/start").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated());
-        verify(startUseCase).start(any(), any(), anyList(), isNull());
+        verify(gameSessionService).start(any(), any(), anyList(), isNull(), any());
     }
 
     @Test
     void startWithNullParticipantsPassesEmptyList() throws Exception {
-        when(startUseCase.start(any(), any(), any(), any())).thenReturn(sampleSession());
+        when(gameSessionService.start(any(), any(), any(), any(), any())).thenReturn(sampleSession());
         String body = "{\"gameId\":\"g1\",\"gameType\":\"CHESS\"}";
         mvc.perform(post("/api/sessions/start").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated());
-        verify(startUseCase).start(any(), any(), argThat(List::isEmpty), any());
+        verify(gameSessionService).start(any(), any(), argThat(List::isEmpty), any(), any());
     }
 
     @Test

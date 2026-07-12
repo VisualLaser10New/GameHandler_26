@@ -13,6 +13,7 @@ import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
 import com.gameplatform.local.domain.ports.out.ReservationRepository;
 import com.gameplatform.local.domain.ports.out.GameDefinitionLocalRepository;
+import com.gameplatform.local.domain.ports.out.TournamentMatchLocalRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.GameMachineStatus;
@@ -48,6 +49,7 @@ class BugL10_ConcurrentSessionStartOptimisticLockTest {
     @Mock PublishGameStatePort publishGameStatePort;
     @Mock ReservationRepository reservationRepository;
     @Mock GameDefinitionLocalRepository gameDefinitionLocalRepository;
+    @Mock TournamentMatchLocalRepository tournamentMatchLocalRepository;
 
     private GameSessionService service;
 
@@ -67,7 +69,9 @@ class BugL10_ConcurrentSessionStartOptimisticLockTest {
                 reservationRepository,
                 clock,
                 new ObjectMapper(),
-                gameDefinitionLocalRepository
+                gameDefinitionLocalRepository,
+                tournamentMatchLocalRepository,
+                "building-1"
         );
     }
 

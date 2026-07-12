@@ -625,5 +625,71 @@ Nessuna modifica. Riutilizzo delle 7 tabelle torneo create in FASE 4 (`tournamen
 
 ---
 
+## 15. FASE 6 — Integrazione Torneo ↔ Local Server
+
+> **Stato:** Implementato (FASE 6 di `documenti/PIANO_UTENTI_TORNEI.md`).
+> **Requisiti:** RF-TO-07..12 (vedi `documenti/REQUIREMENTS.md` §1.1.septimus).
+> **Verifica:** `mvn clean compile -pl :shared-domain,:shared-dto,:shared-mqtt` → EXIT 0; `mvn clean compile -pl :central-system -am` → EXIT 0; `mvn clean compile -pl :local-server -am` → EXIT 0; `mvn test` shared 3 + central 328+20 (surefire+failsafe) + local 617 = **968 test verdi, 0 failures**.
+> **Moduli toccati:** `shared-domain` (1 new + 1 mod), `shared-mqtt` (1 mod), `shared-dto` (2 mod), `central-system` (2 new + ~16 mod), `local-server` (13 new + ~8 mod + 3 SQL).
+
+### 15.1 Decisioni architetturali prese (protocollo §5)
+
+Quindici decisioni approvate nello STEP 1:
+
+| Decisione | Scelta | Motivazione |
+|---|---|---|
+| **D1** — Building assignment | Round-robin al drain time: `buildingId = buildingIds[matchIndex % buildingIds.size()]` | Deterministico, semplice, nessun intervento admin. Il drain branch dello scheduler assegna `buildingId` + `gameId` (UUID) al match centrale prima del push. |
+| **D2** — DTO `buildingId` | Aggiunto come 13° campo a `TournamentMatchScheduledDto` | Il Local valida "appartenga a questo building" confrontando `dto.buildingId() == app.building-id`. Additive al FASE 4 record. |
+| **D3** — `advanceWinner` approach | Costruisce nuove istanze immutabili `TournamentMatch` direttamente (no transition methods) | Coerente con FASE 5 precedent. **CREA il parent se assente** quando `parentRound <= totalRounds`. |
+| **D4** — Race protection (PIANO §7 line 717) | 3 query `@Lock(PESSIMISTIC_WRITE)` `*ForUpdate` su `TournamentRepository`/`TournamentMatchRepository`/`TournamentStandingRepository` | Race su `advanceWinner` concorrenti + `completeIfDone` race. Pattern `PlayerStatisticsJpaRepository.findByUserIdAndGameTypeForUpdate` FASE 3. |
+| **D5** — `TournamentMatchOutboxPort` reuse | `advanceWinner` chiama `tournamentMatchOutboxPort.publishScheduled(parent, tournament)` per il match round-2+ | PIANO §3.6 line 502: "scrive nuovo evento outbox". Reuse del port FASE 5. Il drain scheduler picka il nuovo row PENDING al prossimo tick. |
+| **D6** — Parent CREATO se assente | `advanceWinner` computa `totalRounds = log2(nextPow2(N))`; se `parentRound > totalRounds` → null (finale); else CREA parent con `participantA=winner, participantB=null, status=SCHEDULED` | FASE 5 `schedule` persiste solo round-1. Senza parent creation, completare round-1 signalerebbe "tournament complete" senza il round-2 finale. Fix critico: il parent viene creato al primo completamento, patchato al secondo. |
+| **D7** — Slot assignment | First completion → `participantA`; second → `participantB` (no parity convention) | Evita il vincolo `participantA` non-blank del `TournamentMatch` ctor. Per single-elim, lo slot non affecta la correttezza — il match è tra i due vincitori. |
+| **D8** — Q2 Walkover | `SessionAbortHelper` calcola walkover winner = partecipante NON in `session.getParticipants()`; DTO `winner=walkoverWinner` (non null) | Mantiene il torneo scorrevole anche su ABANDONED. Il central `advanceWinner` riceve sempre winnerId non-null. `status=ABANDONED` è per bookkeeping centrale. |
+| **D9** — Q4 Controller 5-arg | `GameSessionController` dipende dal concreto `GameSessionService` (non solo l'in-port) per chiamare il 5-arg overload | Matches existing pattern (il controller già inietta `ObjectMapper`). |
+| **D10** — Q5 Payload shape | Local emitters serializzano `TournamentMatchResultDto` via `objectMapper.writeValueAsString(dto)` — NON `Map` | Matches il central deserialiser `objectMapper.readValue(payload, TournamentMatchResultDto.class)`. Più pulito degli existing `Map`-based payloads. |
+| **D11** — Q6 `gameId` drain | Il drain branch assegna `gameId = UUID.randomUUID().toString()` al match centrale + DTO | `PlayerTournamentController.startMatch` risolve `gameId` da `TournamentMatchLocal.getGameId()`. Fallback `@RequestParam gameId` per sicurezza. |
+| **D12** — Q3 `TournamentStandingsService` +4° ctor | `TournamentMatchRepository` come 4° parametro | `recomputeAfterCompletion(matchId)` carica il match per identificare winner/loser. Domain port — isolation-compliant. |
+| **D13** — Team simplification | `GameSession.participants` = `[team_id_as_UserId]` (single pseudo-participant); `TeamResult.winnerId = new UserId(winnerTeamId.value())` | Local non replica `tournament_teams`/`tournament_team_members`. Semplificazione PIANO §3.7 line 519. `GET /me/matches` limitato a match individuali. |
+| **D14** — Deviation H: `GameFactory` not updated | `TeamResult` costruito a service-layer in `GameSessionService.end`, non via `GameFactory.createGame` | `GameFactory` restituisce `GameLifecycle` non `GameResult`. Il PIANO §3.8 phrasing was misleading. `MqttPayloadSerializer` mixin WAS updated. |
+| **D15** — IT scope | Central H2 `@SpringBootTest` IT + local slice tests; full cross-module 2-building e2e deferred to FASE 8 | Local `@SpringBootTest` non viable (MQTT eagerly instantiates). Full Docker e2e è FASE 8. |
+
+### 15.2 Matrice file — FASE 6 (46 totali)
+
+**Nuovi (22):** `shared-domain` (1): `TeamResult`. `central-system` (2): `PushTournamentMatchToLocalServersPort`, `LocalTournamentMatchRestAdapter`. `central-system` test (1): `TournamentFlowEndToEndIT`. `local-server` (13 main): `TournamentMatchLocal`, `TournamentMatchLocalRepository`, `TournamentMatchLocalJpaEntity`/`JpaRepository`/`Mapper`/`Adapter` (4), `TournamentMatchLocalSyncService`, `InternalTournamentController`, `PlayerTournamentController`, 4 `TournamentMatch*Exception`. `local-server` test (5): `TournamentMatchLocalSyncServiceTest`, `InternalTournamentControllerTest`, `PlayerTournamentControllerTest`, `GameSessionServiceTournamentTest`, `SessionAbortHelperTournamentTest`.
+
+**Modificati (24):** `shared-domain` (1): `WinCondition` (+`TEAM_VICTORY`). `shared-mqtt` (1): `MqttPayloadSerializer` (+8° subtype). `shared-dto` (2): `CreateSessionRequestDto` (+`tournamentMatchId`), `TournamentMatchScheduledDto` (+`buildingId`). `central-system` (10): `UserReplicationSchedulerService` (+3 ctor, +branch), `LateRegistrationCatchUpService` (+2 ctor, +branch), `SyncEventProcessor` (+4 ctor via nullable pattern, +branch), `TournamentBracketService` (+`advanceWinner`, +`completeIfDone`), `TournamentStandingsService` (+1 ctor, +`recomputeAfterCompletion`, +`assignFinalRanks`), 3 repo trios (`+ForUpdate`), `TournamentMatchOutboxAdapter` (+`buildingId=null`), `EventTypeContractTest` (+literal). `local-server` (7): `GameSession` (+2 fields), `GameSessionJpaEntity` (+2 columns), `GameSessionMapper` (+2 fields mapping), `GameSessionService` (+2 ctor, +5-arg `start`, +`end` extension), `SessionAbortHelper` (+1 ctor, +walkover outbox), `GameSessionController` (+concrete `GameSessionService`), `GlobalExceptionHandler` (+4 handlers). `infrastructure/mysql-local` (3): `init.sql`/`init-building-2.sql`/`init-building-3.sql` (+`tournament_matches_local` table + `game_sessions` columns).
+
+### 15.3 Contract surface
+
+- **Outbox event literals (byte-identical):** `"TOURNAMENT_MATCH_SCHEDULED"` (Central→Local drain, FASE 5+6 emission), `"TOURNAMENT_MATCH_COMPLETED"` (Local→Central drain, FASE 6 emission).
+- **Local→Central payload:** `TournamentMatchResultDto(matchId, winner nullable→non-null per walkover, resultData nullable, status)` — serialized as JSON record via `objectMapper.writeValueAsString(dto)` (NOT `Map`).
+- **Central→Local payload:** `TournamentMatchScheduledDto(13 fields incl. buildingId)` — enriched at drain time with `buildingId` + `gameId`.
+- **REST endpoints:** Central push `PUT /internal/tournaments/matches/sync` (Local, `X-Internal-Api-Key`); Local→Central via existing `POST /internal/sync/receive`; Local player `GET /api/players/tournaments/me/matches` + `POST /api/players/tournaments/matches/{matchId}/start`.
+
+### 15.4 Schema DB — FASE 6
+
+- **Local ×3** (`init.sql`/`init-building-2.sql`/`init-building-3.sql`): `game_sessions` +2 nullable columns `tournament_match_id`/`tournament_id` + index `idx_game_sessions_tournament`; nuova `tournament_matches_local (id, tournament_id, round, bracket_position, participant_a, participant_b nullable, game_type, game_id nullable, status, scheduled_at nullable)` + indexes.
+- **Central**: NESSUNA modifica schema (7 tournament tables + `outbox_events` + `processed_events` + `replication_progress` già esistenti FASE 0/4).
+
+### 15.5 Concorrenza e atomicità
+
+- **Local `GameSessionService.end`**: 2 outbox rows (`GAME_SESSION_COMPLETED` + `TOURNAMENT_MATCH_COMPLETED`) + local match flip a `COMPLETED` atomicamente nella stessa `@Transactional` class-level.
+- **Local `SessionAbortHelper.abortAndEmit`**: 2 outbox rows (`GAME_SESSION_ABORTED` + `TOURNAMENT_MATCH_COMPLETED` ABANDONED) + local match flip atomicamente nella `@Transactional(REQUIRES_NEW)`.
+- **Central `SyncEventProcessor.handleTournamentMatchCompleted`**: match update + standings recompute + bracket advance + (optional) next-round outbox emission + (optional) tournament completion — tutti atomicamente nella `@Transactional(REQUIRES_NEW)` di `processOne`.
+- **Central `TournamentBracketService.advanceWinner`**: parent CREA/patcha + (optional) outbox emission atomicamente nella `@Transactional` class-level.
+- **Central `TournamentBracketService.completeIfDone`**: `@Lock(PESSIMISTIC_WRITE)` su `Tournament` via `findByIdForUpdate`; `Tournament.complete()` + save + `assignFinalRanks` atomicamente.
+- **Race protection**: 3 `@Lock(PESSIMISTIC_WRITE)` `ForUpdate` queries (PIANO §7 line 717).
+
+### 15.6 Follow-up noti (fuori scope FASE 6)
+
+- **Full cross-module 2-building Docker e2e** → FASE 8 (`e2e-tests` module, `MultiBuildingEndToEndIT` extension).
+- **`GameFactory` aggiornato** (PIANO §3.8) — deviazione H LOCKED: `TeamResult` costruito a service-layer.
+- **Team match `GET /me/matches`** — limitato a match individuali; team membership non replicata a Local.
+- **`ROUND_ROBIN` format** (RF-TO-13 Could-Have) → FASE 8+.
+- **CI: gate on `mvn verify`** — il `TournamentFlowEndToEndIT` (`*IT` convention) è skipped da `mvn test` surefire; runs via failsafe.
+
+---
+
 *Fine `architettura_classi.md`.*
-*Cross-riferimenti: `documenti/PIANO_UTENTI_TORNEI.md` FASE 0 + FASE 1 + FASE 2 + FASE 3 + FASE 4 + FASE 5; `documenti/REQUIREMENTS.md` RF-AU-05, RF-UT-LA-01..04, RF-UT-GA-01..03, RF-UT-PL-01..02, RF-TO-01..06; `workflow/analisi/problemi_noti.md`.*
+*Cross-riferimenti: `documenti/PIANO_UTENTI_TORNEI.md` FASE 0 + FASE 1 + FASE 2 + FASE 3 + FASE 4 + FASE 5 + FASE 6; `documenti/REQUIREMENTS.md` RF-AU-05, RF-UT-LA-01..04, RF-UT-GA-01..03, RF-UT-PL-01..02, RF-TO-01..12; `workflow/analisi/problemi_noti.md`.*

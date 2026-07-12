@@ -59,7 +59,9 @@ public class GameSessionMapper {
             entity.getWinCondition() != null ? WinCondition.valueOf(entity.getWinCondition()) : null,
             result,
             participants,
-            version
+            version,
+            entity.getTournamentMatchId() != null ? new TournamentMatchId(entity.getTournamentMatchId()) : null,
+            entity.getTournamentId() != null ? new TournamentId(entity.getTournamentId()) : null
         );
     }
 
@@ -99,6 +101,9 @@ public class GameSessionMapper {
         entity.setParticipants(participantEntities);
 
         entity.setVersion(domain.getVersion());
+
+        entity.setTournamentMatchId(domain.getTournamentMatchId() != null ? domain.getTournamentMatchId().value() : null);
+        entity.setTournamentId(domain.getTournamentId() != null ? domain.getTournamentId().value() : null);
 
         return entity;
     }

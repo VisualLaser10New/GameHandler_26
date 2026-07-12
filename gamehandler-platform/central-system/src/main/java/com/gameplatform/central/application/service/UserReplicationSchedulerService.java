@@ -5,14 +5,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.central.domain.model.OutboxEvent;
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.model.ReplicationProgress;
+import com.gameplatform.central.domain.model.TournamentMatch;
 import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.PushGameDefinitionToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushTournamentMatchToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
+import com.gameplatform.central.domain.ports.out.TournamentBuildingRepository;
+import com.gameplatform.central.domain.ports.out.TournamentMatchRepository;
+import com.gameplatform.shared.domain.model.TournamentId;
+import com.gameplatform.shared.domain.model.TournamentMatchId;
 import com.gameplatform.shared.dto.GameDefinitionEventDto;
 import com.gameplatform.shared.dto.LocalAdminBuildingEventDto;
+import com.gameplatform.shared.dto.TournamentMatchScheduledDto;
 import com.gameplatform.shared.dto.UserSyncAckDto;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.slf4j.Logger;
@@ -24,7 +31,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -62,6 +71,7 @@ public class UserReplicationSchedulerService {
     private static final String LOCAL_ADMIN_BUILDING_ASSIGNED_EVENT = "LOCAL_ADMIN_BUILDING_ASSIGNED";
     private static final String LOCAL_ADMIN_BUILDING_REVOKED_EVENT    = "LOCAL_ADMIN_BUILDING_REVOKED";
     private static final String GAME_DEFINITION_UPSERTED_EVENT = "GAME_DEFINITION_UPSERTED";
+    private static final String TOURNAMENT_MATCH_SCHEDULED_EVENT = "TOURNAMENT_MATCH_SCHEDULED";
     /** Maximum number of pending events to fetch per scheduler run. */
     private static final int BATCH_SIZE = 50;
 
@@ -79,6 +89,9 @@ public class UserReplicationSchedulerService {
      * starves {@code @Scheduled} methods.
      */
     private final Executor replicationPushExecutor;
+    private final PushTournamentMatchToLocalServersPort pushTournamentMatchToLocalServersPort;
+    private final TournamentBuildingRepository tournamentBuildingRepository;
+    private final TournamentMatchRepository tournamentMatchRepository;
 
     public UserReplicationSchedulerService(
             OutboxEventRepository outboxEventRepository,
@@ -88,7 +101,10 @@ public class UserReplicationSchedulerService {
             ObjectMapper objectMapper,
             @Qualifier("replicationPushExecutor") Executor replicationPushExecutor,
             PushMetadataToLocalServersPort pushMetadataToLocalServersPort,
-            PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort
+            PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort,
+            PushTournamentMatchToLocalServersPort pushTournamentMatchToLocalServersPort,
+            TournamentBuildingRepository tournamentBuildingRepository,
+            TournamentMatchRepository tournamentMatchRepository
     ) {
         this.outboxEventRepository = outboxEventRepository;
         this.localServerRegistryPort = localServerRegistryPort;
@@ -98,6 +114,9 @@ public class UserReplicationSchedulerService {
         this.replicationPushExecutor = replicationPushExecutor;
         this.pushMetadataToLocalServersPort = pushMetadataToLocalServersPort;
         this.pushGameDefinitionToLocalServersPort = pushGameDefinitionToLocalServersPort;
+        this.pushTournamentMatchToLocalServersPort = pushTournamentMatchToLocalServersPort;
+        this.tournamentBuildingRepository = tournamentBuildingRepository;
+        this.tournamentMatchRepository = tournamentMatchRepository;
     }
 
     /**
@@ -138,6 +157,9 @@ public class UserReplicationSchedulerService {
                 continue;
             } else if (isGameDefinitionEvent(event)) {
                 replicateGameDefinitionEvent(event, activeLocalServers);
+                continue;
+            } else if (isTournamentMatchEvent(event)) {
+                replicateTournamentMatchEvent(event, activeLocalServers);
                 continue;
             }
             UserSyncDto user;
@@ -395,12 +417,142 @@ public class UserReplicationSchedulerService {
     }
 
     /**
+     * Drains a single {@code TOURNAMENT_MATCH_SCHEDULED} event: deserialises
+     * the payload to {@link TournamentMatchScheduledDto}, loads the involved
+     * buildings via {@code tournamentBuildingRepository.findByTournament(tournamentId)},
+     * round-robin-assigns a {@code buildingId} to the central
+     * {@link TournamentMatch} row (load via {@code tournamentMatchRepository.findById},
+     * rebuild with {@code buildingId} + a fresh {@code gameId}, save), builds
+     * the enriched DTO with {@code buildingId} + {@code gameId} populated,
+     * filters {@code activeLocalServers} to the single one whose
+     * {@code buildingId} matches the assigned one, pushes via
+     * {@code pushTournamentMatchToLocalServersPort.pushTournamentMatch(List.of(enrichedDto), targetServer)},
+     * records {@code ReplicationProgress}, and markAsSent.
+     *
+     * <p>Structural mirror of {@link #replicateGameDefinitionEvent} but the
+     * server filter narrows to the single building whose id == the assigned
+     * {@code buildingId} (a tournament match is routed to exactly one
+     * building, not all of them).</p>
+     */
+    private void replicateTournamentMatchEvent(OutboxEvent event,
+                                               List<RegisteredLocalServer> activeLocalServers) {
+        TournamentMatchScheduledDto dto;
+        try {
+            dto = objectMapper.readValue(event.getPayload(), TournamentMatchScheduledDto.class);
+        } catch (Exception e) {
+            log.error("Failed to deserialize tournament-match event [{}] due to malformed payload. Transitioning event to FAILED. Payload: {}",
+                    event.getId(), event.getPayload(), e);
+            try {
+                outboxEventRepository.markAsFailed(event.getId());
+            } catch (Exception dbEx) {
+                log.error("Failed to mark event [{}] as FAILED in database", event.getId(), dbEx);
+            }
+            return;
+        }
+
+        // Q6: assign buildingId (round-robin) and gameId (fresh UUID) on the central TournamentMatch row.
+        List<String> buildingIds =
+                tournamentBuildingRepository.findByTournament(new TournamentId(dto.tournamentId()));
+        if (buildingIds == null || buildingIds.isEmpty()) {
+            log.warn("Tournament-match event [{}] — no buildings assigned to tournament {} — leaving event PENDING for a future tick.",
+                    event.getId(), dto.tournamentId());
+            return;
+        }
+
+        // Deterministic round-robin using the match's bracketPosition (1-based → 0-based).
+        int matchIndex = Math.max(dto.bracketPosition() - 1, 0);
+        String assignedBuildingId = buildingIds.get(matchIndex % buildingIds.size());
+        String assignedGameId = UUID.randomUUID().toString();
+
+        // Load the central TournamentMatch and patch it with buildingId + gameId.
+        TournamentMatchId matchId = new TournamentMatchId(dto.matchId());
+        Optional<TournamentMatch> matchOpt = tournamentMatchRepository.findById(matchId);
+        if (matchOpt.isEmpty()) {
+            log.warn("Tournament-match event [{}] — central TournamentMatch {} not found during drain — leaving event PENDING.",
+                    event.getId(), dto.matchId());
+            return;
+        }
+        TournamentMatch match = matchOpt.get();
+        TournamentMatch patched = new TournamentMatch(
+                match.getMatchId(), match.getTournamentId(),
+                match.getRound(), match.getBracketPosition(),
+                match.getParticipantA(), match.getParticipantB(),
+                assignedBuildingId, assignedGameId, match.getSessionId(),
+                match.getWinner(), match.getStatus(),
+                match.getScheduledAt(), match.getPlayedAt(), match.getResultData());
+        tournamentMatchRepository.save(patched);
+
+        // Build the enriched DTO with buildingId + gameId populated.
+        TournamentMatchScheduledDto enrichedDto = new TournamentMatchScheduledDto(
+                dto.eventId(), dto.eventType(), dto.matchId(), dto.tournamentId(),
+                dto.round(), dto.bracketPosition(),
+                dto.participantA(), dto.participantB(),
+                dto.gameType(), assignedGameId, dto.status(), dto.scheduledAt(),
+                assignedBuildingId);
+
+        // Filter activeLocalServers to the single one whose buildingId matches.
+        List<RegisteredLocalServer> targetServers = activeLocalServers.stream()
+                .filter(s -> assignedBuildingId.equals(s.getBuildingId().id()))
+                .toList();
+        if (targetServers.isEmpty()) {
+            log.warn("Tournament-match event [{}] — no active local server with buildingId={} — leaving event PENDING for a future tick.",
+                    event.getId(), assignedBuildingId);
+            return;
+        }
+        RegisteredLocalServer targetServer = targetServers.get(0);
+        String serverId = targetServer.getBuildingId().id();
+
+        List<ReplicationProgress> progressList = replicationProgressRepository.findByEventId(event.getId());
+        Set<String> alreadyReplicatedServerIds = progressList.stream()
+                .map(ReplicationProgress::serverId)
+                .collect(Collectors.toSet());
+
+        AtomicBoolean allSucceeded = new AtomicBoolean(true);
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        if (!alreadyReplicatedServerIds.contains(serverId)) {
+            futures.add(CompletableFuture.runAsync(() -> {
+                try {
+                    pushTournamentMatchToLocalServersPort.pushTournamentMatch(List.of(enrichedDto), targetServer);
+                } catch (Exception e) {
+                    // No poison isolation for tournament-match — just log + flip allSucceeded
+                    // so a future tick retries. The local upsert is idempotent by PK (matchId).
+                    allSucceeded.set(false);
+                    log.error("Failed to push tournament-match event [{}] to server [{}]: {}",
+                            event.getId(), targetServer.getBaseUrl(), e.getMessage(), e);
+                    return;
+                }
+
+                if (replicationProgressRepository.existsByEventIdAndServerId(event.getId(), serverId)) {
+                    log.info("replication_progress already present (pre-check) for tournament-match eventId={}, serverId={} — treating as success",
+                            event.getId(), serverId);
+                } else {
+                    try {
+                        replicationProgressRepository.save(new ReplicationProgress(event.getId(), serverId));
+                    } catch (DataIntegrityViolationException dup) {
+                        log.info("replication_progress already present for tournament-match eventId={}, serverId={} — treating as success",
+                                event.getId(), serverId);
+                    }
+                }
+            }, replicationPushExecutor));
+        }
+
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        if (allSucceeded.get()) {
+            outboxEventRepository.markAsSent(event.getId());
+        } else {
+            log.warn("Tournament-match event [{}] was NOT marked as sent because the push failed.", event.getId());
+        }
+    }
+
+    /**
      * True for any outbox event this scheduler should drain: user-replication
      * ({@code USER_REGISTERED}/{@code USER_UPDATED}) <em>or</em>
      * LOCAL_ADMIN↔building metadata events.
      */
     private boolean isReplicationEvent(OutboxEvent event) {
-        return isUserReplicationEvent(event) || isMetadataEvent(event) || isGameDefinitionEvent(event);
+        return isUserReplicationEvent(event) || isMetadataEvent(event) || isGameDefinitionEvent(event)
+                || isTournamentMatchEvent(event);
     }
 
     private boolean isUserReplicationEvent(OutboxEvent event) {
@@ -415,6 +567,10 @@ public class UserReplicationSchedulerService {
 
     private boolean isGameDefinitionEvent(OutboxEvent event) {
         return GAME_DEFINITION_UPSERTED_EVENT.equals(event.getEventType());
+    }
+
+    private boolean isTournamentMatchEvent(OutboxEvent event) {
+        return TOURNAMENT_MATCH_SCHEDULED_EVENT.equals(event.getEventType());
     }
 
     private UserSyncDto deserializeUser(OutboxEvent event) {

@@ -3,6 +3,10 @@ package com.gameplatform.local.infrastructure.adapters.in.rest;
 import com.gameplatform.local.domain.exception.BuildingNotRegisteredToAdminException;
 import com.gameplatform.local.domain.exception.ConcurrentStateException;
 import com.gameplatform.local.domain.exception.GameDefinitionNotAvailableLocallyException;
+import com.gameplatform.local.domain.exception.TournamentMatchBuildingMismatchException;
+import com.gameplatform.local.domain.exception.TournamentMatchNotFoundException;
+import com.gameplatform.local.domain.exception.TournamentMatchNotScheduledException;
+import com.gameplatform.local.domain.exception.TournamentMatchValidationException;
 import com.gameplatform.local.domain.exception.UserAlreadyExistsException;
 import com.gameplatform.local.domain.exception.UserNotFoundException;
 import org.slf4j.Logger;
@@ -63,6 +67,30 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Void> handleGameDefinitionNotAvailableLocally(GameDefinitionNotAvailableLocallyException ex) {
         log.warn("Game definition not available locally: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+    }
+
+    @ExceptionHandler(TournamentMatchNotFoundException.class)
+    public ResponseEntity<Void> handleTournamentMatchNotFound(TournamentMatchNotFoundException ex) {
+        log.warn("Tournament match not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    }
+
+    @ExceptionHandler(TournamentMatchNotScheduledException.class)
+    public ResponseEntity<Void> handleTournamentMatchNotScheduled(TournamentMatchNotScheduledException ex) {
+        log.warn("Tournament match not scheduled: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
+
+    @ExceptionHandler(TournamentMatchBuildingMismatchException.class)
+    public ResponseEntity<Void> handleTournamentMatchBuildingMismatch(TournamentMatchBuildingMismatchException ex) {
+        log.warn("Tournament match building mismatch: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+
+    @ExceptionHandler(TournamentMatchValidationException.class)
+    public ResponseEntity<Void> handleTournamentMatchValidation(TournamentMatchValidationException ex) {
+        log.warn("Tournament match validation error: {}", ex.getMessage());
+        return ResponseEntity.badRequest().build();
     }
 
     @ExceptionHandler(Exception.class)

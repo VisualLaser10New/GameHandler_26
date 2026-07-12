@@ -67,7 +67,8 @@ public class TournamentMatchOutboxAdapter implements TournamentMatchOutboxPort {
                 tournament.getGameType(),
                 null,                      // gameId — assigned in FASE 6 when the match is pushed to a building
                 match.getStatus().name(),
-                match.getScheduledAt()     // null in FASE 5 (assigned in FASE 6 push)
+                match.getScheduledAt(),    // null in FASE 5 (assigned in FASE 6 push)
+                null                       // buildingId — assigned in FASE 6 drain branch (round-robin)
         );
 
         String payload;

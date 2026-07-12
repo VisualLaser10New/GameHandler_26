@@ -8,6 +8,8 @@ import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.domain.model.StopReason;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.domain.model.WinCondition;
+import com.gameplatform.shared.domain.model.TournamentId;
+import com.gameplatform.shared.domain.model.TournamentMatchId;
 import com.gameplatform.local.domain.exception.InvalidGameStateTransitionException;
 import com.gameplatform.shared.domain.result.GameResult;
 import java.time.Duration;
@@ -35,6 +37,12 @@ public class GameSession {
     private int accumulatedPausedSeconds;
     private long version;
 
+    // FASE 6 — tournament binding (nullable). When non-null the session is
+    // bound to a tournament match; the local end/abort flows emit an extra
+    // TOURNAMENT_MATCH_COMPLETED outbox row and flip the local match status.
+    private final TournamentMatchId tournamentMatchId;
+    private final TournamentId tournamentId;
+
     // Costruttore con partecipanti
     public GameSession(GameSessionId id, GameId gameId, GameType gameType, BuildingId buildingId, GameStatus status,
                        Instant startedAt, Instant endedAt, Integer durationSeconds, UserId winnerId,
@@ -46,6 +54,27 @@ public class GameSession {
     public GameSession(GameSessionId id, GameId gameId, GameType gameType, BuildingId buildingId, GameStatus status,
                        Instant startedAt, Instant endedAt, Integer durationSeconds, UserId winnerId,
                        WinCondition winCondition, GameResult result, List<UserId> participants, long version) {
+        this(id, gameId, gameType, buildingId, status, startedAt, endedAt, durationSeconds, winnerId,
+             winCondition, result, participants, version, null, null);
+    }
+
+    /**
+     * FASE 6 tournament-aware ctor (version=0) — delegates to the 15-arg
+     * primary ctor. Used by {@code GameSessionService.start(...)} 5-arg
+     * overload to bind a session to a tournament match.
+     */
+    public GameSession(GameSessionId id, GameId gameId, GameType gameType, BuildingId buildingId, GameStatus status,
+                       Instant startedAt, Instant endedAt, Integer durationSeconds, UserId winnerId,
+                       WinCondition winCondition, GameResult result, List<UserId> participants,
+                       TournamentMatchId tournamentMatchId, TournamentId tournamentId) {
+        this(id, gameId, gameType, buildingId, status, startedAt, endedAt, durationSeconds, winnerId,
+             winCondition, result, participants, 0L, tournamentMatchId, tournamentId);
+    }
+
+    public GameSession(GameSessionId id, GameId gameId, GameType gameType, BuildingId buildingId, GameStatus status,
+                       Instant startedAt, Instant endedAt, Integer durationSeconds, UserId winnerId,
+                       WinCondition winCondition, GameResult result, List<UserId> participants, long version,
+                       TournamentMatchId tournamentMatchId, TournamentId tournamentId) {
         if (id == null) {
             throw new IllegalArgumentException("GameSessionId cannot be null");
         }
@@ -77,6 +106,8 @@ public class GameSession {
         this.result = result;
         this.participants = participants != null ? List.copyOf(participants) : List.of();
         this.version = version;
+        this.tournamentMatchId = tournamentMatchId;
+        this.tournamentId = tournamentId;
     }
 
     // Costruttore per compatibilità esatta con workflow.md (senza partecipanti)
@@ -252,6 +283,14 @@ public class GameSession {
 
     public long getVersion() {
         return version;
+    }
+
+    public TournamentMatchId getTournamentMatchId() {
+        return tournamentMatchId;
+    }
+
+    public TournamentId getTournamentId() {
+        return tournamentId;
     }
 }
 

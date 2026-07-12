@@ -9,8 +9,11 @@ import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.PushGameDefinitionToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushTournamentMatchToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
+import com.gameplatform.central.domain.ports.out.TournamentBuildingRepository;
+import com.gameplatform.central.domain.ports.out.TournamentMatchRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.dto.UserSyncAckDto;
 import com.gameplatform.shared.dto.UserSyncDto;
@@ -74,6 +77,15 @@ class UserReplicationSchedulerServiceTest {
     @Mock
     private ReplicationProgressRepository replicationProgressRepository;
 
+    @Mock
+    private PushTournamentMatchToLocalServersPort pushTournamentMatchToLocalServersPort;
+
+    @Mock
+    private TournamentBuildingRepository tournamentBuildingRepository;
+
+    @Mock
+    private TournamentMatchRepository tournamentMatchRepository;
+
     private UserReplicationSchedulerService schedulerService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     /** Direct executor used by the deterministic tests: runs the task on the calling thread. */
@@ -89,7 +101,10 @@ class UserReplicationSchedulerServiceTest {
                 objectMapper,
                 directExecutor,
                 pushMetadataToLocalServersPort,
-                pushGameDefinitionToLocalServersPort
+                pushGameDefinitionToLocalServersPort,
+                pushTournamentMatchToLocalServersPort,
+                tournamentBuildingRepository,
+                tournamentMatchRepository
         );
         lenient().when(replicationProgressRepository.findByEventId(any())).thenReturn(List.of());
     }
@@ -418,7 +433,10 @@ class UserReplicationSchedulerServiceTest {
                     objectMapper,
                     pushExecutor,
                     pushMetadataToLocalServersPort,
-                    pushGameDefinitionToLocalServersPort
+                    pushGameDefinitionToLocalServersPort,
+                    pushTournamentMatchToLocalServersPort,
+                    tournamentBuildingRepository,
+                    tournamentMatchRepository
             );
 
             // Drive replicateUsers() on its own thread so the test thread can observe

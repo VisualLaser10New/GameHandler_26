@@ -4,5 +4,6 @@ public enum WinCondition {
     WIN,
     DRAW,
     ABANDONED,
-    TIMEOUT
+    TIMEOUT,
+    TEAM_VICTORY
 }

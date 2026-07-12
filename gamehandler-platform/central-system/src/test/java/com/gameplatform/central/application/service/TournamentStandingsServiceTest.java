@@ -2,6 +2,7 @@ package com.gameplatform.central.application.service;
 
 import com.gameplatform.central.domain.model.TournamentParticipant;
 import com.gameplatform.central.domain.model.TournamentStanding;
+import com.gameplatform.central.domain.ports.out.TournamentMatchRepository;
 import com.gameplatform.central.domain.ports.out.TournamentParticipantRepository;
 import com.gameplatform.central.domain.ports.out.TournamentStandingRepository;
 import com.gameplatform.shared.domain.model.TournamentId;
@@ -48,13 +49,16 @@ class TournamentStandingsServiceTest {
     private TournamentStandingRepository tournamentStandingRepository;
     @Mock
     private TournamentParticipantRepository tournamentParticipantRepository;
+    @Mock
+    private TournamentMatchRepository tournamentMatchRepository;
 
     private TournamentStandingsService service;
 
     @BeforeEach
     void setUp() {
         service = new TournamentStandingsService(
-                tournamentStandingRepository, tournamentParticipantRepository, clock);
+                tournamentStandingRepository, tournamentParticipantRepository,
+                tournamentMatchRepository, clock);
     }
 
     private TournamentParticipant participant(TournamentId tid, String id, String displayName) {

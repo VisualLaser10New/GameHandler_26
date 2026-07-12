@@ -39,6 +39,7 @@ class BugL02_ReservationUserIdNotValidatedTest {
     @Mock private PublishGameStatePort publishGameStatePort;
     @Mock private ReservationRepository reservationRepository;
     @Mock private GameDefinitionLocalRepository gameDefinitionLocalRepository;
+    @Mock private TournamentMatchLocalRepository tournamentMatchLocalRepository;
 
     private Clock clock;
     private ObjectMapper objectMapper;
@@ -59,7 +60,7 @@ class BugL02_ReservationUserIdNotValidatedTest {
         gameSessionService = new GameSessionService(
                 gameSessionRepository, gameRepository, outboxEventRepository,
                 publishGameStatePort, reservationRepository, clock, objectMapper,
-                gameDefinitionLocalRepository
+                gameDefinitionLocalRepository, tournamentMatchLocalRepository, "building-1"
         );
     }
 

@@ -5,8 +5,10 @@ import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.PushGameDefinitionToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushTournamentMatchToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
+import com.gameplatform.central.domain.ports.out.TournamentMatchRepository;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.repository.OutboxEventJpaRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
@@ -47,6 +49,8 @@ class LateRegistrationCatchUpServiceTest {
     @Mock private PushUserToLocalServersPort pushUserToLocalServersPort;
     @Mock private PushMetadataToLocalServersPort pushMetadataToLocalServersPort;
     @Mock private PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort;
+    @Mock private PushTournamentMatchToLocalServersPort pushTournamentMatchToLocalServersPort;
+    @Mock private TournamentMatchRepository tournamentMatchRepository;
     @Mock private ReplicationProgressRepository replicationProgressRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -61,7 +65,9 @@ class LateRegistrationCatchUpServiceTest {
                 objectMapper,
                 replicationProgressRepository,
                 pushMetadataToLocalServersPort,
-                pushGameDefinitionToLocalServersPort);
+                pushGameDefinitionToLocalServersPort,
+                pushTournamentMatchToLocalServersPort,
+                tournamentMatchRepository);
     }
 
     private OutboxEventJpaEntity sentUserEvent(String id, UserSyncDto dto) throws Exception {

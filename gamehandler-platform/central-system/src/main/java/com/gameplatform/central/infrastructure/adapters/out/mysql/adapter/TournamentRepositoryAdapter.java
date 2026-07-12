@@ -89,4 +89,13 @@ public class TournamentRepositoryAdapter implements TournamentRepository {
         }
         jpaRepo.deleteById(id.value());
     }
+
+    @Override
+    @Transactional
+    public Optional<Tournament> findByIdForUpdate(TournamentId id) {
+        if (id == null) {
+            return Optional.empty();
+        }
+        return jpaRepo.findByIdForUpdate(id.value()).map(mapper::toDomain);
+    }
 }

@@ -12,6 +12,7 @@ import com.gameplatform.local.domain.ports.out.GameRepository;
 import com.gameplatform.local.domain.ports.out.GameSessionRepository;
 import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
 import com.gameplatform.local.domain.ports.out.GameDefinitionLocalRepository;
+import com.gameplatform.local.domain.ports.out.TournamentMatchLocalRepository;
 import com.gameplatform.shared.domain.model.*;
 import java.time.Clock;
 import java.time.Instant;
@@ -36,6 +37,7 @@ class MultiplayerLobbyUnitTest {
     @Mock PublishGameStatePort publishGameStatePort;
     @Mock Clock clock;
     @Mock GameDefinitionLocalRepository gameDefinitionLocalRepository;
+    @Mock TournamentMatchLocalRepository tournamentMatchLocalRepository;
 
     GameSessionService service;
 
@@ -103,7 +105,9 @@ class MultiplayerLobbyUnitTest {
                 null,
                 clock,
                 new ObjectMapper(),
-                gameDefinitionLocalRepository
+                gameDefinitionLocalRepository,
+                tournamentMatchLocalRepository,
+                "building-1"
         );
     }
 

@@ -13,6 +13,7 @@ import com.gameplatform.local.domain.ports.out.GameSessionRepository;
 import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.local.domain.ports.out.PublishAlertPort;
 import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
+import com.gameplatform.local.domain.ports.out.TournamentMatchLocalRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.GameMachineStatus;
@@ -78,6 +79,7 @@ class HealthCheckServiceOutboxAtomicityTest {
     @Mock OutboxEventRepository outboxEventRepository;
     @Mock PublishGameStatePort publishGameStatePort;
     @Mock PublishAlertPort publishAlertPort;
+    @Mock TournamentMatchLocalRepository tournamentMatchLocalRepository;
 
     Clock clock = Clock.fixed(NOW, ZoneId.of("UTC"));
     ObjectMapper objectMapper = new ObjectMapper();
@@ -95,7 +97,8 @@ class HealthCheckServiceOutboxAtomicityTest {
                 outboxEventRepository,
                 publishGameStatePort,
                 clock,
-                objectMapper
+                objectMapper,
+                tournamentMatchLocalRepository
         );
     }
 
@@ -174,7 +177,7 @@ class HealthCheckServiceOutboxAtomicityTest {
         when(throwingMapper.writeValueAsString(any())).thenThrow(new RuntimeException("serialization failed"));
         SessionAbortHelper helperWithThrowingMapper = new SessionAbortHelper(
                 gameSessionRepository, gameRepository, outboxEventRepository,
-                publishGameStatePort, clock, throwingMapper);
+                publishGameStatePort, clock, throwingMapper, tournamentMatchLocalRepository);
 
         GameId gameId = new GameId("g-1");
         GameSession session = inProgressSession(gameId);
