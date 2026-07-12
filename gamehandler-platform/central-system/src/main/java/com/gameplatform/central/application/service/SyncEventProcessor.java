@@ -5,20 +5,43 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.central.domain.exception.FirstBucketRaceHandledException;
 import com.gameplatform.central.domain.model.AggregatedStatistics;
+import com.gameplatform.central.domain.model.GameDefinition;
 import com.gameplatform.central.domain.model.ProcessedEvent;
+import com.gameplatform.central.domain.model.Tournament;
 import com.gameplatform.central.domain.model.TournamentMatch;
+import com.gameplatform.central.domain.ports.in.CancelTournamentUseCase;
+import com.gameplatform.central.domain.ports.in.CreateTournamentUseCase;
+import com.gameplatform.central.domain.ports.in.DeleteTournamentUseCase;
+import com.gameplatform.central.domain.ports.in.OpenTournamentRegistrationUseCase;
 import com.gameplatform.central.domain.ports.in.RegisterUserFromSyncUseCase;
+import com.gameplatform.central.domain.ports.in.RegisterTournamentParticipantUseCase;
+import com.gameplatform.central.domain.ports.in.ScheduleTournamentMatchesUseCase;
+import com.gameplatform.central.domain.ports.in.UpdateTournamentUseCase;
+import com.gameplatform.central.domain.ports.in.UpdateUserUseCase;
+import com.gameplatform.central.domain.ports.in.UpsertGameDefinitionUseCase;
 import com.gameplatform.central.domain.ports.out.ProcessedEventRepository;
 import com.gameplatform.central.domain.ports.out.StatisticsRepository;
 import com.gameplatform.central.domain.ports.out.TournamentMatchRepository;
 import com.gameplatform.central.domain.ports.out.TournamentRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameType;
+import com.gameplatform.shared.domain.model.TeamId;
+import com.gameplatform.shared.domain.model.TournamentFormat;
+import com.gameplatform.shared.domain.model.TournamentId;
 import com.gameplatform.shared.domain.model.TournamentMatchId;
 import com.gameplatform.shared.domain.model.TournamentMatchStatus;
+import com.gameplatform.shared.domain.model.TournamentStatus;
+import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.domain.model.WinCondition;
+import com.gameplatform.shared.dto.GameDefinitionUpsertRequestedEventDto;
 import com.gameplatform.shared.dto.OutboxEventDto;
+import com.gameplatform.shared.dto.ParticipantRegisterRequestedEventDto;
+import com.gameplatform.shared.dto.RoleAssignmentRequestedEventDto;
+import com.gameplatform.shared.dto.TournamentCreateRequestedEventDto;
+import com.gameplatform.shared.dto.TournamentDeleteRequestedEventDto;
+import com.gameplatform.shared.dto.TournamentLifecycleRequestedEventDto;
 import com.gameplatform.shared.dto.TournamentMatchResultDto;
+import com.gameplatform.shared.dto.TournamentUpdateRequestedEventDto;
 import com.gameplatform.shared.dto.UserRegisteredEventDto;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -85,6 +108,24 @@ public class SyncEventProcessor {
     private final TournamentRepository tournamentRepository;
     private final TournamentMatchRepository tournamentMatchRepository;
 
+    /**
+     * FASE 7-A3/S3 admin-request use cases. May be {@code null} (the
+     * backward-compat constructors used by existing unit tests pass
+     * {@code null} for these via the 11-arg delegating ctor); when {@code null},
+     * the matching {@code *_REQUESTED} branch logs a warning and skips
+     * (keeping the historical behaviour for legacy tests). In production Spring
+     * injects real beans via the {@code @Autowired} 20-arg constructor below.
+     */
+    private final UpdateUserUseCase updateUserUseCase;
+    private final UpsertGameDefinitionUseCase upsertGameDefinitionUseCase;
+    private final CreateTournamentUseCase createTournamentUseCase;
+    private final OpenTournamentRegistrationUseCase openTournamentRegistrationUseCase;
+    private final CancelTournamentUseCase cancelTournamentUseCase;
+    private final ScheduleTournamentMatchesUseCase scheduleTournamentMatchesUseCase;
+    private final UpdateTournamentUseCase updateTournamentUseCase;
+    private final DeleteTournamentUseCase deleteTournamentUseCase;
+    private final RegisterTournamentParticipantUseCase registerTournamentParticipantUseCase;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -99,7 +140,16 @@ public class SyncEventProcessor {
                               TournamentBracketService tournamentBracketService,
                               TournamentStandingsService tournamentStandingsService,
                               TournamentRepository tournamentRepository,
-                              TournamentMatchRepository tournamentMatchRepository) {
+                              TournamentMatchRepository tournamentMatchRepository,
+                              UpdateUserUseCase updateUserUseCase,
+                              UpsertGameDefinitionUseCase upsertGameDefinitionUseCase,
+                              CreateTournamentUseCase createTournamentUseCase,
+                              OpenTournamentRegistrationUseCase openTournamentRegistrationUseCase,
+                              CancelTournamentUseCase cancelTournamentUseCase,
+                              ScheduleTournamentMatchesUseCase scheduleTournamentMatchesUseCase,
+                              UpdateTournamentUseCase updateTournamentUseCase,
+                              DeleteTournamentUseCase deleteTournamentUseCase,
+                              RegisterTournamentParticipantUseCase registerTournamentParticipantUseCase) {
         this.processedEventRepository = processedEventRepository;
         this.statisticsRepository = statisticsRepository;
         this.registerUserFromSyncUseCase = registerUserFromSyncUseCase;
@@ -111,6 +161,42 @@ public class SyncEventProcessor {
         this.tournamentStandingsService = tournamentStandingsService;
         this.tournamentRepository = tournamentRepository;
         this.tournamentMatchRepository = tournamentMatchRepository;
+        this.updateUserUseCase = updateUserUseCase;
+        this.upsertGameDefinitionUseCase = upsertGameDefinitionUseCase;
+        this.createTournamentUseCase = createTournamentUseCase;
+        this.openTournamentRegistrationUseCase = openTournamentRegistrationUseCase;
+        this.cancelTournamentUseCase = cancelTournamentUseCase;
+        this.scheduleTournamentMatchesUseCase = scheduleTournamentMatchesUseCase;
+        this.updateTournamentUseCase = updateTournamentUseCase;
+        this.deleteTournamentUseCase = deleteTournamentUseCase;
+        this.registerTournamentParticipantUseCase = registerTournamentParticipantUseCase;
+    }
+
+    /**
+     * Backward-compat legacy ctor (FASE 6): 11-arg delegating to the 20-arg
+     * production ctor with {@code null} for the nine FASE 7-A3/S3 admin-request
+     * use cases. Preserves existing FASE 6 unit tests that still use the 11-arg
+     * ctor without stubs for the new use cases; the {@code @Autowired} 20-arg
+     * ctor remains the production entry point. When any of the nine is
+     * {@code null}, the matching {@code *_REQUESTED} branch logs a warning and
+     * skips.
+     */
+    public SyncEventProcessor(ProcessedEventRepository processedEventRepository,
+                              StatisticsRepository statisticsRepository,
+                              RegisterUserFromSyncUseCase registerUserFromSyncUseCase,
+                              ObjectMapper objectMapper,
+                              Clock clock,
+                              StatisticsFirstBucketRaceRetryHelper retryHelper,
+                              PlayerStatisticsProjectionService playerStatisticsProjection,
+                              TournamentBracketService tournamentBracketService,
+                              TournamentStandingsService tournamentStandingsService,
+                              TournamentRepository tournamentRepository,
+                              TournamentMatchRepository tournamentMatchRepository) {
+        this(processedEventRepository, statisticsRepository,
+                registerUserFromSyncUseCase, objectMapper, clock, retryHelper,
+                playerStatisticsProjection, tournamentBracketService, tournamentStandingsService,
+                tournamentRepository, tournamentMatchRepository,
+                null, null, null, null, null, null, null, null, null);
     }
 
     SyncEventProcessor(ProcessedEventRepository processedEventRepository,
@@ -259,6 +345,51 @@ public class SyncEventProcessor {
                     TournamentMatchResultDto.class);
             handleTournamentMatchCompleted(buildingId, dto);
             return true;
+        } else if ("ROLE_ASSIGNMENT_REQUESTED".equals(eventDto.eventType())) {
+            RoleAssignmentRequestedEventDto dto = objectMapper.readValue(eventDto.payload(),
+                    RoleAssignmentRequestedEventDto.class);
+            handleRoleAssignmentRequested(dto);
+            return true;
+        } else if ("GAME_DEFINITION_UPSERT_REQUESTED".equals(eventDto.eventType())) {
+            GameDefinitionUpsertRequestedEventDto dto = objectMapper.readValue(eventDto.payload(),
+                    GameDefinitionUpsertRequestedEventDto.class);
+            handleGameDefinitionUpsertRequested(dto);
+            return true;
+        } else if ("TOURNAMENT_CREATE_REQUESTED".equals(eventDto.eventType())) {
+            TournamentCreateRequestedEventDto dto = objectMapper.readValue(eventDto.payload(),
+                    TournamentCreateRequestedEventDto.class);
+            handleTournamentCreateRequested(dto);
+            return true;
+        } else if ("TOURNAMENT_OPEN_REQUESTED".equals(eventDto.eventType())) {
+            TournamentLifecycleRequestedEventDto dto = objectMapper.readValue(eventDto.payload(),
+                    TournamentLifecycleRequestedEventDto.class);
+            handleTournamentOpenRequested(dto);
+            return true;
+        } else if ("TOURNAMENT_CANCEL_REQUESTED".equals(eventDto.eventType())) {
+            TournamentLifecycleRequestedEventDto dto = objectMapper.readValue(eventDto.payload(),
+                    TournamentLifecycleRequestedEventDto.class);
+            handleTournamentCancelRequested(dto);
+            return true;
+        } else if ("TOURNAMENT_SCHEDULE_REQUESTED".equals(eventDto.eventType())) {
+            TournamentLifecycleRequestedEventDto dto = objectMapper.readValue(eventDto.payload(),
+                    TournamentLifecycleRequestedEventDto.class);
+            handleTournamentScheduleRequested(dto);
+            return true;
+        } else if ("TOURNAMENT_UPDATE_REQUESTED".equals(eventDto.eventType())) {
+            TournamentUpdateRequestedEventDto dto = objectMapper.readValue(eventDto.payload(),
+                    TournamentUpdateRequestedEventDto.class);
+            handleTournamentUpdateRequested(dto);
+            return true;
+        } else if ("TOURNAMENT_DELETE_REQUESTED".equals(eventDto.eventType())) {
+            TournamentDeleteRequestedEventDto dto = objectMapper.readValue(eventDto.payload(),
+                    TournamentDeleteRequestedEventDto.class);
+            handleTournamentDeleteRequested(dto);
+            return true;
+        } else if ("PARTICIPANT_REGISTER_REQUESTED".equals(eventDto.eventType())) {
+            ParticipantRegisterRequestedEventDto dto = objectMapper.readValue(eventDto.payload(),
+                    ParticipantRegisterRequestedEventDto.class);
+            handleParticipantRegisterRequested(dto);
+            return true;
         }
 
         // Unknown eventType: mark as processed to avoid re-processing, but log a warning
@@ -328,6 +459,186 @@ public class SyncEventProcessor {
         if (parent == null) {
             tournamentBracketService.completeIfDone(match.getTournamentId());
         }
+    }
+
+    /**
+     * Handles a {@code ROLE_ASSIGNMENT_REQUESTED} event from a Local admin use
+     * case (PIANO §7.A.7 / RF-UT-02): delegates to
+     * {@link UpdateUserUseCase#updateUser} with {@code newPassword=null} and the
+     * new roles, passing {@code dto.requestId()} as {@code originatingRequestId}
+     * so the resulting {@code USER_UPDATED} outbox event carries it back to the
+     * Local for {@code admin_requests_local.markCompleted}. Idempotency is
+     * ensured by {@code processed_events} on the Central side.
+     */
+    private void handleRoleAssignmentRequested(RoleAssignmentRequestedEventDto dto) {
+        if (updateUserUseCase == null) {
+            log.warn("ROLE_ASSIGNMENT_REQUESTED [targetUserId={}] received but UpdateUserUseCase is null "
+                    + "(legacy test ctor) — skipping.", dto.targetUserId());
+            return;
+        }
+        updateUserUseCase.updateUser(new UserId(dto.targetUserId()), null, dto.roles(), dto.requestId());
+    }
+
+    /**
+     * Handles a {@code GAME_DEFINITION_UPSERT_REQUESTED} event: builds a
+     * {@link GameDefinition} from the payload and delegates to
+     * {@link UpsertGameDefinitionUseCase#upsert} with {@code dto.requestId()}
+     * as {@code originatingRequestId}. The resulting
+     * {@code GAME_DEFINITION_UPSERTED} outbox event carries it back to the Local.
+     */
+    private void handleGameDefinitionUpsertRequested(GameDefinitionUpsertRequestedEventDto dto) {
+        if (upsertGameDefinitionUseCase == null) {
+            log.warn("GAME_DEFINITION_UPSERT_REQUESTED [gameType={}] received but UpsertGameDefinitionUseCase is null "
+                    + "(legacy test ctor) — skipping.", dto.gameType());
+            return;
+        }
+        Instant now = Instant.now(clock);
+        GameDefinition input = new GameDefinition(
+                dto.gameType(),
+                dto.name(),
+                dto.minPlayers(),
+                dto.maxPlayers(),
+                dto.teamAllowed(),
+                dto.registrationRules(),
+                dto.createdAt() != null ? dto.createdAt() : now,
+                now);
+        upsertGameDefinitionUseCase.upsert(input, dto.requestId());
+    }
+
+    /**
+     * Handles a {@code TOURNAMENT_CREATE_REQUESTED} event: builds a DRAFT
+     * {@link Tournament} from the payload (createdBy = actingUserId) and
+     * delegates to {@link CreateTournamentUseCase#create} with
+     * {@code dto.requestId()} as {@code originatingRequestId}. The resulting
+     * {@code TOURNAMENT_SUMMARY_UPSERTED} outbox event carries it back.
+     */
+    private void handleTournamentCreateRequested(TournamentCreateRequestedEventDto dto) {
+        if (createTournamentUseCase == null) {
+            log.warn("TOURNAMENT_CREATE_REQUESTED [name={}] received but CreateTournamentUseCase is null "
+                    + "(legacy test ctor) — skipping.", dto.name());
+            return;
+        }
+        Instant now = Instant.now(clock);
+        Tournament input = new Tournament(
+                new TournamentId(UUID.randomUUID().toString()),
+                dto.name(),
+                dto.gameType(),
+                dto.teamBased(),
+                dto.teamSize(),
+                TournamentFormat.SINGLE_ELIMINATION,
+                TournamentStatus.DRAFT,
+                dto.startsAt(),
+                null,
+                new UserId(dto.actingUserId()),
+                dto.createdAt() != null ? dto.createdAt() : now);
+        createTournamentUseCase.create(input, dto.buildingIds(), dto.requestId());
+    }
+
+    /**
+     * Handles a {@code TOURNAMENT_OPEN_REQUESTED} event: delegates to
+     * {@link OpenTournamentRegistrationUseCase#open} with
+     * {@code dto.requestId()} as {@code originatingRequestId}. The resulting
+     * {@code TOURNAMENT_SUMMARY_UPSERTED} outbox event carries it back.
+     */
+    private void handleTournamentOpenRequested(TournamentLifecycleRequestedEventDto dto) {
+        if (openTournamentRegistrationUseCase == null) {
+            log.warn("TOURNAMENT_OPEN_REQUESTED [tournamentId={}] received but OpenTournamentRegistrationUseCase is null "
+                    + "(legacy test ctor) — skipping.", dto.tournamentId());
+            return;
+        }
+        openTournamentRegistrationUseCase.open(new TournamentId(dto.tournamentId()), dto.requestId());
+    }
+
+    /**
+     * Handles a {@code TOURNAMENT_CANCEL_REQUESTED} event: delegates to
+     * {@link CancelTournamentUseCase#cancel} with {@code dto.requestId()} as
+     * {@code originatingRequestId}. The resulting
+     * {@code TOURNAMENT_SUMMARY_UPSERTED} outbox event carries it back.
+     */
+    private void handleTournamentCancelRequested(TournamentLifecycleRequestedEventDto dto) {
+        if (cancelTournamentUseCase == null) {
+            log.warn("TOURNAMENT_CANCEL_REQUESTED [tournamentId={}] received but CancelTournamentUseCase is null "
+                    + "(legacy test ctor) — skipping.", dto.tournamentId());
+            return;
+        }
+        cancelTournamentUseCase.cancel(new TournamentId(dto.tournamentId()), dto.requestId());
+    }
+
+    /**
+     * Handles a {@code TOURNAMENT_SCHEDULE_REQUESTED} event: delegates to
+     * {@link ScheduleTournamentMatchesUseCase#schedule}.
+     *
+     * <p><strong>Known partial</strong>: the schedule use case emits multiple
+     * {@code TOURNAMENT_MATCH_SCHEDULED} events (one per match) which do NOT
+     * carry the {@code originatingRequestId}, so the admin-request closure for
+     * SCHEDULE is not wired end-to-end in S3. Threading
+     * {@code originatingRequestId} into a single
+     * {@code TOURNAMENT_SUMMARY_UPSERTED} return event (status IN_PROGRESS) is
+     * deferred to a follow-up. The Local {@code admin_requests_local} closure
+     * for SCHEDULE will be handled in ONDATA 2. See
+     * {@code workflow/architettura_classi.md} §18.</p>
+     */
+    private void handleTournamentScheduleRequested(TournamentLifecycleRequestedEventDto dto) {
+        if (scheduleTournamentMatchesUseCase == null) {
+            log.warn("TOURNAMENT_SCHEDULE_REQUESTED [tournamentId={}] received but ScheduleTournamentMatchesUseCase is null "
+                    + "(legacy test ctor) — skipping.", dto.tournamentId());
+            return;
+        }
+        scheduleTournamentMatchesUseCase.schedule(new TournamentId(dto.tournamentId()));
+    }
+
+    /**
+     * Handles a {@code TOURNAMENT_UPDATE_REQUESTED} event: delegates to
+     * {@link UpdateTournamentUseCase#update} with {@code dto.requestId()} as
+     * {@code originatingRequestId}. The resulting
+     * {@code TOURNAMENT_SUMMARY_UPSERTED} outbox event carries it back.
+     */
+    private void handleTournamentUpdateRequested(TournamentUpdateRequestedEventDto dto) {
+        if (updateTournamentUseCase == null) {
+            log.warn("TOURNAMENT_UPDATE_REQUESTED [tournamentId={}] received but UpdateTournamentUseCase is null "
+                    + "(legacy test ctor) — skipping.", dto.tournamentId());
+            return;
+        }
+        updateTournamentUseCase.update(new TournamentId(dto.tournamentId()), dto.name(), dto.startsAt(),
+                dto.buildingIds(), dto.requestId());
+    }
+
+    /**
+     * Handles a {@code TOURNAMENT_DELETE_REQUESTED} event: delegates to
+     * {@link DeleteTournamentUseCase#delete} with {@code dto.requestId()} as
+     * {@code originatingRequestId}. The resulting
+     * {@code TOURNAMENT_SUMMARY_UPSERTED} tombstone outbox event carries it back.
+     */
+    private void handleTournamentDeleteRequested(TournamentDeleteRequestedEventDto dto) {
+        if (deleteTournamentUseCase == null) {
+            log.warn("TOURNAMENT_DELETE_REQUESTED [tournamentId={}] received but DeleteTournamentUseCase is null "
+                    + "(legacy test ctor) — skipping.", dto.tournamentId());
+            return;
+        }
+        deleteTournamentUseCase.delete(new TournamentId(dto.tournamentId()), dto.requestId());
+    }
+
+    /**
+     * Handles a {@code PARTICIPANT_REGISTER_REQUESTED} event from a Local
+     * PLAYER use case (PIANO §7.B W6): delegates to
+     * {@link RegisterTournamentParticipantUseCase#register} with the acting
+     * player as captain and {@code dto.requestId()} as
+     * {@code originatingRequestId}. The resulting
+     * {@code TOURNAMENT_PARTICIPANTS_UPSERTED} outbox event carries it back to
+     * the Local for {@code admin_requests_local.markCompleted}.
+     */
+    private void handleParticipantRegisterRequested(ParticipantRegisterRequestedEventDto dto) {
+        if (registerTournamentParticipantUseCase == null) {
+            log.warn("PARTICIPANT_REGISTER_REQUESTED [tournamentId={}] received but RegisterTournamentParticipantUseCase is null "
+                    + "(legacy test ctor) — skipping.", dto.tournamentId());
+            return;
+        }
+        registerTournamentParticipantUseCase.register(
+                new TournamentId(dto.tournamentId()),
+                new UserId(dto.actingUserId()),
+                dto.teamName(),
+                dto.teamMemberIds(),
+                dto.requestId());
     }
 
     /**

@@ -1,11 +1,16 @@
 package com.gameplatform.central.application.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.gameplatform.central.domain.exception.InvalidTournamentException;
 import com.gameplatform.central.domain.exception.InvalidTournamentStateException;
 import com.gameplatform.central.domain.exception.TournamentNotFoundException;
 import com.gameplatform.central.domain.model.GameDefinition;
+import com.gameplatform.central.domain.model.OutboxEvent;
+import com.gameplatform.central.domain.model.OutboxEventStatus;
 import com.gameplatform.central.domain.model.Tournament;
 import com.gameplatform.central.domain.ports.out.GameDefinitionRepository;
+import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.TournamentBuildingRepository;
 import com.gameplatform.central.domain.ports.out.TournamentParticipantRepository;
 import com.gameplatform.central.domain.ports.out.TournamentRepository;
@@ -15,6 +20,7 @@ import com.gameplatform.shared.domain.model.TournamentId;
 import com.gameplatform.shared.domain.model.TournamentStatus;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.dto.TournamentDto;
+import com.gameplatform.shared.dto.TournamentSummaryEventDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,8 +47,13 @@ import static org.mockito.Mockito.when;
  * CRUD + lifecycle use cases: {@code create} (forced {@code DRAFT}, building
  * linkage, team-policy validation against {@link GameDefinition}),
  * {@code open}/{@code cancel} state-machine transitions, and the query use
- * cases. Pure Mockito (no Spring context); uses a real {@link Clock#fixed} so
- * {@code createdAt} is deterministic.
+ * cases; plus the &sect;7.A.1 {@code update}/{@code delete} mutating use cases
+ * (DRAFT-only guard via {@link Tournament#update} / an explicit status check,
+ * building replacement, atomic {@code TOURNAMENT_SUMMARY_UPSERTED} outbox
+ * emission with a {@code deleted=true} tombstone for deletes). Pure Mockito
+ * (no Spring context); uses a real {@link Clock#fixed} so {@code createdAt}
+ * is deterministic, and a real {@link ObjectMapper} (with {@link JavaTimeModule})
+ * so the outbox payload can be round-tripped and asserted.
  */
 @ExtendWith(MockitoExtension.class)
 class TournamentServiceTest {
@@ -58,14 +69,19 @@ class TournamentServiceTest {
     private TournamentParticipantRepository tournamentParticipantRepository;
     @Mock
     private GameDefinitionRepository gameDefinitionRepository;
+    @Mock
+    private OutboxEventRepository outboxEventRepository;
 
+    private ObjectMapper objectMapper;
     private TournamentService service;
 
     @BeforeEach
     void setUp() {
+        objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         service = new TournamentService(
                 tournamentRepository, tournamentBuildingRepository,
-                tournamentParticipantRepository, gameDefinitionRepository, clock);
+                tournamentParticipantRepository, gameDefinitionRepository, clock,
+                outboxEventRepository, objectMapper);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -247,5 +263,114 @@ class TournamentServiceTest {
         assertThat(result.get(0).status()).isEqualTo(TournamentStatus.DRAFT);
         assertThat(result.get(0).buildings()).containsExactly("b-1", "b-2");
         assertThat(result.get(0).participantsCount()).isEqualTo(0);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // update() — §7.A.1
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void update_persistsMutatedDraft_whenStatusIsDraft() throws Exception {
+        TournamentId tid = new TournamentId("t1");
+        Tournament draft = new Tournament(
+                tid, "Old Name", GameType.CHESS, false, 1,
+                TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.DRAFT,
+                FIXED_NOW, null, new UserId("admin"), FIXED_NOW);
+        when(tournamentRepository.findById(tid)).thenReturn(Optional.of(draft));
+        when(tournamentRepository.save(any(Tournament.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        TournamentDto dto = service.update(tid, "New Name",
+                Instant.parse("2026-08-01T10:00:00Z"), List.of("b1", "b2", "b3"), null);
+
+        ArgumentCaptor<Tournament> captor = ArgumentCaptor.forClass(Tournament.class);
+        verify(tournamentRepository).save(captor.capture());
+        Tournament saved = captor.getValue();
+        assertThat(saved.getName()).isEqualTo("New Name");
+        assertThat(saved.getStartsAt()).isEqualTo(Instant.parse("2026-08-01T10:00:00Z"));
+        assertThat(saved.getStatus()).isEqualTo(TournamentStatus.DRAFT);
+
+        verify(tournamentBuildingRepository).deleteByTournament(tid);
+        verify(tournamentBuildingRepository).saveAll(eq(tid), eq(List.of("b1", "b2", "b3")));
+
+        ArgumentCaptor<OutboxEvent> eventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxEventRepository).save(eventCaptor.capture());
+        OutboxEvent event = eventCaptor.getValue();
+        assertThat(event.getEventType()).isEqualTo("TOURNAMENT_SUMMARY_UPSERTED");
+        assertThat(event.getStatus()).isEqualTo(OutboxEventStatus.PENDING);
+        assertThat(event.getSentAt()).isNull();
+        TournamentSummaryEventDto payload = objectMapper.readValue(event.getPayload(),
+                TournamentSummaryEventDto.class);
+        assertThat(payload.deleted()).isFalse();
+        assertThat(payload.tournamentId()).isEqualTo("t1");
+        assertThat(payload.name()).isEqualTo("New Name");
+        assertThat(payload.buildingIds()).containsExactly("b1", "b2", "b3");
+
+        assertThat(dto.name()).isEqualTo("New Name");
+        assertThat(dto.buildings()).containsExactly("b1", "b2", "b3");
+    }
+
+    @Test
+    void update_throwsInvalidTournamentStateException_whenStatusIsOpenRegistration() {
+        TournamentId tid = new TournamentId("t1");
+        Tournament open = new Tournament(
+                tid, "Old Name", GameType.CHESS, false, 1,
+                TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.OPEN_REGISTRATION,
+                FIXED_NOW, null, new UserId("admin"), FIXED_NOW);
+        when(tournamentRepository.findById(tid)).thenReturn(Optional.of(open));
+
+        assertThatThrownBy(() -> service.update(tid, "New Name", FIXED_NOW, List.of("b1", "b2"), null))
+                .isInstanceOf(InvalidTournamentStateException.class);
+
+        verify(outboxEventRepository, never()).save(any());
+        verify(tournamentRepository, never()).save(any(Tournament.class));
+        verify(tournamentBuildingRepository, never()).deleteByTournament(any());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // delete() — §7.A.1
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void delete_removesTournamentAndBuildings_whenStatusIsDraft() throws Exception {
+        TournamentId tid = new TournamentId("t1");
+        Tournament draft = new Tournament(
+                tid, "Old Name", GameType.CHESS, false, 1,
+                TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.DRAFT,
+                FIXED_NOW, null, new UserId("admin"), FIXED_NOW);
+        when(tournamentRepository.findById(tid)).thenReturn(Optional.of(draft));
+        when(tournamentBuildingRepository.findByTournament(tid)).thenReturn(List.of("b1", "b2"));
+
+        service.delete(tid, null);
+
+        verify(tournamentBuildingRepository).deleteByTournament(tid);
+        verify(tournamentRepository).deleteById(tid);
+
+        ArgumentCaptor<OutboxEvent> eventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxEventRepository).save(eventCaptor.capture());
+        OutboxEvent event = eventCaptor.getValue();
+        assertThat(event.getEventType()).isEqualTo("TOURNAMENT_SUMMARY_UPSERTED");
+        assertThat(event.getStatus()).isEqualTo(OutboxEventStatus.PENDING);
+        TournamentSummaryEventDto payload = objectMapper.readValue(event.getPayload(),
+                TournamentSummaryEventDto.class);
+        assertThat(payload.deleted()).isTrue();
+        assertThat(payload.tournamentId()).isEqualTo("t1");
+        assertThat(payload.buildingIds()).containsExactly("b1", "b2");
+    }
+
+    @Test
+    void delete_throwsInvalidTournamentStateException_whenStatusIsInProgress() {
+        TournamentId tid = new TournamentId("t1");
+        Tournament inProgress = new Tournament(
+                tid, "Old Name", GameType.CHESS, false, 1,
+                TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.IN_PROGRESS,
+                FIXED_NOW, null, new UserId("admin"), FIXED_NOW);
+        when(tournamentRepository.findById(tid)).thenReturn(Optional.of(inProgress));
+
+        assertThatThrownBy(() -> service.delete(tid, null))
+                .isInstanceOf(InvalidTournamentStateException.class);
+
+        verify(outboxEventRepository, never()).save(any());
+        verify(tournamentRepository, never()).deleteById(any());
+        verify(tournamentBuildingRepository, never()).deleteByTournament(any());
     }
 }

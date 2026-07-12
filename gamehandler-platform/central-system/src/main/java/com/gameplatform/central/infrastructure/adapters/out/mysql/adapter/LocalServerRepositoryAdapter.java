@@ -1,32 +1,64 @@
 package com.gameplatform.central.infrastructure.adapters.out.mysql.adapter;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.central.application.service.LateRegistrationCatchUpService;
+import com.gameplatform.central.domain.model.OutboxEvent;
+import com.gameplatform.central.domain.model.OutboxEventStatus;
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
+import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.RegisteredLocalServerJpaEntity;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.repository.LocalServerJpaRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
+import com.gameplatform.shared.dto.LocalServerRegistryEventDto;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Component
 public class LocalServerRepositoryAdapter implements LocalServerRegistryPort {
 
+    private static final String REGISTRY_EVENT_TYPE = "LOCAL_SERVER_REGISTRY_UPSERTED";
+
     private final LocalServerJpaRepository jpaRepository;
     private final LateRegistrationCatchUpService lateRegistrationCatchUpService;
+    private final OutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
+    private final Clock clock;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public LocalServerRepositoryAdapter(LocalServerJpaRepository jpaRepository,
-                                        LateRegistrationCatchUpService lateRegistrationCatchUpService) {
+                                        LateRegistrationCatchUpService lateRegistrationCatchUpService,
+                                        OutboxEventRepository outboxEventRepository,
+                                        ObjectMapper objectMapper,
+                                        Clock clock) {
         this.jpaRepository = jpaRepository;
         this.lateRegistrationCatchUpService = lateRegistrationCatchUpService;
+        this.outboxEventRepository = outboxEventRepository;
+        this.objectMapper = objectMapper;
+        this.clock = clock;
+    }
+
+    /**
+     * Backward-compat legacy ctor (pattern {@code SyncEventProcessor:91-146}):
+     * 2-arg delegating to the 5-arg production ctor with {@code null} for the
+     * FASE 7-A3 outbox deps. When {@code null}, the
+     * {@code LOCAL_SERVER_REGISTRY_UPSERTED} emit is skipped (no-op),
+     * preserving the historical behaviour for existing unit tests.
+     */
+    public LocalServerRepositoryAdapter(LocalServerJpaRepository jpaRepository,
+                                        LateRegistrationCatchUpService lateRegistrationCatchUpService) {
+        this(jpaRepository, lateRegistrationCatchUpService, null, null, null);
     }
 
     @Override
@@ -82,6 +114,13 @@ public class LocalServerRepositoryAdapter implements LocalServerRegistryPort {
             wasInactive = false;
         }
 
+        // FASE 7-A3: emit a LOCAL_SERVER_REGISTRY_UPSERTED outbox event so every
+        // active Local Server mirrors its registered_local_servers_local projection
+        // (idempotent by PK buildingId). Atomic with the registration save inside
+        // this @Transactional method. Skipped when the outbox deps are null (legacy
+        // test ctor).
+        writeRegistryOutbox(server);
+
         if (wasInactive) {
             // M8: decouple the catch-up REST + progress writes from the registration tx.
             // Running in afterCommit eliminates phantom replication_progress rows if the
@@ -134,5 +173,43 @@ public class LocalServerRepositoryAdapter implements LocalServerRegistryPort {
         }
         // Atomic UPDATE — the @Modifying query flushes within this tx.
         jpaRepository.deactivateByBuildingId(buildingId.id());
+    }
+
+    /**
+     * Serialises a {@link LocalServerRegistryEventDto} for the registering
+     * server and writes it to the outbox. Mirrors
+     * {@code TournamentService.writeOutboxEvent}: a single UUID is shared by the
+     * outbox event id and the DTO {@code eventId}. The push to every active Local
+     * is performed by the {@code UserReplicationSchedulerService}
+     * {@code replicateLocalServerRegistryEvent} branch. No-op when the outbox
+     * deps are {@code null} (legacy test ctor).
+     */
+    private void writeRegistryOutbox(RegisteredLocalServer server) {
+        if (outboxEventRepository == null || objectMapper == null) {
+            return;
+        }
+        if (server == null || server.getBuildingId() == null) {
+            return;
+        }
+        String eventId = UUID.randomUUID().toString();
+        Instant now = clock != null ? Instant.now(clock) : Instant.now();
+        LocalServerRegistryEventDto dto = new LocalServerRegistryEventDto(
+                eventId,
+                REGISTRY_EVENT_TYPE,
+                server.getBuildingId().id(),
+                server.getBaseUrl(),
+                server.getLastSeenAt(),
+                server.isActive(),
+                null,
+                now);
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(dto);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize LocalServerRegistryEventDto", e);
+        }
+        OutboxEvent event = new OutboxEvent(
+                eventId, REGISTRY_EVENT_TYPE, payload, OutboxEventStatus.PENDING, now, null);
+        outboxEventRepository.save(event);
     }
 }

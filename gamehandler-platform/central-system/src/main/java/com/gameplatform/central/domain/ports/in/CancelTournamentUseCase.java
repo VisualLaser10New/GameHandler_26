@@ -4,5 +4,9 @@ import com.gameplatform.shared.domain.model.TournamentId;
 import com.gameplatform.shared.dto.TournamentDto;
 
 public interface CancelTournamentUseCase {
-    TournamentDto cancel(TournamentId tournamentId);
+    TournamentDto cancel(TournamentId tournamentId, String originatingRequestId);
+
+    default TournamentDto cancel(TournamentId tournamentId) {
+        return cancel(tournamentId, null);
+    }
 }

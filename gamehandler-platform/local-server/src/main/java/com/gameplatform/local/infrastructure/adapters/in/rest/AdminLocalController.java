@@ -88,7 +88,7 @@ public class AdminLocalController {
         ensureAuthorized();
         List<Game> games = listBuildingGamesUseCase.getByBuilding(new BuildingId(buildingId));
         List<GameStateDto> dtos = games.stream()
-                .map(AdminLocalController::toDto)
+                .map(this::toDto)
                 .toList();
         return ResponseEntity.ok(dtos);
     }
@@ -175,16 +175,27 @@ public class AdminLocalController {
         }
     }
 
-    private static GameStateDto toDto(Game game) {
-        GameLifecycle lifecycle = GameFactory.createGame(game.getGameType(), null);
+    private GameStateDto toDto(Game game) {
+        com.gameplatform.local.domain.model.GameDefinitionLocal def =
+                gameDefinitionLocalRepository.findByGameType(game.getGameType()).orElse(null);
+        int minPlayers;
+        int maxPlayers;
+        if (def != null) {
+            minPlayers = def.getMinPlayers();
+            maxPlayers = def.getMaxPlayers();
+        } else {
+            GameLifecycle lifecycle = GameFactory.createGame(game.getGameType(), null);
+            minPlayers = lifecycle.getMinPlayers();
+            maxPlayers = lifecycle.getMaxPlayers();
+        }
         return new GameStateDto(
                 game.getId().id(),
                 game.getGameType(),
                 game.getName(),
                 game.getBuildingId().id(),
                 game.getStatus(),
-                lifecycle.getMinPlayers(),
-                lifecycle.getMaxPlayers()
+                minPlayers,
+                maxPlayers
         );
     }
 }

@@ -10,6 +10,8 @@ import com.gameplatform.local.domain.exception.UserNotFoundException;
 import com.gameplatform.local.domain.model.LocalSignupUser;
 import com.gameplatform.local.domain.ports.in.AuthenticateLocalUserUseCase;
 import com.gameplatform.local.domain.ports.in.RegisterLocalUserUseCase;
+import com.gameplatform.local.domain.ports.out.LocalAdminBuildingLocalRepository;
+import com.gameplatform.local.domain.ports.out.UserRepository;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.dto.LoginResponseDto;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,11 +31,14 @@ class AuthControllerTest {
 
     @Mock private AuthenticateLocalUserUseCase authenticateUseCase;
     @Mock private RegisterLocalUserUseCase registerUseCase;
+    @Mock private UserRepository userRepository;
+    @Mock private LocalAdminBuildingLocalRepository localAdminBuildingLocalRepository;
     private MockMvc mvc;
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.standaloneSetup(new AuthController(authenticateUseCase, registerUseCase))
+        mvc = MockMvcBuilders.standaloneSetup(
+                        new AuthController(authenticateUseCase, registerUseCase, userRepository, localAdminBuildingLocalRepository))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }

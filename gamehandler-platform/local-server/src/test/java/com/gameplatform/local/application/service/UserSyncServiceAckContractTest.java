@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.gameplatform.local.domain.model.User;
+import com.gameplatform.local.domain.ports.out.AdminRequestRepository;
 import com.gameplatform.local.domain.ports.out.UserRepository;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.dto.UserSyncAckDto;
@@ -43,13 +44,14 @@ class UserSyncServiceAckContractTest {
     private static final Instant FIXED_NOW = Instant.parse("2026-07-06T12:00:00Z");
 
     @Mock UserRepository userRepository;
+    @Mock AdminRequestRepository adminRequestRepository;
 
     private final Clock clock = Clock.fixed(FIXED_NOW, ZoneId.of("UTC"));
     private UserSyncService service;
 
     @BeforeEach
     void setUp() {
-        service = new UserSyncService(userRepository, clock);
+        service = new UserSyncService(userRepository, adminRequestRepository, clock);
     }
 
     private User existing(String id, Instant eventTime) {

@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.gameplatform.local.domain.ports.in.GetAvailableGamesUseCase;
+import com.gameplatform.local.domain.ports.out.GameDefinitionLocalRepository;
 import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.shared.domain.model.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,16 +17,18 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
+import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
 class GameControllerTest {
 
     @Mock private GetAvailableGamesUseCase useCase;
+    @Mock private GameDefinitionLocalRepository gameDefinitionLocalRepository;
     private MockMvc mvc;
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.standaloneSetup(new GameController(useCase)).build();
+        mvc = MockMvcBuilders.standaloneSetup(new GameController(useCase, gameDefinitionLocalRepository)).build();
     }
 
     private Game sample() {

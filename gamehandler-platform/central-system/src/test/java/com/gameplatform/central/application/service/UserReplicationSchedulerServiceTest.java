@@ -10,13 +10,18 @@ import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.PushGameDefinitionToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushTournamentMatchToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushTournamentSummaryToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
 import com.gameplatform.central.domain.ports.out.TournamentBuildingRepository;
 import com.gameplatform.central.domain.ports.out.TournamentMatchRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
+import com.gameplatform.shared.domain.model.GameType;
+import com.gameplatform.shared.domain.model.TournamentStatus;
+import com.gameplatform.shared.dto.TournamentSummaryEventDto;
 import com.gameplatform.shared.dto.UserSyncAckDto;
 import com.gameplatform.shared.dto.UserSyncDto;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -81,13 +86,16 @@ class UserReplicationSchedulerServiceTest {
     private PushTournamentMatchToLocalServersPort pushTournamentMatchToLocalServersPort;
 
     @Mock
+    private PushTournamentSummaryToLocalServersPort pushTournamentSummaryToLocalServersPort;
+
+    @Mock
     private TournamentBuildingRepository tournamentBuildingRepository;
 
     @Mock
     private TournamentMatchRepository tournamentMatchRepository;
 
     private UserReplicationSchedulerService schedulerService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     /** Direct executor used by the deterministic tests: runs the task on the calling thread. */
     private final Executor directExecutor = Runnable::run;
 
@@ -104,7 +112,8 @@ class UserReplicationSchedulerServiceTest {
                 pushGameDefinitionToLocalServersPort,
                 pushTournamentMatchToLocalServersPort,
                 tournamentBuildingRepository,
-                tournamentMatchRepository
+                tournamentMatchRepository,
+                pushTournamentSummaryToLocalServersPort
         );
         lenient().when(replicationProgressRepository.findByEventId(any())).thenReturn(List.of());
     }
@@ -436,7 +445,8 @@ class UserReplicationSchedulerServiceTest {
                     pushGameDefinitionToLocalServersPort,
                     pushTournamentMatchToLocalServersPort,
                     tournamentBuildingRepository,
-                    tournamentMatchRepository
+                    tournamentMatchRepository,
+                    pushTournamentSummaryToLocalServersPort
             );
 
             // Drive replicateUsers() on its own thread so the test thread can observe
@@ -475,6 +485,101 @@ class UserReplicationSchedulerServiceTest {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // 7.A.5: TOURNAMENT_SUMMARY_UPSERTED drain — pushes to ALL active servers,
+    //       replication_progress per (eventId, serverId), markAsSent on all-succeeded,
+    //       single-server failure does NOT block others (no markAsSent).
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void replicateTournamentSummaryEvent_pushesToAllActiveServersAndMarksSent_whenAllSucceed() {
+        OutboxEvent event = buildTournamentSummaryEvent("t-1", false);
+        RegisteredLocalServer server1 = buildServer("s1", "http://s1:8080");
+        RegisteredLocalServer server2 = buildServer("s2", "http://s2:8080");
+
+        when(outboxEventRepository.findPendingLimit(50)).thenReturn(List.of(event));
+        when(localServerRegistryPort.getActiveLocalServers()).thenReturn(List.of(server1, server2));
+
+        schedulerService.replicateUsers();
+
+        // Pushed to BOTH servers (broadcast, not building-routed like TOURNAMENT_MATCH_SCHEDULED)
+        verify(pushTournamentSummaryToLocalServersPort).push(any(), eq(server1));
+        verify(pushTournamentSummaryToLocalServersPort).push(any(), eq(server2));
+        // replication_progress recorded for BOTH (eventId, serverId) pairs
+        verify(replicationProgressRepository).save(new ReplicationProgress(event.getId(), "s1"));
+        verify(replicationProgressRepository).save(new ReplicationProgress(event.getId(), "s2"));
+        // allSucceeded → markAsSent
+        verify(outboxEventRepository).markAsSent(event.getId());
+        verify(outboxEventRepository, never()).markAsFailed(any());
+    }
+
+    @Test
+    void replicateTournamentSummaryEvent_doesNotMarkAsSent_andStillPushesOthers_whenOneServerFails() {
+        OutboxEvent event = buildTournamentSummaryEvent("t-1", false);
+        RegisteredLocalServer server1 = buildServer("s1", "http://s1:8080");
+        RegisteredLocalServer server2 = buildServer("s2", "http://s2:8080");
+
+        when(outboxEventRepository.findPendingLimit(50)).thenReturn(List.of(event));
+        when(localServerRegistryPort.getActiveLocalServers()).thenReturn(List.of(server1, server2));
+
+        // server1 push throws — server2 must still be pushed (failure isolation)
+        doThrow(new RuntimeException("Network error"))
+                .when(pushTournamentSummaryToLocalServersPort).push(any(), eq(server1));
+
+        schedulerService.replicateUsers();
+
+        // server2 still received the event despite server1's failure
+        verify(pushTournamentSummaryToLocalServersPort).push(any(), eq(server2));
+        // server2 progress was recorded (the failing server1's progress is NOT recorded — push failed before save)
+        verify(replicationProgressRepository).save(new ReplicationProgress(event.getId(), "s2"));
+        verify(replicationProgressRepository, never()).save(new ReplicationProgress(event.getId(), "s1"));
+        // allSucceeded flipped → markAsSent NOT called; markAsFailed NOT called (no poison-isolation, just retry on next tick)
+        verify(outboxEventRepository, never()).markAsSent(any());
+        verify(outboxEventRepository, never()).markAsFailed(any());
+    }
+
+    @Test
+    void replicateTournamentSummaryEvent_skipsAlreadyReplicatedServer() {
+        OutboxEvent event = buildTournamentSummaryEvent("t-1", false);
+        RegisteredLocalServer server1 = buildServer("s1", "http://s1:8080");
+        RegisteredLocalServer server2 = buildServer("s2", "http://s2:8080");
+
+        when(outboxEventRepository.findPendingLimit(50)).thenReturn(List.of(event));
+        when(localServerRegistryPort.getActiveLocalServers()).thenReturn(List.of(server1, server2));
+        // s1 already replicated — only s2 needs a push
+        ReplicationProgress progress1 = new ReplicationProgress(event.getId(), "s1");
+        when(replicationProgressRepository.findByEventId(event.getId())).thenReturn(List.of(progress1));
+
+        schedulerService.replicateUsers();
+
+        verify(pushTournamentSummaryToLocalServersPort, never()).push(any(), eq(server1));
+        verify(pushTournamentSummaryToLocalServersPort).push(any(), eq(server2));
+        verify(replicationProgressRepository, never()).save(new ReplicationProgress(event.getId(), "s1"));
+        verify(replicationProgressRepository).save(new ReplicationProgress(event.getId(), "s2"));
+        verify(outboxEventRepository).markAsSent(event.getId());
+    }
+
+    @Test
+    void replicateTournamentSummaryEvent_marksFailed_whenPayloadIsMalformed() {
+        OutboxEvent event = new OutboxEvent(
+                UUID.randomUUID().toString(),
+                "TOURNAMENT_SUMMARY_UPSERTED",
+                "{not valid json}",
+                OutboxEventStatus.PENDING,
+                Instant.now(),
+                null
+        );
+        when(outboxEventRepository.findPendingLimit(50)).thenReturn(List.of(event));
+        when(localServerRegistryPort.getActiveLocalServers())
+                .thenReturn(List.of(buildServer("s1", "http://s1:8080")));
+
+        schedulerService.replicateUsers();
+
+        verify(outboxEventRepository).markAsFailed(event.getId());
+        verify(pushTournamentSummaryToLocalServersPort, never()).push(any(), any());
+        verify(outboxEventRepository, never()).markAsSent(any());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // helpers
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -490,6 +595,40 @@ class UserReplicationSchedulerServiceTest {
         return new OutboxEvent(
                 UUID.randomUUID().toString(),
                 eventType,
+                payload,
+                OutboxEventStatus.PENDING,
+                Instant.now(),
+                null
+        );
+    }
+
+    private OutboxEvent buildTournamentSummaryEvent(String tournamentId, boolean deleted) {
+        TournamentSummaryEventDto dto = new TournamentSummaryEventDto(
+                UUID.randomUUID().toString(),
+                "TOURNAMENT_SUMMARY_UPSERTED",
+                tournamentId,
+                "Test Cup",
+                GameType.CHESS,
+                false,
+                1,
+                TournamentStatus.DRAFT,
+                Instant.parse("2026-08-01T10:00:00Z"),
+                null,
+                List.of("b-1", "b-2"),
+                0,
+                Instant.parse("2026-07-12T10:00:00Z"),
+                deleted,
+                null
+        );
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(dto);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return new OutboxEvent(
+                dto.eventId(),
+                "TOURNAMENT_SUMMARY_UPSERTED",
                 payload,
                 OutboxEventStatus.PENDING,
                 Instant.now(),

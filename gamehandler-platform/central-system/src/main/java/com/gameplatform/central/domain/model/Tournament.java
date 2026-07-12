@@ -155,6 +155,27 @@ public class Tournament {
                 TournamentStatus.COMPLETED, startsAt, endedAt, createdBy, createdAt);
     }
 
+    /**
+     * Returns a new {@code Tournament} with the mutated mutable fields
+     * ({@code name}, {@code startsAt}) and {@code endsAt = null}. Legal only
+     * when the current status is {@link TournamentStatus#DRAFT}; the receiver
+     * is left unchanged (immutable transition). Used by use case §7.A.1
+     * (UpdateTournamentService).
+     *
+     * @param name     the new tournament name
+     * @param startsAt the new scheduled start instant
+     * @return a new immutable {@code Tournament} in {@code DRAFT} state with
+     *         updated {@code name}/{@code startsAt} and {@code endsAt = null}
+     * @throws InvalidTournamentStateException if {@code status != DRAFT}
+     */
+    public Tournament update(String name, Instant startsAt) {
+        if (status != TournamentStatus.DRAFT) {
+            throw new InvalidTournamentStateException("Cannot update from status " + status);
+        }
+        return new Tournament(tournamentId, name, gameType, teamBased, teamSize, format,
+                status, startsAt, null, createdBy, createdAt);
+    }
+
     public TournamentId getTournamentId() {
         return tournamentId;
     }

@@ -86,6 +86,17 @@ public class UserRepositoryAdapter implements UserRepository {
     }
 
     @Override
+    public List<User> findAllReplicated() {
+        // PIANO §7.B (deviation D1): the directory endpoint reads ONLY the
+        // replicated_users table — local-signup users (local_users) are
+        // intentionally excluded (they are not subject to central
+        // reconciliation). The localUserJpaRepository is left untouched.
+        return jpaRepository.findAll().stream()
+                .map(mapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public long count() {
         // M4 — backed by JpaRepository#count() (inherited), which counts the
         // replicated_users rows. The local_users table is intentionally

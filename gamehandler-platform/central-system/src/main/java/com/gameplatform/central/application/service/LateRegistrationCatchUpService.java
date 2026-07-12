@@ -6,8 +6,12 @@ import com.gameplatform.central.domain.model.ReplicationProgress;
 import com.gameplatform.central.domain.model.TournamentMatch;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.PushGameDefinitionToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushLocalServerRegistryToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushTournamentMatchToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushTournamentParticipantsToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushTournamentStandingsToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushTournamentSummaryToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
 import com.gameplatform.central.domain.ports.out.TournamentMatchRepository;
@@ -16,7 +20,11 @@ import com.gameplatform.central.infrastructure.adapters.out.mysql.repository.Out
 import com.gameplatform.shared.domain.model.TournamentMatchId;
 import com.gameplatform.shared.dto.GameDefinitionEventDto;
 import com.gameplatform.shared.dto.LocalAdminBuildingEventDto;
+import com.gameplatform.shared.dto.LocalServerRegistryEventDto;
 import com.gameplatform.shared.dto.TournamentMatchScheduledDto;
+import com.gameplatform.shared.dto.TournamentParticipantsEventDto;
+import com.gameplatform.shared.dto.TournamentStandingsEventDto;
+import com.gameplatform.shared.dto.TournamentSummaryEventDto;
 import com.gameplatform.shared.dto.UserSyncAckDto;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.slf4j.Logger;
@@ -64,7 +72,11 @@ public class LateRegistrationCatchUpService {
             "USER_REGISTERED", "USER_UPDATED",
             "LOCAL_ADMIN_BUILDING_ASSIGNED", "LOCAL_ADMIN_BUILDING_REVOKED",
             "GAME_DEFINITION_UPSERTED",
-            "TOURNAMENT_MATCH_SCHEDULED");
+            "TOURNAMENT_MATCH_SCHEDULED",
+            "TOURNAMENT_SUMMARY_UPSERTED",
+            "TOURNAMENT_STANDINGS_UPSERTED",
+            "TOURNAMENT_PARTICIPANTS_UPSERTED",
+            "LOCAL_SERVER_REGISTRY_UPSERTED");
 
 private final OutboxEventJpaRepository outboxEventJpaRepository;
     private final OutboxEventRepository outboxEventRepository;
@@ -75,7 +87,12 @@ private final OutboxEventJpaRepository outboxEventJpaRepository;
     private final ReplicationProgressRepository replicationProgressRepository;
     private final PushTournamentMatchToLocalServersPort pushTournamentMatchToLocalServersPort;
     private final TournamentMatchRepository tournamentMatchRepository;
+    private final PushTournamentSummaryToLocalServersPort pushTournamentSummaryToLocalServersPort;
+    private final PushTournamentStandingsToLocalServersPort pushTournamentStandingsToLocalServersPort;
+    private final PushTournamentParticipantsToLocalServersPort pushTournamentParticipantsToLocalServersPort;
+    private final PushLocalServerRegistryToLocalServersPort pushLocalServerRegistryToLocalServersPort;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public LateRegistrationCatchUpService(OutboxEventJpaRepository outboxEventJpaRepository,
                                        OutboxEventRepository outboxEventRepository,
                                        PushUserToLocalServersPort pushUserToLocalServersPort,
@@ -84,7 +101,11 @@ private final OutboxEventJpaRepository outboxEventJpaRepository;
                                        PushMetadataToLocalServersPort pushMetadataToLocalServersPort,
                                        PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort,
                                        PushTournamentMatchToLocalServersPort pushTournamentMatchToLocalServersPort,
-                                       TournamentMatchRepository tournamentMatchRepository) {
+                                       TournamentMatchRepository tournamentMatchRepository,
+                                       PushTournamentSummaryToLocalServersPort pushTournamentSummaryToLocalServersPort,
+                                       PushTournamentStandingsToLocalServersPort pushTournamentStandingsToLocalServersPort,
+                                       PushTournamentParticipantsToLocalServersPort pushTournamentParticipantsToLocalServersPort,
+                                       PushLocalServerRegistryToLocalServersPort pushLocalServerRegistryToLocalServersPort) {
         this.outboxEventJpaRepository = outboxEventJpaRepository;
         this.outboxEventRepository = outboxEventRepository;
         this.pushUserToLocalServersPort = pushUserToLocalServersPort;
@@ -94,6 +115,48 @@ private final OutboxEventJpaRepository outboxEventJpaRepository;
         this.pushGameDefinitionToLocalServersPort = pushGameDefinitionToLocalServersPort;
         this.pushTournamentMatchToLocalServersPort = pushTournamentMatchToLocalServersPort;
         this.tournamentMatchRepository = tournamentMatchRepository;
+        this.pushTournamentSummaryToLocalServersPort = pushTournamentSummaryToLocalServersPort;
+        this.pushTournamentStandingsToLocalServersPort = pushTournamentStandingsToLocalServersPort;
+        this.pushTournamentParticipantsToLocalServersPort = pushTournamentParticipantsToLocalServersPort;
+        this.pushLocalServerRegistryToLocalServersPort = pushLocalServerRegistryToLocalServersPort;
+    }
+
+    /**
+     * Backward-compat legacy ctor (S2): 10-arg delegating to the 13-arg production
+     * ctor with {@code null} for the three new S3 ports. Transitive delegation
+     * reaches the 13-arg production ctor.
+     */
+    public LateRegistrationCatchUpService(OutboxEventJpaRepository outboxEventJpaRepository,
+                                       OutboxEventRepository outboxEventRepository,
+                                       PushUserToLocalServersPort pushUserToLocalServersPort,
+                                       ObjectMapper objectMapper,
+                                       ReplicationProgressRepository replicationProgressRepository,
+                                       PushMetadataToLocalServersPort pushMetadataToLocalServersPort,
+                                       PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort,
+                                       PushTournamentMatchToLocalServersPort pushTournamentMatchToLocalServersPort,
+                                       TournamentMatchRepository tournamentMatchRepository,
+                                       PushTournamentSummaryToLocalServersPort pushTournamentSummaryToLocalServersPort) {
+        this(outboxEventJpaRepository, outboxEventRepository, pushUserToLocalServersPort,
+                objectMapper, replicationProgressRepository, pushMetadataToLocalServersPort,
+                pushGameDefinitionToLocalServersPort, pushTournamentMatchToLocalServersPort,
+                tournamentMatchRepository, pushTournamentSummaryToLocalServersPort,
+                null, null, null);
+    }
+
+    /** Backward-compat legacy ctor (pre-S2): 9-arg delegating to the 10-arg with {@code null} for the new port. */
+    public LateRegistrationCatchUpService(OutboxEventJpaRepository outboxEventJpaRepository,
+                                       OutboxEventRepository outboxEventRepository,
+                                       PushUserToLocalServersPort pushUserToLocalServersPort,
+                                       ObjectMapper objectMapper,
+                                       ReplicationProgressRepository replicationProgressRepository,
+                                       PushMetadataToLocalServersPort pushMetadataToLocalServersPort,
+                                       PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort,
+                                       PushTournamentMatchToLocalServersPort pushTournamentMatchToLocalServersPort,
+                                       TournamentMatchRepository tournamentMatchRepository) {
+        this(outboxEventJpaRepository, outboxEventRepository, pushUserToLocalServersPort,
+                objectMapper, replicationProgressRepository, pushMetadataToLocalServersPort,
+                pushGameDefinitionToLocalServersPort, pushTournamentMatchToLocalServersPort,
+                tournamentMatchRepository, null);
     }
 
     /**
@@ -214,6 +277,166 @@ private final OutboxEventJpaRepository outboxEventJpaRepository;
                         pushed++;
                     } catch (DataIntegrityViolationException dup) {
                         log.info("Catch-up: replication_progress already present for game-definition eventId={}, building={} — treating as success",
+                                eventId, serverId);
+                    }
+                }
+                continue;
+            }
+
+            // FASE 7-A2 — tournament-summary event branch: TOURNAMENT_SUMMARY_UPSERTED.
+            // No ack / poison isolation: the local upsert is idempotent by PK
+            // (tournamentId). The summary projection is global (no per-building
+            // routing filter, every active server replicates it) and a
+            // {@code deleted=true} tombstone is handled by the local side as a
+            // {@code deleteById} on the projection. Best-effort push (failure
+            // swallowed) preserves the rest of the catch-up batch.
+            if (isTournamentSummaryEvent(eventType)) {
+                if (pushTournamentSummaryToLocalServersPort == null) {
+                    log.warn("Catch-up: tournament-summary event [{}] — no PushTournamentSummaryToLocalServersPort wired (legacy ctor) — skipping.",
+                            eventId);
+                    continue;
+                }
+                TournamentSummaryEventDto summaryEvent;
+                try {
+                    summaryEvent = objectMapper.readValue(event.getPayload(), TournamentSummaryEventDto.class);
+                } catch (Exception e) {
+                    log.warn("Catch-up: skipping tournament-summary event [{}] due to malformed payload: {}", eventId, e.getMessage());
+                    continue;
+                }
+
+                try {
+                    pushTournamentSummaryToLocalServersPort.push(List.of(summaryEvent), server);
+                } catch (Exception e) {
+                    log.error("Catch-up: failed to push tournament-summary event [{}] (type={}) to building={}: {}",
+                            eventId, eventType, serverId, e.getMessage(), e);
+                    continue;
+                }
+
+                if (replicationProgressRepository.existsByEventIdAndServerId(eventId, serverId)) {
+                    log.info("Catch-up: replication_progress already present (pre-check) for tournament-summary eventId={}, building={}", eventId, serverId);
+                } else {
+                    try {
+                        replicationProgressRepository.save(new ReplicationProgress(eventId, serverId));
+                        pushed++;
+                    } catch (DataIntegrityViolationException dup) {
+                        log.info("Catch-up: replication_progress already present for tournament-summary eventId={}, building={} — treating as success",
+                                eventId, serverId);
+                    }
+                }
+                continue;
+            }
+
+            // FASE 7-A3 — tournament-standings event branch: TOURNAMENT_STANDINGS_UPSERTED.
+            // No ack / poison isolation: the local upsert is a delete+insert snapshot
+            // idempotent by PK (tournamentId). Broadcast (no per-building routing).
+            if (isTournamentStandingsEvent(eventType)) {
+                if (pushTournamentStandingsToLocalServersPort == null) {
+                    log.warn("Catch-up: tournament-standings event [{}] — no PushTournamentStandingsToLocalServersPort wired (legacy ctor) — skipping.",
+                            eventId);
+                    continue;
+                }
+                TournamentStandingsEventDto standingsEvent;
+                try {
+                    standingsEvent = objectMapper.readValue(event.getPayload(), TournamentStandingsEventDto.class);
+                } catch (Exception e) {
+                    log.warn("Catch-up: skipping tournament-standings event [{}] due to malformed payload: {}", eventId, e.getMessage());
+                    continue;
+                }
+
+                try {
+                    pushTournamentStandingsToLocalServersPort.push(List.of(standingsEvent), server);
+                } catch (Exception e) {
+                    log.error("Catch-up: failed to push tournament-standings event [{}] (type={}) to building={}: {}",
+                            eventId, eventType, serverId, e.getMessage(), e);
+                    continue;
+                }
+
+                if (replicationProgressRepository.existsByEventIdAndServerId(eventId, serverId)) {
+                    log.info("Catch-up: replication_progress already present (pre-check) for tournament-standings eventId={}, building={}", eventId, serverId);
+                } else {
+                    try {
+                        replicationProgressRepository.save(new ReplicationProgress(eventId, serverId));
+                        pushed++;
+                    } catch (DataIntegrityViolationException dup) {
+                        log.info("Catch-up: replication_progress already present for tournament-standings eventId={}, building={} — treating as success",
+                                eventId, serverId);
+                    }
+                }
+                continue;
+            }
+
+            // FASE 7-A3 — tournament-participants event branch: TOURNAMENT_PARTICIPANTS_UPSERTED.
+            // No ack / poison isolation: the local upsert is a delete+insert snapshot
+            // idempotent by PK (tournamentId). Broadcast (no per-building routing).
+            if (isTournamentParticipantsEvent(eventType)) {
+                if (pushTournamentParticipantsToLocalServersPort == null) {
+                    log.warn("Catch-up: tournament-participants event [{}] — no PushTournamentParticipantsToLocalServersPort wired (legacy ctor) — skipping.",
+                            eventId);
+                    continue;
+                }
+                TournamentParticipantsEventDto participantsEvent;
+                try {
+                    participantsEvent = objectMapper.readValue(event.getPayload(), TournamentParticipantsEventDto.class);
+                } catch (Exception e) {
+                    log.warn("Catch-up: skipping tournament-participants event [{}] due to malformed payload: {}", eventId, e.getMessage());
+                    continue;
+                }
+
+                try {
+                    pushTournamentParticipantsToLocalServersPort.push(List.of(participantsEvent), server);
+                } catch (Exception e) {
+                    log.error("Catch-up: failed to push tournament-participants event [{}] (type={}) to building={}: {}",
+                            eventId, eventType, serverId, e.getMessage(), e);
+                    continue;
+                }
+
+                if (replicationProgressRepository.existsByEventIdAndServerId(eventId, serverId)) {
+                    log.info("Catch-up: replication_progress already present (pre-check) for tournament-participants eventId={}, building={}", eventId, serverId);
+                } else {
+                    try {
+                        replicationProgressRepository.save(new ReplicationProgress(eventId, serverId));
+                        pushed++;
+                    } catch (DataIntegrityViolationException dup) {
+                        log.info("Catch-up: replication_progress already present for tournament-participants eventId={}, building={} — treating as success",
+                                eventId, serverId);
+                    }
+                }
+                continue;
+            }
+
+            // FASE 7-A3 — local-server-registry event branch: LOCAL_SERVER_REGISTRY_UPSERTED.
+            // No ack / poison isolation: the local upsert is idempotent by PK (buildingId).
+            // Broadcast (no per-building routing) so every Local mirrors the full registry.
+            if (isLocalServerRegistryEvent(eventType)) {
+                if (pushLocalServerRegistryToLocalServersPort == null) {
+                    log.warn("Catch-up: local-server-registry event [{}] — no PushLocalServerRegistryToLocalServersPort wired (legacy ctor) — skipping.",
+                            eventId);
+                    continue;
+                }
+                LocalServerRegistryEventDto registryEvent;
+                try {
+                    registryEvent = objectMapper.readValue(event.getPayload(), LocalServerRegistryEventDto.class);
+                } catch (Exception e) {
+                    log.warn("Catch-up: skipping local-server-registry event [{}] due to malformed payload: {}", eventId, e.getMessage());
+                    continue;
+                }
+
+                try {
+                    pushLocalServerRegistryToLocalServersPort.push(List.of(registryEvent), server);
+                } catch (Exception e) {
+                    log.error("Catch-up: failed to push local-server-registry event [{}] (type={}) to building={}: {}",
+                            eventId, eventType, serverId, e.getMessage(), e);
+                    continue;
+                }
+
+                if (replicationProgressRepository.existsByEventIdAndServerId(eventId, serverId)) {
+                    log.info("Catch-up: replication_progress already present (pre-check) for local-server-registry eventId={}, building={}", eventId, serverId);
+                } else {
+                    try {
+                        replicationProgressRepository.save(new ReplicationProgress(eventId, serverId));
+                        pushed++;
+                    } catch (DataIntegrityViolationException dup) {
+                        log.info("Catch-up: replication_progress already present for local-server-registry eventId={}, building={} — treating as success",
                                 eventId, serverId);
                     }
                 }
@@ -342,5 +565,21 @@ private final OutboxEventJpaRepository outboxEventJpaRepository;
 
     private static boolean isTournamentMatchEvent(String eventType) {
         return "TOURNAMENT_MATCH_SCHEDULED".equals(eventType);
+    }
+
+    private static boolean isTournamentSummaryEvent(String eventType) {
+        return "TOURNAMENT_SUMMARY_UPSERTED".equals(eventType);
+    }
+
+    private static boolean isTournamentStandingsEvent(String eventType) {
+        return "TOURNAMENT_STANDINGS_UPSERTED".equals(eventType);
+    }
+
+    private static boolean isTournamentParticipantsEvent(String eventType) {
+        return "TOURNAMENT_PARTICIPANTS_UPSERTED".equals(eventType);
+    }
+
+    private static boolean isLocalServerRegistryEvent(String eventType) {
+        return "LOCAL_SERVER_REGISTRY_UPSERTED".equals(eventType);
     }
 }

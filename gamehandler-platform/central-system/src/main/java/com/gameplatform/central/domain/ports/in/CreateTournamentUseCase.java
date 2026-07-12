@@ -5,5 +5,9 @@ import com.gameplatform.shared.dto.TournamentDto;
 import java.util.List;
 
 public interface CreateTournamentUseCase {
-    TournamentDto create(Tournament tournament, List<String> buildingIds);
+    TournamentDto create(Tournament tournament, List<String> buildingIds, String originatingRequestId);
+
+    default TournamentDto create(Tournament tournament, List<String> buildingIds) {
+        return create(tournament, buildingIds, null);
+    }
 }

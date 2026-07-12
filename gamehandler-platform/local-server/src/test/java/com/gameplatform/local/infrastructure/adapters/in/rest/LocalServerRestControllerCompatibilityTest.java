@@ -6,6 +6,7 @@ import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.model.GameSession;
 import com.gameplatform.local.domain.model.Reservation;
 import com.gameplatform.local.domain.ports.in.GetAvailableGamesUseCase;
+import com.gameplatform.local.domain.ports.out.GameDefinitionLocalRepository;
 import com.gameplatform.local.application.service.ReservationService;
 import com.gameplatform.shared.domain.model.*;
 import com.gameplatform.shared.domain.result.ChessResult;
@@ -23,6 +24,7 @@ import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -40,6 +42,9 @@ class LocalServerRestControllerCompatibilityTest {
     private GetAvailableGamesUseCase getAvailableGamesUseCase;
 
     @Mock
+    private GameDefinitionLocalRepository gameDefinitionLocalRepository;
+
+    @Mock
     private ReservationService reservationService;
 
     private GameController gameController;
@@ -47,7 +52,7 @@ class LocalServerRestControllerCompatibilityTest {
 
     @BeforeEach
     void setUp() {
-        gameController = new GameController(getAvailableGamesUseCase);
+        gameController = new GameController(getAvailableGamesUseCase, gameDefinitionLocalRepository);
         reservationController = new ReservationController(reservationService, reservationService, reservationService);
     }
 

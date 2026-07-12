@@ -5,12 +5,14 @@ import com.gameplatform.central.domain.exception.TournamentNotFoundException;
 import com.gameplatform.central.domain.model.Tournament;
 import com.gameplatform.central.domain.ports.in.CancelTournamentUseCase;
 import com.gameplatform.central.domain.ports.in.CreateTournamentUseCase;
+import com.gameplatform.central.domain.ports.in.DeleteTournamentUseCase;
 import com.gameplatform.central.domain.ports.in.GetTournamentUseCase;
 import com.gameplatform.central.domain.ports.in.GetTournamentStandingsUseCase;
 import com.gameplatform.central.domain.ports.in.ListTournamentMatchesUseCase;
 import com.gameplatform.central.domain.ports.in.ListTournamentsUseCase;
 import com.gameplatform.central.domain.ports.in.OpenTournamentRegistrationUseCase;
 import com.gameplatform.central.domain.ports.in.ScheduleTournamentMatchesUseCase;
+import com.gameplatform.central.domain.ports.in.UpdateTournamentUseCase;
 import com.gameplatform.central.infrastructure.security.CurrentUserService;
 import com.gameplatform.shared.domain.model.TournamentFormat;
 import com.gameplatform.shared.domain.model.TournamentId;
@@ -20,12 +22,15 @@ import com.gameplatform.shared.dto.CreateTournamentRequestDto;
 import com.gameplatform.shared.dto.TournamentDto;
 import com.gameplatform.shared.dto.TournamentMatchDto;
 import com.gameplatform.shared.dto.TournamentStandingDto;
+import com.gameplatform.shared.dto.UpdateTournamentRequestDto;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -62,7 +67,10 @@ public class TournamentController {
     private final ScheduleTournamentMatchesUseCase scheduleUseCase;
     private final GetTournamentStandingsUseCase standingsUseCase;
     private final ListTournamentMatchesUseCase matchesUseCase;
+    private final UpdateTournamentUseCase updateUseCase;
+    private final DeleteTournamentUseCase deleteUseCase;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public TournamentController(CreateTournamentUseCase createUseCase,
                                 OpenTournamentRegistrationUseCase openUseCase,
                                 CancelTournamentUseCase cancelUseCase,
@@ -72,7 +80,9 @@ public class TournamentController {
                                 Clock clock,
                                 ScheduleTournamentMatchesUseCase scheduleUseCase,
                                 GetTournamentStandingsUseCase standingsUseCase,
-                                ListTournamentMatchesUseCase matchesUseCase) {
+                                ListTournamentMatchesUseCase matchesUseCase,
+                                UpdateTournamentUseCase updateUseCase,
+                                DeleteTournamentUseCase deleteUseCase) {
         this.createUseCase = createUseCase;
         this.openUseCase = openUseCase;
         this.cancelUseCase = cancelUseCase;
@@ -83,6 +93,22 @@ public class TournamentController {
         this.scheduleUseCase = scheduleUseCase;
         this.standingsUseCase = standingsUseCase;
         this.matchesUseCase = matchesUseCase;
+        this.updateUseCase = updateUseCase;
+        this.deleteUseCase = deleteUseCase;
+    }
+
+    TournamentController(CreateTournamentUseCase createUseCase,
+                         OpenTournamentRegistrationUseCase openUseCase,
+                         CancelTournamentUseCase cancelUseCase,
+                         GetTournamentUseCase getUseCase,
+                         ListTournamentsUseCase listTournamentsUseCase,
+                         CurrentUserService currentUserService,
+                         Clock clock,
+                         ScheduleTournamentMatchesUseCase scheduleUseCase,
+                         GetTournamentStandingsUseCase standingsUseCase,
+                         ListTournamentMatchesUseCase matchesUseCase) {
+        this(createUseCase, openUseCase, cancelUseCase, getUseCase, listTournamentsUseCase,
+                currentUserService, clock, scheduleUseCase, standingsUseCase, matchesUseCase, null, null);
     }
 
     @PostMapping
@@ -115,6 +141,22 @@ public class TournamentController {
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<TournamentDto> cancel(@PathVariable String id) {
         return ResponseEntity.ok(cancelUseCase.cancel(new TournamentId(id)));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public ResponseEntity<TournamentDto> update(@PathVariable String id,
+                                                @Valid @RequestBody UpdateTournamentRequestDto request) {
+        TournamentDto dto = updateUseCase.update(new TournamentId(id), request.name(), request.startsAt(),
+                                                 request.buildingIds(), null);
+        return ResponseEntity.ok(dto);
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public ResponseEntity<Void> delete(@PathVariable String id) {
+        deleteUseCase.delete(new TournamentId(id), null);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping

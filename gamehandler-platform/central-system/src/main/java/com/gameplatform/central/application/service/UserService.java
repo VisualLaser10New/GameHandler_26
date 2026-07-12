@@ -106,7 +106,7 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
 
     @Transactional
     @Override
-    public User updateUser(UserId id, String newPassword, List<String> newRoles) {
+    public User updateUser(UserId id, String newPassword, List<String> newRoles, String originatingRequestId) {
         User user = userRepository.findById(id).orElseThrow(() ->
             new UserNotFoundException("User not found")
         );
@@ -123,13 +123,17 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
             user.updateRoles(deduplicatedRoles);
         }
 
-        return saveUserOnDB(user, "USER_UPDATED");
+        return saveUserOnDB(user, "USER_UPDATED", originatingRequestId);
     }
-    
+
     private User saveUserOnDB(User user, String eventType) {
+        return saveUserOnDB(user, eventType, null);
+    }
+
+    private User saveUserOnDB(User user, String eventType, String originatingRequestId) {
         User savedUser = userRepository.save(user);
 
-        UserSyncDto userSyncDto = new UserSyncDto(savedUser.getId().value(), savedUser.getUsername(), savedUser.getEmail(), savedUser.getPasswordHash(), savedUser.getRoles(), Instant.now(clock));
+        UserSyncDto userSyncDto = new UserSyncDto(savedUser.getId().value(), savedUser.getUsername(), savedUser.getEmail(), savedUser.getPasswordHash(), savedUser.getRoles(), Instant.now(clock), originatingRequestId);
 
         String jsonPayLoad;
         try {

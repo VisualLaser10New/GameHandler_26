@@ -9,7 +9,16 @@ public interface UserRepository {
     User save(User user);
     Optional<User> findById(UserId userId);
     Optional<User> findByUsername(String username);
+
     void saveAll(List<User> users);
+
+    /**
+     * Returns every row held in the {@code replicated_users} table only
+     * (the {@code users} local-signup table is intentionally excluded).
+     * Used by the Local {@code GET /api/admin/users} PLATFORM_ADMIN
+     * directory endpoint (PIANO §7.B, deviation D1).
+     */
+    List<User> findAllReplicated();
 
     /**
      * M4 — number of rows currently held in the {@code replicated_users}

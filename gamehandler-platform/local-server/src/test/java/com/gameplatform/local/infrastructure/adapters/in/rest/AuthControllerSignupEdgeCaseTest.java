@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.gameplatform.local.domain.ports.in.AuthenticateLocalUserUseCase;
 import com.gameplatform.local.domain.ports.in.RegisterLocalUserUseCase;
+import com.gameplatform.local.domain.ports.out.LocalAdminBuildingLocalRepository;
+import com.gameplatform.local.domain.ports.out.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,11 +28,18 @@ class AuthControllerSignupEdgeCaseTest {
     @Mock
     private RegisterLocalUserUseCase registerUseCase;
 
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private LocalAdminBuildingLocalRepository localAdminBuildingLocalRepository;
+
     private MockMvc mvc;
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.standaloneSetup(new AuthController(authenticateUseCase, registerUseCase))
+        mvc = MockMvcBuilders.standaloneSetup(
+                        new AuthController(authenticateUseCase, registerUseCase, userRepository, localAdminBuildingLocalRepository))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }

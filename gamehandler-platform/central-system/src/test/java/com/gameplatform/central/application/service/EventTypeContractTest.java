@@ -42,6 +42,28 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <em>central</em> {@code UserService.updateUser} outbox, NOT by the local-server.
  * When a new event type is introduced in local-server, add it here and the
  * central processor must add a branch or this test will fail.
+ *
+ * <h2>FASE 7 §7.B W6/W9/W10/W12 — admin-request literals (batch S6)</h2>
+ * The eight {@code *_REQUESTED} literals below are Local-emitted by the W use
+ * cases (Local admin/PLAYER flows). Each one was verified to appear:
+ * <ul>
+ *   <li>{@code ROLE_ASSIGNMENT_REQUESTED}          — {@code AssignRoleRequestedService}</li>
+ *   <li>{@code GAME_DEFINITION_UPSERT_REQUESTED}   — {@code UpsertGameDefinitionRequestedService}</li>
+ *   <li>{@code TOURNAMENT_CREATE_REQUESTED}        — {@code CreateTournamentRequestedService}</li>
+ *   <li>{@code TOURNAMENT_OPEN_REQUESTED}          — {@code TournamentLifecycleRequestedService}</li>
+ *   <li>{@code TOURNAMENT_CANCEL_REQUESTED}        — {@code TournamentLifecycleRequestedService}</li>
+ *   <li>{@code TOURNAMENT_SCHEDULE_REQUESTED}      — {@code TournamentLifecycleRequestedService}</li>
+ *   <li>{@code TOURNAMENT_UPDATE_REQUESTED}        — {@code UpdateTournamentRequestedService}</li>
+ *   <li>{@code TOURNAMENT_DELETE_REQUESTED}        — {@code DeleteTournamentRequestedService}</li>
+ *   <li>{@code PARTICIPANT_REGISTER_REQUESTED}     — {@code RegisterTournamentParticipantRequestedService}</li>
+ * </ul>
+ * The matching Central branches in {@code SyncEventProcessor.processEvent} were
+ * added in batch S3-A. The Central-emitted return events
+ * ({@code USER_UPDATED}, {@code GAME_DEFINITION_UPSERTED},
+ * {@code TOURNAMENT_SUMMARY_UPSERTED}, {@code TOURNAMENT_STANDINGS_UPSERTED},
+ * {@code TOURNAMENT_PARTICIPANTS_UPSERTED}, {@code LOCAL_SERVER_REGISTRY_UPSERTED})
+ * are produced by the Central outbox (not by the Local) and are validated by
+ * the sibling {@code ReplicationEventTypeContractTest} (batch S6 gap S1 §16.7 A5).
  */
 class EventTypeContractTest {
 
@@ -51,7 +73,16 @@ class EventTypeContractTest {
             "RESERVATION_CANCELLED",
             "GAME_SESSION_COMPLETED",
             "GAME_SESSION_ABORTED",
-            "TOURNAMENT_MATCH_COMPLETED"
+            "TOURNAMENT_MATCH_COMPLETED",
+            "ROLE_ASSIGNMENT_REQUESTED",
+            "GAME_DEFINITION_UPSERT_REQUESTED",
+            "TOURNAMENT_CREATE_REQUESTED",
+            "TOURNAMENT_OPEN_REQUESTED",
+            "TOURNAMENT_CANCEL_REQUESTED",
+            "TOURNAMENT_SCHEDULE_REQUESTED",
+            "TOURNAMENT_UPDATE_REQUESTED",
+            "TOURNAMENT_DELETE_REQUESTED",
+            "PARTICIPANT_REGISTER_REQUESTED"
     );
 
     @Test

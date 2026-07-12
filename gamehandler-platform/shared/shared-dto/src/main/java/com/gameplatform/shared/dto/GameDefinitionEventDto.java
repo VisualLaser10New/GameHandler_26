@@ -13,6 +13,13 @@ public record GameDefinitionEventDto(
         int maxPlayers,
         boolean teamAllowed,
         Map<String, Object> registrationRules,
-        Instant updatedAt
+        Instant updatedAt,
+        String originatingRequestId
 ) {
+    public GameDefinitionEventDto(String eventId, String eventType, GameType gameType, String name,
+                                  int minPlayers, int maxPlayers, boolean teamAllowed,
+                                  Map<String, Object> registrationRules, Instant updatedAt) {
+        this(eventId, eventType, gameType, name, minPlayers, maxPlayers, teamAllowed,
+                registrationRules, updatedAt, null);
+    }
 }

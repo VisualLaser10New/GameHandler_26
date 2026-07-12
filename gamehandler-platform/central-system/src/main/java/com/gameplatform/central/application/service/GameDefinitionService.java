@@ -61,7 +61,7 @@ public class GameDefinitionService implements UpsertGameDefinitionUseCase, ListG
     }
 
     @Override
-    public GameDefinition upsert(GameDefinition input) {
+    public GameDefinition upsert(GameDefinition input, String originatingRequestId) {
         if (input == null) {
             throw new InvalidGameDefinitionException("GameDefinition cannot be null");
         }
@@ -87,7 +87,7 @@ public class GameDefinitionService implements UpsertGameDefinitionUseCase, ListG
                 now);
 
         GameDefinition saved = gameDefinitionRepository.save(rebuilt);
-        writeOutboxEvent(saved);
+        writeOutboxEvent(saved, originatingRequestId);
         return saved;
     }
 
@@ -112,6 +112,10 @@ public class GameDefinitionService implements UpsertGameDefinitionUseCase, ListG
      * tracks the outbox event id) is consistent across flows.
      */
     private void writeOutboxEvent(GameDefinition saved) {
+        writeOutboxEvent(saved, null);
+    }
+
+    private void writeOutboxEvent(GameDefinition saved, String originatingRequestId) {
         String eventId = UUID.randomUUID().toString();
         GameDefinitionEventDto dto = new GameDefinitionEventDto(
                 eventId,
@@ -122,7 +126,8 @@ public class GameDefinitionService implements UpsertGameDefinitionUseCase, ListG
                 saved.getMaxPlayers(),
                 saved.isTeamAllowed(),
                 saved.getRegistrationRules(),
-                saved.getUpdatedAt());
+                saved.getUpdatedAt(),
+                originatingRequestId);
 
         String payload;
         try {

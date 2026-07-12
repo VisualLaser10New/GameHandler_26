@@ -189,3 +189,97 @@ CREATE TABLE IF NOT EXISTS tournament_matches_local (
     INDEX idx_tml_tournament (tournament_id),
     INDEX idx_tml_status (status)
 ) ENGINE=InnoDB;
+
+-- =============== FASE 7-A2 — Replica tournament summaries (read-only) ===============
+-- Replica read-only del sommario torneo (proiezione piatta dei tornei Central),
+-- replicata via outbox TOURNAMENT_SUMMARY_UPSERTED (emesso da
+-- TournamentService.create/open/cancel/update/delete). Populated only via push
+-- Central->Local (≤5 min latenza). PK tournament_id; upsert idempotente.
+-- buildingIds serializzato come JSON in TEXT (mapper gestisce la conversione,
+-- mirror di registration_rules in game_definitions_local).
+-- deleted DEFAULT FALSE: il sync service PHYSICALLY rimuove la riga su tombstone
+-- (deleted=true), quindi ogni riga presente ha deleted=false.
+-- Aggiornata solo dal sync; nessun @Version.
+CREATE TABLE IF NOT EXISTS tournaments_summary_local (
+    tournament_id       VARCHAR(36) PRIMARY KEY,
+    name                VARCHAR(200) NOT NULL,
+    game_type           VARCHAR(50) NOT NULL,
+    team_based          BOOLEAN NOT NULL,
+    team_size           INT NOT NULL,
+    status              VARCHAR(50) NOT NULL,
+    starts_at           TIMESTAMP NULL,
+    ends_at             TIMESTAMP NULL,
+    building_ids        TEXT NULL,
+    participants_count  INT NOT NULL DEFAULT 0,
+    deleted             BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at          TIMESTAMP NOT NULL,
+    INDEX idx_tsl_status (status)
+) ENGINE=InnoDB;
+
+-- =============== FASE 7-B — Replica tournament standings (read-only) ===============
+-- Replica read-only delle classifiche torneo (proiezione piana dei risultati Central),
+-- replicata via outbox TOURNAMENT_STANDINGS_UPSERTED. PK composta (tournament_id,
+-- participant_id); il sync service effettua delete+insert full-snapshot per tournamentId
+-- (idempotente su re-delivery). Aggiornata solo dal sync; nessun @Version.
+CREATE TABLE IF NOT EXISTS tournament_standings_local (
+    tournament_id   VARCHAR(36) NOT NULL,
+    participant_id VARCHAR(64) NOT NULL,
+    display_name   VARCHAR(100) NOT NULL,
+    wins           INT NOT NULL DEFAULT 0,
+    losses         INT NOT NULL DEFAULT 0,
+    points         INT NOT NULL DEFAULT 0,
+    rank           INT NULL,
+    updated_at     TIMESTAMP NOT NULL,
+    PRIMARY KEY (tournament_id, participant_id),
+    INDEX idx_tsl_tournament (tournament_id)
+) ENGINE=InnoDB;
+
+-- =============== FASE 7-B — Replica tournament participants (read-only) ===============
+-- Replica read-only dei partecipanti torneo (proiezione piana degli iscritti Central),
+-- replicata via outbox TOURNAMENT_PARTICIPANTS_UPSERTED. PK composta (tournament_id,
+-- participant_id); il sync service effettua delete+insert full-snapshot per tournamentId.
+CREATE TABLE IF NOT EXISTS tournament_participants_local (
+    tournament_id   VARCHAR(36) NOT NULL,
+    participant_id  VARCHAR(64) NOT NULL,
+    is_team         BOOLEAN NOT NULL,
+    display_name    VARCHAR(100) NOT NULL,
+    registered_at   TIMESTAMP NOT NULL,
+    updated_at      TIMESTAMP NOT NULL,
+    PRIMARY KEY (tournament_id, participant_id),
+    INDEX idx_tpl_tournament (tournament_id)
+) ENGINE=InnoDB;
+
+-- =============== FASE 7-B — Replica registered local servers (read-only) =--------------
+-- Replica read-only del registry dei Local Server, replicata via outbox
+-- LOCAL_SERVER_REGISTRY_UPSERTED. PK building_id; upsert idempotente. Permette al
+-- PLATFORM_ADMIN di vedere il registry completo da qualsiasi Local (E1).
+CREATE TABLE IF NOT EXISTS registered_local_servers_local (
+    building_id   VARCHAR(64) PRIMARY KEY,
+    base_url      VARCHAR(255) NOT NULL,
+    last_seen_at  TIMESTAMP NULL,
+    active        BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at    TIMESTAMP NOT NULL
+) ENGINE=InnoDB;
+
+-- =============== FASE 7-B — Admin requests (async write via outbox) ===============
+-- Persistenza locale delle richieste async tramite outbox *_REQUESTED (W6/W9/W10/W12).
+-- Scritta atomicamente con la riga OutboxEvent (requestId == eventId) dall'use case W.
+-- Lifecycle: PENDING -> COMPLETED (chiamato dal *SyncService quando arriva l'evento di
+-- ritorno Central con originatingRequestId) OPPURE PENDING -> FAILED (chiamato dal
+-- AdminRequestTimeoutService a timeout). Indici (acting_user_id, status) per il
+-- filtro AdminRequestsController.per-user e (status, created_at) per la query timeout.
+CREATE TABLE IF NOT EXISTS admin_requests_local (
+    request_id        VARCHAR(36) PRIMARY KEY,
+    event_type        VARCHAR(64) NOT NULL,
+    acting_user_id    VARCHAR(64) NOT NULL,
+    acting_role       VARCHAR(32) NOT NULL,
+    building_id       VARCHAR(64) NULL,
+    payload           TEXT NOT NULL,
+    status            VARCHAR(16) NOT NULL,
+    result_data       TEXT NULL,
+    created_at        TIMESTAMP NOT NULL,
+    completed_at      TIMESTAMP NULL,
+    outbox_event_id   VARCHAR(64) NULL,
+    INDEX idx_arl_user_status (acting_user_id, status),
+    INDEX idx_arl_status_created (status, created_at)
+) ENGINE=InnoDB;

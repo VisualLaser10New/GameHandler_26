@@ -12,6 +12,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import com.gameplatform.local.domain.model.User;
+import com.gameplatform.local.domain.ports.out.AdminRequestRepository;
 import com.gameplatform.local.domain.ports.out.UserRepository;
 import com.gameplatform.local.testsupport.ListAppender;
 import com.gameplatform.shared.domain.model.UserId;
@@ -56,6 +57,7 @@ class UserSyncServiceOrderingGuardTest {
     private static final Instant FIXED_NOW = Instant.parse("2026-07-06T12:00:00Z");
 
     @Mock UserRepository userRepository;
+    @Mock AdminRequestRepository adminRequestRepository;
 
     private final Clock clock = Clock.fixed(FIXED_NOW, ZoneId.of("UTC"));
     private UserSyncService service;
@@ -64,7 +66,7 @@ class UserSyncServiceOrderingGuardTest {
 
     @BeforeEach
     void setUp() {
-        service = new UserSyncService(userRepository, clock);
+        service = new UserSyncService(userRepository, adminRequestRepository, clock);
         logger = (Logger) LoggerFactory.getLogger(UserSyncService.class);
         appender = new ListAppender();
         logger.addAppender(appender);

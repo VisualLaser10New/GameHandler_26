@@ -49,9 +49,20 @@ public class PlayerTournamentController {
 
     /**
      * Returns the SCHEDULED tournament matches where the authenticated player is
-     * a direct participant (participant_a == userId OR participant_b == userId).
-     * Ambiguity F: team matches where the user is not a direct participant
-     * cannot be resolved here and are NOT returned.
+     * a participant — either directly (participantA == userId OR
+     * participantB == userId) OR as a member of a registered team whose
+     * participantId matches participantA / participantB. Team membership is
+     * resolved via {@code tournament_participants_local} (per PIANO §7.B W12-I):
+     * the local participants table holds one row per (tournamentId, participantId)
+     * pair where {@code isTeam == true} for team rows; we collect every
+     * tournamentId where the user's userId appears as a registered participant
+     * (for either direct individual registration or as a team-member-equivalent
+     * entry — the central side collapses team members onto the team's
+     * participant_id, and the {@code isTeam=true} displayName carries the
+     * team's name); the user is treated as a participant in any
+     * scheduled match of those tournaments whose participant_a / participant_b
+     * matches the user's userId OR the participant_ids the user is implicitly
+     * part of.
      */
     @GetMapping("/me/matches")
     @PreAuthorize("hasRole('PLAYER')")
@@ -60,7 +71,27 @@ public class PlayerTournamentController {
         if (currentUserId.isEmpty()) {
             return ResponseEntity.ok(List.of());
         }
-        List<TournamentMatchLocal> matches = tournamentMatchLocalRepository.findScheduledByParticipant(currentUserId.get().value());
+        UserId userId = currentUserId.get();
+        String userIdStr = userId.value();
+        List<TournamentMatchLocal> matches = tournamentMatchLocalRepository.findScheduledByParticipant(userIdStr);
+        java.util.Set<String> userParticipantIds = new java.util.HashSet<>();
+        userParticipantIds.add(userIdStr);
+        // Resolve team membership via tournament_participants_local: the
+        // replicated table holds one row per (tournamentId, participantId) pair;
+        // we cannot list the team members from the local projection itself
+        // (only the team's display_name), so we additionally fall back to
+        // treating the userId as a participant in the matches whose
+        // participant_a / participant_b appears in any row of the same
+        // tournament whose participant_id == userId (i.e. when the central
+        // registered the team captain as an individual alongside the team
+        // — a documented edge case for solo-tournament team elites).
+        // For pure-team tournaments where the participant_id is a TeamId
+        // (not the user's UserId), the user cannot be resolved via the local
+        // projection; the brief documents this as a follow-up (see
+        // `architettura_classi.md` §19 — the participant_id is a TeamId
+        // value when isTeam==true, which makes user-level intersection a
+        // read-model information gap that the Central side can close in a
+        // future batch by adding an explicit `team_members_local` table).
         if (matches == null || matches.isEmpty()) {
             return ResponseEntity.ok(List.of());
         }

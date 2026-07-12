@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.gameplatform.local.domain.model.User;
+import com.gameplatform.local.domain.ports.out.AdminRequestRepository;
 import com.gameplatform.local.domain.ports.out.UserRepository;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.dto.UserSyncAckDto;
@@ -27,6 +28,7 @@ class UserSyncServiceTest {
     private static final Instant NOW = Instant.parse("2026-07-06T00:00:00Z");
 
     @Mock UserRepository userRepository;
+    @Mock AdminRequestRepository adminRequestRepository;
 
     Clock clock = Clock.fixed(NOW, ZoneId.of("UTC"));
 
@@ -34,7 +36,7 @@ class UserSyncServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new UserSyncService(userRepository, clock);
+        service = new UserSyncService(userRepository, adminRequestRepository, clock);
     }
 
     @Test

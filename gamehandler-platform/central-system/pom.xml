@@ -84,6 +84,12 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Spring Security test support (@WithMockUser, SecurityMockMvcRequestPostProcessors) for @WebMvcTest method-security slice tests -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- H2 in-memory DB for integration tests (test profile) -->
         <dependency>
             <groupId>com.h2database</groupId>

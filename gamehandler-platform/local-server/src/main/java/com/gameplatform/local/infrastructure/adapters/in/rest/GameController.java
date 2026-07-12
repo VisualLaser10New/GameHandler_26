@@ -1,7 +1,9 @@
 package com.gameplatform.local.infrastructure.adapters.in.rest;
 
+import com.gameplatform.local.domain.model.GameDefinitionLocal;
 import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.ports.in.GetAvailableGamesUseCase;
+import com.gameplatform.local.domain.ports.out.GameDefinitionLocalRepository;
 import com.gameplatform.shared.domain.game.GameFactory;
 import com.gameplatform.shared.domain.game.GameLifecycle;
 import com.gameplatform.shared.dto.GameStateDto;
@@ -19,9 +21,12 @@ import java.util.List;
 public class GameController {
 
     private final GetAvailableGamesUseCase getAvailableGamesUseCase;
+    private final GameDefinitionLocalRepository gameDefinitionLocalRepository;
 
-    public GameController(GetAvailableGamesUseCase getAvailableGamesUseCase) {
+    public GameController(GetAvailableGamesUseCase getAvailableGamesUseCase,
+                          GameDefinitionLocalRepository gameDefinitionLocalRepository) {
         this.getAvailableGamesUseCase = getAvailableGamesUseCase;
+        this.gameDefinitionLocalRepository = gameDefinitionLocalRepository;
     }
 
     @GetMapping
@@ -42,16 +47,33 @@ public class GameController {
         return ResponseEntity.ok(dtos);
     }
 
+    /**
+     * Projects a {@link Game} into the {@link GameStateDto} response, reading
+     * {@code minPlayers}/{@code maxPlayers} from the locally replicated
+     * {@code game_definitions_local} table (PIANO §7.B allineamento) — falls
+     * back to the static {@link GameLifecycle} defaults when no definition
+     * is replicated locally yet (offline-first / pre-replication window).
+     */
     private GameStateDto toDto(Game game) {
-        GameLifecycle lifecycle = GameFactory.createGame(game.getGameType(), null);
+        int minPlayers;
+        int maxPlayers;
+        GameDefinitionLocal def = gameDefinitionLocalRepository.findByGameType(game.getGameType()).orElse(null);
+        if (def != null) {
+            minPlayers = def.getMinPlayers();
+            maxPlayers = def.getMaxPlayers();
+        } else {
+            GameLifecycle lifecycle = GameFactory.createGame(game.getGameType(), null);
+            minPlayers = lifecycle.getMinPlayers();
+            maxPlayers = lifecycle.getMaxPlayers();
+        }
         return new GameStateDto(
                 game.getId().id(),
                 game.getGameType(),
                 game.getName(),
                 game.getBuildingId().id(),
                 game.getStatus(),
-                lifecycle.getMinPlayers(),
-                lifecycle.getMaxPlayers()
+                minPlayers,
+                maxPlayers
         );
     }
 }
