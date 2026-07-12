@@ -2,10 +2,12 @@ package com.gameplatform.client.infrastructure.ui;
 
 import com.gameplatform.client.infrastructure.mqtt.MqttClientAdapter;
 import com.gameplatform.client.infrastructure.mqtt.StateSubscriber;
+import com.gameplatform.client.infrastructure.rest.ApiClient;
 import com.gameplatform.shared.dto.GameStateDto;
 import com.gameplatform.shared.domain.model.GameMachineStatus;
 import com.gameplatform.shared.mqtt.MqttPayloadSerializer;
 import com.gameplatform.shared.mqtt.payload.GameStatePayload;
+import com.fasterxml.jackson.core.type.TypeReference;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -157,43 +159,16 @@ public class GameSelectionView {
      */
     public void refreshGames() {
         statusLabel.setText("Refreshing...");
-        try {
-            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
-            java.net.http.HttpClient client = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl);
-            java.net.http.HttpRequest.Builder requestBuilder = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create(localServerUrl + "/api/games"))
-                    .GET();
-            String token = com.gameplatform.client.infrastructure.security.HttpClientHelper.getToken();
-            if (token != null) {
-                requestBuilder.header("Authorization", "Bearer " + token);
-            }
-            java.net.http.HttpRequest request = requestBuilder.build();
-            client.sendAsync(request, java.net.http.HttpResponse.BodyHandlers.ofString())
-                    .thenAccept(response -> {
-                        Platform.runLater(() -> {
-                            if (response.statusCode() == 200) {
-                                try {
-                                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                                    com.fasterxml.jackson.core.type.TypeReference<List<GameStateDto>> typeRef =
-                                            new com.fasterxml.jackson.core.type.TypeReference<>() {};
-                                    List<GameStateDto> updated = mapper.readValue(response.body(), typeRef);
-                                    games.setAll(updated);
-                                    statusLabel.setText(updated.size() + " games loaded");
-                                } catch (Exception e) {
-                                    statusLabel.setText("Parse error: " + e.getMessage());
-                                }
-                            } else {
-                                statusLabel.setText("Failed to load games: " + response.statusCode());
-                            }
-                        });
-                    })
-                    .exceptionally(ex -> {
-                        Platform.runLater(() -> statusLabel.setText("Connection error: " + ex.getMessage()));
-                        return null;
-                    });
-        } catch (Exception e) {
-            statusLabel.setText("Error: " + e.getMessage());
-        }
+        ApiClient.instance().get("/api/games", new TypeReference<List<GameStateDto>>() {})
+                .thenAccept(updated -> Platform.runLater(() -> {
+                    games.setAll(updated == null ? List.of() : updated);
+                    statusLabel.setText((updated == null ? 0 : updated.size()) + " games loaded");
+                }))
+                .exceptionally(ex -> { Platform.runLater(() -> {
+                    Throwable t = ex;
+                    while (t.getCause() != null) t = t.getCause();
+                    statusLabel.setText("Connection error: " + t.getMessage());
+                }); return null; });
     }
 
     /**

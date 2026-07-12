@@ -20,6 +20,7 @@
 10. [Monitoring e Logging](#10-monitoring-e-logging)
 11. [Troubleshooting Comune](#11-troubleshooting-comune)
 12. [Contribuzione](#12-contribuzione)
+13. [FASE 7 — Utenti, Tornei e Dashboard multi-edificio](#13-fase-7--utenti-tornei-e-dashboard-multi-edificio)
 
 ---
 
@@ -980,6 +981,58 @@ networks:
 volumes:
   local-db-2-data:
 ```
+
+---
+
+## 13. FASE 7 — Utenti, Tornei e Dashboard multi-edificio
+
+> La FASE 7 introduce il pattern outbox `*_REQUESTED` per le scritture admin/PLAYER async, le 5 nuove tabelle Local di replica, le viste PLAYER dai Local, le 3 dashboard admin nel Game Client Emulator, il flow `admin_requests_local` con timeout service, e i 2 test di contratto architetturale (`EventTypeContractTest` + `ReplicationEventTypeContractTest`).
+
+### 13.1 Viste PLAYER (FASE 7 S5)
+
+- `TournamentsView` (`infrastructure/ui/`): catalogo tornei dal Local (`GET /api/tournaments[?status=]`) basato sulla replica `tournaments_summary_local`; dettaglio torneo, classifica, match e partecipanti (read-only riuso `tournament_standings_local`/`tournament_participants_local`/`tournament_matches_local`).
+- `MyMatchesView`: "I miei match" (`GET /api/players/tournaments/me/matches`) + "Avvia match" (`POST /api/players/tournaments/matches/{matchId}/start`). Limit nota: team-match membership richiede futura tabella `team_members_local` (vedi §19.7 limiti noti architettura_classi.md).
+- `MyStatisticsView`: statistiche personali riuso `GET /api/players/me/statistics` (FASE 3).
+- Iscrizione PLAYER async: `POST /api/tournaments/{id}/participants` → outbox `PARTICIPANT_REGISTER_REQUESTED` → polling `AdminRequestsView`. Latenza tipica ≤5 min (vedi limiti noti §7.D (a)).
+- Servizio orchestration: `application/service/PlayerTournamentFlow` incapsula le 4 chiamate API.
+
+### 13.2 Dashboard Admin (FASE 7 S5)
+
+- `LocalAdminDashboard` (VIEW_LOCAL_ADMIN): sezioni giochi (`/api/admin/local/games`), dispositivi (`/api/admin/local/devices`), sessioni attive (`/api/admin/local/sessions/active`), statistiche edificio (`/api/admin/local/statistics`). Endpoint FASE 1 riusati; enforcement A3 via `local_admin_buildings_local`.
+- `GameAdminDashboard` (VIEW_GAME_ADMIN): catalogo definizioni `GET /api/admin/games` locale + editor `POST/PUT /api/admin/games` → outbox `GAME_DEFINITION_UPSERT_REQUESTED` → `AdminRequestDto(PENDING)` → polling.
+- `PlatformAdminDashboard` (VIEW_PLATFORM_ADMIN):
+  - Gestione utenti e assegnazione ruoli (`GET /api/admin/users` + `POST /api/admin/users/{userId}/roles` → outbox `ROLE_ASSIGNMENT_REQUESTED`).
+  - Binding LOCAL_ADMIN↔building (`POST/DELETE/GET /api/admin/local/buildings`).
+  - Lifecycle tornei (`POST /api/admin/tournaments` + `POST /{id}/{open|cancel|schedule}` + `PUT/DELETE /{id}` DRAFT-only → outbox `TOURNAMENT_*_REQUESTED`).
+  - Classifiche/bracket read-only (riuso viste PLAYER).
+  - Statistiche globali (`GET /api/statistics` locale aggregato per building, oppure `GET /api/admin/local/statistics` esteso).
+  - Monitoraggio local-server (`GET /api/admin/servers/health` → `ServerHealthViewDto`).
+  - Super-set read-only delle dashboard LocalAdmin/GameAdmin (navbar visibile, bottoni di scrittura nascosti; `@PreAuthorize` lato server resta specifico).
+
+### 13.3 `ApiClient` (FASE 7 S5)
+
+- `infrastructure/rest/ApiClient` + `HttpClientHelper.setRoles/setBuildings`: bearer JWT per tutte le chiamate autenticate; `GET /api/auth/me` per bootstrap info utente (`userId`, `roles`, `buildings`).
+- `NavbarController`: voci navbar condizionate al ruolo JWT (claim `roles`); super-set read-only per `PLATFORM_ADMIN`.
+- Riferimenti ai nuovi DTO in `shared-dto`: `TournamentSummaryDto`, `TournamentDetailDto`, `TournamentParticipantViewDto`, `PlayerMatchDto`, `UsersDirectoryDto`, `ServerHealthViewDto`, `AdminRequestDto`, `RoleAssignmentRequestDto`, `UpdateTournamentRequestDto`, `RegisterTournamentParticipantDto`, `CreateTournamentRequestDto`, `UpsertGameDefinitionRequestDto`, `GameDefinitionDto`.
+- Test manuali: `docker-compose up` (singolo + multi-building). Nessun test automatico UI (copertura manuale, piano §641).
+
+### 13.4 `admin_requests_local` flow (FASE 7 S4)
+
+- Tabella Local `admin_requests_local` persiste le richieste async W6/W9/W10/W12 (PIANO §7.B). Scritta atomicamente con la riga `OutboxEvent` (UUID `requestId == outbox eventId`) dall'`AdminRequestOutboxWriter` `@Component` nello stesso `@Transactional` caller.
+- Lifecycle: `PENDING → COMPLETED` (chiamato dal `*SyncService` quando l'evento di ritorno Central reca `originatingRequestId != null`) OPPURE `PENDING → FAILED` (chiamato dall'`AdminRequestTimeoutService` a timeout).
+- `AdminRequestTimeoutService` `@Service @Scheduled` (poll ogni `${admin.request-timeout-check-ms:60000}`): `findPendingOlderThan(now.minus(timeoutMs, MILLIS))` + `markFailed(requestId, "{\"reason\":\"TIMEOUT\"}", now)` per-riga idempotente (`WHERE status='PENDING'` + check del `int` ritornato dall'`@Modifying @Query`).
+- Indici DB: `(acting_user_id, status)` per `AdminRequestsController.per-user`, `(status, created_at)` per la query timeout.
+- DRAFT pre-check per W12e (update) e W12f (delete): se `tournaments_summary_local.status != DRAFT` (o summary missing) → `writeFailedRequest` con `result_data={"reason":"NOT_DRAFT"|"NOT_FOUND"}` (no outbox).
+- Self-service admin requests: `AdminRequestsController` (Local) `GET /api/admin/requests[/{requestId}]` con filtro cross-user `actingUserId==principal`.
+
+### 13.5 Test di contratto architetturale (FASE 7 S6)
+
+- `EventTypeContractTest` (Central): pinna ogni literal Local-emitted (15 al totale, 8 nuovi FASE 7 §7.A.7/S3 + 6 W use case + PLAYER_PARTICIPANT) ad un branch esplicito in `SyncEventProcessor.processEvent`. Verificato双向: ogni literal è gestito Central-side ed emesso Local-side.
+- `ReplicationEventTypeContractTest` (Central, nuovo S6 gap S1 §16.7 A5): pinna ogni literal Central-emitted drained da `UserReplicationSchedulerService.isReplicationEvent` (10: USER_REGISTERED, USER_UPDATED, LOCAL_ADMIN_BUILDING_ASSIGNED/REVOKED, GAME_DEFINITION_UPSERTED, TOURNAMENT_MATCH_SCHEDULED, TOURNAMENT_SUMMARY_UPSERTED, TOURNAMENT_STANDINGS_UPSERTED, TOURNAMENT_PARTICIPANTS_UPSERTED, LOCAL_SERVER_REGISTRY_UPSERTED) ad (a) una dichiarazione come literal in `UserReplicationSchedulerService.java` AND (b) un emission come literal in uno degli 8 producer Central (`UserService`/`LocalAdminBuildingService`/`GameDefinitionService`/`TournamentService`/`TournamentStandingsService`/`TournamentRegistrationService`/`TournamentMatchOutboxAdapter`/`LocalServerRepositoryAdapter`).
+
+### 13.6 Stato moduli post-FASE 7
+
+Central: 345 test ✅ (343 baseline + 2 `ReplicationEventTypeContractTest`). Local: 798 test ✅. Shared-domain/dto/mqtt: build verde. e2e-tests: 5 failure pre-esistenti (legacy role "USER"→"PLAYER", double replication_progress) — out-of-scope §7.D; follow-up FASE 8.
 
 ---
 

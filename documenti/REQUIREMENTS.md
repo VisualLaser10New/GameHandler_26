@@ -840,6 +840,29 @@ building/{buildingId}/alerts                       QoS 1
 | `/internal/metadata/game-definitions/sync` | PUT | API Key | Sync definizioni di gioco dal Central (FASE 2) |
 | `/api/players/me/statistics`         | GET    | ROLE_PLAYER       | Statistiche personali locali (FASE 3)            |
 | `/api/devices/register`               | POST   | Pubblico         | Registrazione device con CSR                     |
+| `/api/auth/me`                        | GET    | JWT (qualunque)  | Info utente corrente arricchita (`userId`, `roles`, `buildings`) (FASE 7 S4) |
+| `/api/tournaments`                    | GET    | ROLE_PLAYER       | Lista tornei disponibili dal Local (`tournaments_summary_local`) con filtro `?status=` (FASE 7 S4) |
+| `/api/tournaments/{id}`               | GET    | ROLE_PLAYER       | Dettaglio torneo dal Local (FASE 7 S4) |
+| `/api/tournaments/{id}/standings`     | GET    | ROLE_PLAYER       | Classifica del torneo dal Local (`tournament_standings_local`) (FASE 7 S4) |
+| `/api/tournaments/{id}/matches`       | GET    | ROLE_PLAYER       | Lista match del torneo dal Local (FASE 7 S4) |
+| `/api/tournaments/{id}/participants`  | GET    | ROLE_PLAYER       | Lista partecipanti dal Local (`tournament_participants_local`) (FASE 7 S4) |
+| `/api/tournaments/{id}/participants`  | POST   | ROLE_PLAYER       | Iscrizione PLAYER async via outbox `PARTICIPANT_REGISTER_REQUESTED` (FASE 7 S4) |
+| `/api/players/me/matches/history`     | GET    | ROLE_PLAYER       | Storico match del giocatore con filtro `?gameType=` (FASE 7 S4) |
+| `/api/admin/requests`                 | GET    | JWT (qualunque)  | Lista proprie richieste async (filtro `actingUserId==principal`) (FASE 7 S4) |
+| `/api/admin/requests/{requestId}`     | GET    | JWT (qualunque)  | Dettaglio richiesta async (self-service) (FASE 7 S4) |
+| `/api/admin/users`                    | GET    | ROLE_PLATFORM_ADMIN | Directory utenti globale (senza `hashedPassword`) (FASE 7 S4) |
+| `/api/admin/users/{userId}/roles`     | POST   | ROLE_PLATFORM_ADMIN | Assegnamento ruoli async via outbox `ROLE_ASSIGNMENT_REQUESTED` (FASE 7 S4) |
+| `/api/admin/servers/health`           | GET    | ROLE_PLATFORM_ADMIN | Vista salute registry Local server (`ServerHealthViewDto`) (FASE 7 S4) |
+| `/api/admin/games`                    | POST/PUT | ROLE_GAME_ADMIN  | Upsert definizione gioco async via outbox `GAME_DEFINITION_UPSERT_REQUESTED` (FASE 7 S4) |
+| `/api/admin/tournaments`              | POST   | ROLE_PLATFORM_ADMIN | Creazione torneo async via outbox `TOURNAMENT_CREATE_REQUESTED` (FASE 7 S4) |
+| `/api/admin/tournaments/{id}/open`     | POST   | ROLE_PLATFORM_ADMIN | Apertura registrazioni async via outbox `TOURNAMENT_OPEN_REQUESTED` (FASE 7 S4) |
+| `/api/admin/tournaments/{id}/cancel`   | POST   | ROLE_PLATFORM_ADMIN | Cancellazione torneo async via outbox `TOURNAMENT_CANCEL_REQUESTED` (FASE 7 S4) |
+| `/api/admin/tournaments/{id}/schedule` | POST   | ROLE_PLATFORM_ADMIN | Scheduling bracket async via outbox `TOURNAMENT_SCHEDULE_REQUESTED` (FASE 7 S4) |
+| `/api/admin/tournaments/{id}`          | PUT    | ROLE_PLATFORM_ADMIN | Update torneo async via outbox `TOURNAMENT_UPDATE_REQUESTED` (FASE 7 S4) |
+| `/api/admin/tournaments/{id}`          | DELETE | ROLE_PLATFORM_ADMIN | Delete torneo async via outbox `TOURNAMENT_DELETE_REQUESTED` (FASE 7 S4) |
+| `/internal/tournament-standings/sync`  | PUT    | API Key           | Sync `TOURNAMENT_STANDINGS_UPSERTED` Central→Local (FASE 7 S4) |
+| `/internal/tournaments/participants/sync` | PUT | API Key           | Sync `TOURNAMENT_PARTICIPANTS_UPSERTED` Central→Local (FASE 7 S4) |
+| `/internal/servers/sync`               | PUT    | API Key           | Sync `LOCAL_SERVER_REGISTRY_UPSERTED` Central→Local (FASE 7 S4) |
 
 ### RI-04 — Serializzazione JSON con Polimorfismo
 
@@ -1048,6 +1071,23 @@ graph LR
 | RF-RE-01  | Local Server                 | `SessionRecoveryService.java`                                        | ✅              |
 | RF-RE-02  | Local Server                 | `SyncSchedulerService.java`                                          | ✅              |
 | RF-RE-03  | Local Server                 | `SyncSchedulerService.java`                                          | ✅              |
+
+#### 6.1.FASE 7 — Utenti/Ruoli/Tornei multi-edificio (batch S1-S6)
+
+| Requisito | Modulo | File chiave | Stato |
+|-----------|--------|-------------|-------|
+| RF-UT-02 (FASE 7 update) | Local Server, Central System | `PlatformAdminUserController` (Local) → outbox `ROLE_ASSIGNMENT_REQUESTED` → `SyncEventProcessor.handleRoleAssignmentRequested` (Central) → `UpdateUserUseCase.updateUser(originatingRequestId)` → outbox `USER_UPDATED` → `UserSyncService.markCompleted` (Local). `admin_requests_local` lifecycle PENDING→COMPLETED. | ✅ (FASE 7 S3+S4) |
+| RF-TO-03/04 (FASE 7 update async PLAYER) | Local Server, Central System | `PlayerTournamentRegistrationController` (Local) → outbox `PARTICIPANT_REGISTER_REQUESTED` → `SyncEventProcessor.handleParticipantRegisterRequested` → `RegisterTournamentParticipantUseCase.register(originatingRequestId)` → outbox `TOURNAMENT_PARTICIPANTS_UPSERTED` → `TournamentParticipantsLocalSyncService.markCompleted`. Latenza ≤5 min (vedi §7.D limiti noti (a)). | ✅ (FASE 7 S3+S4) |
+| RF-Fase7-DA1 (LocalAdminDashboard) | Game Client Emulator | `LocalAdminDashboard.java` (`infrastructure/ui/`): `GET /api/admin/local/games`, `/devices`, `/sessions/active`, `/statistics`. Read-only riuso endpoint FASE 1. | ✅ (FASE 7 S5) |
+| RF-Fase7-DA2 (GameAdminDashboard) | Game Client Emulator | `GameAdminDashboard.java`: catalogo `GET /api/admin/games` locale + editor `POST/PUT /api/admin/games` → outbox `GAME_DEFINITION_UPSERT_REQUESTED` → polling `GET /api/admin/requests`. | ✅ (FASE 7 S5) |
+| RF-Fase7-DA3 (PlatformAdminDashboard) | Game Client Emulator | `PlatformAdminDashboard.java`: gestione utenti/ruoli (POST → outbox `ROLE_ASSIGNMENT_REQUESTED`), binding LOCAL_ADMIN↔building, lifecycle tornei (POST → outbox `TOURNAMENT_*_REQUESTED`), classifiche/bracket (read-only riuso viste PLAYER), statistiche globali, monitoraggio local-server (`GET /api/admin/servers/health`). | ✅ (FASE 7 S5) |
+| RF-Fase7-AR (AdminRequestsView polling) | Game Client Emulator | `AdminRequestsView.java`: polling `GET /api/admin/requests` ogni 5-10 s; card per richiesta con `status` (PENDING→spinner, COMPLETED→✓, FAILED→banner). `result_data.reason` leggibile. | ✅ (FASE 7 S5) |
+| RF-Fase7-PLAYER (viste PLAYER tornei) | Game Client Emulator | `TournamentsView.java` (catalogo/iscrizione/standings/participants/matches), `MyMatchesView.java` ("I miei match" + "Avvia match" `POST /api/players/tournaments/matches/{matchId}/start`), `MyStatisticsView.java`. Riuso `GameSelectionView` per catalogo macchine. `PlayerTournamentFlow` service orchestration. | ✅ (FASE 7 S5) |
+| RF-Fase7-NAV (navbar dinamica) | Game Client Emulator | `NavbarController.java`: voci navbar condizionate al ruolo JWT (`roles` claim). Super-set read-only per `PLATFORM_ADMIN` (voci LocalAdmin/GameAdmin visibili, bottoni di scrittura nascosti). | ✅ (FASE 7 S5) |
+| RF-Fase7-CLIENT (ApiClient) | Game Client Emulator | `application/service/PlayerTournamentFlow.java`, `infrastructure/rest/ApiClient`, `HttpClientHelper.setRoles/setBuildings`. Token JWT bearer; `GET /api/auth/me` arricchito. | ✅ (FASE 7 S5) |
+| RF-Fase7-COMP (UI components trasversali) | Game Client Emulator | `ErrorPane.java` (offline/5xx + retry), `LoadingIndicator.java` (JavaFX `ProgressIndicator`), `StalenessBadge.java` (timestamp "Dati aggiornati al: HH:mm:ss" + badge stale > 5 min), `TableColumns.java`. | ✅ (FASE 7 S5) |
+| RF-Fase7-ADM (admin_requests_local flow) | Local Server | `AdminRequestLocalJpaEntity`/`AdminRequestRepository`/`AdminRequestOutboxWriter` (atomicità PENDING requestId=outbox eventId), `AdminRequestTimeoutService` `@Scheduled` (PENDING→FAILED a timeout), `*SyncService.markCompleted` condizionale `WHERE status='PENDING'` (idempotente). | ✅ (FASE 7 S4) |
+| RF-Fase7-CONTRACT (test contratto) | Central System | `EventTypeContractTest` (15 literal Local-emitted → branch Central; +8 FASE 7), `ReplicationEventTypeContractTest` (10 literal Central-emitted drained → 8 producer Central; nuovo S6 gap S1 §16.7 A5). | ✅ (FASE 7 S6) |
 
 ### 6.2 Known Issues ↔ Requisiti Impattati
 

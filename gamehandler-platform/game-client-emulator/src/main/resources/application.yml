@@ -8,6 +8,9 @@ app:
   building-id: ${BUILDING_ID:building-1}
   local-server-url: ${LOCAL_SERVER_URL:http://localhost:8081}
 
+ui:
+  stale-threshold-ms: ${UI_STALE_THRESHOLD_MS:300000}
+
 mqtt:
   broker-url: ${MQTT_BROKER_URL:tcp://localhost:1883}
   username: ${MQTT_USERNAME:client}

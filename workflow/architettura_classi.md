@@ -1016,9 +1016,190 @@ Estensioni a test esistenti: `TournamentSummarySyncServiceTest.applyEvents_*` (1
 - **S5 — `EventTypeContractTest` estensione per i 8 `*_REQUESTED` Local-emitted**: il test deve ora validare che ogni literal Local-emitted ha un branch `SyncEventProcessor.processOne` Central-side + un producer sul Local. S4 lascia la empty-slot assunzione invariata nel batch residue Local per evitare di rompere i 343 test Central; S5 lo chiude.
 - **S5 — `ReplicationEventTypeContractTest`**: vedere §19.7 gap emerso S1 §16.7 A5.
 - **S5 — `team_members_local` table**: per chiudere il gap di `PlayerTournamentController.myMatches` team-match membership (vedi §19.7).
+- **S6 — chiusura dei due gap soprastanti**: `ReplicationEventTypeContractTest` viene creato in S6 (vedi §21.4 sotto); il gap `team_members_local` rimane aperto (out-of-scope FASE 7, follow-up FASE 8).
 
 ---
 
-*Aggiornamento §19 (batch S4) — FASE 7-B residue Local completato.*
+## 20. FASE 7-C — Client Emulator GUI (batch S5)
+
+### 20.1 Decisioni
+
+1. **Client-side architettura Clean Architecture importata alla lettera — `infrastructure/rest/` per le boundary HTTP/UI e `application/service/` per l'orchestrazione**: il nuovo package `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/rest/` ospita il `ApiClient` (`HttpClient` wrapper), `ObjectMappers` (config riutilizzabile di Jackson con `JavaTimeModule`) e le tre eccezioni UI dedicate (`AuthenticationException` / `AuthorizationException` / `ServerUnavailableException`). Il `application/service/PlayerTournamentFlow` orchestra i 8 endpoint PLAYER del flusso torneo (list/detail/standings/matches/participants/register/me-matches/start-match) delegando all'`ApiClient` — senza stato. Tutto il session state (token / username / roles / buildings) rimane in `HttpClientHelper` (esteso in S5 con `volatile List<String> roles/buildings` + `clearSession()`), accessibile sia all'`ApiClient` (per attachment header `Authorization`) sia al `NavbarController` (per drive la UI ruolo-aware). Nessun decoding JWT lato client (decisione E1 §7.B — `GET /api/auth/me` arricchito è la bound deterministica per roles/buildings).
+2. **Routing e navbar "marshellld in `NavbarController` + `MainView.navigateTo`**: le 14 costanti `VIEW_*` sono definite in `NavbarController` (6 ereditate + 8 nuove §7.C riga 734). `NavbarController.rebuild()` ricostruisce l'`HBox` JavaFX ogni volta che il login rinnova la sessione, con cascading `roles.contains("…")` (PLAYER + ogni admin vede Games/MyStats/MyMatches/Tournaments; LOCAL_ADMIN & PLATFORM_ADMIN → Local Dashboard; GAME_ADMIN & PLATFORM_ADMIN → Game Admin; solo PLATFORM_ADMIN → Platform Admin + Admin Requests). Logout button rosso a destra (`#c0392b`), separato da un `Region()` con `HBox.setHgrow(ALWAYS)`. Multi-ruolo de-duplicato via `Map<String, Button>` `LinkedHashMap` con `if (buttons.containsKey(targetView)) return;`. `MainView.navigateTo` accetta la stringa via `Consumer<String>` set in `NavbarController.setOnNavigate`. Non viene mai toccato MQTT o il central/local source (solo `game-client-emulator`).
+3. **Sostituzione progressiva con `ApiClient` — SURGICAL**: le 4 viste legacy (`LoginView`, `GameSelectionView`, `LobbyView`, `StatisticsView`) sono state migrate dalla forma "inline `HttpClient.sendAsync` con `HttpResponse.BodyHandlers.ofString()` e ObjectMapper localize per-pattern" alla `ApiClient.get/post/put/delete(... Class<T>|TypeReference<T>)` tipata. `LoginView` fa pipeline `client.post("/api/auth/login").thenCompose(r -> client.get("/api/auth/me", UserInfoDto.class))` per conservare il dataflow "login → fetch-me → storeRoles" come singolo future chain. `LobbyView` had due inline HTTPs (`fetchActiveLobbySession` con fallback 404 → creator mode; `cancelLobbyByGameViaRest` background thread) — migrated to `ApiClient` mantenendo same UX path. `SignupView` NON migrato in S5 (la `POST /api/auth/signup` non shareggia auth-header, il body-only `SignupRequestDto` flow funziona legacy senza `Authorization` header requirement, e la signature response `SignupResponseDto` non richiede JavaTimeModule) — backward-compat preservata. La const displine ("NIENTE inline HttpClient dopo S5" è regola follow-up FASE 8).
+4. **Async pattern `CompletableFuture<T>` + `Platform.runLater` marshaling**: ogni metodo `ApiClient` è asincrono e derived `java.net.http.HttpClient.sendAsync` (the JDK11 HTTP client). Lo stub `thenAccept(p -> Platform.runLater(() -> {...}))` è il pattern fisso per ogni view-layer callback (JavaFX scene graph mutation must be on the FX Application Thread). Il blocco `.exceptionally(ex -> { Platform.runLater(() -> {...}); return null; })` è un'unica lambda blocco perché `exceptionally` richiede `Function<Throwable, T>` con T che è `Void` quando la pipeline è VOID-aware; un'espressione lambda del tipo `ex -> Platform.runLater(...)` fallisce la compilazione con `void → Void` incompatible types (provato in compilazione S5).
+5. **Polling via `javafx.animation.Timeline` per `AdminRequestsView`**: ogni 8s, `TableView`-free renderizzazione a `VBox` di cards (Label + ProgressIndicator JavaFX per PENDING, Label verde per COMPLETED, Label rosso "Operazione non confermata entro il timeout — riprova/riesamina" per FAILED). Parser `readableResult(r)` da `resultData` JSON string estrae `reason` field con Jackson `ObjectMapper.readTree`. `onEnter()` avvia il poller, `onLeave()` lo ferma — `MainView.navigateTo` reclama `stopPollers()` ad ogni vista switchata per rilasciare il `Timeline` (evita leak del thread animation).
+6. **Limiti accettati dalla deviazione S5 spec**:
+   - **`RoleAssignmentRequestDto` NON esiste in shared-dto** (la spec §7.B aveva una lista "DTO read per il client" che lo includeva speculativamente; il controller effettivo `PlatformAdminUserController` accetta `@RequestBody List<String>` inline — nessun DTO wrapper). S5 sposta `RoleAssignmentRequestDto` nella "lista follow-up FASE 8 se emerge un caso d'uso per una wrapper-class con metadata (acting admin id, timestamp, audit motivo)". Il client emette `List<String>` raw JSON.
+   - **`GET /api/admin/local/games` NON esiste** — bug-documentato del piano riga 744. Il `AdminLocalController` espone solo `/devices`, `/sessions/active`, `/statistics?gameType=`, più POST/PUT/DELETE `/games`. S5 interpreta "giochi building" == "devices" (la `List<GameStateDto>` di `/devices` è la lista delle macchine gioco del building). Javadoc del `LocalAdminDashboard` esplicita il caveat. Le POST/PUT/DELETE (LOCAL_ADMIN CRUD\Catalogo games) sono fuori scope S5 §7.C (riga 743 pone solo read).
+   - **Sezione "binding LOCAL_ADMIN↔building" (riga 749)** — stub minimale: la Central-only API `POST/DELETE/GET /api/admin/local/buildings` (con `AssignLocalAdminBuildingsDto`) esiste ma non è esposta dal `local-server` via endpoint client-facing (Central runtime而非 Local runtime). S5 lo lascia come documentation-only nel javadoc — la più pulita sostituzione è usare `POST /api/admin/users/{userId}/roles` con ruoli `["LOCAL_ADMIN"]` per assegnare il ruolo, mentre i binding edificio richiederebbero una futura estensione del body roles DTO con un campo `buildings`.
+   - **`theme.css` e i18n opzionali skipped** — la FASE 7 §7.C li marca come "(Opzionale)"; la regola inline-CSS linearizza pattern legacy dark-theme (`#1e1e1e/#333/#3498db`) senza migration effort. Follow-up FASE 8.
+   - **`ErrorPane` è disponibile come component ma non integrato nella navbar** come pagina di default error route: ogni vista gestisce localmente il `statusLabel` con full message+cause-tail. Il retry pattern è `ExceptionPane.show(title, msg, retryCallback)` pronto al consumo, ma il routing "swap to error-pane on fatal error" non è wired a `MainView.navigateTo` — FOLLOW-UP FASE 8.
+
+### 20.2 Matrice file (creati/estesi in S5)
+
+| File | Tipo | Righe (medie) | Nota |
+|------|------|---------------|------|
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/rest/ApiClient.java` | NUOVO | 230 | Singleton lazy `ApiClient` (`HttpClientHelper.getHttpClient(baseUrl)`) con `get/post/put/delete` tipati via `Class<T>` / `TypeReference<T>`. Header `Authorization: Bearer` auto. Mappa 401→`AuthenticationException`, 403→`AuthorizationException`, 5xx/timeout→`ServerUnavailableException`. Timeout 15s. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/rest/ObjectMappers.java` | NUOVO | 18 | Single immutable `SHARED` con `JavaTimeModule` registrato. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/rest/AuthenticationException.java`, `AuthorizationException.java`, `ServerUnavailableException.java` | NUOVO | ~15 each | UI-specific exceptions. ServerUnavailable ha ctor `(message, cause)`. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/security/HttpClientHelper.java` | ESTESO | +65 | +`volatile List<String> roles/buildings` + `setRoles/getRoles/setBuildings/getBuildings/hasRole(String)/clearSession()`. Defensive copy via `List.copyOf`. Backward-compat con i 2 field legacy invariant. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/application/service/PlayerTournamentFlow.java` | NUOVO | 100 | Service orchestrating 8 PLAYER endpoints async. ctor default `new PlayerTournamentFlow()` lega l'`ApiClient.instance()` singleton; test ctor accepts ApiClient. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/NavbarController.java` | NUOVO | 110 | 14 costanti `VIEW_*` + `rebuild()` role-aware con de-duplicazione `LinkedHashMap`. Logout button rosso a destra con spacer `HBox.setHgrow(Region, Priority.ALWAYS)`. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/MainView.java` | ESTESO | +100 | `NavbarController` al posto del `HBox navBar` legacy; `initializeViews()` costruisce le 13 view instances (6 ereditate + 7 nuove). Switch `navigateTo` con 14 case (3 pattern `showNavbar=false` per login/signup/lobby/game_play; 11 showNavbar=true). `doLogout()` + `shutdown()`. MtgQTT lifecycle preservato invariato. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/LoginView.java` | RISCRITTO | 145 | `ApiClient.post(/api/auth/login).thenCompose(get(/api/auth/me))` pipeline; salva token/username/roles/buildings in `HttpClientHelper`. `exceptionally` blocco con dispatch cause. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/GameSelectionView.java` | ESTESO | +5 netto / -36 inline HTTP | `refreshGames()` ora via `ApiClient.get("/api/games", TypeReference<List<GameStateDto>>)` 1-liner. MQTT subscription preservation invariant (`StateSubscriber` per real-time updates). |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/LobbyView.java` | ESTESO | ~0 netto / -55 inline HTTP | Due blocchi inline HTTP (fetchActiveLobbySession + cancelLobbyByGameViaRest) sostituiti con `ApiClient.get` e `ApiClient.post(...)`. Tutta la logica MQTT/lobby-create/lobby-join preservata. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/StatisticsView.java` | RISCRITTO | 100 | `ApiClient.get("/api/statistics", TypeReference<List<StatisticsDto>>)` rx mappa cards; buildings field esposto (legacy displayStats esteso). |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/MyStatisticsView.java` | NUOVO | 160 | `TableView<PlayerStatisticsDto>` (4 colonne: Gioco, Partite giocate, Vittorie, Ultima partita) + `ComboBox<GameType>` filter + LoadingIndicator + StalenessBadge. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/MyMatchesView.java` | NUOVO | 130 | `TableView<PlayerMatchDto>` 6 colonne + `ComboBox<GameType>` filter + LoadingIndicator + StalenessBadge. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/TournamentsView.java` | NUOVO | 280 | Layout `SplitPane` 3-colonne: summary ListView (drill-down on select) / detail VBox (classifica + bracket + partecipanti) / my-matches ListView. Toolbar con 5 bottoni (refresh + register self + register team + load my-matches + start match). ViewModel: `PlayerTournamentFlow` injectable via factory. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/LocalAdminDashboard.java` | NUOVO | 175 | 2 `TableView` (GameStateDto dispositivi / GameSessionDto sessioni attive) + ComboBox gameType per statistics. `GET` via `ApiClient`. Javadoc caveat: `GET /api/admin/local/games` spec bug endpoint inesistente, uso `/devices`. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/GameAdminDashboard.java` | NUOVO | 175 | Catalog `TableView<GameStateDto>` + GridPane editor per `UpsertGameDefinitionRequestDto`. Bottoni POST/PUT → `AdminRequestDto(PENDING)` → navigate VIEW_ADMIN_REQUESTS. `setOnNavigateToRequests(Runnable)`. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/PlatformAdminDashboard.java` | NUOVO | 285 | 6 sezioni: Users directory (`TableView<UsersDirectoryDto>` + roles TextField + assignBtn) / Tournament lifecycle (createTournamentArea JSON + Update fields + open/cancel/schedule buttons + update + delete) / Aggregated-stats TextArea (`GET /api/statistics` JsonNode) / Server monitor (`TableView<ServerHealthDto>` from ServerHealthViewDto) / Classifiche&bracket stub "(riuso viste PLAYER)" / Super-set read-only dashboards soft-button retained. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/AdminRequestsView.java` | NUOVO | 200 | `Timeline @8s` poller (`onEnter` start / `onLeave` stop). VBox cards: PENDING=ProgressIndicator arancione + label, COMPLETED=label verde "✓ COMPLETED — reason", FAILED=label rosso "Operazione non confermata entro il timeout — riprova/riesamina". Parser `readableResult(r.tree.reason)`. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/components/LoadingIndicator.java` | NUOVO | 50 | Wrapper `StackPane` con `ProgressIndicator` 48x48 (`-fx-progress-color: #3498db`), `setMouseTransparent(true)` per non bloccare l'interaction. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/components/StalenessBadge.java` | NUOVO | 80 | HBox con timestampLabel "Dati aggiornati al: HH:mm:ss" + staleBadge "in attesa di replica". `refresh()` confronta `Duration.between(max, now) > staleThresholdMs` (default `System.getProperty("ui.stale-threshold-ms", "300000")`). |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/components/ErrorPane.java` | NUOVO | 60 | VBox per global error handler. retryBtn (`#3498db`) wired a `Runnable retryCallback`. `show(title, message, callback)` + `clear()`. |
+| `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/ui/components/TableColumns.java` | NUOVO | 25 | Helper `addColumn(TableView<S>, header, Function<S,String>)` per non ripetere il boilerplate `PropertyValueFactory` / `SimpleStringProperty` nelle tre admin dashboards. |
+| `game-client-emulator/src/main/resources/application.yml` | ESTESO | +2 righe | +`ui.stale-threshold-ms: ${UI_STALE_THRESHOLD_MS:300000}` (env-overridable, 5 minuti default). |
+| `documenti/PIANO_UTENTI_TORNEI.md` | ESTESO | 0 netto (only content override) | §7.C righe 723-763 tutte le checkbox `[ ]` → `[x]`; note italic comprehensive. |
+
+Totali: **18 nuovi file** + **5 file estesi**
+
+### 20.3 Contract surface (endpoint consumati dal client S5)
+
+Tutti i path sono sull'unico `${LOCAL_SERVER_URL}` del `local-server` Local:
+
+**PLAYER read (6)**:
+- `GET /api/auth/login` ↔ `LoginResponseDto` (legacy, kept for compatibility)
+- `GET /api/auth/me` ↔ `UserInfoDto`, `GET /api/games` ↔ `List<GameStateDto>` (game selection)
+- `GET /api/players/me/statistics[?gameType=X]` ↔ `List<PlayerStatisticsDto>` (MyStatistics)
+- `GET /api/players/me/matches/history[?gameType=X]` ↔ `List<PlayerMatchDto>` (MyMatches)
+- `GET /api/tournaments[?status=X]` ↔ `List<TournamentSummaryDto>` (TournamentsView list)
+- `GET /api/tournaments/{id}` ↔ `TournamentDetailDto` (TournamentsView drill-down)
+- `GET /api/tournaments/{id}/standings|matches|participants` ↔ lists (modalità secondaria — il `TournamentDetailDto` aggregato già li expose; le viste S5 preferiscono il singolo endpoint)
+- `GET /api/players/tournaments/me/matches` ↔ `List<TournamentMatchDto>` ("I miei match")
+- `GET /api/statistics` ↔ `List<StatisticsDto>` (StatisticsView legacy + PlatformAdminDashboard stats globali)
+
+**PLAYER write (2)**:
+- `POST /api/tournaments/{id}/participants` (body `RegisterTournamentParticipantDto` o assente) → `AdminRequestDto(PENDING)` (outbox `PARTICIPANT_REGISTER_REQUESTED` → polling)
+- `POST /api/players/tournaments/matches/{matchId}/start[?gameId=Y]` → `GameSessionDto` 201 (non-async)
+
+**GAME_ADMIN write (2)**:
+- `POST /api/admin/games` (body `UpsertGameDefinitionRequestDto`) → `AdminRequestDto(PENDING)` (outbox `GAME_DEFINITION_UPSERT_REQUESTED`)
+- `PUT /api/admin/games/{gameType}` (stesso body) → `AdminRequestDto(PENDING)`
+
+**PLATFORM_ADMIN read (3)**:
+- `GET /api/admin/users` ↔ `List<UsersDirectoryDto>`
+- `GET /api/admin/servers/health` ↔ `ServerHealthViewDto`
+- `GET /api/admin/requests` + `GET /api/admin/requests/{requestId}` ↔ `List<AdminRequestDto>` / `AdminRequestDto` (polling view — `actingUserId==principal` filter server-side)
+
+**PLATFORM_ADMIN write (6)**:
+- `POST /api/admin/users/{userId}/roles` (body `List<String>` raw) → `AdminRequestDto(PENDING)` (outbox `ROLE_ASSIGNMENT_REQUESTED`)
+- `POST /api/admin/tournaments` (body `CreateTournamentRequestDto`) → `AdminRequestDto(PENDING)` (outbox `TOURNAMENT_CREATE_REQUESTED`)
+- `POST /api/admin/tournaments/{id}/{open|cancel|schedule}` (body assente) → `AdminRequestDto(PENDING)` (outbox `TOURNAMENT_OPEN|CANCEL|SCHEDULE_REQUESTED`)
+- `PUT /api/admin/tournaments/{id}` (body `UpdateTournamentRequestDto` DRAFT-only) → `AdminRequestDto(PENDING)` (outbox `TOURNAMENT_UPDATE_REQUESTED`)
+- `DELETE /api/admin/tournaments/{id}` DRAFT-only → 202 (outbox `TOURNAMENT_DELETE_REQUESTED`)
+
+**LOCAL_ADMIN read (3)**:
+- `GET /api/admin/local/devices` ↔ `List<GameStateDto>` (macchine gioco del building)
+- `GET /api/admin/local/sessions/active` ↔ `List<GameSessionDto>` (sessioni attive)
+- `GET /api/admin/local/statistics?gameType=X` ↔ `LocalStatistics` (JsonNode projection)
+
+Totale: **25 endpoint locali consumati dal client S5**.
+
+### 20.4 Backward-compat
+
+- `HttpClientHelper` API pubblica: il contract della classe esistente (4 metodi statici `setToken/getToken/setCurrentUsername/getCurrentUsername/getHttpClient`) è invariato. S5 aggiunge solo 6 nuovi metodi (`setRoles/getRoles/setBuildings/getBuildings/hasRole/clearSession`) senza rimuovere o alterare esistenti —> basso impatto per i 4 clients già esistenti della API (`LoginView`, `GameSelectionView`, `LobbyView`, `StatisticsView`) via inline HTTP; il `getHttpClient(String)` legacy path rimane.
+- `MainView` API `navigateTo` rinominate costanti `VIEW_*` da locale-this-file (`"login"`, `"signup"`, `"game_selection"`, `"lobby"`, `"game_play"`, `"statistics"`) a costanti public in `NavbarController`. Compatibilità del string-value invariata (`"login"`, `"signup"`, …), quindi il behavior del routing persiste — MainView stesso chiama `NavbarController.VIEW_LOGIN` invece delle costanti private legacy.
+- `MainView` field access (`primaryStage`, `root`, ecc.) rimane private; `initializeServices()` per MQTT è quasi invariato (semplificato il MqttCallbackExtended inline e la chiusura del try/catch della certificate enrollment).
+- `LoginView` API pubblica `setOnLoginSuccess(Runnable)` / `setOnNavigateToSignup(Runnable)` / `reset()` invariata. `performLogin()` signature pubblica rimasta; il body internalspassato da `HttpClient.sendAsync` + `ObjectMapper.readValue` in line a `ApiClient.post().thenCompose(get())` chain.
+- `GameSelectionView` API pubblica `setOnGameSelected(Consumer<GameStateDto>)` / `refreshGames()` / `getView()` invariata. La sottoscrizione MQTT via `StateSubscriber` è rimasta intatta (la sostituzione è solo il refresh REST).
+- `LobbyView` API pubblica `setOnCancel(Runnable)` / `setOnLobbyStarted(BiConsumer)` / `configure(GameStateDto)` / `setCurrentUser(String)` invariata. I 2 blocchi HTTP sostituiti rispettano l'`exceptionally` 404→`fallbackToCreatorMode()` legacy behavior con il `cause.getMessage().contains("HTTP 404")`match testuale (l'`ApiClient`propagate il 404 come `RuntimeException("HTTP 404 — body=…")`).
+- `StatisticsView` API pubblica `showStats()` / `getView()` invariata. Riscritta con `ApiClient.get`; layout/displayStats invariato in semantica (5 label estese per buildingId che è nuovo).
+- `SignupView` API pubblica invariata — vista non toccata (legacy HTTP inline kept per la backward-compat).
+- `application.yml` la chiave `app.local-server-url` legacy dovuto essere sostituita da `app.local-server-url` esistente ma S5 legge la base URL da `${LOCAL_SERVER_URL}` env var (via `ApiClient` ctor) — non canonical configuration via Spring Boot perché il client non usa Spring container. La chiave in `application.yml` diventa documentaria più che consumed (cargo-cult); l'`ApiClient`ifica la env-var in `System.getenv()`.
+- DTO imports `TournamentSummaryDto/TournamentDetailDto/TournamentParticipantViewDto/PlayerMatchDto/PlayersDirectoryDto/ServerHealthViewDto/AdminRequestDto/UpdateTournamentRequestDto/RegisterTournamentParticipantDto/CreateTournamentRequestDto/UpsertGameDefinitionRequestDto/UpsertGameDefinitionRequestDto/GameDefinitionDto` importati dallo `shared-dto`. `GameDefinitionDto` importato ma non usato attualmente (catalog read è via `GameStateDto` arricchito); `RoleAssignmentRequestDto` speculativo non esiste — usato `List<String>` raw body inline.
+- Build `mvn -q -pl :game-client-emulator -am clean compile` → BUILD SUCCESS in S5 (0 errori, 2 warning di dipendenza OpenJFX pre-esistenti). Il `javafx-maven-plugin 0.0.8` configurato con `mainClass=com.gameplatform.client.infrastructure.ui.MainView` per il run (`mvn -pl :game-client-emulator javafx:run`); la compilazione non richiede JavaFX runtime ma la run sì.
+
+### 20.5 Limiti noti (fuori scope S5)
+
+- **Nessun test automatico UI**: il piano §7.B riga 763 esplicita "nessun test automatico UI; copertura manuale come da piano §641". S5 NON aggiunge test files (il modulo `game-client-emulator` risulta senza test directory). Le coperture sono manuali via `mvn -pl :game-client-emulator javafx:run` post `docker-compose up`. Una eventuale FASE 8 potrebbe introdurre TestFX (JavaFX testing) headless sul modulo client — ma non richiesto dal piano.
+- **`theme.css` skipped** (opzionale §7.C riga 760): CSS rimane inline nelle viste (`-fx-background-color: #1e1e1e/#333/#3498db` ripetuto). Non bloccante per la build o la run. Follow-up: estrarre regole in `src/main/resources/theme.css` + `scene.getStylesheets().add(...)` in MainView.
+- **i18n via `ResourceBundle` skipped** (opzionale §7.C riga 761): label hard-coded IT/EN miste come nelle viste legacy. Follow-up: `ResourceBundle.getBundle("i18n.client")` + `Label.text` binded.
+- **`ErrorPane` non integrato globalmente**: il component è utilizzabile come error pane per la pagina offline/5xx con retry, ma `MainView.navigateTo` non ha un caso "fatal-error view swap". Per ora ogni vista displaya il proprio `Label statusLabel`. Integrazione: intercettare e `Exception` fatali del `ApiClient.exceptionally` a livello `MainView` e `root.setCenter(errorPane)` con retry callback. Follow-up FASE 8.
+- **`RoleAssignmentRequestDto` mancante**: la spec §7.C riga 762 lo elenca nella "DTO list" ma il server-side `PlatformAdminUserController` accetta `List<String>` raw body. S5 lo lascia come "lista speculativa" — Optionale aggiungerlo in shared-dto in FASE 8 se serve una wrapper class (es. `actingAdminUserId`, `reason`, `auditTimestamp`). Da FASE 7 spec, il client non ne ha bisogno.
+- **`GET /api/admin/local/games` spec bug** (riga 744 piano): il controller reale esporta solo `/devices` (+ POST/PUT/DELETE `/games`). S5 usa `/devices` come "giochi building view", documentato nel `LocalAdminDashboard` javadoc.-write-through CRUD/non-read admin Local_S5_skip.
+- **Sezione binding LOCAL_ADMIN↔building stub minimale** (riga 749): spec elencava `POST/DELETE/GET /api/admin/local/buildings` (Central runtime) ma non esposte dal `local-server` client-facing. S5 documents-only nel `PlatformAdminDashboard` javadoc; la vera UX path consigliata è `POST /api/admin/users/{userId}/roles` con roles `["LOCAL_ADMIN"]` per assegnare ruolo, e lato Central via outbox `LOCAL_ADMIN_BUILDING_ASSIGNED/REVOKED`. Binding edificio come field post-roles DTO è fuori scope FASE 7.
+- **`MainView.stopPollers()` ha solo `AdminRequestsView.onLeave()`**: altre viste non hanno poller attivi (REFRESHers sono manuali via bottone "Aggiorna"). Una eventuale auto-refresh di `TournamentsView` per segnalare nuovi iscritti sarebbe un `Timeline` analogo — non implementato in S5 per evitare over-polling; l'utente preme "Aggiorna tornei" manualmente.
+- **`PlatformAdminDashboard.deleteTournament()`** l'`ApiClient.delete()` ritorna `CompletableFuture<Void>` — il server in realtà ritorna un `AdminRequestDto(PENDING)` body. S5 discarding il body per via del `delete` tipato Void; il polling `AdminRequestsView` successivo (via `onNavigateToRequests.run()`) rivela il nuovo `AdminRequestDto`. Da sistemare in un follow-up se Serve un overload `delete(path, Class<T>)` nell'`ApiClient`.
+- **`TournamentDetailDto` = single endpoint aggregato ma `TournamentsView` ristianente le `standalone` `standings|matches|participants` sub-endpoint**: il client chiama principalmente `flow.getTournament(id)` (1 endpoint che ritorna tutte le 3 liste aggregate). Le chiamate isolate a `flow.getStandings(id)`/`flow.getMatches(id)`/`flow.getParticipants(id)` sono disponibili nel `PlayerTournamentFlow` ma non usate dalle viste S5 (ridondanti). Per la coerenza con la spec §7.C riga 738 "classifica `GET /{id}/standings`, bracket `GET /{id}/matches`, partecipanti `GET /{id}/participants`" — le view S5 li riceve dal dettaglio aggregato ma la specificationazione delle risorse è ben nota e navigabile dal flow service `PlayerTournamentFlow`.
+
+### 20.6 Follow-up
+
+- **S6 — cross-cutting test di contratto**: il residue S6 close-out (§21.4) non è impacted da S5 (S6 varit solo central-system test files). Il follow-up FASE 8 può chiudere ` EventTypeContractTest` / `ReplicationEventTypeContractTest` come già fatto in S6.
+- **FASE 8 — `theme.css` + i18n**: extracting CSS inStyleSheet file + `ResourceBundle` per label internazionalizzate. Modulo: `game-client-emulator/src/main/resources/theme.css` + `i18n/client.properties` — non bloccante in FASE 7.
+- **FASE 8 — `ErrorPane` global routing**: aggiungere un caso `fatal-error` nel `MainView.navigateTo` che swap ad un pane con `ErrorPane.show(title, msg, retryCallback)` quando l'`ApiClient.exceptionally` ritorna un `ServerUnavailableException` persistente (pi di 3 retry).
+- **FASE 8 — `RoleAssignmentRequestDto` valutazione**: se serve una wrapper class con metadata (actingAdminUserId, reason string, auditTimestamp) per auditing, immigrarla in shared-dto e migrare il `PlatformAdminUserController` signature (breaking change!).
+- **FASE 8 — `GET /api/admin/local/games` alignment**: allineare il piano riga 744 (bug typo) o aggiungere il `@GetMapping("/games")` endpoint al `AdminLocalController` (returns `List<GameStateDto>` games積 del building) per essere esplicitamente distinto da `/devices` caso in cui in futuro la azimuth venga ampliata (es. catalogo "logico" di definizioni locali allowed nel building ≠ dispositivi fisici).
+- **FASE 8 — `PlayerTournamentFlow.refreshIfStale()`**: auto-refresh di `listTournaments()` quando il `StalenessBadge` diventa giallo (> 5 min) — verificare l'UX; può essere confusionario per l'utente se la lista si rimescola mentre sta selezionando un torneo.
+
+---
+
+*Aggiornamento §20 (batch S5) — FASE 7-C Client Emulator GUI implementato. Build `mvn -q -pl :game-client-emulator -am clean compile` → BUILD SUCCESS.*
+
+## 21. FASE 7-D — Cross-cutting + EventTypeContractTest + ReplicationEventTypeContractTest (batch S6)
+
+### 21.1 Decisioni
+
+1. **Chiusura gap S3-A `EventTypeContractTest`**: la veste S3-A del `SyncEventProcessor` aveva aggiunto 8 branch `*_REQUESTED` (9 con `PARTICIPANT_REGISTER_REQUESTED`) con un `// TODO ONDATA-2` che ne differiva l'aggiunta al set `EXPECTED_EVENT_TYPES` difeso dal test, perché i producers Local non erano ancora emessi nel batch S3 Central. S4 ha emesso i 8 literal Local-side (W6/W9/W10/W12 use case); S6 chiude il gap aggiungendoli al set (15 totali: 6 baseline + 9 FASE 7) e rimuovendo il TODO. Verifica strutturale bidirezionale preservata (ogni literal è gestito Central-side ed emesso Local-side).
+2. **`ReplicationEventTypeContractTest` nuovo (gap S1 §16.7 A5)**: speculare al sibling `EventTypeContractTest`, ma per la direzione opposta (Central-emitted → drained). Pinna ogni literal drained dal `UserReplicationSchedulerService.isReplicationEvent` (10: `USER_REGISTERED`/`USER_UPDATED`/`LOCAL_ADMIN_BUILDING_ASSIGNED`/`LOCAL_ADMIN_BUILDING_REVOKED`/`GAME_DEFINITION_UPSERTED`/`TOURNAMENT_MATCH_SCHEDULED`/`TOURNAMENT_SUMMARY_UPSERTED`/`TOURNAMENT_STANDINGS_UPSERTED`/`TOURNAMENT_PARTICIPANTS_UPSERTED`/`LOCAL_SERVER_REGISTRY_UPSERTED`) al (a) literal nel source `UserReplicationSchedulerService.java` AND (b) literal in almeno uno degli 8 producer Central (`UserService`/`LocalAdminBuildingService`/`GameDefinitionService`/`TournamentService`/`TournamentStandingsService`/`TournamentRegistrationService`/`TournamentMatchOutboxAdapter`/`LocalServerRepositoryAdapter`). `LateRegistrationCatchUpService` escluso dalla lista producer perché è un re-drain consumer (contiene tutti i 10 literal come drain filter, non come emittente).
+3. **Regression `mvn verify` scelta strategia**: eseguito `mvn verify -DskipITs -Dfailsafe.skip=true -pl :central-system,:local-server -am` per limitare il scope §7.D riga 768 ("shared + central + local") ed evitare rompere il build su `e2e-tests` (5 failure pre-esistenti: ruolo legacy `USER`→`PLAYER` in `B13`/`B16`; doppio insert `replication_progress` in `B2`/`B5`/`B9`). Le modifiche S6 sono puro file-scan test (`EventTypeContractTest` + `ReplicationEventTypeContractTest`) e non toccano runtime: le failure e2e sono preesistenti (verificato confrontando git status: 0 modifiche di S6 su file impattati). `-DskipITs` non era necessario (i test e2e sono surefire `*Test.java` non `*IT.java`) ma è stato mantenuto come salvaguardia preventiva.
+
+### 21.2 Matrice file (creati/estesi in S6)
+
+| File | Tipo | Nota |
+|------|------|------|
+| `central-system/src/test/java/com/gameplatform/central/application/service/EventTypeContractTest.java` | ESTESO | +8 literal in `EXPECTED_EVENT_TYPES` (15 totali: 6 baseline + 9 FASE 7). TODO S3-A rimosso. Documentazione javadoc arricchita con sezione "FASE 7 §7.B W6/W9/W10/W12". |
+| `central-system/src/test/java/com/gameplatform/central/application/service/ReplicationEventTypeContractTest.java` | NUOVO | 2 test methods: `everyReplicationEventTypeIsDrainedByScheduler` + `everyReplicationEventTypeIsEmittedByCentralProducer`. 10 event types + 8 producer files. Speculare a `EventTypeContractTest`. |
+| `documenti/PIANO_UTENTI_TORNEI.md` | ESTESO | §7.D righe 766-770 tickate `[x]` con note implementative S6. |
+| `documenti/REQUIREMENTS.md` | ESTESO | RI-03 endpoint Local +24 righe (viste PLAYER/dashboards/write async + 3 internal sync). §6.1 matrice +12 righe (RF-UT-02/RF-TO-03/04 update async + 9 nuovi RF-Fase7-*). |
+| `documenti/IMPLEMENTATION.md` | ESTESO | §13 FASE 7 nuovo (viste PLAYER/3 dashboard admin/`ApiClient`/navbar dinamica/`admin_requests_local` flow/`AdminRequestTimeoutService`/test di contratto). Indice aggiornato. |
+| `workflow/workflow.md` | ESTESO | §8 FASE 7 nuovo con checkbox tickate (`[x]`) per §8.A.1/A.2/A.3 (S1-S3 Central), §8.B.1/B.2/B.3 (S4 Local), §8.C (S5 client), §8.D (S6 cross-cutting). |
+| `workflow/architettura_classi.md` | ESTESO | §21 (questa sezione). Cross-riferimento finale aggiornato a S1+S2+S3+S4+S5+S6. |
+
+### 21.3 Contract surface
+
+- `EventTypeContractTest` copertura: 15/15 literal Local-emitted → branch `SyncEventProcessor.processEvent`. Pre-S6: 6/6 baseline (5 FASE 0-2 + 1 FASE 6 `TOURNAMENT_MATCH_COMPLETED`) più TODO. Post-S6: 15/15.
+
+- `ReplicationEventTypeContractTest` copertura: 10/10 literal Central-emitted drained → 8 producer Central. Direzioni di verifica: (a) ogni literal dichiarato come costante `*_EVENT` in `UserReplicationSchedulerService` (drain filter), (b) ogni literal emesso come literal stringa in almeno uno degli 8 producer Central.
+
+- Totali test Central post-S6: 345/0/0/0 (343 baseline + 2 `ReplicationEventTypeContractTest`). Local invariato: 798/0/0/0.
+
+### 21.4 Backward-compat
+
+- Nessuna rottura: i due test sono puro file-scan via `Files.walk` + regex `Pattern.quote` (no Reflection, no ArchUnit, no DB). Aggiungere un nuovo literal a una delle due liste richiede solo che il literal sia effettivamente emesso/drenato da qualche parte del source — API binary compat invariata.
+- `EventTypeContractTest.EXPECTED_EVENT_TYPES` è una `Set.of(...)` immutabile — un update futuro deve solo aggiungere il literal al set ed il test forzerà la presenza del branch SyncEventProcessor + del producer Local. Aggiungere un literal senza producer/branch → fail del test con messaggio esplicito (`missing` TreeSet).
+- `ReplicationEventTypeContractTest.PRODUCER_FILES` è una `List.of(...)` immutabile. Aggiungere un producer (`*OutboxAdapter`/`*Service`) deve solo aggiungere il file name alla lista; omettere un producer existing non rompe il test fintantoche il literal è emesso altrove nella lista.
+- Backward-compat dei 5 baseline Local-emitted (`USER_REGISTERED`/`RESERVATION_CREATED`/`RESERVATION_CANCELLED`/`GAME_SESSION_COMPLETED`/`GAME_SESSION_ABORTED`) e di `TOURNAMENT_MATCH_COMPLETED`: preservata invariata (nessun cambiamento ai 6 literal originali, solo +8 append).
+
+### 21.5 Limiti noti
+
+- **`EventTypeContractTest` se esteso richiede che i Local emettano effettivamente i literal**: la direzione bidirezionale del test vincola ogni literal ad essere presente in `local-server/src/main/java` come literal string. S6 ha verificato tutti gli 8 tramite grep (29 match in 18 file Local, di cui 8 sono dichiarazioni `static final String EVENT_TYPE = "..._REQUESTED"`). Un futuro branch `SyncEventProcessor` aggiunto senza producer Local romperà `everyExpectedEventTypeIsEmittedByLocalServer` — questo è il comportamento atteso (guardia architetturale).
+- **`ReplicationEventTypeContractTest` non distingue producer outbox da re-emission inline**: grep stringa generoso. `LateRegistrationCatchUpService` è escluso dalla lista producer per evitare falsi positivi (contiene tutti i 10 literal come drain filter). Futuri re-drain consumer dovranno essere esclusi manualmente dalla `PRODUCER_FILES` (o il test dovrà essere esteso con una denylist esplicita).
+- **Modulo `e2e-tests` out-of-scope §7.D riga 768**: il piano dichiara il target regression solo "shared + central + local". `e2e-tests` presenta 5 failure pre-esistenti su 28 test (legacy role `USER`→`PLAYER`, double `replication_progress`) — non causate da S6. Follow-up FASE 8: allineare i test e2e alla migrazione RBAC 4 ruoli e al drain raddoppiato (probabile causa: `@Scheduled` `replicateUsers` runner nel contesto IT e deadline H2 state).
+- **S5 formalizzato in `architettura_classi.md` §20**: il batch S5 (§7.C Client Emulator GUI) è stato formalizzato retroattivamente in §20 di questo documento (vedi soprastante): 18 nuovi file + 5 file estesi, build `mvn -q -pl :game-client-emulator -am clean compile` verde. Nessuna regressione test (modulo senza test directory, conforme al piano §7.B riga 763 "nessun test automatico UI").
+
+### 21.6 Follow-up
+
+- **FASE 8 — Docs, smoke test, requirements** (PIANO riga 780-782): estendere il `README.md` "Smoke test" con scenario torneo end-to-end; estendere `e2e-tests` con uno smoke torneo (simile a `MultiBuildingEndToEndIT`). Risolvere le 5 failure e2e soprastanti.
+- **`team_members_local` table** (vedi §19.7): per chiudere il gap `PlayerTournamentController.myMatches` team membership. Implementazione deferred a FASE 8+.
+- **Poison events back-channel `ADMIN_REQUEST_FAILED`** (limiti noti §7.D (f)): opzionale, non bloccante in FASE 7. Considerare in FASE 8 se la UX del timeout 60s standard risulta troppo penalizzante.
+- **Mutua autenticazione/firma outbox** (limiti noti §7.D (b)): criptograficamente firmare i payload `*_REQUESTED` per evitare che un Local compromesso auto-elargisca `PLATFORM_ADMIN`. Follow-up FASE 8+.
+
+---
+
+*Aggiornamento §21 (batch S6) — FASE 7-D cross-cutting + EventTypeContractTest + ReplicationEventTypeContractTest completato.*
 *Fine `architettura_classi.md`.*
-*Cross-riferimenti: `documenti/PIANO_UTENTI_TORNEI.md` FASE 0 + FASE 1 + FASE 2 + FASE 3 + FASE 4 + FASE 5 + FASE 6 + FASE 7 §7.A.1 (batch S1) + FASE 7 §7.A.2-parziale/§7.A.3/§7.A.5/§7.A.6/§7.A.7 (batch S3 Central) + FASE 7 §7.A.2-completa/§7.B-completo (batch S2+S4 Local); `documenti/REQUIREMENTS.md` RF-AU-05, RF-UT-LA-01..04, RF-UT-GA-01..03, RF-UT-PL-01..02, RF-TO-01..12; `workflow/analisi/problemi_noti.md`.*
+*Cross-riferimenti: `documenti/PIANO_UTENTI_TORNEI.md` FASE 0 + FASE 1 + FASE 2 + FASE 3 + FASE 4 + FASE 5 + FASE 6 + FASE 7 §7.A.1-A3 (batch S1+S3 Central) + §7.A.2-completa (batch S2 Central→Local) + §7.B-completo (batch S4 Local residue) + §7.C (batch S5 client emulator) + §7.D (batch S6 cross-cutting + test contratto); `documenti/REQUIREMENTS.md` §6.1 matrice RF-AU-05/RF-UT-LA-01..04/RF-UT-GA-01..03/RF-UT-PL-01..02/RF-TO-01..12 + RF-UT-02 (FASE 7 update async) + RF-Fase7-DA1..DA3/AR/PLAYER/NAV/CLIENT/COMP/ADM/CONTRACT; `documenti/IMPLEMENTATION.md` §13 FASE 7 (viste PLAYER/dashboard admin/ApiClient/navbar/admin_requests_local/timeout/contratti); `workflow/analisi/problemi_noti.md`.*

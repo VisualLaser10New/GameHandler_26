@@ -1,24 +1,24 @@
 package com.gameplatform.client.infrastructure.ui;
 
+import com.gameplatform.client.infrastructure.rest.ApiClient;
+import com.gameplatform.client.infrastructure.security.HttpClientHelper;
 import com.gameplatform.shared.dto.LoginRequestDto;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gameplatform.shared.dto.LoginResponseDto;
+import com.gameplatform.shared.dto.UserInfoDto;
+import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-
 /**
- * JavaFX view for user authentication.
+ * JavaFX view for user authentication (PIANO §7.C line 728).
  * <p>
- * Displays a login form with username and password fields. Credentials are
- * sent to the Local Server via an asynchronous HTTP POST to
- * {@code /api/auth/login}. On success the {@code onLoginSuccess} callback
- * is invoked; on failure an error message is shown below the form.
+ * Submits a {@link LoginRequestDto} to {@code POST /api/auth/login}
+ * through the centralised {@link ApiClient}; on success it then calls
+ * {@code GET /api/auth/me} and stores the returned {@link UserInfoDto}
+ * enriched payload (token, username, roles, buildings) back into
+ * {@link HttpClientHelper} so the role-aware navbar can rebuild.
  */
 public class LoginView {
     private final VBox root;
@@ -64,48 +64,27 @@ public class LoginView {
         loginButton.setOnAction(e -> performLogin());
         passwordField.setOnAction(e -> performLogin());
         signupLink.setOnAction(e -> {
-            if (onNavigateToSignup != null) {
-                onNavigateToSignup.run();
-            }
+            if (onNavigateToSignup != null) onNavigateToSignup.run();
         });
     }
 
-
-    /**
-     * Returns the root JavaFX node for this view.
-     *
-     * @return the login form's {@link Parent} node
-     */
     public Parent getView() {
         return root;
     }
 
-    /**
-     * Registers a callback to be invoked after a successful login.
-     *
-     * @param callback the action to run on login success (e.g. navigate to
-     *                 the game selection view); may be {@code null}
-     */
     public void setOnLoginSuccess(Runnable callback) {
         this.onLoginSuccess = callback;
     }
 
-    /**
-     * Registers a callback to be invoked when navigating to the signup screen.
-     *
-     * @param callback the action to run; may be {@code null}
-     */
     public void setOnNavigateToSignup(Runnable callback) {
         this.onNavigateToSignup = callback;
     }
 
     /**
-     * Validates the form, serialises the credentials as JSON, and sends an
-     * asynchronous POST request to the Local Server authentication endpoint.
-     * <p>
-     * The login button is disabled while the request is in flight. On a
-     * {@code 200} response the {@code onLoginSuccess} callback is executed
-     * on the JavaFX Application Thread.
+     * Validates the form, sends {@code POST /api/auth/login} via {@link ApiClient}
+     * and, on 200, sends {@code GET /api/auth/me} to resolve the enriched
+     * {@link UserInfoDto} (roles + buildings). Every step is async; UI
+     * mutations are marshalled onto the JavaFX Application Thread.
      */
     public void performLogin() {
         String username = usernameField.getText().strip();
@@ -120,88 +99,43 @@ public class LoginView {
         errorLabel.setText("");
 
         LoginRequestDto request = new LoginRequestDto(username, password);
-
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            String json = mapper.writeValueAsString(request);
-
-            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
-            HttpClient client = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl);
-            HttpRequest httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(localServerUrl + "/api/auth/login"))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(json))
-                    .build();
-
-            client.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
-                    .thenAccept(response -> {
-                        javafx.application.Platform.runLater(() -> {
-                            loginButton.setDisable(false);
-                            if (response.statusCode() == 200) {
-                                try {
-                                    ObjectMapper responseMapper = new ObjectMapper();
-                                    responseMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
-                                    com.gameplatform.shared.dto.LoginResponseDto loginResponse =
-                                            responseMapper.readValue(response.body(), com.gameplatform.shared.dto.LoginResponseDto.class);
-                                    com.gameplatform.client.infrastructure.security.HttpClientHelper.setToken(loginResponse.token());
-
-                                    // Fetch the current username from /api/auth/me
-                                    String localServerUrl2 = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
-                                    java.net.http.HttpClient meClient = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl2);
-                                    java.net.http.HttpRequest meRequest = java.net.http.HttpRequest.newBuilder()
-                                            .uri(java.net.URI.create(localServerUrl2 + "/api/auth/me"))
-                                            .header("Authorization", "Bearer " + loginResponse.token())
-                                            .GET()
-                                            .build();
-                                    meClient.sendAsync(meRequest, java.net.http.HttpResponse.BodyHandlers.ofString())
-                                            .thenAccept(meResponse -> {
-                                                if (meResponse.statusCode() == 200) {
-                                                    try {
-                                                        ObjectMapper meMapper = new ObjectMapper();
-                                                        com.gameplatform.shared.dto.UserInfoDto userInfo =
-                                                                meMapper.readValue(meResponse.body(), com.gameplatform.shared.dto.UserInfoDto.class);
-                                                        com.gameplatform.client.infrastructure.security.HttpClientHelper.setCurrentUsername(userInfo.username());
-                                                    } catch (Exception ignored) {}
-                                                }
-                                            });
-
-                                    errorLabel.setStyle("-fx-text-fill: #2ecc71;");
-                                    errorLabel.setText("Login successful");
-                                    if (onLoginSuccess != null) {
-                                        onLoginSuccess.run();
-                                    }
-                                } catch (Exception e) {
-                                    errorLabel.setStyle("-fx-text-fill: #e74c3c;");
-                                    errorLabel.setText("Token error: " + e.getMessage());
-                                }
-                            } else if (response.statusCode() == 401) {
-                                errorLabel.setStyle("-fx-text-fill: #e74c3c;");
-                                errorLabel.setText("Invalid username or password");
-                            }
-                            else {
-                                errorLabel.setStyle("-fx-text-fill: #e74c3c;");
-                                errorLabel.setText("Login failed: " + response.statusCode());
-                            }
-                        });
-                    })
-                    .exceptionally(ex -> {
-                        javafx.application.Platform.runLater(() -> {
-                            loginButton.setDisable(false);
-                            errorLabel.setStyle("-fx-text-fill: #e74c3c;");
-                            errorLabel.setText("Connection error: " + ex.getMessage());
-                        });
-                        return null;
-                    });
-        } catch (Exception ex) {
-            loginButton.setDisable(false);
-            errorLabel.setText("Error: " + ex.getMessage());
-        }
+        ApiClient client = ApiClient.instance();
+        client.post("/api/auth/login", request, LoginResponseDto.class)
+                .thenCompose(loginResponse -> {
+                    if (loginResponse == null || loginResponse.token() == null) {
+                        throw new RuntimeException("Login response returned no token");
+                    }
+                    HttpClientHelper.setToken(loginResponse.token());
+                    HttpClientHelper.setCurrentUsername(username);
+                    // Fetch the enriched UserInfoDto (roles + buildings).
+                    return client.get("/api/auth/me", UserInfoDto.class);
+                })
+                .thenAccept(userInfo -> Platform.runLater(() -> {
+                    if (userInfo != null) {
+                        HttpClientHelper.setCurrentUsername(userInfo.username());
+                        HttpClientHelper.setRoles(userInfo.roles());
+                        HttpClientHelper.setBuildings(userInfo.buildings());
+                    }
+                    errorLabel.setStyle("-fx-text-fill: #2ecc71;");
+                    errorLabel.setText("Login successful");
+                    loginButton.setDisable(false);
+                    if (onLoginSuccess != null) onLoginSuccess.run();
+                }))
+                .exceptionally(ex -> { Platform.runLater(() -> {
+                    loginButton.setDisable(false);
+                    errorLabel.setStyle("-fx-text-fill: #e74c3c;");
+                    Throwable cause = ex;
+                    while (cause.getCause() != null) cause = cause.getCause();
+                    if (cause instanceof com.gameplatform.client.infrastructure.rest.AuthenticationException) {
+                        errorLabel.setText("Credenziali non valide");
+                    } else if (cause instanceof com.gameplatform.client.infrastructure.rest.ServerUnavailableException) {
+                        errorLabel.setText("Server non raggiungibile: " + cause.getMessage());
+                    } else {
+                        errorLabel.setText("Login error: " + cause.getMessage());
+                    }
+                }); return null; });
     }
 
-    /**
-     * Clears all input fields and resets the error label to its default
-     * (red) styling.
-     */
     public void reset() {
         usernameField.clear();
         passwordField.clear();

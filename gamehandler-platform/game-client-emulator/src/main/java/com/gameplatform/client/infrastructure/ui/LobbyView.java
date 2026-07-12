@@ -248,70 +248,39 @@ public class LobbyView {
      * @param gameId the game machine identifier
      */
     private void fetchActiveLobbySession(String gameId) {
-        try {
-            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
-            java.net.http.HttpClient client = HttpClientHelper.getHttpClient(localServerUrl);
-            java.net.http.HttpRequest.Builder requestBuilder = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create(localServerUrl + "/api/sessions/lobby/active?gameId=" + gameId))
-                    .GET();
-            String token = HttpClientHelper.getToken();
-            if (token != null) {
-                requestBuilder.header("Authorization", "Bearer " + token);
-            }
-            java.net.http.HttpRequest request = requestBuilder.build();
-            client.sendAsync(request, java.net.http.HttpResponse.BodyHandlers.ofString())
-                    .thenAccept(response -> Platform.runLater(() -> {
-                        if (response.statusCode() == 200) {
-                            try {
-                                com.fasterxml.jackson.databind.ObjectMapper mapper =
-                                        new com.fasterxml.jackson.databind.ObjectMapper()
-                                                .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
-                                GameSessionDto session = mapper.readValue(response.body(), GameSessionDto.class);
-                                lobbySessionId = session.id();
-                                infoLabel.setText("Lobby attiva trovata. Premi 'Unisciti' per entrare.");
-
-                                // Seed the participants list from the server's
-                                // authoritative list so the joiner immediately
-                                // sees who is already in the lobby (e.g. the
-                                // creator). Before this, the DTO had no
-                                // participants field and the joiner only saw
-                                // themselves — the creator was never shown.
-                                participants.clear();
-                                if (session.participants() != null) {
-                                    for (String p : session.participants()) {
-                                        if (p != null && !p.isBlank() && !participants.contains(p)) {
-                                            participants.add(p);
-                                        }
-                                    }
-                                }
-                                refreshParticipantsBox();
-                            } catch (Exception e) {
-                                infoLabel.setText("Errore lettura sessione lobby: " + e.getMessage());
-                            }
-                        } else if (response.statusCode() == 404) {
-                            // No active lobby session exists, but the game
-                            // machine may be stuck in a stale LOBBY status
-                            // (a previous lobby was aborted but the
-                            // game_catalog wasn't cleaned up).  Fall back
-                            // to creator mode so the user can create a new
-                            // lobby — the server's createLobby() handles
-                            // the stale LOBBY status by releasing the game
-                            // first.  Without this fallback, the user
-                            // would be stuck: not in creator mode (game
-                            // wasn't AVAILABLE at selection time) and
-                            // unable to join (no session).
-                            fallbackToCreatorMode();
-                        } else {
-                            infoLabel.setText("Impossibile recuperare la lobby (HTTP " + response.statusCode() + ").");
+        com.gameplatform.client.infrastructure.rest.ApiClient.instance()
+                .get("/api/sessions/lobby/active", "gameId=" + gameId, GameSessionDto.class)
+                .thenAccept(session -> Platform.runLater(() -> {
+                    if (session == null) {
+                        infoLabel.setText("Lobby vuota.");
+                        return;
+                    }
+                    // 200: lobby session found — populate state.
+                    lobbySessionId = session.id();
+                    infoLabel.setText("Lobby attiva trovata. Premi 'Unisciti' per entrare.");
+                    participants.clear();
+                    if (session.participants() != null) {
+                        for (String p : session.participants()) {
+                            if (p != null && !p.isBlank() && !participants.contains(p)) participants.add(p);
                         }
-                    }))
-                    .exceptionally(ex -> {
-                        Platform.runLater(() -> infoLabel.setText("Errore di connessione al server: " + ex.getMessage()));
-                        return null;
-                    });
-        } catch (Exception e) {
-            infoLabel.setText("Errore avvio richiesta lobby: " + e.getMessage());
-        }
+                    }
+                    refreshParticipantsBox();
+                }))
+                .exceptionally(ex -> { Platform.runLater(() -> {
+                    Throwable t = ex;
+                    while (t.getCause() != null) t = t.getCause();
+                    if (t instanceof com.gameplatform.client.infrastructure.rest.ServerUnavailableException
+                            || t instanceof RuntimeException
+                                && t.getMessage() != null && t.getMessage().contains("HTTP 404")) {
+                        // No active lobby session — fall back to creator mode so the
+                        // user can create a fresh lobby. The server's
+                        // createLobby() handles any stale LOBBY status by
+                        // releasing the game first.
+                        fallbackToCreatorMode();
+                        return;
+                    }
+                    infoLabel.setText("Impossibile recuperare la lobby: " + t.getMessage());
+                }); return null; });
     }
 
     // ─────────────────────────── Button handlers ──────────────────────────────
@@ -412,35 +381,15 @@ public class LobbyView {
     private void cancelLobbyByGameViaRest(String gameId) {
         new Thread(() -> {
             try {
-                String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
-                java.net.http.HttpClient client = HttpClientHelper.getHttpClient(localServerUrl);
                 String body = "{\"userId\":\"" + currentUsername + "\"}";
-                java.net.http.HttpRequest.Builder requestBuilder = java.net.http.HttpRequest.newBuilder()
-                        .uri(java.net.URI.create(localServerUrl + "/api/sessions/lobby/cancel-by-game?gameId=" + gameId))
-                        .header("Content-Type", "application/json")
-                        .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body));
-                String token = HttpClientHelper.getToken();
-                if (token != null) {
-                    requestBuilder.header("Authorization", "Bearer " + token);
-                }
-                client.sendAsync(requestBuilder.build(), java.net.http.HttpResponse.BodyHandlers.ofString())
-                        .thenAccept(response -> {
-                            if (response.statusCode() == 200) {
-                                // Optionally also publish a MQTT cancel so
-                                // other clients are notified immediately.
-                                try {
-                                    com.fasterxml.jackson.databind.ObjectMapper mapper =
-                                            new com.fasterxml.jackson.databind.ObjectMapper();
-                                    GameSessionDto session = mapper.readValue(response.body(), GameSessionDto.class);
-                                    if (session.id() != null && sessionPublisher != null) {
-                                        sessionPublisher.publishLobbyCancel(gameId, session.id(), currentUsername);
-                                    }
-                                } catch (Exception ignored) {}
+                com.gameplatform.client.infrastructure.rest.ApiClient.instance()
+                        .post("/api/sessions/lobby/cancel-by-game?gameId=" + gameId, body, GameSessionDto.class)
+                        .thenAccept(session -> {
+                            if (session != null && session.id() != null && sessionPublisher != null) {
+                                sessionPublisher.publishLobbyCancel(gameId, session.id(), currentUsername);
                             }
                         });
-            } catch (Exception ignored) {
-                // Best-effort
-            }
+            } catch (Exception ignored) {}
         }, "cancel-lobby-rest").start();
     }
 

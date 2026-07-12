@@ -1,42 +1,37 @@
 package com.gameplatform.client.infrastructure.ui;
 
+import com.gameplatform.client.infrastructure.rest.ApiClient;
 import com.gameplatform.shared.dto.StatisticsDto;
+import com.fasterxml.jackson.core.type.TypeReference;
 import javafx.application.Platform;
 import javafx.scene.Parent;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.VBox;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.List;
 
 /**
- * JavaFX view that displays aggregated game statistics.
+ * Aggregated statistics view (legacy FASE 3, retrofitted with the
+ * centralised {@link ApiClient}).
  * <p>
- * Statistics are fetched asynchronously via {@code GET /api/statistics}
- * and rendered as cards, each showing the game type, total sessions,
- * average duration, and total reservations.
+ * Polls {@code GET /api/statistics} — the Local
+ * {@code StatisticsController} aggregated per building. The view is
+ * available to every authenticated user (PIANO §7.C line 741 / line 752).
  */
 public class StatisticsView {
     private final VBox root;
     private final Label titleLabel;
     private final VBox statsContainer;
     private final Label statusLabel;
-    private final com.fasterxml.jackson.databind.ObjectMapper mapper;
 
     public StatisticsView() {
-        mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
         VBox content = new VBox(10);
 
-        titleLabel = new Label("Game Statistics");
+        titleLabel = new Label("Game Statistics (aggregated)");
         titleLabel.setStyle("-fx-font-size: 18; -fx-font-weight: bold; -fx-text-fill: #eee;");
 
         statsContainer = new VBox(6);
-
         statusLabel = new Label("Loading statistics...");
         statusLabel.setStyle("-fx-text-fill: #aaa;");
 
@@ -53,66 +48,22 @@ public class StatisticsView {
         root.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
     }
 
-    /**
-     * Returns the root JavaFX node for this view.
-     *
-     * @return the statistics {@link Parent}
-     */
     public Parent getView() {
         return root;
     }
 
-    /**
-     * Fetches statistics from the Local Server and renders them.
-     * The request is sent asynchronously; results are applied on the
-     * JavaFX Application Thread.
-     */
     public void showStats() {
         statusLabel.setText("Loading...");
-        try {
-            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
-            HttpClient client = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl);
-            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
-                    .uri(URI.create(localServerUrl + "/api/statistics"))
-                    .GET();
-            String token = com.gameplatform.client.infrastructure.security.HttpClientHelper.getToken();
-            if (token != null) {
-                requestBuilder.header("Authorization", "Bearer " + token);
-            }
-            HttpRequest request = requestBuilder.build();
-            client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .thenAccept(response -> Platform.runLater(() -> {
-                        if (response.statusCode() == 200) {
-                            try {
-                                com.fasterxml.jackson.core.type.TypeReference<List<StatisticsDto>> typeRef =
-                                        new com.fasterxml.jackson.core.type.TypeReference<>() {};
-                                List<StatisticsDto> stats = mapper.readValue(response.body(), typeRef);
-                                displayStats(stats);
-                            } catch (Exception e) {
-                                statusLabel.setText("Parse error: " + e.getMessage());
-                            }
-                        } else {
-                            statusLabel.setText("Failed to load stats: " + response.statusCode());
-                        }
-                    }))
-                    .exceptionally(ex -> {
-                        Platform.runLater(() -> statusLabel.setText("Connection error: " + ex.getMessage()));
-                        return null;
-                    });
-        } catch (Exception e) {
-            statusLabel.setText("Error: " + e.getMessage());
-        }
+        ApiClient.instance().get("/api/statistics", new TypeReference<List<StatisticsDto>>() {})
+                .thenAccept(stats -> Platform.runLater(() -> displayStats(stats)))
+                .exceptionally(ex -> { Platform.runLater(() -> {
+                    Throwable t = ex;
+                    while (t.getCause() != null) t = t.getCause();
+                    statusLabel.setText("Connection error: " + t.getMessage());}); return null; });
     }
 
-    /**
-     * Renders the list of statistics as styled cards inside
-     * {@code statsContainer}.
-     *
-     * @param stats the statistics to display, or {@code null} / empty
-     */
     private void displayStats(List<StatisticsDto> stats) {
         statsContainer.getChildren().clear();
-
         if (stats == null || stats.isEmpty()) {
             Label empty = new Label("No statistics available");
             empty.setStyle("-fx-text-fill: #999;");
@@ -120,27 +71,22 @@ public class StatisticsView {
             statusLabel.setText("0 entries");
             return;
         }
-
         for (StatisticsDto s : stats) {
             VBox card = new VBox(4);
             card.setStyle("-fx-padding: 10; -fx-background-color: #2a2a2a; -fx-border-color: #444; -fx-border-radius: 4;");
-
             Label gameLabel = new Label("Game: " + s.gameType());
             gameLabel.setStyle("-fx-text-fill: #3498db; -fx-font-weight: bold;");
-
-            Label sessionsLabel = new Label("Sessions: " + s.totalSessions());
+            Label buildingLabel = new Label("Building: " + (s.buildingId() == null ? "—" : s.buildingId()));
+            buildingLabel.setStyle("-fx-text-fill: #ddd;");
+            Label sessionsLabel = new Label("Sessions: " + (s.totalSessions() == null ? 0 : s.totalSessions()));
             sessionsLabel.setStyle("-fx-text-fill: #ddd;");
-
-            Label durationLabel = new Label("Avg Duration: " + s.avgDuration() + "s");
+            Label durationLabel = new Label("Avg Duration: " + (s.avgDuration() == null ? 0 : s.avgDuration()) + "s");
             durationLabel.setStyle("-fx-text-fill: #ddd;");
-
-            Label reservationsLabel = new Label("Reservations: " + s.totalReservations());
+            Label reservationsLabel = new Label("Reservations: " + (s.totalReservations() == null ? 0 : s.totalReservations()));
             reservationsLabel.setStyle("-fx-text-fill: #ddd;");
-
-            card.getChildren().addAll(gameLabel, sessionsLabel, durationLabel, reservationsLabel);
+            card.getChildren().addAll(gameLabel, buildingLabel, sessionsLabel, durationLabel, reservationsLabel);
             statsContainer.getChildren().add(card);
         }
-
         statusLabel.setText(stats.size() + " entries");
     }
 }

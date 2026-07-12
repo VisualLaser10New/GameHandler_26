@@ -836,3 +836,76 @@
 
 ## 7 Configurazioni
 - [x] Creare il certificato per `JwtTokenProvider`
+
+## 8 FASE 7 — Utenti e Tornei multi-edificio
+
+> Checklist di implementazione della FASE 7 (batches S1-S6). Riferimento piano:
+> `documenti/PIANO_UTENTI_TORNEI.md` §7.A (Central) + §7.B (Local) + §7.C (Client GUI) + §7.D (Cross-cutting).
+> L'architettura per-batch è descritta in `workflow/architettura_classi.md` §16 (S1), §17 (S2), §18/§19 (S3+S4 Local residue), §20 (S5 client), §21 (S6 cross-cutting + test contratto).
+
+### 8.A — Central System (PIANO §7.A)
+
+#### 8.A.1 — UpdateTournamentUseCase + DeleteTournamentUseCase (batch S1)
+- [x] `UpdateTournamentUseCase`/`UpdateTournamentService` (Central) — `update(tournamentId, name, startsAt, buildingIds, originatingRequestId)`.
+- [x] `DeleteTournamentUseCase`/`DeleteTournamentService` (Central) — `delete(tournamentId, originatingRequestId)` + tombstone `deleted=true` su `TOURNAMENT_SUMMARY_UPSERTED`.
+- [x] Estensione outbox `TournamentService.create/open/cancel/update/delete` con `originatingRequestId`.
+- [x] Backward-compat ctor 6-arg → 9-arg su `TournamentService` (legacy ctor null-safe).
+
+#### 8.A.2 — Replica `TOURNAMENT_SUMMARY_UPSERTED` end-to-end (batch S2)
+- [x] `PushTournamentSummaryToLocalServersPort` + `LocalTournamentSummaryRestAdapter` + `InternalTournamentSummaryController` (Local, PUT `/internal/tournament-summaries/sync`).
+- [x] `TournamentSummaryLocalJpaEntity` + `TournamentSummaryLocalRepository`/`Adapter`/`Mapper` (Local).
+- [x] `TournamentSummarySyncService.applyEvents` (Local, upsert idempotente + delete tombstone).
+- [x] Tabella `tournaments_summary_local` (5 tabelle nuove Local previste: questa + 4 S4) — aggiunta ai 3 `init-building-*.sql`.
+
+#### 8.A.3 — `SyncEventProcessor` 8 branch `*_REQUESTED` + use case admin (batch S3)
+- [x] `UpdateUserUseCase`/`UpdateUserService` (Central) — outbox `USER_UPDATED` con `originatingRequestId`.
+- [x] `UpsertGameDefinitionUseCase`/`GameDefinitionService.upsert(input, originatingRequestId)`.
+- [x] `CreateTournamentUseCase`, `OpenTournamentRegistrationUseCase`, `CancelTournamentUseCase`, `ScheduleTournamentMatchesUseCase`, `UpdateTournamentUseCase`, `DeleteTournamentUseCase`, `RegisterTournamentParticipantUseCase` (Central) — tutti con `originatingRequestId`.
+- [x] `SyncEventProcessor.processEvent` — 8 nuovi branch `ROLE_ASSIGNMENT_REQUESTED`/`GAME_DEFINITION_UPSERT_REQUESTED`/`TOURNAMENT_CREATE/OPEN/CANCEL/SCHEDULE/UPDATE/DELETE_REQUESTED` + `PARTICIPANT_REGISTER_REQUESTED` (9 rami totali).
+- [x] Backward-compat ctor 11-arg → 20-arg (legacy ctor null-safe per i 9 use case admin).
+
+### 8.B — Local Server residue (PIANO §7.B, batch S4)
+
+#### 8.B.1 — 4 nuove entità JPA Local + adapter + mapper (S4)
+- [x] `TournamentStandingLocal` + `TournamentStandingLocalJpaEntity` (PK composta via `IdClass`) + repo/adapter/mapper.
+- [x] `TournamentParticipantLocal` + `TournamentParticipantLocalJpaEntity` (PK composta) + repo/adapter/mapper.
+- [x] `RegisteredLocalServerLocal` + `RegisteredLocalServerLocalJpaEntity` (PK `buildingId`) + repo/adapter/mapper.
+- [x] `AdminRequestLocal` + `AdminRequestLocalJpaEntity` (PK `requestId` UUID) + enum `AdminRequestStatus(PENDING|COMPLETED|FAILED)` + repo/adapter/mapper.
+- [x] 4 nuove tabelle Local aggiunte ai 3 `init.sql`/`init-building-*.sql`: `tournament_standings_local`, `tournament_participants_local`, `registered_local_servers_local`, `admin_requests_local`.
+
+#### 8.B.2 — W use case (S4)
+- [x] `RolePreCheck.requireRole(userRepository, actingUserId, requiredRole)` helper statico (defense-in-depth).
+- [x] `AdminRequestOutboxWriter` `@Component` — `writePendingRequest` (scrittura atomica PENDING `requestId==outbox eventId`) + `writeFailedRequest` (per DRAFT pre-check, no outbox).
+- [x] W6 `RegisterTournamentParticipantRequestedService` (PLAYER iscrizione async).
+- [x] W9 `UpsertGameDefinitionRequestedService` + `AssignRoleRequestedService` (GAME_ADMIN/PLATFORM_ADMIN async).
+- [x] W10 `CreateTournamentRequestedService` + `TournamentLifecycleRequestedService(open/cancel/schedule)` (PLATFORM_ADMIN async).
+- [x] W12 `UpdateTournamentRequestedService` + `DeleteTournamentRequestedService` (PLATFORM_ADMIN DRAFT-only con pre-check su `tournaments_summary_local`).
+- [x] `AdminRequestTimeoutService` `@Service @Scheduled` (PENDING→FAILED a timeout, idempotente).
+- [x] 3 SyncService Local (`TournamentStandingsLocalSyncService`, `TournamentParticipantsLocalSyncService`, `RegisteredLocalServerSyncService`) + estensione `markCompleted` su `TournamentSummarySyncService`/`UserSyncService`/`GameDefinitionSyncService` quando `originatingRequestId != null`.
+
+#### 8.B.3 — Endpoint client-facing Local (S4)
+- [x] Read PLAYER: `PlayerMatchHistoryController`, `PlayerTournamentSummaryController` (entrambi basati sulle 4 repliche Local).
+- [x] Read admin: `AdminRequestsController` (self-service cross-user filter), `PlatformAdminServerController` (`/api/admin/servers/health`), `PlatformAdminUsersController` (`/api/admin/users` directory senza hash).
+- [x] Write async via outbox: `PlayerTournamentRegistrationController`, `GameAdminController` (Local), `PlatformAdminUserController`, `PlatformAdminTournamentController`.
+- [x] Allineamenti: `GameController.toDto`/`AdminLocalController.toDto` leggono `minPlayers`/`maxPlayers` da `game_definitions_local` (fallback `GameFactory`); `AuthController.getCurrentUser` arricchito con `userId`/`roles`/`buildings`.
+
+### 8.C — Client Emulator GUI (PIANO §7.C, batch S5)
+
+- [x] `ApiClient` (`infrastructure/rest/`) + `HttpClientHelper.setRoles/setBuildings` — bearer JWT + bootstrap `GET /api/auth/me`.
+- [x] `PlayerTournamentFlow` service (orchestrazione 4 chiamate torneo).
+- [x] `NavbarController` — voci navbar condizionate al ruolo JWT; super-set read-only per `PLATFORM_ADMIN`.
+- [x] `LocalAdminDashboard` (FASE 1 endpoint riusati).
+- [x] `GameAdminDashboard` (catalogo `/api/admin/games` + editor async via outbox `GAME_DEFINITION_UPSERT_REQUESTED`).
+- [x] `PlatformAdminDashboard` (utenti, binding, lifecycle tornei, classifiche, statistiche globali, monitoraggio server).
+- [x] `AdminRequestsView` — polling `GET /api/admin/requests` 5-10 s; card PENDING/COMPLETED/FAILED.
+- [x] `TournamentsView` + `MyMatchesView` + `MyStatisticsView` (viste PLAYER, riuso `GameSelectionView`).
+- [x] Componenti trasversali: `ErrorPane` (offline/5xx + retry), `LoadingIndicator` (`ProgressIndicator` JavaFX), `StalenessBadge` (timestamp + badge stale > 5 min), `TableColumns`.
+
+### 8.D — Cross-cutting e test di contratto (PIANO §7.D, batch S6)
+
+- [x] Schema DB multi-edificio: `infrastructure/mysql-local/{init.sql,init-building-2.sql,init-building-3.sql}` coerenti con le 5 nuove tabelle Local; `infrastructure/mysql-central/init.sql` invariato. `docker-compose down -v` obbligatorio.
+- [x] Build: `mvn -pl :central-system,:local-server,:game-client-emulator -am compile` verde (7/7 moduli).
+- [x] Regression test: `mvn verify -DskipITs -Dfailsafe.skip=true -pl :central-system,:local-server -am` → BUILD SUCCESS. Central 345/0/0/0 (343 + 2 `ReplicationEventTypeContractTest`), Local 798/0/0/0.
+- [x] Documentazione: `documenti/PIANO_UTENTI_TORNEI.md` (§7.D tickate + note), `documenti/REQUIREMENTS.md` (matrice RI-03 endpoint Local + §6.1 nuovi RF-Fase7), `documenti/IMPLEMENTATION.md` (§13 FASE 7), `workflow/workflow.md` (questa sezione §8), `workflow/architettura_classi.md` (§21 S6).
+- [x] `EventTypeContractTest` esteso con 8 literal `*_REQUESTED` Local-emitted (15 totale); TODO S3-A rimosso.
+- [x] `ReplicationEventTypeContractTest` (NUOVO) — 10 literal Central-emitted drained → 8 producer Central (gap S1 §16.7 A5 chiuso).

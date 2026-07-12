@@ -105,11 +105,14 @@ Per leggere il codice utilizza diversi subagent
 
 
 ## Verifica e termine implementazione del piano
+Crea un subagent e passagli il <prompt> intero. 
+Attenti il suo output e verifica che non ci sia nemmeno il minimo errore o bug o segnalazione.
+<prompt>
 È stato appena implementato l'intero piano @PIANO_UTENTI_TORNEI.md.
 Leggi il piano.
 Leggi il file e i sorgenti non ancora committati.
 1. Verifica per ogni sottopunto di ogni fase:
-- che il task sia stato completato.
+- che il task sia stato completato cercando il codice e leggendolo.
 - Se è stato completato, marka il checkbox nel piano
 
 2. Verifica la sua funzionalità completa nel seguente modo:
@@ -151,6 +154,7 @@ Leggi il file e i sorgenti non ancora committati.
 
 Vincoli:
 - utilizza obbligatoriamente i subagents per ogni simulazione, esecuzione, write, read dei file.
+</prompt>
 
 ## Verifica esecuzione codice e scambio messaggi
 run the local-server and the central-system (not on docker). 
