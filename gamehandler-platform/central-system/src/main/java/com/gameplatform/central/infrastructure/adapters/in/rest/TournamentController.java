@@ -6,8 +6,11 @@ import com.gameplatform.central.domain.model.Tournament;
 import com.gameplatform.central.domain.ports.in.CancelTournamentUseCase;
 import com.gameplatform.central.domain.ports.in.CreateTournamentUseCase;
 import com.gameplatform.central.domain.ports.in.GetTournamentUseCase;
+import com.gameplatform.central.domain.ports.in.GetTournamentStandingsUseCase;
+import com.gameplatform.central.domain.ports.in.ListTournamentMatchesUseCase;
 import com.gameplatform.central.domain.ports.in.ListTournamentsUseCase;
 import com.gameplatform.central.domain.ports.in.OpenTournamentRegistrationUseCase;
+import com.gameplatform.central.domain.ports.in.ScheduleTournamentMatchesUseCase;
 import com.gameplatform.central.infrastructure.security.CurrentUserService;
 import com.gameplatform.shared.domain.model.TournamentFormat;
 import com.gameplatform.shared.domain.model.TournamentId;
@@ -15,6 +18,8 @@ import com.gameplatform.shared.domain.model.TournamentStatus;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.dto.CreateTournamentRequestDto;
 import com.gameplatform.shared.dto.TournamentDto;
+import com.gameplatform.shared.dto.TournamentMatchDto;
+import com.gameplatform.shared.dto.TournamentStandingDto;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -37,8 +42,11 @@ import java.util.UUID;
  * {@code PLATFORM_ADMIN}; GET are {@code authenticated} (default per
  * {@code SecurityConfig.anyRequest().authenticated()}).
  *
- * <p>Deferred to FASE 5: {@code POST /{id}/schedule}, {@code GET /{id}/standings},
- * {@code GET /{id}/matches} (locked decision C.14).
+ * <p>Implemented in FASE 5: {@code POST /{id}/schedule},
+ * {@code GET /{id}/standings}, {@code GET /{id}/matches} (locked decision C.14).
+ * Schedule generation ({@link ScheduleTournamentMatchesUseCase}) enforces the
+ * {@code OPEN_REGISTRATION -> IN_PROGRESS} transition, single-elimination
+ * pairing with byes and atomic outbox emission per SCHEDULED match.
  */
 @RestController
 @RequestMapping("/api/tournaments")
@@ -51,6 +59,9 @@ public class TournamentController {
     private final ListTournamentsUseCase listTournamentsUseCase;
     private final CurrentUserService currentUserService;
     private final Clock clock;
+    private final ScheduleTournamentMatchesUseCase scheduleUseCase;
+    private final GetTournamentStandingsUseCase standingsUseCase;
+    private final ListTournamentMatchesUseCase matchesUseCase;
 
     public TournamentController(CreateTournamentUseCase createUseCase,
                                 OpenTournamentRegistrationUseCase openUseCase,
@@ -58,7 +69,10 @@ public class TournamentController {
                                 GetTournamentUseCase getUseCase,
                                 ListTournamentsUseCase listTournamentsUseCase,
                                 CurrentUserService currentUserService,
-                                Clock clock) {
+                                Clock clock,
+                                ScheduleTournamentMatchesUseCase scheduleUseCase,
+                                GetTournamentStandingsUseCase standingsUseCase,
+                                ListTournamentMatchesUseCase matchesUseCase) {
         this.createUseCase = createUseCase;
         this.openUseCase = openUseCase;
         this.cancelUseCase = cancelUseCase;
@@ -66,6 +80,9 @@ public class TournamentController {
         this.listTournamentsUseCase = listTournamentsUseCase;
         this.currentUserService = currentUserService;
         this.clock = clock;
+        this.scheduleUseCase = scheduleUseCase;
+        this.standingsUseCase = standingsUseCase;
+        this.matchesUseCase = matchesUseCase;
     }
 
     @PostMapping
@@ -114,5 +131,21 @@ public class TournamentController {
         return getUseCase.getById(new TournamentId(id))
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new TournamentNotFoundException("Tournament not found: " + id));
+    }
+
+    @PostMapping("/{id}/schedule")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public ResponseEntity<List<TournamentMatchDto>> schedule(@PathVariable String id) {
+        return ResponseEntity.ok(scheduleUseCase.schedule(new TournamentId(id)));
+    }
+
+    @GetMapping("/{id}/standings")
+    public ResponseEntity<List<TournamentStandingDto>> standings(@PathVariable String id) {
+        return ResponseEntity.ok(standingsUseCase.getStandings(new TournamentId(id)));
+    }
+
+    @GetMapping("/{id}/matches")
+    public ResponseEntity<List<TournamentMatchDto>> matches(@PathVariable String id) {
+        return ResponseEntity.ok(matchesUseCase.findByTournament(new TournamentId(id)));
     }
 }

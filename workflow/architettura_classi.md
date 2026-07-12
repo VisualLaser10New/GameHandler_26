@@ -508,5 +508,122 @@ Tutte `CREATE TABLE IF NOT EXISTS ... ENGINE=InnoDB` coerenti con convenzione FA
 
 ---
 
+## 14. FASE 5 — Bracket e classifiche
+
+> **Stato:** Implementato (FASE 5 di `documenti/PIANO_UTENTI_TORNEI.md`).
+> **Requisiti:** RF-TO-05..06 (vedi `documenti/REQUIREMENTS.md` §1.1.sextus).
+> **Verifica:** `mvn clean compile -pl :central-system -am` → EXIT 0; `mvn test -pl :central-system -am` → 328 test verdi (298 baseline FASE 0-4 + 30 nuovi FASE 5), 0 failures.
+> **Convenzione:** specchia i pattern FASE 1/2 (outbox + adapter), FASE 3 (read-model + projection), FASE 4 (POJO + ports + JPA `@IdClass` + mapper + adapter). **Nessuna modifica a `local-server`** (FASE 5 è central-only; componenti Local sono FASE 6).
+
+### 14.1 Modello di dominio — riutilizzo FASE 4
+
+FASE 5 non crea nuovi tipi di dominio. Riutilizza integralmente i POJO FASE 4:
+- `Tournament.startProgress()` (`Tournament.java:124-130` — forward-declared per FASE 5) è ora invocato dal suo primo caller effettivo (`TournamentBracketService.schedule`): transizione `OPEN_REGISTRATION → IN_PROGRESS` con ritorno di NUOVA istanza immutabile.
+- `TournamentMatch` (14 campi, immutabile) è ora popolato da `TournamentBracketService.schedule` per round-1 (righe `BYE` + `SCHEDULED`).
+- `TournamentStanding` (6 campi, immutabile) è ora inizializzato (zero-init `wins=0, losses=0, points=0, rank=null`) da `TournamentStandingsService.seedStandings`.
+- `TournamentMatchScheduledEvent` (shared-domain `events/`, letterale `"TOURNAMENT_MATCH_SCHEDULED"`) è l'evento logico di dominio; il payload over-the-wire è il `TournamentMatchScheduledDto` di `shared-dto` (già creato in FASE 4 per decisione D10) — separazione clean tra evento di dominio e DTO di replica, conforme a FASE 1/2 (`LocalAdminBuildingEventDto`/`GameDefinitionEventDto`).
+- `TournamentMatchRepository` / `TournamentStandingRepository` (scaffolding FASE 4 D8) sono ora invocati effettivamente da `TournamentBracketService` / `TournamentStandingsService`.
+
+### 14.2 Decisioni architetturali prese (protocollo §5)
+
+Dodici decisioni sono state approvate nel STEP 1 prima della implementazione. Identificatori D1–D12 (allineati con la notazione §12/§13 Dxx):
+
+| Decisione | Scelta | Motivazione |
+|---|---|---|
+| **D1** — Scope `GET /{id}/matches` | **Incluso in FASE 5** (oltre a `/schedule` + `/standings`) | Tre sorgenti architetturali lo elencano come FASE 5 (`architettura_classi.md` §13.2 D14, §13.9, `TournamentController.java:40-42` javadoc "Deferred to FASE 5"); il checkbox PIANO FASE 5 è un summary minimo. Delega in modo banale a `TournamentMatchRepository.findByTournament` (già scaffolding FASE 4). |
+| **D2** — `TournamentMatchOutboxPort` tipizzato | Port con signature `publishScheduled(TournamentMatch, Tournament)` — adapter possiede costruzione DTO + UUID condiviso | Chiude D3 di FASE 4 (`architettura_classi.md` §13.2 D3: "TournamentMatchOutboxPort DEFER a FASE 5"). Port dipende solo da tipi di dominio (NO `shared-dto`) — il dominio resta pulito. L'adapter genera il UUID condiviso outbox-id ↔ `dto.eventId()` ed evita il round-trip del record immutabile. |
+| **D3** — `SINGLE_ELIMINATION`-only | Guard `tournament.getFormat() != SINGLE_ELIMINATION` → `InvalidTournamentStateException` (riuso, NO nuova exception) | RF-TO-13 `ROUND_ROBIN` è Could-Have; `TournamentService.create` hard-coda `SINGLE_ELIMINATION` (FASE 4). Signature del port resta format-agnostic per pluggabilità futura (FASE 8+). |
+| **D4** — Transizione di stato post-schedule | `OPEN_REGISTRATION → IN_PROGRESS` via `Tournament.startProgress()` | Realizza la state-machine forward-declared in FASE 4 (`Tournament.java:124` Javadoc: "bracket generation ... will be its first caller"). La transizione è atomica con il resto del `schedule` (stesso `@Transactional`). |
+| **D5** — Split `TournamentStandingsService` | FASE 5: `getStandings` (read+sort) + package-visible `seedStandings` (zero-init idempotente). FASE 6: `recomputeAfterCompletion(matchId)` + final rank. | RF-TO-06 pieno ("classifica aggiornata dopo ogni match") è FASE 6 (i match completano in FASE 6); in FASE 5 la classifica è la seed zero-init. Il contratto "esponi classifica" è già soddisfatto in FASE 5. |
+| **D6** — Persistenza standings seed | `TournamentStandingsService.seedStandings(tournamentId, allParticipantIds)` invocato da `TournamentBracketService.schedule` nella stessa `@Transactional` | Localizza invarianti standings nel service; riga `TournamentStanding(0,0,0,null)` per ogni partecipante (inclusi BYE auto-advancers). |
+| **D7** — Convenzione byes | **Top-seeds-get-byes**: partecipanti sortati per `registeredAt` ASC; seed 1..byes ricevono BYE; restanti accoppiati lowest-remaining (seed più basso) vs highest-remaining (seed più alto) | Convenzione standard single-elim. **CRITICO**: `TournamentParticipantRepository.findByTournament` NON ha `ORDER BY` esplicito (`TournamentParticipantJpaRepository:19`); il service sorta internamente per determinismo riproducibile. |
+| **D8** — Semantica BYE row | `participantB=null, status=BYE, winner=participantA`; BYE rows NON emettono outbox | BYE è auto-avanzamento, non partita da giocare in un building; FASE 6 replica solo `SCHEDULED` matches ai Local coinvolti. |
+| **D9** — Idempotency-by-rejection | `Tournament.startProgress()` lancia `InvalidTournamentStateException` se status ≠ `OPEN_REGISTRATION` → 400 (via handler esistente `GlobalExceptionHandler:114`) | No idempotency-key check esplicito; la state-machine fa da guard. Una seconda chiamata `/schedule` su torneo `IN_PROGRESS` fallisce con 400. |
+| **D10** — Body richiesta `/schedule` | Body vuoto; path `id` è authoritative; ritorna `200` + `List<TournamentMatchDto>` (BYE + SCHEDULED) | Path id è la source of truth; `ScheduleTournamentMatchesDto` record (FASE 4 D10) resta in `shared-dto` invariato (churn-free). Returns 200 mirroring upsert convention (§13.6 line 484). |
+| **D11** — FASE 5 NON tocca `shared-domain/game` | `participantA/B` sono opaque UUIDs (UserId OR TeamId); `TeamResult`/`GameFactory`/`MqttPayloadSerializer` sono FASE 6 | Semantica team-winner rileva solo al session play (FASE 6). FASE 5 aggiunge **0 file** a `shared-domain` e **0 file** a `shared-dto` (tutti i tipi torneo sono stati creati in FASE 4). |
+| **D12** — `TournamentMatchOutboxPort` interface-only in FASE 5 | Port + adapter che scrive la riga `outbox_events` `PENDING`; REST push a Local + scheduler drain branch sono FASE 6 | Mirrors esattamente FASE 1/2 pattern: `LocalAdminBuildingService.writeOutboxEvent` scrive riga NOW (`:130-145`); `UserReplicationSchedulerService` drena LATER (`:121` `findPendingLimit`). La riga outbox è la FASE 5 deliverable; il drain è FASE 6. |
+
+### 14.3 Matrice file — FASE 5 (12 totali)
+
+**Nuovi (11):**
+
+| Modulo | Nuovi file |
+|---|---|
+| `central-system` (domain `ports/in`) | `ScheduleTournamentMatchesUseCase.java`, `GetTournamentStandingsUseCase.java`, `ListTournamentMatchesUseCase.java` (3 interfacce pure Java, zero annotazioni framework) |
+| `central-system` (domain `ports/out`) | `TournamentMatchOutboxPort.java` (1 interfaccia pura; signature domain-only `(TournamentMatch, Tournament)`, NO dipendenza da `shared-dto`) |
+| `central-system` (infra `adapters/out/mysql/adapter`) | `TournamentMatchOutboxAdapter.java` (1 `@Component`; solleva il body di `LocalAdminBuildingService.writeOutboxEvent:130-145` in un adapter; UUID condiviso outbox-id ↔ `TournamentMatchScheduledDto.eventId`; JSON via `ObjectMapper`; `OutboxEventRepository.save`) |
+| `central-system` (application `service`) | `TournamentBracketService.java`, `TournamentStandingsService.java` (2 `@Service @Transactional`) |
+| `central-system` (test) | `TournamentBracketServiceTest.java` (15 test puri JUnit5+Mockito), `TournamentStandingsServiceTest.java` (8 test), `TournamentMatchOutboxAdapterTest.java` (2 test) — 25 nuovi test totali |
+
+**Modificati (1, additive only):**
+
+| Modulo | File modificati |
+|---|---|
+| `central-system` | `infrastructure/adapters/in/rest/TournamentController.java` — 3 nuovi parametri ctor (`ScheduleTournamentMatchesUseCase`, `GetTournamentStandingsUseCase`, `ListTournamentMatchesUseCase`) appesi dopo `clock`; 3 nuovi campi `final`; 3 nuovi endpoint (`POST /{id}/schedule` `@PreAuthorize("hasRole('PLATFORM_ADMIN')")`, `GET /{id}/standings` authenticated, `GET /{id}/matches` authenticated); Javadoc `:40-42` aggiornato da "Deferred to FASE 5" a "Implemented in FASE 5". I 5 endpoint FASE 4 restano byte-identici. |
+
+**Test modificati (1):**
+
+| Modulo | File modificati |
+|---|---|
+| `central-system` (test) | `TournamentControllerTest.java` — 3 nuovi `@Mock` fields, constructor call aggiornato con 3 nuovi args, 5 nuovi `@Test` (200 matches list / 200 standings list / 200 matches list / 400 invalid state / 404 not found). I 7 test FASE 4 esistenti restano byte-identici (totale 12 test). |
+
+**NON modificati:**
+- `shared-domain`, `shared-dto`, `shared-mqtt`, `local-server`, `game-client-emulator`, `e2e-tests` (zero cambiamenti; i componenti Local sono FASE 6).
+- `init.sql` (zero nuove tabelle — `tournament_matches`, `tournament_standings`, `outbox_events` già create in FASE 4 / FASE 0). Hibernate `ddl-auto: validate` resta allineato.
+- `GlobalExceptionHandler` (handler per `InvalidTournamentStateException` 400 e `TournamentNotFoundException` 404 già presenti in FASE 4).
+- `OutboxEvent` / `OutboxEventRepository` / `OutboxEventMapper` / `OutboxEventJpaEntity` (riutilizzo totale del modello outbox FASE 0).
+- `TournamentMatchMapper` / `TournamentStandingMapper` / `TournamentMatchRepositoryAdapter` / `TournamentStandingRepositoryAdapter` (riutilizzo totale dello scaffolding FASE 4).
+
+### 14.4 Contract surface
+
+- **Outbox event literal**: `"TOURNAMENT_MATCH_SCHEDULED"` (byte-identical al `TournamentMatchScheduledEvent.getEventType()` di `shared-domain`).
+- **Outbox payload DTO**: `TournamentMatchScheduledDto(eventId, eventType, matchId, tournamentId, round, bracketPosition, participantA, participantB nullable, gameType, gameId nullable, status, scheduledAt nullable)`. `eventId` == `OutboxEvent.id` (UUID condiviso generato dall'adapter); `gameId=null` e `scheduledAt=null` in FASE 5 (assegnati in FASE 6 dal push ai Local); `status="SCHEDULED"` (i BYE non raggiungono mai l'adapter).
+- **In-port `ScheduleTournamentMatchesUseCase.schedule(TournamentId) -> List<TournamentMatchDto>`**: ritorna righe BYE + SCHEDULED ordinate per `bracketPosition` ASC; transizione atomica `OPEN_REGISTRATION → IN_PROGRESS`; outbox emission per ogni SCHEDULED.
+- **In-port `GetTournamentStandingsUseCase.getStandings(TournamentId) -> List<TournamentStandingDto>`**: read-only, sort `points desc, wins desc, participantId asc`; `displayName` risolto via `TournamentParticipantRepository.findByTournament`; `rank=null` per la FASE 5 seed.
+- **In-port `ListTournamentMatchesUseCase.findByTournament(TournamentId) -> List<TournamentMatchDto>`**: read-only delegation a `TournamentMatchRepository.findByTournament`; ritorna BYE + SCHEDULED senza filtri.
+- **Out-port `TournamentMatchOutboxPort.publishScheduled(TournamentMatch, Tournament)`**: domain-only signature (NO `shared-dto` dep); adapter adapter-owned UUID + DTO construction.
+
+### 14.5 Schema DB — FASE 5
+
+Nessuna modifica. Riutilizzo delle 7 tabelle torneo create in FASE 4 (`tournaments`, `tournament_buildings`, `tournament_teams`, `tournament_team_members`, `tournament_participants`, `tournament_matches`, `tournament_standings`) + `outbox_events` (FASE 0). Hibernate `ddl-auto: validate` resta allineato.
+
+### 14.6 Endpoint `@PreAuthorize` — FASE 5
+
+| Endpoint | Modulo | Ruolo richiesto |
+|---|---|---|
+| `POST /api/tournaments/{id}/schedule` | central | `PLATFORM_ADMIN` |
+| `GET /api/tournaments/{id}/standings` | central | `authenticated` (default `SecurityConfig.anyRequest().authenticated()`) |
+| `GET /api/tournaments/{id}/matches` | central | `authenticated` |
+
+### 14.7 Backward-compat — FASE 5 incrementi
+
+- Solo 1 file central modificato in production (`TournamentController` additive: 3 campi/params ctor + 3 endpoint; nessuna signature rotta). I 5 endpoint FASE 4 restano byte-identici.
+- 1 file test modificato (`TournamentControllerTest` additive: 3 nuovi `@Mock` + 3 args ctor + 5 nuovi `@Test`; i 7 test FASE 4 esistenti restano byte-identici).
+- Zero test FASE 0/1/2/3/4 toccati. Regression suite: `mvn test -pl :central-system -am` → **328 test verdi, 0 failures** (298 baseline FASE 0-4 + 30 nuovi FASE 5: 15 bracket + 8 standings + 2 outbox-adapter + 5 controller).
+- `Tournament.startProgress()` (forward-declared in FASE 4) è ora invocato dal primo caller (`TournamentBracketService.schedule`).
+- `TournamentMatchRepository` / `TournamentStandingRepository` (scaffolding FASE 4 D8) sono ora invocati effettivamente da `TournamentBracketService` / `TournamentStandingsService`.
+- `TournamentMatchScheduledDto` (creato in FASE 4 per D10) è ora popolato dal `TournamentMatchOutboxAdapter`.
+
+### 14.8 Concorrenza e atomicità
+
+- `TournamentBracketService` è `@Service @Transactional` class-level: la transizione torneo (`startProgress()` + `tournamentRepository.save`), ogni `tournamentMatchRepository.save(match)`, ogni `tournamentMatchOutboxPort.publishScheduled` (→ adapter → `outboxEventRepository.save`), e `tournamentStandingsService.seedStandings` (→ `tournamentStandingRepository.save` per ogni partecipante) avvengono nella **stessa transazione** (Outbox Pattern, mirrors `LocalAdminBuildingService.writeOutboxEvent:130-145`). Se una qualsiasi scrittura fallisce, l'intera operazione è roll-backed → nessuno stato inconsistente (match salvati senza outbox, o standings seeded senza matches, ecc.).
+- `TournamentStandingsService.getStandings` è `@Transactional(readOnly = true)` method-level (ottimizzazione per il path read; mirrors `TournamentService.getById/findAll/findByStatus`).
+- `TournamentMatchOutboxAdapter` NON ha `@Transactional` class-level: partecipa nella tx del caller (`TournamentBracketService.schedule`). Mirrors l'inline outbox write di `LocalAdminBuildingService.assignBuildings` (che è `@Transactional` class-level sul service, NON sul singolo helper).
+- **Thread-safety**: la state-machine immutabile di `Tournament` (transizioni restituiscono NUOVA istanza via `new Tournament(...)` — `Tournament.java:124-130`) rende `startProgress()` intrinsecamente thread-safe; `TournamentBracketService` non mantiene stato mutabile fra chiamate. La race-condition su `/schedule` concorrenti (PIANO §7 line 720) è mitigata da `Tournament.startProgress()` che throws se il torneo è già `IN_PROGRESS` (idempotency-by-rejection D9). La race su `advanceWinner` in FASE 6 (PIANO §7) richiederà `@Lock(PESSIMISTIC_WRITE)` su `TournamentRepository` — follow-up FASE 6 §14.9.
+
+### 14.9 Follow-up noti (fuori scope FASE 5)
+
+- **`MetadataReplicationSchedulerService` / `LateRegistrationCatchUpService` extension per `TOURNAMENT_MATCH_SCHEDULED`** → FASE 6 (drena le righe outbox `PENDING` scritte in FASE 5 e le spedisce ai Local coinvolti; targeting derivato da `tournament_buildings × tournament_matches`; parallelo a `replicateMetadataEvent`/`replicateGameDefinitionEvent` FASE 1/2).
+- **`LocalTournamentPushAdapter` (REST push adapter) + `PushTournamentMatchToLocalServersPort`** → FASE 6 (parallelo a `LocalMetadataRestAdapter` / `LocalGameDefinitionRestAdapter`; `PUT /internal/tournaments/matches/sync` sul Local).
+- **`SyncEventProcessor.handleTournamentMatchCompleted`** → FASE 6 (consuma `TOURNAMENT_MATCH_COMPLETED` da Local, aggiorna match, ricalcola standings, genera match round successivo via `TournamentBracketService.advanceWinner`).
+- **`TournamentBracketService.advanceWinner(matchId, winnerId)`** → FASE 6 (generazione round 2+ via vincitori noti; non forward-declared in FASE 5 — YAGNI/D13-aligned).
+- **`TournamentStandingsService.recomputeAfterCompletion(matchId)` + final rank assignment** → FASE 6.
+- **`Tournament.completeIfDone()` + RF-TO-11** (quando tutti i match si concludono, `status=COMPLETED` + rank finale) → FASE 6.
+- **Componenti Local** (`tournament_matches_local` table, `GameSessionJpaEntity` extension con `tournament_match_id`/`tournament_id`, `TournamentMatchLocalSyncService`, `InternalTournamentController`, `PlayerTournamentController` (`GET /me/matches`, `POST /matches/{id}/start`), `GameSessionService.start/end` extension per `tournamentMatchId`, `SessionAbortHelper` extension, `TeamResult`/`GameFactory`/`MqttPayloadSerializer`) → FASE 6.
+- **`ROUND_ROBIN` format** (RF-TO-13 Could-Have) → FASE 8+ (strategia pluggabile via port signature format-agnostic `schedule(TournamentId)`).
+- **`@Lock(PESSIMISTIC_WRITE)` su `TournamentRepository` per race bracket in FASE 6** → FASE 6 (i match completano in FASE 6; race su advanceWinner concorrenti).
+
+---
+
 *Fine `architettura_classi.md`.*
-*Cross-riferimenti: `documenti/PIANO_UTENTI_TORNEI.md` FASE 0 + FASE 1 + FASE 2 + FASE 3 + FASE 4; `documenti/REQUIREMENTS.md` RF-AU-05, RF-UT-LA-01..04, RF-UT-GA-01..03, RF-UT-PL-01..02, RF-TO-01..04; `workflow/analisi/problemi_noti.md`.*
+*Cross-riferimenti: `documenti/PIANO_UTENTI_TORNEI.md` FASE 0 + FASE 1 + FASE 2 + FASE 3 + FASE 4 + FASE 5; `documenti/REQUIREMENTS.md` RF-AU-05, RF-UT-LA-01..04, RF-UT-GA-01..03, RF-UT-PL-01..02, RF-TO-01..06; `workflow/analisi/problemi_noti.md`.*

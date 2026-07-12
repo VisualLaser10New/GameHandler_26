@@ -306,7 +306,44 @@
 - **`GET /api/tournaments/{id}`** (authenticated): dettaglio; 404 via `TournamentNotFoundException` se assente.
 - **`GET /api/tournaments/{id}/participants`** (authenticated): lista partecipanti iscritti.
 
-> **Endpoint DEFERRED a FASE 5**: `POST /{id}/schedule` (bracket generation), `GET /{id}/standings`, `GET /{id}/matches`.
+> **Endpoint Implementati in FASE 5**: `POST /{id}/schedule` (bracket generation, `PLATFORM_ADMIN`), `GET /{id}/standings` (authenticated), `GET /{id}/matches` (authenticated). Vedi §1.1.sextus per RF-TO-05..06.
+
+---
+
+### 1.1.sextus Modulo: Gestione Tornei — Bracket e Classifiche (FASE 5)
+
+#### RF-TO-05 — Generazione del bracket single-elimination con byes
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 5)
+- **Descrizione:** Un `PLATFORM_ADMIN` genera il bracket single-elimination round-1 per un torneo in stato `OPEN_REGISTRATION`. Il sistema transiziona il torneo a `IN_PROGRESS` (via `Tournament.startProgress()` — `InvalidTournamentStateException` → 400 se stato illegale), calcola `bracketSize = nextPow2(N)` e `byes = bracketSize - N`, assegna i BYE ai top seed (i primi `byes` partecipanti per `registeredAt` ASC) con righe `participantB=null, status=BYE, winner=participantA`, e accoppia i restanti `N - byes` partecipanti (lowest remaining seed vs highest remaining seed). Per ogni match `SCHEDULED` emette atomicamente un evento outbox `TOURNAMENT_MATCH_SCHEDULED` (shared UUID tra `OutboxEvent.id` e `TournamentMatchScheduledDto.eventId`); i match `BYE` NON emettono outbox (sono auto-avanzamenti, non partite da giocare). Le standings sono azzerate (zero-init) per tutti gli N partecipanti.
+- **API:** `POST /api/tournaments/{id}/schedule` (Central, richiede `ROLE_PLATFORM_ADMIN`); body vuoto; ritorna `200` + `List<TournamentMatchDto>` (righe BYE + SCHEDULED ordinate per `bracketPosition`).
+- **Fonte:** `[TournamentController.java]`, `[TournamentBracketService.java]`, `[ScheduleTournamentMatchesUseCase.java]`, `[TournamentMatchOutboxPort.java]`, `[TournamentMatchOutboxAdapter.java]`, `[TournamentStandingsService.java]` (seedStandings), `[Tournament.java].startProgress()`, `[TournamentMatch.java]`, `[TournamentMatchRepository.java]`, `[TournamentParticipantRepository.java]`, `[TournamentMatchScheduledDto.java]`, `[OutboxEvent.java]`/`[OutboxEventRepository.java]` (outbox pattern)
+- **Criteri di accettazione:**
+  - `Tournament.format == SINGLE_ELIMINATION` (else `InvalidTournamentStateException` → 400; `ROUND_ROBIN` è RF-TO-13 Could-Have, non supportato in FASE 5).
+  - `Tournament.status == OPEN_REGISTRATION` (else `InvalidTournamentStateException` → 400; idempotency-by-rejection: una seconda chiamata su torneo già `IN_PROGRESS` fallisce con 400).
+  - `participants.size() >= 2` (else `InvalidTournamentStateException` → 400).
+  - Partecipanti sortati per `registeredAt` ASC per seeding deterministico (`TournamentParticipantRepository.findByTournament` non ha `ORDER BY` esplicito — sorting interno al service).
+  - Bracket shape: `bracketSize = nextPow2(N)`; `byes = bracketSize - N`; `scheduledCount = (N - byes) / 2`; righe totali round-1 = `bracketSize/2`. Tabella valida per N=2..8 (vedi `workflow/architettura_classi.md` §14.2 D7).
+  - Atomicità outbox: `tournament` save + ogni `match` save + ogni outbox write + `seedStandings` tutti nello stesso `@Transactional` (Outbox Pattern, mirrors `LocalAdminBuildingService.writeOutboxEvent:130-145`).
+  - `TOURNAMENT_MATCH_SCHEDULED` outbox events restano `PENDING` fino al drain FASE 6 (`MetadataReplicationSchedulerService` extension + REST push a Local coinvolti).
+
+#### RF-TO-06 — Esposizione della classifica (`tournament_standings`)
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 5 — read + seed; recompute-after-completion + final rank sono FASE 6)
+- **Descrizione:** Il sistema espone la classifica corrente del torneo. In FASE 5 la classifica è la proiezione zero-init di tutti i partecipanti (seed stabilito al momento dello `/schedule`); RF-TO-06 sarà pienamente soddisfatto in FASE 6 quando la recompute-after-completion aggiornerà wins/losses/points dopo ogni `TOURNAMENT_MATCH_COMPLETED` e assegnerà il rank finale quando `status=COMPLETED`.
+- **API:** `GET /api/tournaments/{id}/standings` (Central, `authenticated`); ritorna `200` + `List<TournamentStandingDto>` ordinata per `points desc, wins desc, participantId asc`.
+- **Fonte:** `[TournamentController.java]`, `[TournamentStandingsService.java]`, `[GetTournamentStandingsUseCase.java]`, `[TournamentStanding.java]`, `[TournamentStandingRepository.java]`, `[TournamentParticipantRepository.java]` (displayName resolution), `[TournamentStandingDto.java]`
+- **Criteri di accettazione:**
+  - `displayName` risolto da `TournamentParticipant.getDisplayName()` via mappa `participantId → displayName`; fallback a `participantId` se partecipante cancellato (defensive).
+  - `rank` ritornato `null` se tutti i row sono zero-init (FASE 5 seed); rank finale assegnato in FASE 6.
+  - Read path è `@Transactional(readOnly = true)` (mirrors `TournamentService.getById/findAll`).
+  - `seedStandings(tournamentId, allParticipantIds)` è package-visible (NON esposto sull'in-port); invocato da `TournamentBracketService.schedule` nella stessa tx del bracket; idempotente (skip se `findByTournamentAndParticipantId` presente).
+
+#### Lifecycle addendum (FASE 5 — non RF separati, parte di RF-TO-05/06)
+
+- **`POST /api/tournaments/{id}/schedule`** (`PLATFORM_ADMIN`): vedi RF-TO-05.
+- **`GET /api/tournaments/{id}/standings`** (authenticated): vedi RF-TO-06.
+- **`GET /api/tournaments/{id}/matches`** (authenticated): read-only delegation a `TournamentMatchRepository.findByTournament` → `List<TournamentMatchDto>` (inclusi righe `BYE`); 200 anche per torneo senza match (lista vuota). Aggiuntivo rispetto alla checklist FASE 5 (ambiguity A risolta in `workflow/architettura_classi.md` §14.2 D1).
 
 ---
 
@@ -698,6 +735,9 @@ building/{buildingId}/alerts                       QoS 1
 | `/api/tournaments/{id}/participants` | POST | ROLE_PLAYER        | Iscrizione individual/team (FASE 4)                |
 | `/api/tournaments/{id}/participants` | DELETE | ROLE_PLAYER        | Disiscrizione (FASE 4)                             |
 | `/api/tournaments/{id}/participants` | GET  | authenticated      | Lista partecipanti (FASE 4)                        |
+| `/api/tournaments/{id}/schedule`   | POST   | ROLE_PLATFORM_ADMIN | Genera bracket single-elimination con byes (FASE 5) |
+| `/api/tournaments/{id}/standings`  | GET    | authenticated      | Classifica torneo (FASE 5; seed zero-init, recompute FASE 6) |
+| `/api/tournaments/{id}/matches`    | GET    | authenticated      | Lista match del torneo (FASE 5; BYE + SCHEDULED) |
 
 **Fonte:** `[UserController.java]`, `[AuthController.java]`, `[StatisticsController.java]`, `[SyncController.java]`
 
@@ -901,6 +941,8 @@ graph LR
 | RF-TO-02 | Central System | `init.sql` (`tournament_buildings` PK composita + `tournaments.FK game_type REFERENCES game_definitions`), `TournamentBuildingRepository.java`, `TournamentBuildingRepositoryAdapter.java`, `CreateTournamentRequestDto.@Size(min=2)` | ✅ (FASE 4) |
 | RF-TO-03 | Central System | `TournamentRegistrationController.java`, `TournamentRegistrationService.java` (branch individual), `RegisterTournamentParticipantUseCase.java`, `TournamentParticipant.java`, `TournamentParticipantRepository.java`, `UserRepository.java` (display name resolution), `CurrentUserService.java`, `DuplicateTournamentParticipantException` | ✅ (FASE 4) |
 | RF-TO-04 | Central System | `TournamentRegistrationService.java` (branch team), `Team.java`, `TournamentTeamRepository.java`, `TournamentTeamRepositoryAdapter.java` (atomic delete-all-then-insert team_members, NO `@OneToMany`), `TeamMapper.java`, `TournamentParticipantRepository.java` | ✅ (FASE 4) |
+| RF-TO-05 | Central System | `TournamentController.java`, `TournamentBracketService.java`, `ScheduleTournamentMatchesUseCase.java`, `TournamentMatchOutboxPort.java`, `TournamentMatchOutboxAdapter.java`, `Tournament.startProgress()`, `TournamentMatch.java`, `TournamentParticipantRepository.java` (sort by registeredAt per seeding deterministico), `TournamentMatchScheduledDto.java`, `OutboxEventRepository.java` (outbox pattern), `TournamentStandingsService.seedStandings` | ✅ (FASE 5) |
+| RF-TO-06 | Central System | `TournamentController.java`, `TournamentStandingsService.java`, `GetTournamentStandingsUseCase.java`, `TournamentStanding.java`, `TournamentStandingRepository.java`, `TournamentParticipantRepository.java` (displayName resolution), `TournamentStandingDto.java` | ✅ (FASE 5 — read+seed; recompute-after-completion + final rank FASE 6) |
 | RF-PR-01  | Local Server                 | `ReservationService.java`, `reservations` (local)                    | ✅             |
 | RF-PR-02  | Local Server                 | `ReservationService.java`                                            | ✅              |
 | RF-PR-03  | Local Server                 | `ReservationService.java`, `ReservationRepository`                   | ✅              |

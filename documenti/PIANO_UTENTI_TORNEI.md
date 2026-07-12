@@ -615,11 +615,11 @@ Le fasi sono ordinate per minimizzare dipendenze. Ogni fase è una PR reviewabil
 
 ### FASE 5 — Bracket e classifiche
 **Obiettivo**: generazione match e calcolo classifica.
-- [ ] Central: `TournamentBracketService` (single-elimination con byes).
-- [ ] Central: `TournamentStandingsService`.
-- [ ] Central: `POST /api/tournaments/{id}/schedule`, `GET /api/tournaments/{id}/standings`.
-- [ ] Test: unit copertura completa del bracket (8, 7, 6, 5, 4, 3, 2 partecipanti → byes corretti).
-- [ ] Documentazione: RF-TO-05..06.
+- [x] Central: `TournamentBracketService` (single-elimination con byes). *(implementato: `TournamentBracketService.java` `@Service @Transactional` implements `ScheduleTournamentMatchesUseCase` + `ListTournamentMatchesUseCase`; algoritmo single-elimination con `bracketSize = nextPow2(N)`, `byes = bracketSize - N`; convenzione top-seeds-get-byes (partecipanti sort-ati per `registeredAt` ASC; seed 1..byes ricevono righe `BYE` con `participantB=null, status=BYE, winner=participantA`; restanti accoppiati lowest-remaining vs highest-remaining); `publishScheduled` emesso SOLO per match `SCHEDULED` (mai `BYE`); atomicità outbox `@Transactional` class-level; transition `OPEN_REGISTRATION → IN_PROGRESS` via `Tournament.startProgress()`; guard `SINGLE_ELIMINATION`-only con `InvalidTournamentStateException`; guard minimo 2 partecipanti. Dettagli in `workflow/architettura_classi.md` §14)*
+- [x] Central: `TournamentStandingsService`. *(implementato: `TournamentStandingsService.java` `@Service @Transactional` implements `GetTournamentStandingsUseCase`; `getStandings(tournamentId)` read+sort (`points desc, wins desc, participantId asc`) con `displayName` risolto via `TournamentParticipantRepository.findByTournament`; package-visible `seedStandings(tournamentId, participantIds)` zero-init idempotente (skip se `findByTournamentAndParticipantId` presente); `@Transactional(readOnly = true)` method-level su `getStandings`. FASE 6 aggiungerà `recomputeAfterCompletion(matchId)` + final rank. Dettagli in `workflow/architettura_classi.md` §14)*
+- [x] Central: `POST /api/tournaments/{id}/schedule`, `GET /api/tournaments/{id}/standings`. *(implementati su `TournamentController.java`: `POST /{id}/schedule` `@PreAuthorize("hasRole('PLATFORM_ADMIN')")` body vuoto → 200 + `List<TournamentMatchDto>` (righe BYE + SCHEDULED ordinate per `bracketPosition`); `GET /{id}/standings` authenticated → 200 + `List<TournamentStandingDto>`. AGGIUNTIVO per decisione §13.2 D14 + ambiguity A (locked): `GET /{id}/matches` authenticated → 200 + `List<TournamentMatchDto>` read-only delegation a `TournamentMatchRepository.findByTournament`; mappature eccezioni `InvalidTournamentStateException`→400, `TournamentNotFoundException`→404 già presenti in `GlobalExceptionHandler`. Dettagli in `workflow/architettura_classi.md` §14)*
+- [x] Test: unit copertura completa del bracket (8, 7, 6, 5, 4, 3, 2 partecipanti → byes corretti). *(30 nuovi test: `TournamentBracketServiceTest` 15 test (uno per N∈{2,3,4,5,6,7,8} con asserzioni su #BYE/#SCHEDULED/accoppiamenti + transizione `IN_PROGRESS` + guard `ROUND_ROBIN` + guard minimo 2 partecipanti + convenzione top-seeds-get-byes con input shuffled + outbox discipline + seed standings per tutti N + listing); `TournamentStandingsServiceTest` 8 test (sort multi-key, displayName resolution, empty cases, seed idempotency, null safety); `TournamentMatchOutboxAdapterTest` 2 test (shared UUID outbox-id ↔ dto.eventId + payload JSON round-trip con JavaTimeModule); `TournamentControllerTest` esteso con 5 nuovi test slice MockMvc (200/200/200/400/404). Regression: `mvn test -pl :central-system -am` → 328 test verdi, 0 failures)*
+- [x] Documentazione: RF-TO-05..06. *(RF-TO-05..06 aggiunti a `documenti/REQUIREMENTS.md` §1.1.sextus + update lifecycle addendum (endpoint "DEFERRED a FASE 5" → "Implementati in FASE 5") + 3 nuovi endpoint rows in matrice RI-02 + 2 nuove righe RF-TO-05/RF-TO-06 in matrice §6.1; `workflow/architettura_classi.md` esteso con §14 FASE 5 — decisioni D1-D12 + matrice file 12 totali + contract surface + schema + endpoint + backward-compat + concorrenza + follow-up FASE 6)*
 
 ### FASE 6 — Integrazione Torneo ↔ Local Server
 **Obiettivo**: i match di torneo sono giocati come sessioni locali e il risultato torna al Central.
@@ -642,9 +642,6 @@ Le fasi sono ordinate per minimizzare dipendenze. Ogni fase è una PR reviewabil
 - [ ] Documentazione: aggiorare `IMPLEMENTATION.md` con la nuova UI.
 
 ### FASE 8 — Docs, smoke test, requirements
-- [ ] Aggiornare `REQUIREMENTS.md` con i nuovi RF (UT-*, TO-*) e matrice di tracciabilità.
-- [ ] Aggiornare `DESIGN.md` con il modello a 4 ruoli e il dominio tornei.
-- [ ] Aggiornare `workflow/workflow.md` con i nuovi task (checkbox stile esistente).
 - [ ] Estendere il `README.md` "Smoke test" con uno scenario torneo end-to-end.
 - [ ] Estendere `e2e-tests` con uno smoke torneo (simile a `MultiBuildingEndToEndIT`).
 

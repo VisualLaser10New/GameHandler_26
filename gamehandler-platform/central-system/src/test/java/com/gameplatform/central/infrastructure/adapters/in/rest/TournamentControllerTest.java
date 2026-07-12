@@ -2,18 +2,26 @@ package com.gameplatform.central.infrastructure.adapters.in.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.gameplatform.central.domain.exception.InvalidTournamentStateException;
+import com.gameplatform.central.domain.exception.TournamentNotFoundException;
 import com.gameplatform.central.domain.ports.in.CancelTournamentUseCase;
 import com.gameplatform.central.domain.ports.in.CreateTournamentUseCase;
 import com.gameplatform.central.domain.ports.in.GetTournamentUseCase;
+import com.gameplatform.central.domain.ports.in.GetTournamentStandingsUseCase;
+import com.gameplatform.central.domain.ports.in.ListTournamentMatchesUseCase;
 import com.gameplatform.central.domain.ports.in.ListTournamentsUseCase;
 import com.gameplatform.central.domain.ports.in.OpenTournamentRegistrationUseCase;
+import com.gameplatform.central.domain.ports.in.ScheduleTournamentMatchesUseCase;
 import com.gameplatform.central.infrastructure.security.CurrentUserService;
 import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.domain.model.TournamentId;
+import com.gameplatform.shared.domain.model.TournamentMatchStatus;
 import com.gameplatform.shared.domain.model.TournamentStatus;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.dto.CreateTournamentRequestDto;
 import com.gameplatform.shared.dto.TournamentDto;
+import com.gameplatform.shared.dto.TournamentMatchDto;
+import com.gameplatform.shared.dto.TournamentStandingDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,6 +65,15 @@ class TournamentControllerTest {
     private ListTournamentsUseCase listTournamentsUseCase;
 
     @Mock
+    private ScheduleTournamentMatchesUseCase scheduleUseCase;
+
+    @Mock
+    private GetTournamentStandingsUseCase standingsUseCase;
+
+    @Mock
+    private ListTournamentMatchesUseCase matchesUseCase;
+
+    @Mock
     private CurrentUserService currentUserService;
 
     private Clock clock;
@@ -69,7 +86,8 @@ class TournamentControllerTest {
         clock = Clock.fixed(FIXED_NOW, ZoneOffset.UTC);
         objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         controller = new TournamentController(createUseCase, openUseCase, cancelUseCase,
-                getUseCase, listTournamentsUseCase, currentUserService, clock);
+                getUseCase, listTournamentsUseCase, currentUserService, clock,
+                scheduleUseCase, standingsUseCase, matchesUseCase);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -153,6 +171,65 @@ class TournamentControllerTest {
         when(getUseCase.getById(new TournamentId("missing"))).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/tournaments/missing"))
+                .andExpect(status().isNotFound());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // FASE 5: POST /{id}/schedule, GET /{id}/standings, GET /{id}/matches
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void postSchedule_returns200_andMatchesList() throws Exception {
+        TournamentMatchDto m = new TournamentMatchDto("m-1", 1, 1, "PA", "PB",
+                null, null, TournamentMatchStatus.SCHEDULED, null, null);
+        when(scheduleUseCase.schedule(new TournamentId("t-1"))).thenReturn(List.of(m));
+
+        mockMvc.perform(post("/api/tournaments/t-1/schedule"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("m-1"))
+                .andExpect(jsonPath("$[0].status").value("SCHEDULED"));
+    }
+
+    @Test
+    void getStandings_returns200_andStandingsList() throws Exception {
+        TournamentStandingDto s = new TournamentStandingDto("A", "Alice", 2, 0, 6, null);
+        when(standingsUseCase.getStandings(new TournamentId("t-1"))).thenReturn(List.of(s));
+
+        mockMvc.perform(get("/api/tournaments/t-1/standings"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].participantId").value("A"))
+                .andExpect(jsonPath("$[0].displayName").value("Alice"));
+    }
+
+    @Test
+    void getMatches_returns200_andMatchesList() throws Exception {
+        TournamentMatchDto m = new TournamentMatchDto("m-1", 1, 1, "PA", "PB",
+                "b-1", "g-1", TournamentMatchStatus.SCHEDULED, null, "PA");
+        when(matchesUseCase.findByTournament(new TournamentId("t-1"))).thenReturn(List.of(m));
+
+        mockMvc.perform(get("/api/tournaments/t-1/matches"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].winner").value("PA"));
+    }
+
+    @Test
+    void postSchedule_returns400_whenInvalidTournamentState() throws Exception {
+        when(scheduleUseCase.schedule(new TournamentId("t-1")))
+                .thenThrow(new InvalidTournamentStateException("Cannot start progress from status COMPLETED"));
+
+        mockMvc.perform(post("/api/tournaments/t-1/schedule"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void postSchedule_returns404_whenTournamentNotFound() throws Exception {
+        when(scheduleUseCase.schedule(new TournamentId("missing")))
+                .thenThrow(new TournamentNotFoundException("Tournament not found: missing"));
+
+        mockMvc.perform(post("/api/tournaments/missing/schedule"))
                 .andExpect(status().isNotFound());
     }
 }
