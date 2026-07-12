@@ -7,8 +7,12 @@ import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.model.ReplicationProgress;
 import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
+import com.gameplatform.central.domain.ports.out.PushGameDefinitionToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
+import com.gameplatform.shared.dto.GameDefinitionEventDto;
+import com.gameplatform.shared.dto.LocalAdminBuildingEventDto;
 import com.gameplatform.shared.dto.UserSyncAckDto;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.slf4j.Logger;
@@ -55,12 +59,17 @@ public class UserReplicationSchedulerService {
 
     private static final String USER_REGISTERED_EVENT = "USER_REGISTERED";
     private static final String USER_UPDATED_EVENT    = "USER_UPDATED";
+    private static final String LOCAL_ADMIN_BUILDING_ASSIGNED_EVENT = "LOCAL_ADMIN_BUILDING_ASSIGNED";
+    private static final String LOCAL_ADMIN_BUILDING_REVOKED_EVENT    = "LOCAL_ADMIN_BUILDING_REVOKED";
+    private static final String GAME_DEFINITION_UPSERTED_EVENT = "GAME_DEFINITION_UPSERTED";
     /** Maximum number of pending events to fetch per scheduler run. */
     private static final int BATCH_SIZE = 50;
 
     private final OutboxEventRepository outboxEventRepository;
     private final LocalServerRegistryPort localServerRegistryPort;
     private final PushUserToLocalServersPort pushUserToLocalServersPort;
+    private final PushMetadataToLocalServersPort pushMetadataToLocalServersPort;
+    private final PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort;
     private final ReplicationProgressRepository replicationProgressRepository;
     private final ObjectMapper objectMapper;
     /**
@@ -77,7 +86,9 @@ public class UserReplicationSchedulerService {
             PushUserToLocalServersPort pushUserToLocalServersPort,
             ReplicationProgressRepository replicationProgressRepository,
             ObjectMapper objectMapper,
-            @Qualifier("replicationPushExecutor") Executor replicationPushExecutor
+            @Qualifier("replicationPushExecutor") Executor replicationPushExecutor,
+            PushMetadataToLocalServersPort pushMetadataToLocalServersPort,
+            PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort
     ) {
         this.outboxEventRepository = outboxEventRepository;
         this.localServerRegistryPort = localServerRegistryPort;
@@ -85,6 +96,8 @@ public class UserReplicationSchedulerService {
         this.replicationProgressRepository = replicationProgressRepository;
         this.objectMapper = objectMapper;
         this.replicationPushExecutor = replicationPushExecutor;
+        this.pushMetadataToLocalServersPort = pushMetadataToLocalServersPort;
+        this.pushGameDefinitionToLocalServersPort = pushGameDefinitionToLocalServersPort;
     }
 
     /**
@@ -101,12 +114,15 @@ public class UserReplicationSchedulerService {
      */
     @Scheduled(fixedDelayString = "${app.sync-interval-ms:300000}")
     public void replicateUsers() {
-        // Fetch at most BATCH_SIZE events to avoid loading an unbounded result set
-        List<OutboxEvent> pendingUserEvents = outboxEventRepository.findPendingLimit(BATCH_SIZE).stream()
-                .filter(this::isUserReplicationEvent)
+        // Fetch at most BATCH_SIZE events to avoid loading an unbounded result set.
+        // D2: the drain now also covers LOCAL_ADMIN_BUILDING_ASSIGNED/REVOKED metadata
+        // events (filtered in Java alongside user-replication events, so the query is
+        // unchanged and the scheduler diff stays minimal).
+        List<OutboxEvent> pendingEvents = outboxEventRepository.findPendingLimit(BATCH_SIZE).stream()
+                .filter(this::isReplicationEvent)
                 .toList();
 
-        if (pendingUserEvents.isEmpty()) {
+        if (pendingEvents.isEmpty()) {
             return;
         }
 
@@ -116,7 +132,14 @@ public class UserReplicationSchedulerService {
             return;
         }
 
-        for (OutboxEvent event : pendingUserEvents) {
+        for (OutboxEvent event : pendingEvents) {
+            if (isMetadataEvent(event)) {
+                replicateMetadataEvent(event, activeLocalServers);
+                continue;
+            } else if (isGameDefinitionEvent(event)) {
+                replicateGameDefinitionEvent(event, activeLocalServers);
+                continue;
+            }
             UserSyncDto user;
             try {
                 user = deserializeUser(event);
@@ -218,9 +241,180 @@ public class UserReplicationSchedulerService {
         }
     }
 
+    /**
+     * D2 — drains a single {@code LOCAL_ADMIN_BUILDING_ASSIGNED} /
+     * {@code LOCAL_ADMIN_BUILDING_REVOKED} metadata event to every active
+     * local server in parallel on {@code replicationPushExecutor}, recording
+     * {@code replication_progress} per (eventId, serverId) exactly like the
+     * user path. There is no ack / poison isolation: metadata upsert/delete is
+     * idempotent by composite PK, so a transient failure just leaves the event
+     * PENDING (allSucked→false skips markAsSent) for a future tick to retry.
+     *
+     * <p>Consistent with the USER path, {@code replication_progress} always
+     * tracks the outbox event id ({@code event.getId()}), and the
+     * {@link LocalAdminBuildingEventDto#eventId()} embedded in the payload is
+     * set equal to that same id by the producer.</p>
+     */
+    private void replicateMetadataEvent(OutboxEvent event, List<RegisteredLocalServer> activeLocalServers) {
+        LocalAdminBuildingEventDto metadataEvent;
+        try {
+            metadataEvent = objectMapper.readValue(event.getPayload(), LocalAdminBuildingEventDto.class);
+        } catch (Exception e) {
+            log.error("Failed to deserialize metadata event [{}] due to malformed payload. Transitioning event to FAILED. Payload: {}",
+                    event.getId(), event.getPayload(), e);
+            try {
+                outboxEventRepository.markAsFailed(event.getId());
+            } catch (Exception dbEx) {
+                log.error("Failed to mark event [{}] as FAILED in database", event.getId(), dbEx);
+            }
+            return;
+        }
+
+        List<ReplicationProgress> progressList = replicationProgressRepository.findByEventId(event.getId());
+        Set<String> alreadyReplicatedServerIds = progressList.stream()
+                .map(ReplicationProgress::serverId)
+                .collect(Collectors.toSet());
+
+        AtomicBoolean allSucceeded = new AtomicBoolean(true);
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (RegisteredLocalServer server : activeLocalServers) {
+            String serverId = server.getBuildingId().id();
+            if (alreadyReplicatedServerIds.contains(serverId)) {
+                continue;
+            }
+
+            futures.add(CompletableFuture.runAsync(() -> {
+                try {
+                    pushMetadataToLocalServersPort.pushMetadata(List.of(metadataEvent), server);
+                } catch (Exception e) {
+                    // No poison isolation for metadata — just log + flip allSucceeded so a
+                    // future tick retries. The local upsert/delete is idempotent by PK.
+                    allSucceeded.set(false);
+                    log.error("Failed to push metadata event [{}] to server [{}]: {}",
+                            event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    return;
+                }
+
+                if (replicationProgressRepository.existsByEventIdAndServerId(event.getId(), serverId)) {
+                    log.info("replication_progress already present (pre-check) for eventId={}, serverId={} — treating as success",
+                            event.getId(), serverId);
+                } else {
+                    try {
+                        replicationProgressRepository.save(new ReplicationProgress(event.getId(), serverId));
+                    } catch (DataIntegrityViolationException dup) {
+                        log.info("replication_progress already present for eventId={}, serverId={} — treating as success",
+                                event.getId(), serverId);
+                    }
+                }
+            }, replicationPushExecutor));
+        }
+
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        if (allSucceeded.get()) {
+            outboxEventRepository.markAsSent(event.getId());
+        } else {
+            log.warn("Metadata event [{}] was NOT marked as sent because one or more servers failed.", event.getId());
+        }
+    }
+
+    /**
+     * Drains a single {@code GAME_DEFINITION_UPSERTED} event to every active
+     * local server in parallel on {@code replicationPushExecutor}, recording
+     * {@code replication_progress} per (eventId, serverId) exactly like the
+     * user and metadata paths. There is no ack / poison isolation: the local
+     * upsert is idempotent by composite PK (game_type), so a transient failure
+     * just leaves the event PENDING (allSucceeded=false skips markAsSent) for a
+     * future tick to retry.
+     *
+     * <p>Structural mirror of {@link #replicateMetadataEvent(OutboxEvent, List)}
+     * but deserializes {@link GameDefinitionEventDto} and dispatches through
+     * {@link PushGameDefinitionToLocalServersPort#pushGameDefinitions}.</p>
+     */
+    private void replicateGameDefinitionEvent(OutboxEvent event, List<RegisteredLocalServer> activeLocalServers) {
+        GameDefinitionEventDto gameDefinitionEvent;
+        try {
+            gameDefinitionEvent = objectMapper.readValue(event.getPayload(), GameDefinitionEventDto.class);
+        } catch (Exception e) {
+            log.error("Failed to deserialize game-definition event [{}] due to malformed payload. Transitioning event to FAILED. Payload: {}",
+                    event.getId(), event.getPayload(), e);
+            try {
+                outboxEventRepository.markAsFailed(event.getId());
+            } catch (Exception dbEx) {
+                log.error("Failed to mark event [{}] as FAILED in database", event.getId(), dbEx);
+            }
+            return;
+        }
+
+        List<ReplicationProgress> progressList = replicationProgressRepository.findByEventId(event.getId());
+        Set<String> alreadyReplicatedServerIds = progressList.stream()
+                .map(ReplicationProgress::serverId)
+                .collect(Collectors.toSet());
+
+        AtomicBoolean allSucceeded = new AtomicBoolean(true);
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (RegisteredLocalServer server : activeLocalServers) {
+            String serverId = server.getBuildingId().id();
+            if (alreadyReplicatedServerIds.contains(serverId)) {
+                continue;
+            }
+
+            futures.add(CompletableFuture.runAsync(() -> {
+                try {
+                    pushGameDefinitionToLocalServersPort.pushGameDefinitions(List.of(gameDefinitionEvent), server);
+                } catch (Exception e) {
+                    // No poison isolation for game-definition — just log + flip allSucceeded
+                    // so a future tick retries. The local upsert is idempotent by PK (game_type).
+                    allSucceeded.set(false);
+                    log.error("Failed to push game-definition event [{}] to server [{}]: {}",
+                            event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    return;
+                }
+
+                if (replicationProgressRepository.existsByEventIdAndServerId(event.getId(), serverId)) {
+                    log.info("replication_progress already present (pre-check) for game-definition eventId={}, serverId={} — treating as success",
+                            event.getId(), serverId);
+                } else {
+                    try {
+                        replicationProgressRepository.save(new ReplicationProgress(event.getId(), serverId));
+                    } catch (DataIntegrityViolationException dup) {
+                        log.info("replication_progress already present for game-definition eventId={}, serverId={} — treating as success",
+                                event.getId(), serverId);
+                    }
+                }
+            }, replicationPushExecutor));
+        }
+
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        if (allSucceeded.get()) {
+            outboxEventRepository.markAsSent(event.getId());
+        } else {
+            log.warn("Game-definition event [{}] was NOT marked as sent because one or more servers failed.", event.getId());
+        }
+    }
+
+    /**
+     * True for any outbox event this scheduler should drain: user-replication
+     * ({@code USER_REGISTERED}/{@code USER_UPDATED}) <em>or</em>
+     * LOCAL_ADMIN↔building metadata events.
+     */
+    private boolean isReplicationEvent(OutboxEvent event) {
+        return isUserReplicationEvent(event) || isMetadataEvent(event) || isGameDefinitionEvent(event);
+    }
+
     private boolean isUserReplicationEvent(OutboxEvent event) {
         return USER_REGISTERED_EVENT.equals(event.getEventType())
                 || USER_UPDATED_EVENT.equals(event.getEventType());
+    }
+
+    private boolean isMetadataEvent(OutboxEvent event) {
+        return LOCAL_ADMIN_BUILDING_ASSIGNED_EVENT.equals(event.getEventType())
+                || LOCAL_ADMIN_BUILDING_REVOKED_EVENT.equals(event.getEventType());
+    }
+
+    private boolean isGameDefinitionEvent(OutboxEvent event) {
+        return GAME_DEFINITION_UPSERTED_EVENT.equals(event.getEventType());
     }
 
     private UserSyncDto deserializeUser(OutboxEvent event) {

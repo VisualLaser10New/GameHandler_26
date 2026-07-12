@@ -61,7 +61,7 @@ class LocalSignupServiceTest {
         assertThat(result.getEmail()).isEqualTo("alice@example.com");
         assertThat(result.getUserId()).isNotNull();
         assertThat(result.getCreatedAt()).isEqualTo(Instant.parse("2026-06-25T10:00:00Z"));
-        assertThat(result.getRoles()).containsExactly("USER");
+        assertThat(result.getRoles()).containsExactly("PLAYER");
         assertThat(BCrypt.checkpw("password", result.getPasswordHash())).isTrue();
 
         ArgumentCaptor<LocalSignupUser> userCaptor = ArgumentCaptor.forClass(LocalSignupUser.class);
@@ -80,7 +80,7 @@ class LocalSignupServiceTest {
         assertThat(dto.username()).isEqualTo("alice");
         assertThat(dto.email()).isEqualTo("alice@example.com");
         assertThat(dto.userId()).isEqualTo(result.getUserId().value());
-        assertThat(dto.roles()).containsExactly("USER");
+        assertThat(dto.roles()).containsExactly("PLAYER");
     }
 
     @Test

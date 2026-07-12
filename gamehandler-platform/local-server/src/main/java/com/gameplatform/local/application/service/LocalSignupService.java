@@ -8,6 +8,7 @@ import com.gameplatform.local.domain.ports.in.RegisterLocalUserUseCase;
 import com.gameplatform.local.domain.ports.out.LocalSignupUserRepository;
 import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.shared.domain.model.UserId;
+import com.gameplatform.shared.domain.security.Role;
 import com.gameplatform.shared.dto.UserRegisteredEventDto;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCrypt;
@@ -77,7 +78,7 @@ public class LocalSignupService implements RegisterLocalUserUseCase {
         Instant now = Instant.now(clock);
         String passwordHash = BCrypt.hashpw(password, BCrypt.gensalt());
         UserId userId = new UserId(UUID.randomUUID().toString());
-        List<String> roles = List.of("USER");
+        List<String> roles = List.of(Role.PLAYER.name());
 
         LocalSignupUser user = new LocalSignupUser(
                 userId,

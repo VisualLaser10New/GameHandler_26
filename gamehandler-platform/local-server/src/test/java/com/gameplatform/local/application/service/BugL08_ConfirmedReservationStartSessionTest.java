@@ -9,6 +9,7 @@ import com.gameplatform.local.domain.ports.out.GameSessionRepository;
 import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
 import com.gameplatform.local.domain.ports.out.ReservationRepository;
+import com.gameplatform.local.domain.ports.out.GameDefinitionLocalRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.GameMachineStatus;
@@ -48,6 +49,7 @@ class BugL08_ConfirmedReservationStartSessionTest {
     @Mock OutboxEventRepository outboxEventRepository;
     @Mock PublishGameStatePort publishGameStatePort;
     @Mock ReservationRepository reservationRepository;
+    @Mock GameDefinitionLocalRepository gameDefinitionLocalRepository;
 
     private GameSessionService service;
 
@@ -67,7 +69,8 @@ class BugL08_ConfirmedReservationStartSessionTest {
                 publishGameStatePort,
                 reservationRepository,
                 clock,
-                new ObjectMapper()
+                new ObjectMapper(),
+                gameDefinitionLocalRepository
         );
     }
 
@@ -90,6 +93,7 @@ class BugL08_ConfirmedReservationStartSessionTest {
         when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(confirmedReservation));
         when(gameRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(gameSessionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(gameDefinitionLocalRepository.findByGameType(any())).thenReturn(Optional.empty());
 
         GameSession session = assertDoesNotThrow(() -> service.start(
                 GAME_ID,

@@ -9,7 +9,7 @@ import com.gameplatform.shared.domain.model.GameType;
 public class Game {
     private final GameId id;
     private final GameType gameType;
-    private final String name;
+    private String name;
     private final BuildingId buildingId;
     private GameMachineStatus status;
     private long version;
@@ -83,6 +83,13 @@ public class Game {
             );
         }
         this.status = GameMachineStatus.LOBBY;
+    }
+
+    public void rename(String newName) {
+        if (newName == null || newName.isBlank()) {
+            throw new IllegalArgumentException("Name cannot be null, empty or blank");
+        }
+        this.name = newName;
     }
 
     public GameId getId() {

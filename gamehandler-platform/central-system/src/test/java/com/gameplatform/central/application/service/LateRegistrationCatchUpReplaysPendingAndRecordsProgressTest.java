@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.model.ReplicationProgress;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
+import com.gameplatform.central.domain.ports.out.PushGameDefinitionToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity;
@@ -50,6 +52,8 @@ class LateRegistrationCatchUpReplaysPendingAndRecordsProgressTest {
     @Mock private OutboxEventJpaRepository outboxEventJpaRepository;
     @Mock private OutboxEventRepository outboxEventRepository;
     @Mock private PushUserToLocalServersPort pushUserToLocalServersPort;
+    @Mock private PushMetadataToLocalServersPort pushMetadataToLocalServersPort;
+    @Mock private PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort;
     @Mock private ReplicationProgressRepository replicationProgressRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -62,7 +66,9 @@ class LateRegistrationCatchUpReplaysPendingAndRecordsProgressTest {
                 outboxEventRepository,
                 pushUserToLocalServersPort,
                 objectMapper,
-                replicationProgressRepository);
+                replicationProgressRepository,
+                pushMetadataToLocalServersPort,
+                pushGameDefinitionToLocalServersPort);
     }
 
     private OutboxEventJpaEntity event(String id, String status, UserSyncDto dto) throws Exception {

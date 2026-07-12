@@ -12,6 +12,7 @@ import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.model.GameSession;
 import com.gameplatform.local.domain.model.OutboxEvent;
 import com.gameplatform.local.domain.model.Reservation;
+import com.gameplatform.local.domain.model.GameDefinitionLocal;
 import com.gameplatform.local.domain.ports.in.EndGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.PauseGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.ResumeGameSessionUseCase;
@@ -28,6 +29,7 @@ import com.gameplatform.local.domain.ports.out.GameSessionRepository;
 import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
 import com.gameplatform.local.domain.ports.out.ReservationRepository;
+import com.gameplatform.local.domain.ports.out.GameDefinitionLocalRepository;
 import com.gameplatform.shared.domain.model.*;
 import com.gameplatform.shared.domain.result.GameResult;
 import com.gameplatform.shared.mqtt.MqttTopics;
@@ -56,6 +58,7 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
     private final ReservationRepository reservationRepository;
     private final Clock clock;
     private final ObjectMapper objectMapper;
+    private final GameDefinitionLocalRepository gameDefinitionLocalRepository;
 
     public GameSessionService(
             GameSessionRepository gameSessionRepository,
@@ -64,7 +67,8 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
             PublishGameStatePort publishGameStatePort,
             ReservationRepository reservationRepository,
             Clock clock,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            GameDefinitionLocalRepository gameDefinitionLocalRepository) {
         this.gameSessionRepository = gameSessionRepository;
         this.gameRepository = gameRepository;
         this.outboxEventRepository = outboxEventRepository;
@@ -72,6 +76,7 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         this.reservationRepository = reservationRepository;
         this.clock = clock;
         this.objectMapper = objectMapper;
+        this.gameDefinitionLocalRepository = gameDefinitionLocalRepository;
     }
 
     @Override
@@ -114,12 +119,25 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
             }
         }
 
-        // Validate player counts using GameFactory
-        GameLifecycle gameLogic = GameFactory.createGame(gameType, null);
-        int min = gameLogic.getMinPlayers();
-        int max = gameLogic.getMaxPlayers();
+        // FASE 2: validate participants against the replicated game_definitions_local,
+        // falling back to in-memory GameFactory for offline-first resilience.
+        Optional<GameDefinitionLocal> localDef = gameDefinitionLocalRepository.findByGameType(gameType);
+        int min;
+        int max;
+        if (localDef.isPresent()) {
+            GameDefinitionLocal def = localDef.get();
+            min = def.getMinPlayers();
+            max = def.getMaxPlayers();
+            // team_allowed: enforced at the tournament/registration context (FASE 6).
+        } else {
+            GameLifecycle gameLogic = GameFactory.createGame(gameType, null);
+            min = gameLogic.getMinPlayers();
+            max = gameLogic.getMaxPlayers();
+        }
         if (activeParticipants.size() < min || activeParticipants.size() > max) {
-            throw new IllegalArgumentException("Number of players must be between " + min + " and " + max);
+            throw new IllegalArgumentException(
+                    "Number of players for " + gameType + " must be between " + min + " and " + max
+                    + " (got " + activeParticipants.size() + ")");
         }
 
         // Change machine state to IN_USE
@@ -240,6 +258,20 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                 payload.put("gameType", session.getGameType().name());
                 payload.put("durationSeconds", session.getDurationSeconds());
                 payload.put("status", session.getStatus().name());
+                // FASE 3 — enriched GAME_SESSION_COMPLETED payload (PIANO §2.2):
+                // participants + winnerId + winCondition are emitted explicitly
+                // (alongside the existing resultJson) so the Central
+                // SyncEventProcessor can populate the player_match_facts /
+                // player_statistics read-models without re-parsing the polymorphic
+                // GameResult JSON. Idempotent backward-compat: older Central code
+                // that ignores these fields is unaffected (the payload stays a JSON
+                // String; OutboxEventDto/SyncPayloadDto shapes are unchanged).
+                payload.put("participants", session.getParticipants().stream()
+                        .map(UserId::value).toList());
+                payload.put("winnerId", session.getWinnerId() != null
+                        ? session.getWinnerId().value() : null);
+                payload.put("winCondition", session.getWinCondition() != null
+                        ? session.getWinCondition().name() : null);
                 if (resultJsonString != null) {
                     payload.put("resultJson", resultJsonString);
                 }

@@ -18,7 +18,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/reservations")
-@PreAuthorize("hasRole('USER')")
+@PreAuthorize("hasRole('PLAYER')")
 public class ReservationController {
 
     private final CreateReservationUseCase createReservationUseCase;

@@ -15,7 +15,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/games")
-@PreAuthorize("hasRole('USER')")
+@PreAuthorize("hasRole('PLAYER')")
 public class GameController {
 
     private final GetAvailableGamesUseCase getAvailableGamesUseCase;

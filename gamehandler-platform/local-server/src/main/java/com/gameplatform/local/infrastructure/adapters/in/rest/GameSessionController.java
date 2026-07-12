@@ -29,7 +29,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/sessions")
-@PreAuthorize("hasRole('USER')")
+@PreAuthorize("hasRole('PLAYER')")
 public class GameSessionController {
 
     private final StartGameSessionUseCase startGameSessionUseCase;

@@ -1,5 +1,6 @@
 package com.gameplatform.local.infrastructure.security;
 
+import com.gameplatform.shared.domain.security.Role;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -29,8 +30,8 @@ public class JwtTokenValidator {
         if (roles == null) {
             return List.of();
         }
-        return roles.stream()
-                .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
+        return Role.toAuthorityNames(roles)
+                .stream()
                 .map(SimpleGrantedAuthority::new)
                 .toList();
     }

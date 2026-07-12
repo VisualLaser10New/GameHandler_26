@@ -14,6 +14,7 @@ import com.gameplatform.central.domain.ports.in.UpdateUserUseCase;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.UserRepository;
 import com.gameplatform.shared.domain.model.UserId;
+import com.gameplatform.shared.domain.security.Role;
 import com.gameplatform.shared.dto.UserRegisteredEventDto;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.slf4j.Logger;
@@ -66,7 +67,7 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
         String userId = UUID.randomUUID().toString();
         String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
 
-        User registrato = new User(new UserId(userId), username, hashedPassword, email, List.of("USER"), Instant.now());
+        User registrato = new User(new UserId(userId), username, hashedPassword, email, List.of(Role.PLAYER.name()), Instant.now());
 
         try {
             return saveUserOnDB(registrato, "USER_REGISTERED");

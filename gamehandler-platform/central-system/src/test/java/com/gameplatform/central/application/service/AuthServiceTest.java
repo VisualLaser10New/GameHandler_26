@@ -8,11 +8,13 @@ import com.gameplatform.central.domain.ports.out.TokenProviderPort;
 import com.gameplatform.central.domain.ports.out.UserRepository;
 import com.gameplatform.central.infrastructure.security.JwtTokenProvider;
 import com.gameplatform.shared.domain.model.UserId;
+import com.gameplatform.shared.domain.security.Role;
 import com.gameplatform.shared.domain.security.TokenWithExpiry;
 import com.gameplatform.shared.dto.LoginResponseDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCrypt;
@@ -75,6 +77,30 @@ class AuthServiceTest {
 
         assertThat(response).isNotNull();
         assertThat(response.token()).isEqualTo("mock-jwt-token");
+    }
+
+    @Test
+    void authenticate_shouldPropagatePlayerRoleIntoToken() {
+        String plainPassword = "correctPassword";
+        String hash = BCrypt.hashpw(plainPassword, BCrypt.gensalt());
+        User player = new User(
+                new UserId(java.util.UUID.randomUUID().toString()),
+                "dave",
+                hash,
+                "dave@example.com",
+                List.of(Role.PLAYER.name()),
+                Instant.now()
+        );
+
+        when(userRepository.findByUsername("dave")).thenReturn(Optional.of(player));
+        when(jwtTokenProvider.generateTokenWithExpiry(any(User.class), any(Instant.class)))
+                .thenReturn(new TokenWithExpiry("mock-jwt-token", Instant.now().plusSeconds(60)));
+
+        authService.authenticate("dave", plainPassword);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(jwtTokenProvider).generateTokenWithExpiry(captor.capture(), any(Instant.class));
+        assertThat(captor.getValue().getRoles()).containsExactly(Role.PLAYER.name());
     }
 
     // ──────────────────────────────────────────────────────────────────────────

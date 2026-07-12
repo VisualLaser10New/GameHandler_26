@@ -1,5 +1,6 @@
 package com.gameplatform.central.infrastructure.security;
 
+import com.gameplatform.shared.domain.security.Role;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -73,8 +74,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             List<String> roles = claims.get("roles", List.class);
 
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                List<SimpleGrantedAuthority> authorities = roles == null ? List.of() : roles.stream()
-                        .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
+                List<SimpleGrantedAuthority> authorities = Role.toAuthorityNames(roles == null ? List.of() : roles)
+                        .stream()
                         .map(SimpleGrantedAuthority::new)
                         .toList();
 

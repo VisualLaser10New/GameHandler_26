@@ -95,7 +95,9 @@ class SharedCentralSystemCompatibilityTest {
                 null, // PushUserToLocalServersPort not needed for these tests
                 replicationProgressRepository,
                 objectMapper,
-                Runnable::run // synchronous executor keeps these non-replication tests single-threaded
+                Runnable::run, // synchronous executor keeps these non-replication tests single-threaded
+                null,  // PushMetadataToLocalServersPort not needed for these tests
+                null   // PushGameDefinitionToLocalServersPort not needed for these tests
         );
     }
 

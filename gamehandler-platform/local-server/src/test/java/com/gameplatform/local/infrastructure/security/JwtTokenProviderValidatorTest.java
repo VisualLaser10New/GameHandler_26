@@ -91,7 +91,7 @@ class JwtTokenProviderValidatorTest {
         String token = provider.generateToken(sampleUser()); // roles: USER, ROLE_ADMIN
         Claims claims = validator.validateToken(token);
         var authorities = validator.getAuthorities(claims);
-        assertThat(authorities).extracting("authority").contains("ROLE_USER", "ROLE_ADMIN");
+        assertThat(authorities).extracting("authority").contains("ROLE_PLAYER", "ROLE_PLATFORM_ADMIN");
     }
 
     @Test

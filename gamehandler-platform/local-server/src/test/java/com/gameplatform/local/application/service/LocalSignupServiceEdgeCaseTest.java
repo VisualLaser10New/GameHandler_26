@@ -102,7 +102,7 @@ class LocalSignupServiceEdgeCaseTest {
 
         assertThat(UUID.fromString(user.getUserId().value())).isNotNull();
         assertThat(user.getCreatedAt()).isEqualTo(Instant.parse("2026-06-25T10:00:00Z"));
-        assertThat(user.getRoles()).containsExactly("USER");
+        assertThat(user.getRoles()).containsExactly("PLAYER");
     }
 
     @Test

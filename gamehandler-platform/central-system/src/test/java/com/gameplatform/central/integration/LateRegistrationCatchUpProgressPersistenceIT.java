@@ -5,6 +5,8 @@ import com.gameplatform.central.application.service.LateRegistrationCatchUpServi
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.model.ReplicationProgress;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
+import com.gameplatform.central.domain.ports.out.PushGameDefinitionToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.adapter.LocalServerRepositoryAdapter;
@@ -72,6 +74,8 @@ class LateRegistrationCatchUpProgressPersistenceIT {
     @Mock private OutboxEventJpaRepository outboxEventJpaRepository;
     @Mock private OutboxEventRepository outboxEventRepository;
     @Mock private PushUserToLocalServersPort pushUserToLocalServersPort;
+    @Mock private PushMetadataToLocalServersPort pushMetadataToLocalServersPort;
+    @Mock private PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort;
     @Mock private ReplicationProgressRepository replicationProgressRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
@@ -82,7 +86,8 @@ class LateRegistrationCatchUpProgressPersistenceIT {
     void setUp() {
         catchUpService = new LateRegistrationCatchUpService(
                 outboxEventJpaRepository, outboxEventRepository, pushUserToLocalServersPort,
-                objectMapper, replicationProgressRepository);
+                objectMapper, replicationProgressRepository, pushMetadataToLocalServersPort,
+                pushGameDefinitionToLocalServersPort);
         adapter = new LocalServerRepositoryAdapter(localServerJpaRepository, catchUpService);
         // Mimic an active transaction so registerSynchronization() is accepted.
         TransactionSynchronizationManager.initSynchronization();

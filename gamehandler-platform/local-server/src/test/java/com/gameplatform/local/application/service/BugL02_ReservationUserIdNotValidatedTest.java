@@ -38,6 +38,7 @@ class BugL02_ReservationUserIdNotValidatedTest {
     @Mock private OutboxEventRepository outboxEventRepository;
     @Mock private PublishGameStatePort publishGameStatePort;
     @Mock private ReservationRepository reservationRepository;
+    @Mock private GameDefinitionLocalRepository gameDefinitionLocalRepository;
 
     private Clock clock;
     private ObjectMapper objectMapper;
@@ -57,7 +58,8 @@ class BugL02_ReservationUserIdNotValidatedTest {
         objectMapper = new ObjectMapper();
         gameSessionService = new GameSessionService(
                 gameSessionRepository, gameRepository, outboxEventRepository,
-                publishGameStatePort, reservationRepository, clock, objectMapper
+                publishGameStatePort, reservationRepository, clock, objectMapper,
+                gameDefinitionLocalRepository
         );
     }
 
@@ -82,6 +84,7 @@ class BugL02_ReservationUserIdNotValidatedTest {
         when(reservationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(gameRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(gameSessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(gameDefinitionLocalRepository.findByGameType(any())).thenReturn(Optional.empty());
 
         // -- User-B starts a session using User-A's reservation
         assertThrows(ReservationUserMismatchException.class, () -> {

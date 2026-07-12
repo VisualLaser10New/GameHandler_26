@@ -12,6 +12,7 @@ import com.gameplatform.local.domain.ports.out.GameSessionRepository;
 import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
 import com.gameplatform.local.domain.ports.out.ReservationRepository;
+import com.gameplatform.local.domain.ports.out.GameDefinitionLocalRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.GameMachineStatus;
@@ -46,6 +47,7 @@ class BugL10_ConcurrentSessionStartOptimisticLockTest {
     @Mock OutboxEventRepository outboxEventRepository;
     @Mock PublishGameStatePort publishGameStatePort;
     @Mock ReservationRepository reservationRepository;
+    @Mock GameDefinitionLocalRepository gameDefinitionLocalRepository;
 
     private GameSessionService service;
 
@@ -64,7 +66,8 @@ class BugL10_ConcurrentSessionStartOptimisticLockTest {
                 publishGameStatePort,
                 reservationRepository,
                 clock,
-                new ObjectMapper()
+                new ObjectMapper(),
+                gameDefinitionLocalRepository
         );
     }
 
@@ -80,6 +83,7 @@ class BugL10_ConcurrentSessionStartOptimisticLockTest {
         // ConcurrentStateException; stub the repository port to model that.
         when(gameRepository.save(any()))
                 .thenThrow(new ConcurrentStateException("Concurrent modification of game game-1"));
+        when(gameDefinitionLocalRepository.findByGameType(any())).thenReturn(Optional.empty());
 
         assertThrows(ConcurrentStateException.class, () -> service.start(
                 GAME_ID,

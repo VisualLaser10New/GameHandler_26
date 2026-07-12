@@ -3,9 +3,11 @@ package com.gameplatform.local.application.service;
 import com.gameplatform.local.domain.exception.GameNotAvailableException;
 import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.ports.in.GetAvailableGamesUseCase;
+import com.gameplatform.local.domain.ports.in.ListBuildingGamesUseCase;
 import com.gameplatform.local.domain.ports.in.UpdateGameStateUseCase;
 import com.gameplatform.local.domain.ports.out.GameRepository;
 import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
+import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.GameMachineStatus;
 import org.springframework.stereotype.Service;
@@ -15,7 +17,7 @@ import java.util.List;
 
 @Service
 @Transactional
-public class GameStateService implements UpdateGameStateUseCase, GetAvailableGamesUseCase {
+public class GameStateService implements UpdateGameStateUseCase, GetAvailableGamesUseCase, ListBuildingGamesUseCase {
 
     private final GameRepository gameRepository;
     private final PublishGameStatePort publishGameStatePort;
@@ -62,5 +64,11 @@ public class GameStateService implements UpdateGameStateUseCase, GetAvailableGam
     @Override
     public List<Game> getAll() {
         return gameRepository.findAll();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Game> getByBuilding(BuildingId buildingId) {
+        return gameRepository.findByBuildingId(buildingId);
     }
 }

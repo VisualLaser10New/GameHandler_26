@@ -7,6 +7,8 @@ import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.model.ReplicationProgress;
 import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
+import com.gameplatform.central.domain.ports.out.PushGameDefinitionToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
@@ -64,6 +66,12 @@ class UserReplicationSchedulerServiceTest {
     private PushUserToLocalServersPort pushUserToLocalServersPort;
 
     @Mock
+    private PushMetadataToLocalServersPort pushMetadataToLocalServersPort;
+
+    @Mock
+    private PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort;
+
+    @Mock
     private ReplicationProgressRepository replicationProgressRepository;
 
     private UserReplicationSchedulerService schedulerService;
@@ -79,7 +87,9 @@ class UserReplicationSchedulerServiceTest {
                 pushUserToLocalServersPort,
                 replicationProgressRepository,
                 objectMapper,
-                directExecutor
+                directExecutor,
+                pushMetadataToLocalServersPort,
+                pushGameDefinitionToLocalServersPort
         );
         lenient().when(replicationProgressRepository.findByEventId(any())).thenReturn(List.of());
     }
@@ -406,7 +416,9 @@ class UserReplicationSchedulerServiceTest {
                     pushUserToLocalServersPort,
                     replicationProgressRepository,
                     objectMapper,
-                    pushExecutor
+                    pushExecutor,
+                    pushMetadataToLocalServersPort,
+                    pushGameDefinitionToLocalServersPort
             );
 
             // Drive replicateUsers() on its own thread so the test thread can observe

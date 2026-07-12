@@ -1,6 +1,8 @@
 package com.gameplatform.local.infrastructure.adapters.in.rest;
 
+import com.gameplatform.local.domain.exception.BuildingNotRegisteredToAdminException;
 import com.gameplatform.local.domain.exception.ConcurrentStateException;
+import com.gameplatform.local.domain.exception.GameDefinitionNotAvailableLocallyException;
 import com.gameplatform.local.domain.exception.UserAlreadyExistsException;
 import com.gameplatform.local.domain.exception.UserNotFoundException;
 import org.slf4j.Logger;
@@ -49,6 +51,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Void> handleConcurrentState(ConcurrentStateException ex) {
         log.warn("Optimistic lock conflict: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
+
+    @ExceptionHandler(BuildingNotRegisteredToAdminException.class)
+    public ResponseEntity<Void> handleBuildingNotRegistered(BuildingNotRegisteredToAdminException ex) {
+        log.warn("Building not registered to admin: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+
+    @ExceptionHandler(GameDefinitionNotAvailableLocallyException.class)
+    public ResponseEntity<Void> handleGameDefinitionNotAvailableLocally(GameDefinitionNotAvailableLocallyException ex) {
+        log.warn("Game definition not available locally: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
     }
 
     @ExceptionHandler(Exception.class)

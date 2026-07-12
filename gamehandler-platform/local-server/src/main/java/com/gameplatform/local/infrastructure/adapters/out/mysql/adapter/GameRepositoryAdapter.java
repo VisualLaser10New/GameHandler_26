@@ -9,6 +9,7 @@ import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.GameMachineStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -66,5 +67,14 @@ public class GameRepositoryAdapter implements GameRepository {
         return jpaRepository.findAll().stream()
             .map(mapper::toDomain)
             .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void deleteById(GameId id) {
+        if (id == null) {
+            return;
+        }
+        jpaRepository.deleteById(id.id());
     }
 }

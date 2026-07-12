@@ -72,6 +72,9 @@ class SharedLocalServerCompatibilityTest {
     @Mock
     private ReservationExpirationService reservationExpirationService;
 
+    @Mock
+    private GameDefinitionLocalRepository gameDefinitionLocalRepository;
+
     private final Clock fixedClock = Clock.fixed(
             Instant.parse("2026-06-27T10:00:00Z"), ZoneOffset.UTC);
 
@@ -97,7 +100,8 @@ class SharedLocalServerCompatibilityTest {
                 publishGameStatePort,
                 reservationRepository,
                 fixedClock,
-                objectMapper
+                objectMapper,
+                gameDefinitionLocalRepository
         );
     }
 
@@ -659,6 +663,7 @@ class SharedLocalServerCompatibilityTest {
             when(gameSessionRepository.findActiveByGameId(new GameId("game-1"))).thenReturn(Optional.empty());
             when(gameRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(gameSessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(gameDefinitionLocalRepository.findByGameType(any())).thenReturn(Optional.empty());
 
             gameSessionService.start(new GameId("game-1"), GameType.CHESS, List.of(new UserId("u1"), new UserId("u2")), null);
 

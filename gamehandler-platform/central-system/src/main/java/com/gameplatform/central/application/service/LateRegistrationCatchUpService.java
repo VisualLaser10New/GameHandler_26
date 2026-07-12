@@ -4,10 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.model.ReplicationProgress;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
+import com.gameplatform.central.domain.ports.out.PushGameDefinitionToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.repository.OutboxEventJpaRepository;
+import com.gameplatform.shared.dto.GameDefinitionEventDto;
+import com.gameplatform.shared.dto.LocalAdminBuildingEventDto;
 import com.gameplatform.shared.dto.UserSyncAckDto;
 import com.gameplatform.shared.dto.UserSyncDto;
 import org.slf4j.Logger;
@@ -49,24 +53,34 @@ public class LateRegistrationCatchUpService {
 
     /** R1: replay both SENT (already broadcast to old servers) and PENDING (never sent). */
     private static final List<String> REPLAY_STATUSES = List.of("SENT", "PENDING");
-    private static final List<String> USER_REPLICATION_EVENT_TYPES = List.of("USER_REGISTERED", "USER_UPDATED");
+    /** D2: replay user-replication AND LOCAL_ADMIN↔building metadata events. */
+    private static final List<String> REPLICATION_EVENT_TYPES = List.of(
+            "USER_REGISTERED", "USER_UPDATED",
+            "LOCAL_ADMIN_BUILDING_ASSIGNED", "LOCAL_ADMIN_BUILDING_REVOKED",
+            "GAME_DEFINITION_UPSERTED");
 
     private final OutboxEventJpaRepository outboxEventJpaRepository;
     private final OutboxEventRepository outboxEventRepository;
     private final PushUserToLocalServersPort pushUserToLocalServersPort;
+    private final PushMetadataToLocalServersPort pushMetadataToLocalServersPort;
+    private final PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort;
     private final ObjectMapper objectMapper;
     private final ReplicationProgressRepository replicationProgressRepository;
 
     public LateRegistrationCatchUpService(OutboxEventJpaRepository outboxEventJpaRepository,
-                                          OutboxEventRepository outboxEventRepository,
-                                          PushUserToLocalServersPort pushUserToLocalServersPort,
-                                          ObjectMapper objectMapper,
-                                          ReplicationProgressRepository replicationProgressRepository) {
+                                      OutboxEventRepository outboxEventRepository,
+                                      PushUserToLocalServersPort pushUserToLocalServersPort,
+                                      ObjectMapper objectMapper,
+                                      ReplicationProgressRepository replicationProgressRepository,
+                                      PushMetadataToLocalServersPort pushMetadataToLocalServersPort,
+                                      PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort) {
         this.outboxEventJpaRepository = outboxEventJpaRepository;
         this.outboxEventRepository = outboxEventRepository;
         this.pushUserToLocalServersPort = pushUserToLocalServersPort;
         this.objectMapper = objectMapper;
         this.replicationProgressRepository = replicationProgressRepository;
+        this.pushMetadataToLocalServersPort = pushMetadataToLocalServersPort;
+        this.pushGameDefinitionToLocalServersPort = pushGameDefinitionToLocalServersPort;
     }
 
     /**
@@ -104,10 +118,10 @@ public class LateRegistrationCatchUpService {
 
         List<OutboxEventJpaEntity> replayableEvents =
                 outboxEventJpaRepository.findByStatusInAndEventTypeInOrderByCreatedAtAsc(
-                        REPLAY_STATUSES, USER_REPLICATION_EVENT_TYPES);
+                        REPLAY_STATUSES, REPLICATION_EVENT_TYPES);
 
         if (replayableEvents.isEmpty()) {
-            log.info("Catch-up: no SENT/PENDING user events to replicate to newly-registered server building={}", serverId);
+            log.info("Catch-up: no SENT/PENDING replication events to replicate to newly-registered server building={}", serverId);
             return;
         }
 
@@ -120,6 +134,76 @@ public class LateRegistrationCatchUpService {
             if (replicationProgressRepository.existsByEventIdAndServerId(eventId, serverId)) {
                 log.info("Catch-up: eventId={} already replicated to building={} — skipping push", eventId, serverId);
                 skipped++;
+                continue;
+            }
+
+            // D2 — metadata event branch: LOCAL_ADMIN_BUILDING_ASSIGNED/REVOKED.
+            // No ack / poison isolation: the local upsert/delete is idempotent by
+            // composite PK, so a best-effort push (failure swallowed) is enough.
+            if (isMetadataEvent(eventType)) {
+                LocalAdminBuildingEventDto metadataEvent;
+                try {
+                    metadataEvent = objectMapper.readValue(event.getPayload(), LocalAdminBuildingEventDto.class);
+                } catch (Exception e) {
+                    log.warn("Catch-up: skipping metadata event [{}] due to malformed payload: {}", eventId, e.getMessage());
+                    continue;
+                }
+
+                try {
+                    pushMetadataToLocalServersPort.pushMetadata(List.of(metadataEvent), server);
+                } catch (Exception e) {
+                    // Best-effort: a failing push for one event must NOT abort the rest.
+                    log.error("Catch-up: failed to push metadata event [{}] (type={}) to building={}: {}",
+                            eventId, eventType, serverId, e.getMessage(), e);
+                    continue;
+                }
+
+                if (replicationProgressRepository.existsByEventIdAndServerId(eventId, serverId)) {
+                    log.info("Catch-up: replication_progress already present (pre-check) for metadata eventId={}, building={}", eventId, serverId);
+                } else {
+                    try {
+                        replicationProgressRepository.save(new ReplicationProgress(eventId, serverId));
+                        pushed++;
+                    } catch (DataIntegrityViolationException dup) {
+                        log.info("Catch-up: replication_progress already present for metadata eventId={}, building={} — treating as success",
+                                eventId, serverId);
+                    }
+                }
+                continue;
+            }
+
+            // FASE 2 — game-definition event branch: GAME_DEFINITION_UPSERTED.
+            // No ack / poison isolation: the local upsert is idempotent by PK
+            // (game_type), so a best-effort push (failure swallowed) is enough.
+            if (isGameDefinitionEvent(eventType)) {
+                GameDefinitionEventDto gameDefinitionEvent;
+                try {
+                    gameDefinitionEvent = objectMapper.readValue(event.getPayload(), GameDefinitionEventDto.class);
+                } catch (Exception e) {
+                    log.warn("Catch-up: skipping game-definition event [{}] due to malformed payload: {}", eventId, e.getMessage());
+                    continue;
+                }
+
+                try {
+                    pushGameDefinitionToLocalServersPort.pushGameDefinitions(List.of(gameDefinitionEvent), server);
+                } catch (Exception e) {
+                    // Best-effort: a failing push for one event must NOT abort the rest.
+                    log.error("Catch-up: failed to push game-definition event [{}] (type={}) to building={}: {}",
+                            eventId, eventType, serverId, e.getMessage(), e);
+                    continue;
+                }
+
+                if (replicationProgressRepository.existsByEventIdAndServerId(eventId, serverId)) {
+                    log.info("Catch-up: replication_progress already present (pre-check) for game-definition eventId={}, building={}", eventId, serverId);
+                } else {
+                    try {
+                        replicationProgressRepository.save(new ReplicationProgress(eventId, serverId));
+                        pushed++;
+                    } catch (DataIntegrityViolationException dup) {
+                        log.info("Catch-up: replication_progress already present for game-definition eventId={}, building={} — treating as success",
+                                eventId, serverId);
+                    }
+                }
                 continue;
             }
 
@@ -173,8 +257,17 @@ public class LateRegistrationCatchUpService {
             log.info("Catch-up: nothing pushed to newly-registered server building={} (all already replicated, malformed, or poison)",
                     serverId);
         } else {
-            log.info("Catch-up: pushed {} user records to newly-registered server building={} ({} already replicated)",
+            log.info("Catch-up: pushed {} records to newly-registered server building={} ({} already replicated)",
                     pushed, serverId, skipped);
         }
+    }
+
+    private static boolean isMetadataEvent(String eventType) {
+        return "LOCAL_ADMIN_BUILDING_ASSIGNED".equals(eventType)
+                || "LOCAL_ADMIN_BUILDING_REVOKED".equals(eventType);
+    }
+
+    private static boolean isGameDefinitionEvent(String eventType) {
+        return "GAME_DEFINITION_UPSERTED".equals(eventType);
     }
 }

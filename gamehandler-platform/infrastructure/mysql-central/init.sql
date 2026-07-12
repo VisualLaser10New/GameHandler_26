@@ -84,3 +84,82 @@ CREATE TABLE replication_progress (
     server_id VARCHAR(50)  NOT NULL,
     UNIQUE KEY uk_replication_event_server (event_id, server_id)
 );
+
+-- =============== FASE 0 — Migrazione ruoli legacy ===============
+-- Mappa i letterali legacy nei record preesistenti (no-op su DB vergini).
+-- Si usano UPDATE exact-match per evitare il bug di REPLACE che trasformerebbe
+-- "PLATFORM_ADMIN" in "PLATFORM_PLATFORM_ADMIN" (la stringa contiene "ADMIN").
+UPDATE users SET roles = 'PLAYER'          WHERE roles = 'USER';
+UPDATE users SET roles = 'PLATFORM_ADMIN'  WHERE roles = 'ADMIN';
+UPDATE users SET roles = 'PLAYER,PLATFORM_ADMIN' WHERE roles = 'USER,ADMIN';
+UPDATE users SET roles = 'PLAYER,PLATFORM_ADMIN' WHERE roles = 'ADMIN,USER';
+UPDATE users SET roles = 'ROLE_PLAYER'     WHERE roles = 'ROLE_USER';
+UPDATE users SET roles = 'ROLE_PLATFORM_ADMIN' WHERE roles = 'ROLE_ADMIN';
+
+-- =============== FASE 1 — Local Admin ↔ Building binding ===============
+-- Bind amministratore locale <-> edificio (Source of Truth centrale).
+-- Replicato ai Local Server via outbox events LOCAL_ADMIN_BUILDING_ASSIGNED/REVOKED.
+CREATE TABLE IF NOT EXISTS local_admin_buildings (
+    user_id     VARCHAR(36)  NOT NULL,
+    building_id VARCHAR(100) NOT NULL,
+    assigned_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, building_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- =============== FASE 2 — Game Definitions (GAME_ADMIN) ===============
+-- Definizioni di gioco configurabili (gestite da GAME_ADMIN). Source of truth
+-- replicata ai Local via outbox GAME_DEFINITION_UPSERTED (vedi FASE 2 §1.5
+-- del PIANO_UTENTI_TORNEI.md). PK su game_type (enum shared-domain).
+CREATE TABLE IF NOT EXISTS game_definitions (
+    game_type           VARCHAR(50)  NOT NULL,
+    name                VARCHAR(200) NOT NULL,
+    min_players         INT          NOT NULL DEFAULT 1,
+    max_players         INT          NOT NULL DEFAULT 1,
+    team_allowed        BOOLEAN      NOT NULL DEFAULT FALSE,
+    registration_rules  JSON         NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (game_type)
+) ENGINE=InnoDB;
+
+-- Seed iniziale allineato al GameType enum esistente
+INSERT INTO game_definitions (game_type, name, min_players, max_players, team_allowed) VALUES
+  ('CHESS','Scacchi',2,2,FALSE),
+  ('FOOSBALL','Calciobalilla',2,4,TRUE),
+  ('DARTS','Freccette',1,4,TRUE),
+  ('MONOPOLY','Monopoli',2,6,TRUE),
+  ('RISK','Rischio',2,6,TRUE),
+  ('SLOT_MACHINE','Slot Machine',1,1,FALSE),
+  ('ROULETTE','Roulette',1,20,TRUE)
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+-- =============== FASE 3 — Statistiche del Giocatore ===============
+-- Read-model per-giocatore popolato dal SyncEventProcessor consumando i
+-- GAME_SESSION_COMPLETED arricchiti (PIANO_UTENTI_TORNEI.md §2). Nessun seed:
+-- le tabelle si popolano a runtime. `tournament_id` resta NULL in FASE 3 (sarà
+-- valorizzato in FASE 6 quando le sessioni saranno legate ai match di torneo).
+
+-- Fatto per singola partita giocata da un utente
+CREATE TABLE IF NOT EXISTS player_match_facts (
+    session_id   VARCHAR(36)  NOT NULL,
+    user_id      VARCHAR(36)  NOT NULL,
+    building_id  VARCHAR(100) NOT NULL,
+    game_type    VARCHAR(50)  NOT NULL,
+    tournament_id VARCHAR(36) NULL,
+    won          BOOLEAN      NOT NULL,
+    win_condition VARCHAR(30) NULL,
+    ended_at     TIMESTAMP    NOT NULL,
+    PRIMARY KEY (session_id, user_id),
+    INDEX idx_user (user_id, ended_at)
+) ENGINE=InnoDB;
+
+-- Proiezione aggregata per giocatore e tipo di gioco
+CREATE TABLE IF NOT EXISTS player_statistics (
+    user_id         VARCHAR(36) NOT NULL,
+    game_type       VARCHAR(50) NOT NULL,
+    matches_played  INT NOT NULL DEFAULT 0,
+    matches_won     INT NOT NULL DEFAULT 0,
+    last_played_at  TIMESTAMP NULL,
+    PRIMARY KEY (user_id, game_type)
+) ENGINE=InnoDB;

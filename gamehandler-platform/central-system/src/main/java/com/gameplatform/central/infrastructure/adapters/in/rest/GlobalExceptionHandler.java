@@ -1,6 +1,9 @@
 package com.gameplatform.central.infrastructure.adapters.in.rest;
 
+import com.gameplatform.central.domain.exception.GameDefinitionNotFoundException;
 import com.gameplatform.central.domain.exception.InvalidCredentialsException;
+import com.gameplatform.central.domain.exception.InvalidGameDefinitionException;
+import com.gameplatform.central.domain.exception.PlayerStatisticsAccessDeniedException;
 import com.gameplatform.central.domain.exception.RateLimitExceededException;
 import com.gameplatform.central.domain.exception.UserAlreadyExistsException;
 import com.gameplatform.central.domain.exception.UserNotFoundException;
@@ -29,6 +32,9 @@ import java.util.stream.Collectors;
  *   <li>{@link RateLimitExceededException}  → 429 Too Many Requests</li>
  *   <li>{@link MethodArgumentNotValidException} → 400 Bad Request (Bean Validation)</li>
  *   <li>{@link IllegalArgumentException}    → 400 Bad Request</li>
+ *   <li>{@link InvalidGameDefinitionException}  → 400 Bad Request</li>
+ *   <li>{@link GameDefinitionNotFoundException} → 404 Not Found</li>
+ *   <li>{@link PlayerStatisticsAccessDeniedException} → 403 Forbidden</li>
  * </ul>
  */
 @RestControllerAdvice
@@ -67,6 +73,18 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", ex.getMessage()));
     }
 
+    /**
+     * Handles {@link InvalidGameDefinitionException} thrown when an upsert
+     * request carries an invalid (null) game definition.
+     */
+    @ExceptionHandler(InvalidGameDefinitionException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidGameDefinition(InvalidGameDefinitionException ex) {
+        log.warn("Invalid game definition: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", ex.getMessage()));
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // 401 Unauthorized
     // ──────────────────────────────────────────────────────────────────────────
@@ -88,6 +106,35 @@ public class GlobalExceptionHandler {
         log.debug("User not found: {}", ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", ex.getMessage()));
+    }
+
+    /**
+     * Handles {@link GameDefinitionNotFoundException} thrown when a requested
+     * game definition does not exist in the central Source-of-Truth.
+     */
+    @ExceptionHandler(GameDefinitionNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleGameDefinitionNotFound(GameDefinitionNotFoundException ex) {
+        log.warn("Game definition not found: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", ex.getMessage()));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 403 Forbidden
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Handles {@link PlayerStatisticsAccessDeniedException} thrown when a
+     * caller requests another player's statistics without being a
+     * {@code PLATFORM_ADMIN} or the player themselves (FASE 3).
+     */
+    @ExceptionHandler(PlayerStatisticsAccessDeniedException.class)
+    public ResponseEntity<Map<String, String>> handlePlayerStatisticsAccessDenied(PlayerStatisticsAccessDeniedException ex) {
+        log.warn("Player statistics access denied: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
                 .body(Map.of("error", ex.getMessage()));
     }
 

@@ -11,6 +11,7 @@ import com.gameplatform.central.domain.ports.out.ProcessedEventRepository;
 import com.gameplatform.central.domain.ports.out.StatisticsRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import com.gameplatform.shared.domain.model.GameType;
+import com.gameplatform.shared.domain.model.WinCondition;
 import com.gameplatform.shared.dto.OutboxEventDto;
 import com.gameplatform.shared.dto.UserRegisteredEventDto;
 import jakarta.persistence.EntityManager;
@@ -27,6 +28,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,6 +55,16 @@ public class SyncEventProcessor {
     private final Clock clock;
     private final StatisticsFirstBucketRaceRetryHelper retryHelper;
 
+    /**
+     * FASE 3 player read-model projection. May be {@code null} (the backward-compat
+     * constructors used by existing unit tests pass {@code null}); when it is, the
+     * {@code GAME_SESSION_COMPLETED} branch skips the player read-model update,
+     * keeping the historical (FASE 0/1/2) behaviour byte-identical. In production
+     * Spring injects a real {@link PlayerStatisticsProjectionService} via the
+     * {@code @Autowired} constructor below.
+     */
+    private final PlayerStatisticsProjectionService playerStatisticsProjection;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -61,13 +74,25 @@ public class SyncEventProcessor {
                               RegisterUserFromSyncUseCase registerUserFromSyncUseCase,
                               ObjectMapper objectMapper,
                               Clock clock,
-                              StatisticsFirstBucketRaceRetryHelper retryHelper) {
+                              StatisticsFirstBucketRaceRetryHelper retryHelper,
+                              PlayerStatisticsProjectionService playerStatisticsProjection) {
         this.processedEventRepository = processedEventRepository;
         this.statisticsRepository = statisticsRepository;
         this.registerUserFromSyncUseCase = registerUserFromSyncUseCase;
         this.objectMapper = objectMapper;
         this.clock = clock;
         this.retryHelper = retryHelper;
+        this.playerStatisticsProjection = playerStatisticsProjection;
+    }
+
+    SyncEventProcessor(ProcessedEventRepository processedEventRepository,
+                       StatisticsRepository statisticsRepository,
+                       RegisterUserFromSyncUseCase registerUserFromSyncUseCase,
+                       ObjectMapper objectMapper,
+                       Clock clock,
+                       StatisticsFirstBucketRaceRetryHelper retryHelper) {
+        this(processedEventRepository, statisticsRepository,
+                registerUserFromSyncUseCase, objectMapper, clock, retryHelper, null);
     }
 
     SyncEventProcessor(ProcessedEventRepository processedEventRepository,
@@ -144,6 +169,16 @@ public class SyncEventProcessor {
             Optional<Integer> durationSecondsOpt = extractDuration(payloadNode, eventDto.eventId());
             int durationSeconds = durationSecondsOpt.orElse(0);
             updateSessionStats(buildingId, gameType, periodStart, durationSeconds, eventDto.eventId());
+
+            // FASE 3 — player read-model projection (participants + winnerId are
+            // added to the payload by the Local GameSessionService.end). Guarded so
+            // existing unit tests that construct this processor without a projection
+            // (null) keep the historical behaviour; and so a payload that pre-dates
+            // the enriched fields (no participants) is silently skipped without
+            // affecting the aggregated_statistics update above.
+            if (playerStatisticsProjection != null) {
+                projectPlayerStatistics(buildingId, gameType, payloadNode, occurredAt, eventDto.eventId());
+            }
             return true;
 
         } else if ("GAME_SESSION_ABORTED".equals(eventDto.eventType())) {
@@ -258,6 +293,74 @@ public class SyncEventProcessor {
 
     private static boolean isUsableInt(JsonNode n) {
         return n != null && !n.isNull() && n.isNumber() && n.canConvertToInt();
+    }
+
+    /**
+     * FASE 3 — projects a {@code GAME_SESSION_COMPLETED} event into the
+     * per-player read-models via {@link PlayerStatisticsProjectionService}.
+     *
+     * <p>Defensive parsing: a payload missing {@code sessionId} or
+     * {@code participants} (e.g. an event emitted by a Local Server that has not
+     * yet been upgraded with the enriched &sect;2.2 fields) is skipped with a log
+     * line and does <strong>not</strong> throw, so the aggregated-statistics
+     * update that already ran in this transaction is preserved. Only genuine
+     * persistence failures propagate (and roll back the whole transaction, per
+     * poison-isolation), which keeps {@code player_match_facts} /
+     * {@code player_statistics} atomic with each other.</p>
+     */
+    private void projectPlayerStatistics(BuildingId buildingId, GameType gameType,
+                                         JsonNode payloadNode, Instant endedAt, String eventId) {
+        String sessionId = payloadNode.has("sessionId") ? payloadNode.get("sessionId").asText() : null;
+        if (sessionId == null || sessionId.isBlank()) {
+            log.warn("Sync event [{}] GAME_SESSION_COMPLETED missing 'sessionId' – skipping player read-model projection.", eventId);
+            return;
+        }
+        List<String> participants = parseParticipants(payloadNode);
+        if (participants.isEmpty()) {
+            log.debug("Sync event [{}] GAME_SESSION_COMPLETED carries no participants – skipping player read-model projection.", eventId);
+            return;
+        }
+        String winnerId = (payloadNode.has("winnerId") && !payloadNode.get("winnerId").isNull())
+                ? payloadNode.get("winnerId").asText() : null;
+        WinCondition winCondition = parseWinCondition(payloadNode, eventId);
+        playerStatisticsProjection.onGameSessionCompleted(
+                buildingId, gameType, sessionId, participants, winnerId, winCondition, endedAt);
+    }
+
+    private static List<String> parseParticipants(JsonNode payloadNode) {
+        if (!payloadNode.has("participants")) {
+            return List.of();
+        }
+        JsonNode node = payloadNode.get("participants");
+        if (node == null || node.isNull() || !node.isArray() || node.isEmpty()) {
+            return List.of();
+        }
+        List<String> participants = new ArrayList<>();
+        for (JsonNode elem : node) {
+            if (elem != null && !elem.isNull()) {
+                String uid = elem.asText();
+                if (uid != null && !uid.isBlank()) {
+                    participants.add(uid);
+                }
+            }
+        }
+        return participants;
+    }
+
+    private WinCondition parseWinCondition(JsonNode payloadNode, String eventId) {
+        if (!payloadNode.has("winCondition") || payloadNode.get("winCondition").isNull()) {
+            return null;
+        }
+        String wcStr = payloadNode.get("winCondition").asText();
+        if (wcStr == null || wcStr.isBlank()) {
+            return null;
+        }
+        try {
+            return WinCondition.valueOf(wcStr);
+        } catch (IllegalArgumentException e) {
+            log.warn("Sync event [{}] has unrecognised winCondition '{}' – storing null on the player match fact.", eventId, wcStr);
+            return null;
+        }
     }
 
     /**

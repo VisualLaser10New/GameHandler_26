@@ -6,6 +6,7 @@ import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.GameSessionId;
 import com.gameplatform.shared.domain.model.GameStatus;
 import com.gameplatform.shared.domain.model.GameType;
+import com.gameplatform.shared.domain.model.UserId;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,4 +18,11 @@ public interface GameSessionRepository {
     List<GameSession> findByStatus(GameStatus status);
     List<GameSession> findPendingSync();
     Optional<GameSession> findActiveByGameId(GameId gameId);
+
+    /**
+     * FASE 3 — all sessions in which the given user participated (any status),
+     * used by {@code StatisticsService.getPlayerStatistics} to compute the
+     * player's local statistics on-demand.
+     */
+    List<GameSession> findByParticipant(UserId userId);
 }

@@ -98,13 +98,144 @@
 
 #### RF-AU-05 — RBAC (Role-Based Access Control)
 - **Priorità:** M
-- **Stato:** ✅ Implementato e documentato
-- **Descrizione:** Il sistema implementa due ruoli: `ROLE_USER` (utente normale) e `ROLE_ADMIN` (amministratore). I ruoli sono codificati nel JWT e verificati da Spring Security.
-- **Fonte:** `[SecurityConfig.java]`, `[JwtAuthenticationFilter.java]`
+- **Stato:** ✅ Implementato e documentato (FASE 0: migrazione a 4 ruoli canonici)
+- **Descrizione:** Il sistema implementa quattro ruoli canonici: `PLAYER` (utente normale), `LOCAL_ADMIN` (amministratore del locale), `GAME_ADMIN` (amministratore del gioco), `PLATFORM_ADMIN` (amministratore della piattaforma). I ruoli sono codificati nel JWT come claim `roles` e verificati da Spring Security. Una finestra di compatibilità (in `JwtAuthenticationFilter`/`JwtTokenValidator` via `Role.toAuthorityNames`) riconosce i letterali legacy `USER`→`PLAYER` e `ADMIN`→`PLATFORM_ADMIN` per i token emessi prima della migrazione.
+- **Fonte:** `[SecurityConfig.java]`, `[JwtAuthenticationFilter.java]`, `[Role.java]` (shared-domain)
 - **Criteri di accettazione:**
   - Le API `/internal/**` sono protette da API Key (`X-Internal-Api-Key`), non da JWT.
-  - Le API `/api/statistics` del Central System richiedono `ROLE_ADMIN`.
-  - Le API di prenotazione e sessione richiedono `ROLE_USER`.
+  - Le API `/api/statistics` del Central System richiedono `ROLE_PLATFORM_ADMIN`.
+  - Le API di prenotazione e sessione (Local Server) richiedono `ROLE_PLAYER`.
+  - La registrazione ( Central `UserService.register` / Local `LocalSignupService.register` ) assegna il ruolo `PLAYER` di default.
+
+---
+
+### 1.1.bis Modulo: Amministratore del Locale (FASE 1)
+
+#### RF-UT-LA-01 — Gestione del catalogo giochi del building
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 1)
+- **Descrizione:** Un `LOCAL_ADMIN` assegnato a un building può gestire i giochi nel `game_catalog` del proprio building: aggiungere un gioco (validando il `gameType` contro l'enum `GameType` condiviso), modificarne nome e/o stato (`AVAILABLE` ↔ `MAINTENANCE`), e rimuoverlo (vietato se `IN_USE`).
+- **API:** `POST /api/admin/local/games`, `PUT /api/admin/local/games/{gameId}`, `DELETE /api/admin/local/games/{gameId}` (Local Server, richiedono `ROLE_LOCAL_ADMIN`)
+- **Fonte:** `[AdminLocalController.java]`, `[GameCatalogService.java]`, `[Game.java]` (metodo `rename`), `[GameRepository.deleteById]`
+- **Criteri di accettazione:**
+  - Ogni endpoint verifica via `LocalAdminBuildingAuthorizationManager` che l'utente autenticato sia bound al building del Local Server (`app.building-id`); in caso contrario → `BuildingNotRegisteredToAdminException` → HTTP 403.
+  - `POST /games` valida `gameType` con `GameType.valueOf(...)` (FASE 2 rafforzerà la validazione contro `game_definitions_local`).
+  - `PUT /games/{gameId}` applica `Game.rename(newName)` (campo `name` reso non-`final`) + transizione di stato via macchina esistente (`setMaintenance()`/`release()`); almeno uno tra nome e stato deve essere fornito.
+  - `DELETE /games/{gameId}` rifiuta se il gioco è `IN_USE` (`GameNotAvailableException`).
+
+#### RF-UT-LA-02 — Monitoraggio sessioni in corso nel building
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 1)
+- **Descrizione:** Un `LOCAL_ADMIN` può elencare i dispositivi del proprio building (con stato) e le sessioni di gioco attive (stato `IN_PROGRESS`) in quello stesso building.
+- **API:** `GET /api/admin/local/devices`, `GET /api/admin/local/sessions/active` (Local Server, richiedono `ROLE_LOCAL_ADMIN`)
+- **Fonte:** `[AdminLocalController.java]`, `[GameStateService.getByBuilding]`, `[StatisticsService.getActiveSessionsByBuilding]`
+- **Criteri di accettazione:**
+  - `GET /devices` restituisce `List<GameStateDto>` dei giochi del building (`gameRepository.findByBuildingId`).
+  - `GET /sessions/active` restituisce `List<GameSessionDto>` delle sessioni `IN_PROGRESS` del building.
+  - Enforce building-binding come RF-UT-LA-01.
+
+#### RF-UT-LA-03 — Statistiche aggregate del building
+- **Priorità:** S
+- **Stato:** ✅ Implementato e documentato (FASE 1)
+- **Descrizione:** Un `LOCAL_ADMIN` può consultare le statistiche aggregate di utilizzo (per `GameType`) del proprio building.
+- **API:** `GET /api/admin/local/statistics?gameType=…` (Local Server, richiede `ROLE_LOCAL_ADMIN`)
+- **Fonte:** `[AdminLocalController.java]`, `[StatisticsService.getStatisticsForBuilding]`
+- **Criteri di accettazione:**
+  - Il parametro `gameType` è obbligatorio; blank → HTTP 400.
+  - Calcolo building-scoped: `gameRepository.findByBuildingId` filter per `gameType`, `reservationRepository.countByGameIds`, `gameSessionRepository.findByBuildingId` filter per `gameType` → `LocalStatistics.recalculate`.
+  - Enforce building-binding come RF-UT-LA-01.
+
+#### RF-UT-LA-04 — Enforcement offline del binding LOCAL_ADMIN ↔ building
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 1)
+- **Descrizione:** Il binding `LOCAL_ADMIN`↔building è Source of Truth sul Central (`local_admin_buildings`), replicato ai Local Server via outbox (`LOCAL_ADMIN_BUILDING_ASSIGNED`/`_REVOKED`) e disponibile offline per l'enforcement. La replica è idempotente per PK composita `(user_id, building_id)`.
+- **API (Central, `PLATFORM_ADMIN`):** `POST /api/admin/local/buildings` (assign), `DELETE /api/admin/local/buildings` (revoke), `GET /api/admin/local/buildings?userId=…` (lista).
+- **API (Local, internal):** `PUT /internal/metadata/sync` (riceve batch di `LocalAdminBuildingEventDto`), gated da `X-Internal-Api-Key`.
+- **Fonte:** `[LocalAdminBuildingService.java]`, `[LocalAdminController.java]` (central); `[LocalAdminBuildingSyncService.java]`, `[InternalMetadataController.java]`, `[LocalAdminBuildingAuthorizationManager.java]` (local); `[UserReplicationSchedulerService.java]` + `[LocalMetadataRestAdapter.java]` (replica Central→Local).
+- **Criteri di accettazione:**
+  - Il `PLATFORM_ADMIN` assegna/revoca building a un `LOCAL_ADMIN`; ogni operazione scrive un evento outbox `LOCAL_ADMIN_BUILDING_ASSIGNED`/`_REVOKED` atomicamente con il cambiamento del binding.
+  - `UserReplicationSchedulerService` (esteso in FASE 1) drena anche gli eventi metadata e li pusha a tutti i Local attivi via `LocalMetadataRestAdapter` (`PUT /internal/metadata/sync`, header `X-Internal-Api-Key`); tracciamento via `replication_progress` (id outbox).
+  - `LateRegistrationCatchUpService` (esteso) replica i binding ai Local registrati/riattivati dopo la pubblicazione.
+  - Il Local applica ASSIGNED come upsert su `local_admin_buildings_local` e REVOKED come delete per PK; entrambi idempotenti.
+  - `LocalAdminBuildingAuthorizationManager.canManageBuilding(Authentication)` consulta `local_admin_buildings_local` (lookup `userId` via `userRepository.findByUsername`) per verificare che l'admin sia bound a `app.building-id`.
+
+---
+
+### 1.1.ter Modulo: Amministratore del Gioco (FASE 2)
+
+#### RF-UT-GA-01 — Definizione delle tipologie di gioco configurabili
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 2)
+- **Descrizione:** Un `GAME_ADMIN` può definire nuove tipologie di gioco (o aggiornarne una esistente) tramite il Source of Truth centrale `game_definitions`. Ogni definizione è identificata dal `gameType` (PK) e trasporta `name`, limiti di giocatori (`min_players`/`max_players`), flag `team_allowed` e opzionali `registration_rules` (documento JSON arbitrario). Lo schema è inizializzato con seed iniziale allineato all'enum `GameType` (CHESS, FOOSBALL, DARTS, MONOPOLY, RISK, SLOT_MACHINE, ROULETTE).
+- **API:** `POST /api/admin/games/definitions` (upsert), `PUT /api/admin/games/definitions/{gameType}` (upsert con coerenza path/body), `GET /api/admin/games/definitions` (lista, solo lettura) — Central System.
+- **Ruoli:** `POST`/`PUT` richiedono `ROLE_GAME_ADMIN` (`@PreAuthorize("hasRole('GAME_ADMIN')")` a livello di metodo); `GET` è `authenticated` (default per `/api/**` in `SecurityConfig`).
+- **Fonte:** `[GameAdminController.java]`, `[GameDefinitionService.java]`, `[UpsertGameDefinitionUseCase.java]`, `[ListGameDefinitionsUseCase.java]`, `[GameDefinition.java]`, `[GameDefinitionRepository.java]`, `[GameDefinitionJpaEntity.java]`, `[GameDefinitionRepositoryAdapter.java]`, `[GameDefinitionMapper.java]`, `[infrastructure/mysql-central/init.sql]` (tabella + seed §FASE 2)
+- **Criteri di accettazione:**
+  - Il body della richiesta è `UpsertGameDefinitionRequestDto` con validazione Jakarta: `gameType @NotNull`, `name @NotBlank`, `minPlayers/maxPlayers @Min(1) @Max(100)`. Il cross-check `minPlayers <= maxPlayers` è enforced nel costruttore del modello di dominio `GameDefinition` (`IllegalArgumentException` → 400 via `GlobalExceptionHandler`).
+  - `PUT /definitions/{gameType}` valida che il `gameType` del path coincida con quello del body, altrimenti 400.
+  - Le nuove definizioni sono create (upsert) e la precedente `createdAt` è preservata sugli aggiornamenti; `updatedAt` è refreshato via `Clock`.
+  - La scrittura del `GameDefinition` e l'evento outbox `GAME_DEFINITION_UPSERTED` sono persistenti nella **stessa transazione atomica** (`@Transactional` class-level su `GameDefinitionService`).
+  - La tabella `game_definitions` è idempotente (PK `game_type`); il seed usa `INSERT ... ON DUPLICATE KEY UPDATE name = VALUES(name)`.
+
+#### RF-UT-GA-02 — Configurazione delle regole di registrazione partita
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 2 — parte di RF-UT-GA-01)
+- **Descrizione:** Il `GAME_ADMIN` configura i vincoli di registrazione delle partite per ogni tipo di gioco: `min_players`, `max_players`, `team_allowed`, e `registration_rules` (JSON opzionale). Le regole sono replicate ai Local Server per validazione offline (`POST /games` di `AdminLocalController` e `GameSessionService.start`).
+- **API:** Stesso endpoint di RF-UT-GA-01 (`POST/PUT /api/admin/games/definitions`).
+- **Fonte:** `[GameDefinitionService.java]`, `[GameSessionService.start]` (validazione vs `game_definitions_local`), `[AdminLocalController.createGame]` (validazione `existsByGameType`)
+- **Criteri di accettazione:**
+  - `GameSessionService.start` legge da `gameDefinitionLocalRepository.findByGameType(gameType)`; se presente usa `getMinPlayers()/getMaxPlayers()` per il bound check; assente → fallback a `GameFactory.createGame(...).getMin/MaxPlayers()` per offline-first resilience (preserva il comportamento FASE 1). `team_allowed` è rinviata al contesto torneo (FASE 6).
+  - L'eccezione violazione bound resta `IllegalArgumentException` per non rompere il contratto preesistente dei test.
+  - `AdminLocalController POST /games` rafforza la validazione FASE 1 (decisione §10.2 C1): dopo `GameType.valueOf(...)` (enum) chiama `gameDefinitionLocalRepository.existsByGameType(gameType)`; assente → `GameDefinitionNotAvailableLocallyException` → HTTP 400.
+
+#### RF-UT-GA-03 — Replica delle `game_definitions` ai Local per validazione offline
+- **Priorità:** S
+- **Stato:** ✅ Implementato e documentato (FASE 2)
+- **Descrizione:** Le `game_definitions` del Central sono replicate ai Local Server come tabella read-only `game_definitions_local` via outbox events `GAME_DEFINITION_UPSERTED`. La replica è idempotente per PK `game_type` (upsert) e avviene sullo stesso path del pipeline metadata FASE 1 (estensione di `UserReplicationSchedulerService` e `LateRegistrationCatchUpService`), ma su endpoint dedicato `/internal/metadata/game-definitions/sync` per preservare firme preesistenti.
+- **API (Local, internal):** `PUT /internal/metadata/game-definitions/sync` (riceve `List<GameDefinitionEventDto>`), gated da `X-Internal-Api-Key` (`InternalApiKeyFilter` su tutti i path `/internal/**`).
+- **Fonte:** `[GameDefinitionService.writeOutboxEvent]` (producer), `[GameDefinitionEventDto.java]` (payload, eventId UUID condiviso con `OutboxEvent.id`), `[UserReplicationSchedulerService.replicateGameDefinitionEvent]`, `[LateRegistrationCatchUpService]` (catch-up per Local registrati/riattivati), `[PushGameDefinitionToLocalServersPort]`, `[LocalGameDefinitionRestAdapter]` (REST adapter twin di `LocalMetadataRestAdapter`), `[GameDefinitionSyncService.applyEvents]`, `[InternalGameDefinitionSyncController.java]`, `[infrastructure/mysql-local/init.sql]` (+ `init-building-2.sql`/`init-building-3.sql`, tabella `game_definitions_local`)
+- **Criteri di accettazione:**
+  - Il producer creava un evento outbox `${eventId UUID random}` condiviso tra `OutboxEvent.id` (PK) e `GameDefinitionEventDto.eventId` (per tracciamento `replication_progress`); payload JSON porta lo snapshot completo della definizione.
+  - `UserReplicationSchedulerService.replicateUsers()` è esteso con branch `isGameDefinitionEvent(event)` → `replicateGameDefinitionEvent(event, activeLocalServers)` parallelo al branch metadata FASE 1; tracciamento via `replication_progress`; `markAsSent` solo quando tutti i Local attivi hanno acked (no poison isolation — idempotente per PK).
+  - `LateRegistrationCatchUpService.catchUpNewlyRegisteredServer(server)` è esteso: `REPLICATION_EVENT_TYPES` include `GAME_DEFINITION_UPSERTED`; replay best-effort parallel al branch metadata FASE 1.
+  - Il Local applica l'evento come upsert su `game_definitions_local` per PK `game_type`; re-delivery idempotente (stesso stato finale).
+  - `GameDefinitionLocalRepositoryAdapter`/`Mapper`/`JpaEntity` replicano struttura del FASE 1.
+
+---
+
+### 1.1.quater Modulo: Statistiche del Giocatore (FASE 3)
+
+#### RF-UT-PL-01 — Consultazione statistiche globali del giocatore
+- **Priorità:** M
+- **Stato:** ✅ Implementato e documentato (FASE 3)
+- **Descrizione:** Un `PLAYER` può consultare le proprie statistiche globali (per `GameType`) sul Central System, source of truth globale. Le statistiche sono aggregate in un read-model per-giocatore (`player_match_facts` + `player_statistics`) popolato dal `SyncEventProcessor` consumando gli eventi outbox `GAME_SESSION_COMPLETED` arricchiti (con `participants` + `winnerId` + `winCondition` espliciti). Un `PLATFORM_ADMIN` può consultare le statistiche di qualsiasi utente.
+- **API:** `GET /api/players/me/statistics` (richiede `ROLE_PLAYER`, `?gameType=` opzionale), `GET /api/players/{userId}/statistics` (richiede `ROLE_PLATFORM_ADMIN` o self-check `userId == current`).
+- **Fonte:** `[PlayerStatisticsController.java]` (central), `[PlayerStatisticsService.java]`, `[GetPlayerStatisticsUseCase.java]`, `[PlayerStatistics.java]`, `[PlayerMatchFact.java]`, `[PlayerMatchFactRepository.java]`, `[PlayerStatisticsRepository.java]`, `[PlayerStatisticsProjectionService.java]`, `[SyncEventProcessor.handleGameSessionCompleted]` (proiezione), `[CurrentUserService.java]`, `[PlayerStatisticsAccessDeniedException.java]`, `[PlayerStatisticsDto.java]` (shared-dto), `init.sql` (central — tabelle `player_match_facts`/`player_statistics`)
+- **Criteri di accettazione:**
+  - Il `SyncEventProcessor` (Central) consuma l'evento `GAME_SESSION_COMPLETED`, ne estrae `participants`/`winnerId`/`winCondition`/`sessionId`/`buildingId`/`gameType`/`endedAt` e scrive un `PlayerMatchFact` per ogni partecipante (idempotente via PK composita `(session_id, user_id)` + `saveIfAbsent`) e incrementa atomicamente `PlayerStatistics` per `(userId, gameType)`.
+  - L'incremento di `player_statistics` usa `@Lock(PESSIMISTIC_WRITE)` (`findByUserIdAndGameTypeForUpdate`) per race protection; il retry same-tx gestisce il first-bucket duplicate via `em.clear()` + re-find-locked + merge (no avvelenamento tx chiamante).
+  - La proiezione gira nella tx `REQUIRES_NEW` di `SyncEventProcessor.processOne` (atomicità: fact insert + counter increment committano insieme).
+  - `GET /me/statistics` estrae `userId` dal principal via `CurrentUserService` (username → `UserRepository.findByUsername`, mirroring FASE 1 `LocalAdminBuildingAuthorizationManager`).
+  - `GET /{userId}/statistics` autorizza: `PLATFORM_ADMIN` OR `userId == current`; altrimenti → `PlayerStatisticsAccessDeniedException` → HTTP 403.
+  - Un giocatore senza match → lista vuota (non eccezione): `matchesPlayed == 0` è rappresentato dall'assenza di righe in `player_statistics`.
+  - Il filtro `?gameType=` è opzionale (case-insensitive, `GameType.valueOf`); unknown gameType → 400.
+
+#### RF-UT-PL-02 — Consultazione statistiche locali del giocatore
+- **Priorità:** S
+- **Stato:** ✅ Implementato e documentato (FASE 3)
+- **Descrizione:** Un `PLAYER` può consultare le proprie statistiche locali (per `GameType`) sul Local Server. Le statistiche sono calcolate on-demand dalle tabelle locali `game_sessions`+`session_participants` esistenti — nessuna nuova tabella locale e nessun sync aggiuntivo richiesto (PIANO §2.1: replica offline Could-Have via computazione on-demand).
+- **API:** `GET /api/players/me/statistics` (Local Server, richiede `ROLE_PLAYER`, `?gameType=` opzionale)
+- **Fonte:** `[PlayerStatisticsController.java]` (local), `[StatisticsService.getPlayerStatistics]`, `[GetPlayerStatisticsUseCase.java]` (local), `[GameSessionRepository.findByParticipant]`, `[CurrentUserService.java]` (local)
+- **Criteri di accettazione:**
+  - L'aggregazione conta solo sessioni con `status == COMPLETED` (coerente con il read-model centrale, popolato solo da `GAME_SESSION_COMPLETED`).
+  - `matchesPlayed` = numero di sessioni `COMPLETED` in cui l'utente è partecipante; `matchesWon` = sessioni in cui `winnerId == userId`; `lastPlayedAt` = `endedAt` più recente.
+  - Se l'utente autenticato non è replicato localmente → lista vuota (offline-first: nessun match locale possibile).
+  - Il filtro `?gameType=` è applicato post-aggregazione; unknown gameType → 400.
+
+#### RF-SE-02 — Termine Sessione (aggiornamento FASE 3)
+- **Stato:** ✅ Implementato e documentato (FASE 3: payload arricchito)
+- **Criteri di accettazione (aggiornamento):**
+  - L'evento outbox `GAME_SESSION_COMPLETED` emesso da `GameSessionService.end` (Local) ora include esplicitamente `participants: List<String>` (user id values), `winnerId: String` (null per draw), `winCondition: String` (null se assente) — oltre a `resultData` che già li contiene. I nuovi campi sono purely additive (payload resta JSON String); facilitano il processing Central-side nel `SyncEventProcessor` senza re-parsing del JSON polimorfico di `GameResult`.
 
 ---
 
@@ -472,34 +603,51 @@ building/{buildingId}/alerts                       QoS 1
 
 ### RI-02 — API REST Central System
 
-| Endpoint                 | Metodo | Auth       | Descrizione                        |
-|--------------------------|--------|------------|------------------------------------|
-| `/api/users`             | POST   | Pubblico   | Registrazione utente               |
-| `/api/auth/login`        | POST   | Pubblico   | Login (Central)                    |
-| `/api/users/{id}`        | PUT    | ROLE_ADMIN | Aggiornamento utente               |
-| `/api/statistics`        | GET    | ROLE_ADMIN | Statistiche globali                |
-| `/internal/sync/receive` | POST   | API Key    | Ricezione sync da Local Server     |
-| `/internal/register`     | POST   | API Key    | Registrazione Local Server         |
+| Endpoint                       | Metodo | Auth                | Descrizione                                       |
+|--------------------------------|--------|---------------------|---------------------------------------------------|
+| `/api/users`                   | POST   | Pubblico            | Registrazione utente                              |
+| `/api/auth/login`              | POST   | Pubblico            | Login (Central)                                   |
+| `/api/users/{id}`              | PUT    | ROLE_PLATFORM_ADMIN | Aggiornamento utente                              |
+| `/api/statistics`              | GET    | ROLE_PLATFORM_ADMIN | Statistiche globali                               |
+| `/api/admin/local/buildings`   | POST   | ROLE_PLATFORM_ADMIN | Assegna building a un LOCAL_ADMIN (FASE 1)         |
+| `/api/admin/local/buildings`   | DELETE | ROLE_PLATFORM_ADMIN | Revoca building da un LOCAL_ADMIN (FASE 1)        |
+| `/api/admin/local/buildings`   | GET    | ROLE_PLATFORM_ADMIN | Lista building assegnati a un utente (FASE 1)      |
+| `/internal/sync/receive`       | POST   | API Key             | Ricezione sync da Local Server                    |
+| `/internal/register`           | POST   | API Key             | Registrazione Local Server                        |
+| `/api/admin/games/definitions`      | POST   | ROLE_GAME_ADMIN    | Crea/aggiorna definizione di gioco (FASE 2)       |
+| `/api/admin/games/definitions/{gameType}` | PUT | ROLE_GAME_ADMIN | Aggiorna definizione di gioco esistente (FASE 2) |
+| `/api/admin/games/definitions`      | GET    | authenticated      | Lista definizioni di gioco (FASE 2)              |
+| `/api/players/me/statistics`        | GET    | ROLE_PLAYER        | Statistiche personali globali (FASE 3)           |
+| `/api/players/{userId}/statistics` | GET    | ROLE_PLATFORM_ADMIN o self | Statistiche di un giocatore (FASE 3)      |
 
 **Fonte:** `[UserController.java]`, `[AuthController.java]`, `[StatisticsController.java]`, `[SyncController.java]`
 
 ### RI-03 — API REST Local Server
 
-| Endpoint                    | Metodo | Auth      | Descrizione                      |
-|-----------------------------|--------|-----------|----------------------------------|
-| `/api/auth/login`           | POST   | Pubblico  | Login locale                     |
-| `/api/reservations`         | POST   | ROLE_USER | Crea prenotazione                |
-| `/api/reservations/{id}`    | DELETE | ROLE_USER | Cancella prenotazione            |
-| `/api/reservations`         | GET    | ROLE_USER | Lista prenotazioni               |
-| `/api/games`                | GET    | ROLE_USER | Lista giochi                     |
-| `/api/games/available`      | GET    | ROLE_USER | Giochi disponibili               |
-| `/api/sessions/start`       | POST   | ROLE_USER | Avvia sessione                   |
-| `/api/sessions/{id}/end`    | POST   | ROLE_USER | Termina sessione                 |
-| `/api/sessions/{id}/pause`  | POST   | ROLE_USER | Pausa sessione                   |
-| `/api/sessions/{id}/resume` | POST   | ROLE_USER | Riprendi sessione                |
-| `/api/statistics`           | GET    | ROLE_USER | Statistiche locali               |
-| `/internal/users/sync`      | PUT    | API Key   | Sync utenti dal Central          |
-| `/api/devices/register`     | POST   | Pubblico  | Registrazione device con CSR     |
+| Endpoint                              | Metodo | Auth             | Descrizione                                      |
+|---------------------------------------|--------|------------------|--------------------------------------------------|
+| `/api/auth/login`                     | POST   | Pubblico         | Login locale                                     |
+| `/api/reservations`                   | POST   | ROLE_PLAYER       | Crea prenotazione                                |
+| `/api/reservations/{id}`              | DELETE | ROLE_PLAYER       | Cancella prenotazione                            |
+| `/api/reservations`                   | GET    | ROLE_PLAYER       | Lista prenotazioni                               |
+| `/api/games`                          | GET    | ROLE_PLAYER       | Lista giochi                                     |
+| `/api/games/available`                | GET    | ROLE_PLAYER       | Giochi disponibili                               |
+| `/api/sessions/start`                 | POST   | ROLE_PLAYER       | Avvia sessione                                   |
+| `/api/sessions/{id}/end`              | POST   | ROLE_PLAYER       | Termina sessione                                 |
+| `/api/sessions/{id}/pause`            | POST   | ROLE_PLAYER       | Pausa sessione                                   |
+| `/api/sessions/{id}/resume`           | POST   | ROLE_PLAYER       | Riprendi sessione                                |
+| `/api/statistics`                     | GET    | ROLE_PLAYER       | Statistiche locali                              |
+| `/api/admin/local/devices`            | GET    | ROLE_LOCAL_ADMIN | Lista dispositivi del building (FASE 1)          |
+| `/api/admin/local/sessions/active`     | GET    | ROLE_LOCAL_ADMIN | Sessioni in corso nel building (FASE 1)         |
+| `/api/admin/local/statistics`          | GET    | ROLE_LOCAL_ADMIN | Statistiche aggregate del building (FASE 1)    |
+| `/api/admin/local/games`              | POST   | ROLE_LOCAL_ADMIN | Aggiungi gioco al catalogo del building (FASE 1) |
+| `/api/admin/local/games/{gameId}`     | PUT    | ROLE_LOCAL_ADMIN | Modifica nome/stato di un gioco (FASE 1)        |
+| `/api/admin/local/games/{gameId}`     | DELETE | ROLE_LOCAL_ADMIN | Rimuovi gioco dal catalogo (FASE 1)             |
+| `/internal/users/sync`                | PUT    | API Key          | Sync utenti dal Central                          |
+| `/internal/metadata/sync`            | PUT    | API Key          | Sync metadata binding LOCAL_ADMIN↔building (FASE 1) |
+| `/internal/metadata/game-definitions/sync` | PUT | API Key | Sync definizioni di gioco dal Central (FASE 2) |
+| `/api/players/me/statistics`         | GET    | ROLE_PLAYER       | Statistiche personali locali (FASE 3)            |
+| `/api/devices/register`               | POST   | Pubblico         | Registrazione device con CSR                     |
 
 ### RI-04 — Serializzazione JSON con Polimorfismo
 
@@ -524,6 +672,10 @@ building/{buildingId}/alerts                       QoS 1
 | `processed_events`      | Idempotency store per eventi di sync ricevuti                  | `event_id` UUID                                     |
 | `local_servers`         | Registro dei Local Server registrati                           | `id` UUID, UK su `building_id`                      |
 | `outbox_events`         | Coda eventi da propagare ai Local Server                       | `id` UUID                                           |
+| `local_admin_buildings` | Bind LOCAL_ADMIN ↔ building (FASE 1; replicato ai Local)        | `(user_id, building_id)`                            |
+| `game_definitions`      | Definizioni di gioco configurabili gestite da GAME_ADMIN (FASE 2; replicato ai Local) | `game_type` |
+| `player_match_facts`    | Fatto per singola partita giocata da un utente (FASE 3 read-model; popolato da `SyncEventProcessor`) | `(session_id, user_id)` |
+| `player_statistics`     | Proiezione aggregata per giocatore e tipo di gioco (FASE 3 read-model) | `(user_id, game_type)` |
 
 **Fonte:** `[infrastructure/mysql-central/init.sql]`
 
@@ -537,8 +689,10 @@ building/{buildingId}/alerts                       QoS 1
 | `game_sessions`          | Sessioni di gioco con risultati JSON                         | `id` UUID                    |
 | `session_participants`   | Partecipanti per sessione (relazione N:M)                    | `(session_id, user_id)`      |
 | `outbox_events`          | Coda eventi da sincronizzare col Central System              | `id` UUID                    |
-| `replicated_users`       | Utenti replicati dal Central per login offline               | `user_id` UUID               |
-| `local_statistics_cache` | Cache statistiche locali pre-calcolate                       | `id` UUID, UK su `(game_type, period)` |
+| `replicated_users`        | Utenti replicati dal Central per login offline               | `user_id` UUID               |
+| `local_statistics_cache`  | Cache statistiche locali pre-calcolate                       | `id` UUID, UK su `(game_type, period)` |
+| `local_admin_buildings_local` | Replica read-only binding LOCAL_ADMIN↔building (FASE 1; replicato dal Central via outbox) | `(user_id, building_id)` |
+| `game_definitions_local`  | Replica read-only delle definizioni di gioco (FASE 2; replicata dal Central via outbox `GAME_DEFINITION_UPSERTED`) | `game_type` |
 
 **Fonte:** `[infrastructure/mysql-local/init.sql]`
 
@@ -647,7 +801,16 @@ graph LR
 | RF-AU-02  | Central System               | `AuthController.java`, `AuthService.java`, `JwtTokenProvider.java`   | ✅              |
 | RF-AU-03  | Local Server                 | `LocalAuthService.java`, `replicated_users` (local)                  | ✅              |
 | RF-AU-04  | Central System               | `UserController.java`, `UserService.java`                            | ✅              |
-| RF-AU-05  | Central System, Local Server | `SecurityConfig.java`, `JwtAuthenticationFilter.java`                | ✅              |
+| RF-AU-05  | Central System, Local Server | `SecurityConfig.java`, `JwtAuthenticationFilter.java`, `Role.java`     | ✅              |
+| RF-UT-LA-01 | Local Server               | `AdminLocalController.java`, `GameCatalogService.java`, `Game.rename`, `GameRepository.deleteById` | ✅ (FASE 1) |
+| RF-UT-LA-02 | Local Server               | `AdminLocalController.java`, `GameStateService.getByBuilding`, `StatisticsService.getActiveSessionsByBuilding` | ✅ (FASE 1) |
+| RF-UT-LA-03 | Local Server               | `AdminLocalController.java`, `StatisticsService.getStatisticsForBuilding` | ✅ (FASE 1) |
+| RF-UT-LA-04 | Central System, Local Server | `LocalAdminBuildingService.java`, `LocalAdminController.java`, `UserReplicationSchedulerService`, `LocalMetadataRestAdapter.java`, `LocalAdminBuildingSyncService.java`, `InternalMetadataController.java`, `LocalAdminBuildingAuthorizationManager.java` | ✅ (FASE 1) |
+| RF-UT-GA-01 | Central System | `GameAdminController.java`, `GameDefinitionService.java`, `UpsertGameDefinitionUseCase.java`, `ListGameDefinitionsUseCase.java`, `GameDefinition.java`, `GameDefinitionJpaEntity.java`, `GameDefinitionRepositoryAdapter.java`, `GameDefinitionMapper.java`, `init.sql` (central — FASE 2) | ✅ (FASE 2) |
+| RF-UT-GA-02 | Central System, Local Server | `GameDefinitionService.java`, `GameSessionService.start` (validazione vs `game_definitions_local`), `AdminLocalController.createGame` (validazione `existsByGameType`), `GameDefinitionNotAvailableLocallyException` | ✅ (FASE 2) |
+| RF-UT-GA-03 | Central System, Local Server | `GameDefinitionService.writeOutboxEvent`, `GameDefinitionEventDto.java`, `UserReplicationSchedulerService.replicateGameDefinitionEvent`, `LateRegistrationCatchUpService`, `PushGameDefinitionToLocalServersPort`, `LocalGameDefinitionRestAdapter.java`, `GameDefinitionSyncService.java`, `InternalGameDefinitionSyncController.java`, `init.sql` (local ×3 — FASE 2) | ✅ (FASE 2) |
+| RF-UT-PL-01 | Central System | `PlayerStatisticsController.java`, `PlayerStatisticsService.java`, `PlayerStatisticsProjectionService.java`, `SyncEventProcessor.handleGameSessionCompleted`, `PlayerMatchFact.java`, `PlayerStatistics.java`, `PlayerMatchFactRepository.java`, `PlayerStatisticsRepository.java`, `CurrentUserService.java`, `PlayerStatisticsDto.java`, `init.sql` (central — FASE 3) | ✅ (FASE 3) |
+| RF-UT-PL-02 | Local Server | `PlayerStatisticsController.java` (local), `StatisticsService.getPlayerStatistics`, `GetPlayerStatisticsUseCase.java` (local), `GameSessionRepository.findByParticipant`, `CurrentUserService.java` (local) | ✅ (FASE 3) |
 | RF-PR-01  | Local Server                 | `ReservationService.java`, `reservations` (local)                    | ✅             |
 | RF-PR-02  | Local Server                 | `ReservationService.java`                                            | ✅              |
 | RF-PR-03  | Local Server                 | `ReservationService.java`, `ReservationRepository`                   | ✅              |

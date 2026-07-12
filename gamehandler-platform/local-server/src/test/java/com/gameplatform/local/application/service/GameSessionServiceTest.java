@@ -18,6 +18,7 @@ import com.gameplatform.local.domain.ports.out.GameSessionRepository;
 import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
 import com.gameplatform.local.domain.ports.out.ReservationRepository;
+import com.gameplatform.local.domain.ports.out.GameDefinitionLocalRepository;
 import com.gameplatform.shared.domain.model.*;
 import com.gameplatform.shared.domain.result.GameResult;
 import java.time.Clock;
@@ -45,6 +46,7 @@ class GameSessionServiceTest {
     @Mock Clock clock;
     @Mock ObjectMapper objectMapper;
     @Mock GameResult result;
+    @Mock GameDefinitionLocalRepository gameDefinitionLocalRepository;
 
     @InjectMocks GameSessionService service;
 
@@ -53,6 +55,14 @@ class GameSessionServiceTest {
         lenient().when(clock.instant()).thenReturn(NOW);
         lenient().when(result.getWinnerId()).thenReturn(new UserId("winner"));
         lenient().when(result.getWinCondition()).thenReturn(WinCondition.WIN);
+        // FASE 2 retrofit: the GameSessionService constructor now takes a
+        // GameDefinitionLocalRepository (validation against game_definitions_local
+        // with an in-memory GameFactory fallback). With no row replicated for the
+        // requested GameType, findByGameType returns empty so start() falls back to
+        // GameFactory.createGame — preserving this test's original (pre-FASE-2)
+        // expectations. Lenient: not every test exercises start().
+        lenient().when(gameDefinitionLocalRepository.findByGameType(any()))
+                .thenReturn(Optional.empty());
     }
 
     private Game game(GameMachineStatus status) {

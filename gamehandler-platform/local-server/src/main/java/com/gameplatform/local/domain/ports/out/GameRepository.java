@@ -14,4 +14,5 @@ public interface GameRepository {
     List<Game> findByBuildingId(BuildingId buildingId);
     List<Game> findByStatus(GameMachineStatus status);
     List<Game> findAll();
+    void deleteById(GameId id);
 }

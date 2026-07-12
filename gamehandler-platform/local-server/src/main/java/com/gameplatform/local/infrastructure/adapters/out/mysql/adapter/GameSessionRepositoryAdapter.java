@@ -10,6 +10,7 @@ import com.gameplatform.shared.domain.model.GameId;
 import com.gameplatform.shared.domain.model.GameSessionId;
 import com.gameplatform.shared.domain.model.GameStatus;
 import com.gameplatform.shared.domain.model.GameType;
+import com.gameplatform.shared.domain.model.UserId;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -105,5 +106,15 @@ public class GameSessionRepositoryAdapter implements GameSessionRepository {
             gameId.id(),
             List.of("WAITING", "IN_PROGRESS", "PAUSED")
         ).map(mapper::toDomain);
+    }
+
+    @Override
+    public List<GameSession> findByParticipant(UserId userId) {
+        if (userId == null) {
+            return List.of();
+        }
+        return jpaRepository.findByParticipantUserId(userId.value()).stream()
+            .map(mapper::toDomain)
+            .collect(Collectors.toList());
     }
 }

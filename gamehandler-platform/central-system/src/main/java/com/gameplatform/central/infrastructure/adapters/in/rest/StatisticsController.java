@@ -21,7 +21,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/statistics")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('PLATFORM_ADMIN')")
 public class StatisticsController {
 
     private final GetGlobalStatisticsUseCase getGlobalStatisticsUseCase;

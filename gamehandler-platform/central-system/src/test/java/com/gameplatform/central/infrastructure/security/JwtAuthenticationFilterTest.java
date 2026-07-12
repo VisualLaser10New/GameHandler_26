@@ -180,7 +180,7 @@ class JwtAuthenticationFilterTest {
         }
 
         @Test
-        @DisplayName("grants ROLE_USER authority for a user role without prefix")
+        @DisplayName("maps legacy USER claim to ROLE_PLAYER authority")
         void validToken_addsRolePrefix() throws Exception {
             io.jsonwebtoken.Claims claims = mock(io.jsonwebtoken.Claims.class);
             when(claims.getSubject()).thenReturn("bob");
@@ -195,7 +195,7 @@ class JwtAuthenticationFilterTest {
             var auth = SecurityContextHolder.getContext().getAuthentication();
             assertThat(auth.getAuthorities())
                     .extracting("authority")
-                    .containsExactly("ROLE_USER");
+                    .containsExactly("ROLE_PLAYER");
         }
 
         @Test
@@ -214,7 +214,7 @@ class JwtAuthenticationFilterTest {
             var auth = SecurityContextHolder.getContext().getAuthentication();
             assertThat(auth.getAuthorities())
                     .extracting("authority")
-                    .containsExactly("ROLE_ADMIN");
+                    .containsExactly("ROLE_PLATFORM_ADMIN");
         }
 
         @Test

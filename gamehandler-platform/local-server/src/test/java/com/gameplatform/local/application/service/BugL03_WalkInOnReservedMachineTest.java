@@ -38,6 +38,7 @@ class BugL03_WalkInOnReservedMachineTest {
     @Mock private OutboxEventRepository outboxEventRepository;
     @Mock private PublishGameStatePort publishGameStatePort;
     @Mock private ReservationRepository reservationRepository;
+    @Mock private GameDefinitionLocalRepository gameDefinitionLocalRepository;
 
     private Clock clock;
     private ObjectMapper objectMapper;
@@ -55,7 +56,8 @@ class BugL03_WalkInOnReservedMachineTest {
         objectMapper = new ObjectMapper();
         gameSessionService = new GameSessionService(
                 gameSessionRepository, gameRepository, outboxEventRepository,
-                publishGameStatePort, reservationRepository, clock, objectMapper
+                publishGameStatePort, reservationRepository, clock, objectMapper,
+                gameDefinitionLocalRepository
         );
     }
 
@@ -70,6 +72,7 @@ class BugL03_WalkInOnReservedMachineTest {
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(reservedGame));
         when(gameRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(gameSessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(gameDefinitionLocalRepository.findByGameType(any())).thenReturn(Optional.empty());
 
         // -- User-B starts a walk-in session (no reservationId) on the RESERVED machine
         assertThrows(GameNotAvailableException.class, () -> {

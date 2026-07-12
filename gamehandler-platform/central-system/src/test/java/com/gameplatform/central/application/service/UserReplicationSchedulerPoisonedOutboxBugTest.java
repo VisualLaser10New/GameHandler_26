@@ -6,6 +6,8 @@ import com.gameplatform.central.domain.model.OutboxEventStatus;
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
 import com.gameplatform.central.domain.ports.out.LocalServerRegistryPort;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
+import com.gameplatform.central.domain.ports.out.PushGameDefinitionToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.ReplicationProgressRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
@@ -40,6 +42,12 @@ class UserReplicationSchedulerPoisonedOutboxBugTest {
     private PushUserToLocalServersPort pushUserToLocalServersPort;
 
     @Mock
+    private PushMetadataToLocalServersPort pushMetadataToLocalServersPort;
+
+    @Mock
+    private PushGameDefinitionToLocalServersPort pushGameDefinitionToLocalServersPort;
+
+    @Mock
     private ReplicationProgressRepository replicationProgressRepository;
 
     private ObjectMapper objectMapper;
@@ -55,7 +63,9 @@ class UserReplicationSchedulerPoisonedOutboxBugTest {
                 pushUserToLocalServersPort,
                 replicationProgressRepository,
                 objectMapper,
-                Runnable::run // synchronous executor keeps this bug test single-threaded & deterministic
+                Runnable::run, // synchronous executor keeps this bug test single-threaded & deterministic
+                pushMetadataToLocalServersPort,
+                pushGameDefinitionToLocalServersPort
         );
         server = new RegisteredLocalServer(new BuildingId("building-repl"), "http://local-server", Instant.now(), true);
         lenient().when(replicationProgressRepository.findByEventId(any())).thenReturn(List.of());

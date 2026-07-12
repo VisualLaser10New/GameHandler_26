@@ -63,7 +63,7 @@ class UserServiceTest {
         User result = userService.register("alice", "s3cr3t", "alice@example.com");
 
         assertThat(result.getUsername()).isEqualTo("alice");
-        assertThat(result.getRoles()).containsExactly("USER");
+        assertThat(result.getRoles()).containsExactly("PLAYER");
         verify(outboxEventRepository).save(any(OutboxEvent.class));
     }
 
