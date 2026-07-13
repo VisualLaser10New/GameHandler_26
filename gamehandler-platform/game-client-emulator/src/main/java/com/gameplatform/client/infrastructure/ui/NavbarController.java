@@ -20,11 +20,12 @@ import java.util.function.Consumer;
  * Rebuilds the visible buttons every time the user authenticates:
  * <ul>
  *   <li><b>PLAYER</b> — Games · My Stats · My Matches · Tournaments</li>
- *   <li><b>LOCAL_ADMIN</b> — adds Local Dashboard</li>
- *   <li><b>GAME_ADMIN</b> — adds Game Admin (CRUD definitions)</li>
- *   <li><b>PLATFORM_ADMIN</b> — adds Users & Roles · Tournaments Admin ·
- *       Server Monitor · Requests · plus read-only entries for the
- *       LOCAL_ADMIN/GAME_ADMIN dashboards</li>
+ *   <li><b>LOCAL_ADMIN</b> — Games · Aggregated Stats · Local Dashboard</li>
+ *   <li><b>GAME_ADMIN</b> — Game Admin (definizioni giochi + regole
+ *       registrazione partite)</li>
+ *   <li><b>PLATFORM_ADMIN</b> — tutte le voci (superuser): Games,
+ *       My Stats, My Matches, Tournaments, Aggregated Stats, Local
+ *       Dashboard, Game Admin, Platform Admin, Admin Requests</li>
  * </ul>
  * Multi-role users see the union of the entries with de-duplication: an
  * identical target view appears as a single button bound to the same
@@ -95,23 +96,27 @@ public class NavbarController {
             return;
         }
 
-        // PLAYER always sees the player entries (LOCAL/GAME/PLATFORM admins
-        // inherit the player scope since they are typically also players).
-        if (roles.contains("PLAYER") || roles.contains("LOCAL_ADMIN")
-                || roles.contains("GAME_ADMIN") || roles.contains("PLATFORM_ADMIN")) {
-            addButton("Games",       VIEW_GAME_SELECTION);
-            addButton("My Stats",    VIEW_MY_STATISTICS);
-            addButton("My Matches",   VIEW_MY_MATCHES);
-            addButton("Tournaments", VIEW_TOURNAMENTS);
+        boolean isPlayer        = roles.contains("PLAYER");
+        boolean isLocalAdmin    = roles.contains("LOCAL_ADMIN");
+        boolean isGameAdmin     = roles.contains("GAME_ADMIN");
+        boolean isPlatformAdmin = roles.contains("PLATFORM_ADMIN");
+
+        if (isPlayer || isLocalAdmin || isPlatformAdmin) {
+            addButton("Games", VIEW_GAME_SELECTION);
+        }
+        if (isPlayer || isPlatformAdmin) {
+            addButton("My Stats",     VIEW_MY_STATISTICS);
+            addButton("My Matches",    VIEW_MY_MATCHES);
+            addButton("Tournaments",  VIEW_TOURNAMENTS);
+        }
+        if (isLocalAdmin || isPlatformAdmin) {
             addButton("Aggregated Stats", VIEW_STATISTICS);
+            addButton("Local Dashboard",  VIEW_ADMIN_LOCAL);
         }
-        if (roles.contains("LOCAL_ADMIN") || roles.contains("PLATFORM_ADMIN")) {
-            addButton("Local Dashboard", VIEW_ADMIN_LOCAL);
-        }
-        if (roles.contains("GAME_ADMIN") || roles.contains("PLATFORM_ADMIN")) {
+        if (isGameAdmin || isPlatformAdmin) {
             addButton("Game Admin", VIEW_ADMIN_GAME);
         }
-        if (roles.contains("PLATFORM_ADMIN")) {
+        if (isPlatformAdmin) {
             addButton("Platform Admin", VIEW_ADMIN_PLATFORM);
             addButton("Admin Requests",  VIEW_ADMIN_REQUESTS);
         }

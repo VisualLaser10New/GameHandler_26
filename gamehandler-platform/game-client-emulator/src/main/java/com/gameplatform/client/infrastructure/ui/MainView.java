@@ -192,7 +192,7 @@ public class MainView extends Application {
                                 + "  · ruoli=" + HttpClientHelper.getRoles());
                     }
                     navbar.rebuild();
-                    navigateTo(NavbarController.VIEW_GAME_SELECTION);
+                    navigateTo(defaultViewAfterLogin());
                 });
             }, "post-login-thread").start();
         });
@@ -308,6 +308,18 @@ public class MainView extends Application {
     /** Stops any active pollers when leaving a long-running view. */
     private void stopPollers() {
         adminRequestsView.onLeave();
+    }
+
+    /**
+     * Picks the first view the user should land on after login — must be
+     * visible for the current role per {@link NavbarController#rebuild()}
+     * (otherwise the navbar would offer no matching button).
+     */
+    private String defaultViewAfterLogin() {
+        if (HttpClientHelper.hasRole("PLATFORM_ADMIN")) return NavbarController.VIEW_ADMIN_PLATFORM;
+        if (HttpClientHelper.hasRole("GAME_ADMIN"))     return NavbarController.VIEW_ADMIN_GAME;
+        if (HttpClientHelper.hasRole("LOCAL_ADMIN"))    return NavbarController.VIEW_ADMIN_LOCAL;
+        return NavbarController.VIEW_GAME_SELECTION;
     }
 
     // ─────────────────────────── Logout ───────────────────────────────────
