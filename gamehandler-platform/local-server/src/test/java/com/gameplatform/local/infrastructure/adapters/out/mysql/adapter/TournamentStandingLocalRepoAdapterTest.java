@@ -1,7 +1,6 @@
 package com.gameplatform.local.infrastructure.adapters.out.mysql.adapter;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.gameplatform.local.domain.model.TournamentStandingLocal;
@@ -17,10 +16,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
-class TournamentStandingLocalRepositoryAdapterTest {
+class TournamentStandingLocalRepoAdapterTest {
 
     private static final Instant NOW = Instant.parse("2026-07-12T10:00:00Z");
 

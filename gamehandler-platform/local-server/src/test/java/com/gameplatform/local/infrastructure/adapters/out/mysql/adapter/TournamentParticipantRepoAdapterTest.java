@@ -18,7 +18,7 @@ import java.time.Instant;
 import java.util.List;
 
 @ExtendWith(MockitoExtension.class)
-class TournamentParticipantLocalRepositoryAdapterTest {
+class TournamentParticipantRepoAdapterTest {
 
     private static final Instant NOW = Instant.parse("2026-07-12T10:00:00Z");
 

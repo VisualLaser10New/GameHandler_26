@@ -1,5 +1,6 @@
 package com.gameplatform.local.infrastructure.adapters.in.rest;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -48,8 +50,19 @@ class ReservationControllerTest {
                 Instant.parse("2026-02-01T11:00:00Z"), Instant.parse("2026-01-01T00:00:00Z"));
     }
 
+    private void asCurrentUser(String userId) {
+        when(currentUserService.getCurrentUserId()).thenReturn(Optional.of(new UserId(userId)));
+    }
+
+    private void asPlatformAdmin(String userId) {
+        when(currentUserService.getCurrentUserId()).thenReturn(Optional.of(new UserId(userId)));
+        when(currentUserService.hasRole("PLATFORM_ADMIN")).thenReturn(true);
+    }
+
     @Test
     void createReturns201AndDto() throws Exception {
+        asCurrentUser("u1");
+        when(currentUserService.hasRole("PLATFORM_ADMIN")).thenReturn(false);
         when(createUseCase.create(any(), any(), any(), any())).thenReturn(sample());
         String body = "{\"gameId\":\"g1\",\"userId\":\"u1\",\"startTime\":\"2026-02-01T10:00:00Z\",\"endTime\":\"2026-02-01T11:00:00Z\"}";
         mvc.perform(post("/api/reservations").contentType(MediaType.APPLICATION_JSON).content(body))
@@ -62,7 +75,10 @@ class ReservationControllerTest {
 
     @Test
     void createWithBlankGameIdPropagatesIllegalArgFromRecordCtor() throws Exception {
-        // GameId(null/blank) throws IllegalArgumentException inside the controller -> 400 due to global exception handler
+        // GameId(null/blank) throws IllegalArgumentException — now preceded by a
+        // current-user check (controller enforces auth before constructing GameId).
+        asCurrentUser("u1");
+        when(currentUserService.hasRole("PLATFORM_ADMIN")).thenReturn(false);
         String body = "{\"gameId\":\"\",\"userId\":\"u1\",\"startTime\":\"2026-02-01T10:00:00Z\",\"endTime\":\"2026-02-01T11:00:00Z\"}";
         mvc.perform(post("/api/reservations").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest());
@@ -70,29 +86,88 @@ class ReservationControllerTest {
     }
 
     @Test
-    void cancelReturns204() throws Exception {
+    void create_otherUser_returns403_whenNotPlatformAdmin() throws Exception {
+        asCurrentUser("u1");
+        when(currentUserService.hasRole("PLATFORM_ADMIN")).thenReturn(false);
+        String body = "{\"gameId\":\"g1\",\"userId\":\"other\",\"startTime\":\"2026-02-01T10:00:00Z\",\"endTime\":\"2026-02-01T11:00:00Z\"}";
+        mvc.perform(post("/api/reservations").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(createUseCase);
+    }
+
+    @Test
+    void create_otherUser_succeeds_whenPlatformAdmin() throws Exception {
+        asPlatformAdmin("admin-1");
+        when(createUseCase.create(any(), any(), any(), any())).thenReturn(
+                new Reservation(new ReservationId("r2"), new GameId("g1"), new UserId("other"),
+                        ReservationStatus.PENDING, Instant.parse("2026-02-01T10:00:00Z"),
+                        Instant.parse("2026-02-01T11:00:00Z"), Instant.parse("2026-01-01T00:00:00Z")));
+        String body = "{\"gameId\":\"g1\",\"userId\":\"other\",\"startTime\":\"2026-02-01T10:00:00Z\",\"endTime\":\"2026-02-01T11:00:00Z\"}";
+        mvc.perform(post("/api/reservations").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.userId").value("other"));
+    }
+
+    @Test
+    void cancelReturns204_whenOwner() throws Exception {
+        asCurrentUser("u1");
+        when(currentUserService.hasRole("PLATFORM_ADMIN")).thenReturn(false);
+        mvc.perform(delete("/api/reservations/r1"))
+                .andExpect(status().isNoContent());
+        verify(cancelUseCase).cancel(new ReservationId("r1"), new UserId("u1"));
+        verify(cancelUseCase, never()).cancel(any(ReservationId.class));
+    }
+
+    @Test
+    void cancel_otherUser_returns403_whenNotPlatformAdmin() throws Exception {
+        asCurrentUser("u1");
+        when(currentUserService.hasRole("PLATFORM_ADMIN")).thenReturn(false);
+        doThrow(new AccessDeniedException("not owner")).when(cancelUseCase)
+                .cancel(any(ReservationId.class), any(UserId.class));
+        mvc.perform(delete("/api/reservations/r1"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void cancel_platformAdmin_usesBypassOverload() throws Exception {
+        asPlatformAdmin("admin-1");
         mvc.perform(delete("/api/reservations/r1"))
                 .andExpect(status().isNoContent());
         verify(cancelUseCase).cancel(new ReservationId("r1"));
+        verify(cancelUseCase, never()).cancel(any(ReservationId.class), any(UserId.class));
     }
 
     @Test
     void cancelWhenNotFoundPropagatesAs500DueToMissingHandler() throws Exception {
-        doThrow(new ReservationNotFoundException("not found")).when(cancelUseCase).cancel(any());
+        asCurrentUser("u1");
+        when(currentUserService.hasRole("PLATFORM_ADMIN")).thenReturn(false);
+        doThrow(new ReservationNotFoundException("not found")).when(cancelUseCase)
+                .cancel(any(ReservationId.class), any(UserId.class));
         mvc.perform(delete("/api/reservations/r1"))
                 .andExpect(status().isInternalServerError());
     }
 
     @Test
     void cancelWhenExpiredPropagatesAs500DueToMissingHandler() throws Exception {
-        doThrow(new ReservationExpiredException("expired")).when(cancelUseCase).cancel(any());
+        asCurrentUser("u1");
+        when(currentUserService.hasRole("PLATFORM_ADMIN")).thenReturn(false);
+        doThrow(new ReservationExpiredException("expired")).when(cancelUseCase)
+                .cancel(any(ReservationId.class), any(UserId.class));
         mvc.perform(delete("/api/reservations/r1"))
                 .andExpect(status().isInternalServerError());
     }
 
     @Test
+    void cancel_noPrincipal_returns401() throws Exception {
+        when(currentUserService.getCurrentUserId()).thenReturn(Optional.empty());
+        mvc.perform(delete("/api/reservations/r1"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(cancelUseCase);
+    }
+
+    @Test
     void getByUserReturnsList() throws Exception {
-        when(currentUserService.getCurrentUserId()).thenReturn(Optional.of(new UserId("u1")));
+        asCurrentUser("u1");
         when(getUseCase.getByUser(new UserId("u1"))).thenReturn(List.of(sample()));
         mvc.perform(get("/api/reservations").param("userId", "u1"))
                 .andExpect(status().isOk())
@@ -101,7 +176,7 @@ class ReservationControllerTest {
 
     @Test
     void getByUserEmptyReturnsEmptyArray() throws Exception {
-        when(currentUserService.getCurrentUserId()).thenReturn(Optional.of(new UserId("u1")));
+        asCurrentUser("u1");
         when(getUseCase.getByUser(any())).thenReturn(List.of());
         mvc.perform(get("/api/reservations").param("userId", "u1"))
                 .andExpect(status().isOk())

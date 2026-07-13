@@ -194,4 +194,27 @@ class ReservationServiceTest {
         service.getByGame(gameId);
         verify(reservationRepository).findByGameId(gameId);
     }
+
+    @Test
+    void cancelForUser_throwsAccessDenied_whenActingUserIsNotOwner() {
+        ReservationId id = new ReservationId("res-1");
+        Reservation reservation = pendingReservation(id, NOW.plus(Duration.ofHours(2)), NOW.plus(Duration.ofHours(3)));
+        when(reservationRepository.findById(any())).thenReturn(Optional.of(reservation));
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> service.cancel(id, new UserId("someone-else")));
+        verify(reservationRepository, never()).save(any());
+    }
+
+    @Test
+    void cancelForUser_succeeds_whenActingUserIsOwner() throws Exception {
+        ReservationId id = new ReservationId("res-1");
+        Reservation reservation = pendingReservation(id, NOW.plus(Duration.ofHours(2)), NOW.plus(Duration.ofHours(3)));
+        when(reservationRepository.findById(any())).thenReturn(Optional.of(reservation));
+        when(gameRepository.findById(any())).thenReturn(Optional.of(availableGame()));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        service.cancel(id, new UserId("user-1"));
+        verify(reservationRepository).save(any());
+    }
 }

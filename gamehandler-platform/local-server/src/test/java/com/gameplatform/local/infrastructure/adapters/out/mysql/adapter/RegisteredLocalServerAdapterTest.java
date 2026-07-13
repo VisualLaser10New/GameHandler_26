@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
-class RegisteredLocalServerLocalRepositoryAdapterTest {
+class RegisteredLocalServerAdapterTest {
 
     private static final Instant NOW = Instant.parse("2026-07-12T10:00:00Z");
 

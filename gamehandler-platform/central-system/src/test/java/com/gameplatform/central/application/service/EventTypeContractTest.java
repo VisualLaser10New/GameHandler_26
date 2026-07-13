@@ -109,6 +109,7 @@ class EventTypeContractTest {
     @Test
     void everyExpectedEventTypeIsEmittedByLocalServer() throws IOException {
         Path localMainRoot = projectRoot().resolve("local-server/src/main/java");
+        Path sharedDomainRoot = projectRoot().resolve("shared/shared-domain/src/main/java");
         assertThat(Files.exists(localMainRoot)).isTrue();
         String allLocalSrc;
         try (Stream<Path> walk = Files.walk(localMainRoot)) {
@@ -121,15 +122,32 @@ class EventTypeContractTest {
                     })
                     .collect(Collectors.joining("\n"));
         }
+        // Event-type literals may now be defined as constants in shared-domain
+        // event classes (e.g. UserRegisteredEvent.EVENT_TYPE) and referenced
+        // from local-server; scan shared-domain too to honor that contract.
+        String sharedSrc = "";
+        if (Files.exists(sharedDomainRoot)) {
+            try (Stream<Path> walk = Files.walk(sharedDomainRoot)) {
+                sharedSrc = walk
+                        .filter(Files::isRegularFile)
+                        .filter(p -> p.toString().endsWith(".java"))
+                        .map(p -> {
+                            try { return Files.readString(p); }
+                            catch (IOException e) { return ""; }
+                        })
+                        .collect(Collectors.joining("\n"));
+            }
+        }
+        String allSrc = allLocalSrc + "\n" + sharedSrc;
         Set<String> missing = new TreeSet<>();
         for (String eventType : EXPECTED_EVENT_TYPES) {
             Pattern p = Pattern.compile("\"" + Pattern.quote(eventType) + "\"");
-            if (!p.matcher(allLocalSrc).find()) {
+            if (!p.matcher(allSrc).find()) {
                 missing.add(eventType);
             }
         }
         assertThat(missing)
-                .as("Each eventType in EXPECTED_EVENT_TYPES must be emitted as a literal somewhere in local-server/src/main/java")
+                .as("Each eventType in EXPECTED_EVENT_TYPES must be emitted as a literal somewhere in local-server/src/main/java (or declared as EVENT_TYPE constant in shared-domain event classes referenced by the local-server)")
                 .isEmpty();
     }
 
