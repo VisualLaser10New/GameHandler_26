@@ -22,7 +22,6 @@ import java.util.List;
 import static com.gameplatform.local.infrastructure.adapters.in.rest.GameSessionController.getGameSessionDto;
 
 @RestController
-@PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
 public class StatisticsController {
 
     private final GetStatisticsUseCase getStatisticsUseCase;
@@ -39,6 +38,7 @@ public class StatisticsController {
     }
 
     @GetMapping("/api/statistics")
+    @PreAuthorize("hasRole('LOCAL_ADMIN') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<?> getStats(@RequestParam(value = "gameType", required = false) String gameTypeStr) {
         if (gameTypeStr == null || gameTypeStr.isBlank()) {
             Instant now = Instant.now();
@@ -70,6 +70,7 @@ public class StatisticsController {
     }
 
     @GetMapping("/api/sessions/active")
+    @PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<List<GameSessionDto>> getActiveSessions() {
         List<GameSession> activeSessions = getStatisticsUseCase.getActiveSessions();
         List<GameSessionDto> dtos = activeSessions.stream()

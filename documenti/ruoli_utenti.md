@@ -82,7 +82,7 @@ La visibilità UI è coerente con le policy `@PreAuthorize` lato backend (entram
 | local | `POST /api/tournaments/{id}/participants` | PLAYER or PLATFORM_ADMIN |
 | local | `/api/sessions/**` | PLAYER or PLATFORM_ADMIN |
 | local | `/api/reservations/**` | PLAYER or PLATFORM_ADMIN (con self-check) |
-| local | `/api/statistics` | PLAYER or PLATFORM_ADMIN |
+| local | `GET /api/statistics` (statistiche aggregate building, pagina "Aggregated Stats") | LOCAL_ADMIN or PLATFORM_ADMIN |
 | local | `/api/admin/local/**` (giochi, dispositivi, sessioni, statistiche building) | LOCAL_ADMIN or PLATFORM_ADMIN (con binding building check; PLATFORM_ADMIN bypassato) |
 | local | `/api/admin/games/**` (game definitions) | GAME_ADMIN or PLATFORM_ADMIN |
 | local | `/api/devices/register` | LOCAL_ADMIN or PLATFORM_ADMIN (con binding building check) |

@@ -12,12 +12,13 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.gameplatform.shared.domain.security.Role;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/games")
-@PreAuthorize("hasRole('PLAYER') or hasRole('GAME_ADMIN') or hasRole('PLATFORM_ADMIN')")
+@PreAuthorize("hasRole('PLAYER') or hasRole('GAME_ADMIN') or hasRole('PLATFORM_ADMIN') or hasRole('LOCAL_ADMIN')")
 public class GameController {
 
     private final GetAvailableGamesUseCase getAvailableGamesUseCase;
