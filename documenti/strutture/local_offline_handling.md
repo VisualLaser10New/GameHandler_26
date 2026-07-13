@@ -100,7 +100,7 @@ sequenceDiagram
 1. **Scheduler:** [UserReplicationSchedulerService](file:///c:/Users/VLT14/Documents/UNI/PISSIR/Progetto/gamehandler-platform/central-system/src/main/java/com/gameplatform/central/application/service/UserReplicationSchedulerService.java) runs periodically (using `fixedDelay = 300_000` to prevent overlapping runs).
 2. **Target Selection:** It retrieves active local servers from the database.
 3. **Replication Progress Tracking:** The scheduler queries `ReplicationProgressRepository` to identify which local servers have not yet received specific user events.
-4. **Push Mechanism:** It pushes user details to the local server's `/internal/sync/users` REST endpoint.
+4. **Push Mechanism:** It pushes user details to the local server's `/internal/users/sync` REST endpoint.
 5. **Marking Progress:**
     - If a local server is online and accepts the push, a progress entry is recorded.
     - If a server is offline, the exception is caught, and that server is skipped. The outbox event remains pending on the central system for that specific server and will be retried in subsequent cycles.

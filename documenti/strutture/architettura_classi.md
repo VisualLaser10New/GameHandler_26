@@ -99,7 +99,7 @@ Il `PIANO_UTENTI_TORNEI.md` FASE 0 elencava: *"Aggiornare `JwtTokenProvider` per
 ### `central-system`
 | File | Modifica |
 |---|---|
-| `application/service/UserService.java:69` | `List.of("USER")` → `List.of(Role.PLAYER.name())`; import `Role`. |
+| `application/service/UserService.java:70` | `List.of("USER")` → `List.of(Role.PLAYER.name())`; import `Role`. |
 | `infrastructure/security/JwtAuthenticationFilter.java` | mapping autorità sostituito con `Role.toAuthorityNames(roles)`; import `Role`. |
 | `infrastructure/adapters/in/rest/StatisticsController.java:24` | `hasRole('ADMIN')` → `hasRole('PLATFORM_ADMIN')`. |
 | `infrastructure/security/JwtTokenProvider.java` | **invariato** (pass-through). |
@@ -109,11 +109,11 @@ Il `PIANO_UTENTI_TORNEI.md` FASE 0 elencava: *"Aggiornare `JwtTokenProvider` per
 | File | Modifica |
 |---|---|
 | `infrastructure/security/JwtTokenValidator.java` | `getAuthorities` delega a `Role.toAuthorityNames(roles)`; import `Role`. |
-| `application/service/LocalSignupService.java:80` | `List.of("USER")` → `List.of(Role.PLAYER.name())`; import `Role`. |
-| `infrastructure/adapters/in/rest/GameController.java:18` | `hasRole('USER')` → `hasRole('PLAYER')`. |
-| `infrastructure/adapters/in/rest/GameSessionController.java:32` | `hasRole('USER')` → `hasRole('PLAYER')`. |
-| `infrastructure/adapters/in/rest/ReservationController.java:21` | `hasRole('USER')` → `hasRole('PLAYER')`. |
-| `infrastructure/adapters/in/rest/StatisticsController.java:25` | `hasRole('USER')` → `hasRole('PLAYER')`. |
+| `application/service/LocalSignupService.java:82` | `List.of("USER")` → `List.of(Role.PLAYER.name())`; import `Role`. |
+| `infrastructure/adapters/in/rest/GameController.java:21` | `hasRole('USER')` → `hasRole('PLAYER')` (poi esteso in FASI successive a `PLAYER or GAME_ADMIN or PLATFORM_ADMIN or LOCAL_ADMIN`). |
+| `infrastructure/adapters/in/rest/GameSessionController.java:34` | `hasRole('USER')` → `hasRole('PLAYER')` (oggi `PLAYER or PLATFORM_ADMIN` a livello classe). |
+| `infrastructure/adapters/in/rest/ReservationController.java:23` | `hasRole('USER')` → `hasRole('PLAYER')` (oggi `PLAYER or PLATFORM_ADMIN` a livello classe, con self-check `userId`). |
+| `infrastructure/adapters/in/rest/StatisticsController.java:41` | `hasRole('USER')` → `hasRole('PLAYER')` (oggi `LOCAL_ADMIN or PLATFORM_ADMIN` su `/api/statistics`; `PLAYER or PLATFORM_ADMIN` su `/api/sessions/active` a riga 73). |
 | `infrastructure/security/JwtTokenProvider.java` | **invariato** (pass-through). |
 | `domain/model/User.java`, `domain/model/LocalSignupUser.java` | **invariati** (`List<String>` roles). |
 
@@ -309,8 +309,8 @@ POJO Java puro in `domain/model/` (entrambi i moduli). Identity = `gameType` (PK
 
 | Endpoint | Modulo | Ruolo richiesto |
 |---|---|---|
-| `POST /api/admin/games/definitions` | central | `GAME_ADMIN` |
-| `PUT /api/admin/games/definitions/{gameType}` | central | `GAME_ADMIN` |
+| `POST /api/admin/games/definitions` | central | `GAME_ADMIN or PLATFORM_ADMIN` |
+| `PUT /api/admin/games/definitions/{gameType}` | central | `GAME_ADMIN or PLATFORM_ADMIN` |
 | `GET /api/admin/games/definitions` | central | `authenticated` |
 | `PUT /internal/metadata/game-definitions/sync` | local | API Key (`InternalApiKeyFilter`) |
 
@@ -372,9 +372,9 @@ POJO Java puro in `central domain/model/`. `PlayerMatchFact` identity = composit
 
 | Endpoint | Modulo | Ruolo richiesto |
 |---|---|---|
-| `GET /api/players/me/statistics` | central | `PLAYER` (`?gameType=` opzionale) |
+| `GET /api/players/me/statistics` | central | `PLAYER or PLATFORM_ADMIN` (`?gameType=` opzionale) |
 | `GET /api/players/{userId}/statistics` | central | `PLATFORM_ADMIN` o self-check (`userId == current`) → 403 `PlayerStatisticsAccessDeniedException` se non autorizzato |
-| `GET /api/players/me/statistics` | local | `PLAYER` (`?gameType=` opzionale) |
+| `GET /api/players/me/statistics` | local | `PLAYER or PLATFORM_ADMIN` (`?gameType=` opzionale) |
 
 ### 12.7 Concorrenza e atomicità
 
@@ -477,8 +477,8 @@ Tutte `CREATE TABLE IF NOT EXISTS ... ENGINE=InnoDB` coerenti con convenzione FA
 | `GET /api/tournaments` | central | `authenticated` (default `SecurityConfig.anyRequest().authenticated()`) |
 | `GET /api/tournaments/{id}` | central | `authenticated` (404 via `TournamentNotFoundException`) |
 | `GET /api/tournaments?status=...` | central | `authenticated` (filtro opzionale via `TournamentStatus.valueOf`) |
-| `POST /api/tournaments/{id}/participants` | central | `PLAYER` |
-| `DELETE /api/tournaments/{id}/participants` | central | `PLAYER` (idempotent no-op se non trovato → 204) |
+| `POST /api/tournaments/{id}/participants` | central | `PLAYER or PLATFORM_ADMIN` |
+| `DELETE /api/tournaments/{id}/participants` | central | `PLAYER or PLATFORM_ADMIN` (idempotent no-op se non trovato → 204) |
 | `GET /api/tournaments/{id}/participants` | central | `authenticated` |
 
 **POST / ritorna 200** (mirror `GameAdminController` upsert convention, non 201).

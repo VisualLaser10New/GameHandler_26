@@ -111,8 +111,12 @@ Il sistema implementa un controllo d'accesso basato sui ruoli tramite Spring Sec
 
 | Ruolo | Descrizione |
 |---|---|
-| `ROLE_USER` | Utente standard. Può effettuare prenotazioni, partecipare a sessioni di gioco, visualizzare statistiche proprie. |
-| `ROLE_ADMIN` | Amministratore. Può gestire utenti, visualizzare tutte le statistiche, mettere macchine in manutenzione. |
+| `ROLE_PLAYER` | Utente standard. Può effettuare prenotazioni, partecipare a sessioni di gioco, visualizzare statistiche proprie. |
+| `ROLE_LOCAL_ADMIN` | Amministratore del Locale. Gestisce i giochi del proprio edificio, configura dispositivi, monitora partite e statistiche del locale (binding edificio). |
+| `ROLE_GAME_ADMIN` | Amministratore del Gioco. Definisce nuove tipologie di gioco e le relative regole di registrazione delle partite. |
+| `ROLE_PLATFORM_ADMIN` | Amministratore della Piattaforma (superuser). Gestisce utenti, edifici, tornei; accede a tutte le statistiche globali; bypassa i binding edificio-locali. |
+
+I letterali legacy `USER`/`ADMIN` sopravvivono solo come alias di compatibilità migrati in lettura a `PLAYER`/`PLATFORM_ADMIN` (vedi `Role.parse`/`Role.toAuthorityNames` in `shared-domain`); nessun controller di produzione emette più `hasRole('USER')` o `hasRole('ADMIN')`.
 
 **Matrice di accesso — Central System:**
 
@@ -120,28 +124,52 @@ Il sistema implementa un controllo d'accesso basato sui ruoli tramite Spring Sec
 |---|---|---|
 | `POST /api/users` | Registrazione | Pubblico |
 | `POST /api/auth/login` | Login | Pubblico |
-| `PUT /api/users/{id}` | Aggiornamento utente | `ROLE_ADMIN` |
-| `GET /api/statistics` | Statistiche globali | `ROLE_ADMIN` |
-| `POST /internal/sync/receive` | Ricezione sync | API Key (service-to-service) |
+| `POST /api/admin/local/buildings` | Binding LOCAL_ADMIN↔building (POST/DELETE/GET) | `PLATFORM_ADMIN` |
+| `POST /api/admin/games/definitions`, `PUT /api/admin/games/definitions/{gameType}` | Game definitions | `GAME_ADMIN` (or `PLATFORM_ADMIN`) |
+| `GET /api/admin/games/definitions` | Lista definizioni | `authenticated` |
+| `GET /api/statistics` | Statistiche globali | `PLATFORM_ADMIN` |
+| `GET /api/players/me/statistics` | Statistiche giocatore corrente | `PLAYER` (or `PLATFORM_ADMIN`) |
+| `GET /api/players/{userId}/statistics` | Statistiche giocatore arbitrario | self-check (`userId == principal`) o `PLATFORM_ADMIN` |
+| `POST /api/tournaments`, `POST /api/tournaments/{id}/{open,cancel,schedule}`, `PUT /api/tournaments/{id}`, `DELETE /api/tournaments/{id}` | CRUD/lifecycle torneo | `PLATFORM_ADMIN` |
+| `GET /api/tournaments`, `GET /api/tournaments/{id}`, `GET /api/tournaments/{id}/{standings,matches}` | Read tornei | `authenticated` |
+| `POST/DELETE /api/tournaments/{id}/participants`, `GET /api/tournaments/{id}/participants` | Registrazione partecipante | `PLAYER` (or `PLATFORM_ADMIN`) per POST/DELETE; `authenticated` per GET |
+| `POST /internal/sync/receive`, `POST /internal/servers/register` | Sincronizzazione interna | API Key (`X-Internal-Api-Key`) |
+
+> **Nota storica:** la precedente versione di questa matrice elencava `PUT /api/users/{id}` come endpoint di aggiornamento utente richiedente `ROLE_ADMIN`. Nel codice attuale tale endpoint non esiste: la gestione utenti centrale è affidata a `UserController` (solo `POST` per registrazione) e le mutation distribuite (assegnazione ruoli) transitano dal flusso async outbox lato Local (`POST /api/admin/users/{userId}/roles` esposto da `PlatformAdminUserController`).
 
 **Matrice di accesso — Local Server:**
 
 | Endpoint | Metodo | Ruolo Richiesto |
 |---|---|---|
 | `POST /api/auth/login` | Login locale | Pubblico |
-| `POST /api/reservations` | Crea prenotazione | `ROLE_USER` |
-| `DELETE /api/reservations/{id}` | Cancella prenotazione | `ROLE_USER` (proprietario) |
-| `GET /api/reservations` | Lista prenotazioni | `ROLE_USER` |
-| `GET /api/games` | Lista giochi | `ROLE_USER` |
-| `GET /api/games/available` | Giochi disponibili | `ROLE_USER` |
-| `POST /api/sessions/start` | Avvia sessione | `ROLE_USER` |
-| `POST /api/sessions/{id}/end` | Termina sessione | `ROLE_USER` |
-| `POST /api/sessions/{id}/pause` | Pausa sessione | `ROLE_USER` |
-| `POST /api/sessions/{id}/resume` | Riprendi sessione | `ROLE_USER` |
-| `GET /api/statistics` | Statistiche locali | `ROLE_USER` |
-| `PUT /internal/users/sync` | Ricezione utenti | API Key (service-to-service) |
+| `POST /api/auth/signup` | Registrazione locale (offline) | Pubblico |
+| `GET /api/auth/me` | Info utente corrente (arricchito) | `authenticated` |
+| `POST /api/reservations` | Crea prenotazione | `PLAYER` (or `PLATFORM_ADMIN`) con self-check (`userId == principal`) |
+| `DELETE /api/reservations/{id}` | Cancella prenotazione | `PLAYER` (or `PLATFORM_ADMIN`) con self-check |
+| `GET /api/reservations?userId=` | Lista prenotazioni | `PLAYER` (or `PLATFORM_ADMIN`) con self-check |
+| `GET /api/games`, `GET /api/games/available` | Catalogo giochi | `PLAYER or GAME_ADMIN or PLATFORM_ADMIN or LOCAL_ADMIN` |
+| `POST /api/sessions/start`, `POST /api/sessions/{id}/{end,pause,resume}` | Sessione di gioco | `PLAYER` (or `PLATFORM_ADMIN`) a livello classe |
+| `POST /api/sessions/lobby`, `POST /api/sessions/{id}/{join,start-lobby,cancel-lobby}` | Lobby | `PLAYER` (or `PLATFORM_ADMIN`) a livello classe |
+| `POST /api/devices/register` | Registrazione dispositivo (CSR) | `LOCAL_ADMIN` (or `PLATFORM_ADMIN`) con building-binding check |
+| `GET /api/statistics` | Statistiche aggregate del building | `LOCAL_ADMIN` (or `PLATFORM_ADMIN`) |
+| `GET /api/sessions/active` | Sessioni attive del building | `PLAYER` (or `PLATFORM_ADMIN`) |
+| `GET /api/players/me/statistics` | Statistiche personali (replica locale) | `PLAYER` (or `PLATFORM_ADMIN`) |
+| `GET /api/players/me/matches/history` | Storico partite | `PLAYER` (or `PLATFORM_ADMIN`) |
+| `GET /api/players/tournaments/me/matches`, `POST /api/players/tournaments/matches/{matchId}/start` | Torneo giocatore | `PLAYER` (or `PLATFORM_ADMIN`) |
+| `GET /api/tournaments`, `GET /api/tournaments/{id}/{standings,matches,participants}` | Read tornei (replica locale) | `authenticated` |
+| `POST /api/tournaments/{id}/participants` | Iscrizione torneo (async outbox) | `PLAYER` (or `PLATFORM_ADMIN`) |
+| `/api/admin/local/**` (/devices, /sessions/active, /statistics, POST/PUT/DELETE /games) | Dashboard LOCAL_ADMIN | `LOCAL_ADMIN` (or `PLATFORM_ADMIN`) con building-binding check (PLATFORM_ADMIN bypassa) |
+| `/api/admin/games/**` (gestione catalogo locale) | Game admin locale | `GAME_ADMIN` (or `PLATFORM_ADMIN`) |
+| `/api/admin/users`, `/api/admin/servers/health`, `/api/admin/tournaments`, `/api/admin/requests` | PLATFORM_ADMIN Local surface | `PLATFORM_ADMIN` |
+| `POST /api/admin/users/{userId}/roles` | Assign role (async outbox) | `PLATFORM_ADMIN` |
+| `PUT /internal/users/sync` | Ricezione replica utenti | API Key (`X-Internal-Api-Key`) |
+| `PUT /internal/metadata/sync`, `PUT /internal/metadata/game-definitions/sync`, `PUT /internal/tournaments/{matches,standings,participants,summaries}/sync`, `PUT /internal/servers/sync` | Sync repliche | API Key (`X-Internal-Api-Key`) |
 
-Il `JwtAuthenticationFilter` estrae i ruoli dal claim `roles` del JWT e li mappa a `GrantedAuthority` di Spring Security, rendendo disponibili le verifiche `@PreAuthorize("hasRole('USER')")` e `@PreAuthorize("hasRole('ADMIN')")` su ogni endpoint.
+Il `JwtAuthenticationFilter` estrae i ruoli dal claim `roles` del JWT e li mappa, via `Role.toAuthorityNames`, a `GrantedAuthority` di Spring Security emettendo esclusivamente authority canoniche (`ROLE_PLAYER`, `ROLE_LOCAL_ADMIN`, `ROLE_GAME_ADMIN`, `ROLE_PLATFORM_ADMIN`). I letterali legacy `USER`/`ADMIN`/`ROLE_USER`/`ROLE_ADMIN` vengono rinormalizzati ai canonici durante il mapping, per cui i controlli `@PreAuthorize("hasRole('PLAYER')")`, `hasRole('LOCAL_ADMIN')`, `hasRole('GAME_ADMIN')` e `hasRole('PLATFORM_ADMIN')` sono gli unici realmente applicabili.
+
+> **Vedi anche:**
+> - [`documenti/strutture/ruoli_utenti.md`](ruoli_utenti.md) — matrice di visibilità navbar lato client JavaFX + riepilogo delle policy `@PreAuthorize` per modulo (la fonte canonica di allineamento UI/backend).
+> - [`documenti/strutture/architettura_classi.md`](architettura_classi.md) — cronaca per-FASE delle modifiche ai ruoli/endpoint (FASE 0 RBAC, FASE 1 binding LOCAL_ADMIN, FASE 2 game definitions, FASE 3 player statistics, FASE 4-7 tornei).
 
 #### 3.2.2 Autenticazione Server-to-Server (Endpoint Interni)
 
@@ -549,7 +577,7 @@ CREATE TABLE users (
     username        VARCHAR(100) UNIQUE NOT NULL,
     password_hash   VARCHAR(255) NOT NULL,
     email           VARCHAR(255),
-    roles           VARCHAR(255) DEFAULT 'USER',
+    roles           VARCHAR(255) DEFAULT 'PLAYER',
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -558,7 +586,7 @@ CREATE TABLE game_catalog (
     game_type   VARCHAR(50) NOT NULL,    -- FK logica a GameType enum
     name        VARCHAR(100) NOT NULL,
     building_id VARCHAR(36) NOT NULL,
-    status      ENUM('AVAILABLE','RESERVED','IN_USE','MAINTENANCE') DEFAULT 'AVAILABLE',
+    status      ENUM('AVAILABLE','RESERVED','IN_USE','LOBBY','MAINTENANCE') DEFAULT 'AVAILABLE',
     INDEX idx_building (building_id),
     INDEX idx_type (game_type)
 );
@@ -635,7 +663,8 @@ CREATE TABLE aggregated_statistics (
     period_start  DATE NOT NULL,
     period_end    DATE NOT NULL,
     total_sessions INT DEFAULT 0,
-    avg_duration_s INT DEFAULT 0,
+    avg_duration_seconds INT DEFAULT 0,
+    total_aborted_sessions INT DEFAULT 0,
     total_reservations INT DEFAULT 0,
     data          JSON,
     UNIQUE KEY uk_building_type_period (building_id, game_type, period_start)
@@ -649,11 +678,10 @@ CREATE TABLE processed_events (
 -- =============== TABELLE CENTRAL SYSTEM — REGISTRY ===============
 
 CREATE TABLE local_servers (
-    id           VARCHAR(36) PRIMARY KEY,
-    building_id  VARCHAR(36) UNIQUE NOT NULL,
-    base_url     VARCHAR(255) NOT NULL,   -- es. https://local-server-1:8080
-    last_seen_at DATETIME,
-    is_active    BOOLEAN DEFAULT TRUE,
+    building_id   VARCHAR(50) PRIMARY KEY,
+    base_url      VARCHAR(255) NOT NULL,   -- es. https://local-server-1:8181
+    last_seen_at  DATETIME,
+    is_active     BOOLEAN DEFAULT TRUE,
     INDEX idx_active (is_active)
 );
 -- Popolata al boot di ogni Local Server via POST /internal/register (API Key protetto).
@@ -767,7 +795,7 @@ La replica utenti avviene **esclusivamente via REST** (push dal Central verso i 
 
 ### 11.2 Flusso di Aggiornamento (Password/Ruoli)
 
-1. Utente modifica password o ruoli → `PUT /api/users/{id}` → Central System.
+1. Utente modifica password o ruoli → il PLATFORM_ADMIN invoca `POST /api/admin/users/{userId}/roles` sul Local Server (azioni amministrative async via outbox `ROLE_ASSIGNMENT_REQUESTED`); la mutation diretta dell'utente (cambio password) si outlined nel Central System.
 2. Central System aggiorna l'utente nel DB, ri-esegue hash BCrypt se la password è cambiata, e crea un `OutboxEvent: USER_UPDATED`.
 3. Il `UserReplicationSchedulerService` rileva l'evento PENDING e invia i dati aggiornati a **tutti** i Local Server registrati.
 4. Ogni Local Server riceve la lista aggiornata tramite `PUT /internal/users/sync` e il `UserSyncService` esegue un **upsert** nella tabella `replicated_users`.
@@ -806,7 +834,7 @@ services:
     depends_on:
       - central-db
     ports:
-      - "8080:8080"
+      - "8180:8180"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:mysql://central-db:3306/central_db
       - SPRING_DATASOURCE_USERNAME=root
@@ -852,12 +880,12 @@ services:
       - local-db-1
       - mqtt-broker-1
     ports:
-      - "8081:8080"
+      - "8181:8181"
     environment:
       - BUILDING_ID=building-1
       - SPRING_DATASOURCE_URL=jdbc:mysql://local-db-1:3306/local_db
       - MQTT_BROKER_URL=ssl://mqtt-broker-1:8883
-      - CENTRAL_SYSTEM_URL=https://central-system:8080
+      - CENTRAL_SYSTEM_URL=https://central-system:8180
       - SYNC_INTERVAL_MS=300000
       - HEALTHCHECK_INTERVAL_MS=300000
       - JWT_LOCAL_PRIVATE_KEY_PATH=/certs/local-private.pem
@@ -884,7 +912,7 @@ services:
       - GAME_TYPE=FOOSBALL
       - BUILDING_ID=building-1
       - MQTT_BROKER_URL=ssl://mqtt-broker-1:8883
-      - LOCAL_SERVER_URL=http://local-server-1:8080
+      - LOCAL_SERVER_URL=https://local-server-1:8181
       - MQTT_USERNAME=client-foosball-1
       - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
     networks:
@@ -902,7 +930,7 @@ services:
       - GAME_TYPE=CHESS
       - BUILDING_ID=building-1
       - MQTT_BROKER_URL=ssl://mqtt-broker-1:8883
-      - LOCAL_SERVER_URL=http://local-server-1:8080
+      - LOCAL_SERVER_URL=https://local-server-1:8181
       - MQTT_USERNAME=client-chess-1
       - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
     networks:

@@ -54,7 +54,7 @@ La navbar è ricostruita a ogni `rebuild()` come `LinkedHashMap<String, String>`
 
 ## 3. Landing page post-login (default view)
 
-Implementata in `game-client-emulator/.../infrastructure/ui/MainView.java:310-322` (`defaultViewAfterLogin()`).
+Implementata in `game-client-emulator/.../infrastructure/ui/MainView.java:324-329` (`defaultViewAfterLogin()`).
 
 Per evitare che un utente atterri su una pagina senza il pulsante navbar corrispondente, la destinazione è scelta in base al ruolo con priorità al più privilegiato:
 
@@ -75,7 +75,7 @@ La visibilità UI è coerente con le policy `@PreAuthorize` lato backend (entram
 
 | Modulo | Endpoint | Ruolo richiesto (Spring Security) |
 |---|---|---|
-| local | `GET /api/games` | PLAYER or PLATFORM_ADMIN |
+| local | `GET /api/games` | PLAYER or GAME_ADMIN or PLATFORM_ADMIN or LOCAL_ADMIN |
 | local | `GET /api/players/me/statistics` | PLAYER or PLATFORM_ADMIN |
 | local | `GET /api/players/tournaments/me/matches` | PLAYER or PLATFORM_ADMIN |
 | local | `GET /api/players/me/matches/history` | PLAYER or PLATFORM_ADMIN |

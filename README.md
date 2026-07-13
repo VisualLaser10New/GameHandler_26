@@ -27,59 +27,161 @@ Per lo sviluppo attivo del progetto sono richiesti:
 
 ---
 
-## 3. Flusso di Lavoro Consigliato: L'Approccio "Ibrido"
+## 3. Avvio rapido del progetto
 
-Per lo sviluppo in team abbiamo adottato un **approccio Ibrido**. Questo approccio separa la parte "infrastrutturale" (che è tediosa da installare a mano) dalla parte "applicativa" (che vogliamo compilare ed eseguire alla massima velocità).
-* **Docker** si occuperà *solo* di far girare i Database (MySQL) e il Broker di messaggistica (Mosquitto). In questo modo, le porte, le password e l'ambiente dei DB saranno identici per tutti i membri del team.
-* **IntelliJ IDEA** si occuperà nativamente di gestire Java, scaricare le librerie (Maven) ed eseguire le nostre applicazioni Spring Boot.
+Questa sezione spiega come avviare l'intero sistema dalla propria postazione di sviluppo, creare gli utenti di prova con un solo comando e provare il software. L'ambiente usa Docker per i soli database e broker MQTT, e IntelliJ IDEA per i microservizi Java: questo garantisce velocità di sviluppo (debugger IntelliJ) e omogeneità dell'infrastruttura tra i membri del team.
 
-Di seguito i passi per configurare da zero la propria postazione.
+> Per l'avvio completamente containerizzato (per esame o consegna), vedere §4 "Ambiente di Produzione".
 
-### Step 1: Configurazione di IntelliJ IDEA e Java 21
-Non è necessario installare Java manualmente nel sistema operativo. L'IDE farà tutto per voi garantendo omogeneità nel team.
-1. Aprite IntelliJ IDEA e caricate la cartella radice del progetto `gamehandler-platform`.
-2. L'IDE individuerà automaticamente i file `pom.xml` e comincerà a indicizzare il progetto Maven (attendete la fine del processo in basso a destra).
-3. Cliccate su **File > Project Structure** (`Ctrl+Alt+Shift+S`).
-4. Sotto `Project Settings > Project`, alla voce **SDK**, aprite il menù a tendina.
-5. Selezionate **Download JDK...**
-6. Scegliete la versione **21** e come Vendor selezionate **Eclipse Temurin** (o Amazon Corretto).
-7. Cliccate "Download" e poi "Apply". Ora l'intero progetto è mappato su una versione pulita e standard di Java 21.
+### 3.1 Prerequisiti
 
-### Step 2: Inizializzare l'Infrastruttura (Il ruolo di Docker)
-Installare Docker per Windows [da qui](https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe?utm_source=docker&utm_medium=webreferral&utm_campaign=docs-driven-download-win-amd64).
-I file di configurazione (`docker-compose.yml`) definiscono l'infrastruttura. Avviare questi servizi è il prerequisito prima di far partire il codice Java.
-1. Aprite il terminale di IntelliJ (in basso) oppure usate la GUI del plugin Docker integrato nell'IDE aprendo il file `docker-compose.yml`, premere il doppio pulsante di play (quello con due triangoli verdi sovvrapposti).
-2. Per avviare **esclusivamente** i Database e il Broker MQTT (senza avviare i server Java containerizzati), lanciate questo comando:
+Prima di iniziare verificare di avere (vedi §2 per dettagli):
+- **IntelliJ IDEA** (Community o Ultimate Edition) con **JDK 21** scaricato internamente: `File → Project Structure → SDK → Download JDK` → versione 21, vendor Eclipse Temurin (o Amazon Corretto).
+- **Docker Desktop** avviato e funzionante.
+- Repository `gamehandler-platform` clonato e caricato in IntelliJ (l'IDE indicizza automaticamente i `pom.xml`; attendere la fine dell'indicizzazione in basso a destra).
+
+### 3.2 Avviare databases e MQTT broker (Docker)
+
+I file di configurazione `docker-compose.yml` definiscono l'infrastruttura. Avviare questi servizi è il prerequisito OBBLIGATORIO prima di far partire il codice Java.
+
+1. Aprire il terminale di IntelliJ (in basso) oppure usare la GUI del plugin Docker integrato aprendo `docker-compose.yml` e premere il pulsante di play doppio (due triangoli verdi sovvrapposti).
+2. Avviare **esclusivamente** i Database e il Broker MQTT (senza avviare i server Java containerizzati):
    ```bash
    docker-compose up -d central-db local-db-1 mqtt-broker-1
    ```
-   *Spiegazione tecnica:* `up` costruisce e avvia i container. L'opzione `-d` (detached) li fa girare in background lasciando libero il terminale. Fornendo i nomi dei singoli servizi, diciamo a Docker di accendere *solo* l'infrastruttura di base e non i microservizi Java.
-3. Se i container sono partiti, avrete ora un MySQL in ascolto per il Central System, un MySQL per il Local Server e un broker Mosquitto in ascolto. Potete verificarne lo stato con `docker-compose ps`.
+   *Spiegazione tecnica:* `up` costruisce e avvia i container; `-d` (detached) li fa girare in background; fornendo i nomi dei singoli servizi si dice a Docker di accendere *solo* l'infrastruttura di base.
+3. Verificare lo stato con:
+   ```bash
+   docker-compose ps
+   ```
+   I container `central-db-1`, `local-db-1-1` e `mqtt-broker-1-1` devono risultare `Up`. Le porte esposte sull'host sono: MySQL central `3306`, MySQL local `3307`, MQTT broker `1883` (TCP) e `8883` (TLS).
 
-### Step 3: Sviluppo ed Esecuzione del Codice (Spring Boot)
-Ora che l'infrastruttura è attiva in background, potete scrivere il codice.
+> IMPORTANTE: per provare il sistema ricordarsi sempre di aver avviato i container Docker. Se si vuole spegnere l'infrastruttura: `docker-compose down` (aggiungere `-v` per azzerare anche i volumi dati).
 
-> IMPORTANTE:
-> Per provare il sistema ricordarsi sempre di aver avviato i container Docker.
+### 3.3 Avviare il Central System (IntelliJ)
 
-Quando volete testare il sistema:
-1. Cercate nel progetto le classi `main` dei tre microservizi
-   - `CentralSystemApplication.java`
-   - `LocalServerApplication.java`
-   - `GameClientEmulatorApplication.java`
-2. Cliccate sulla freccia verde **Play** (Run) a fianco della classe in IntelliJ.
-3. Le applicazioni Spring Boot partiranno nativamente sul vostro PC, leggeranno i file `application.yml` che puntano a `localhost:3306` (dove Docker sta inoltrando il DB) e si connetteranno correttamente.
-Questo vi permette di usare il Debugger di IntelliJ in modo fulmineo, senza riavviare Docker a ogni singola riga di codice modificato!
+1. In IntelliJ, aprire il file `central-system/src/main/java/com/gameplatform/central/CentralSystemApplication.java`.
+2. Cliccare sulla freccia verde **Play** (Run) a fianco della dichiarazione della classe `CentralSystemApplication`.
+3. Attendere 6-7 secondi che Spring Boot si avvii. Nel log comparirà:
+   ```
+   Started CentralSystemApplication in X.XXX seconds (process running for X.XXX)
+   Tomcat started on port 8180 (https) with context path ''
+   ```
+4. Verificare che il servizio risponda:
+   ```bash
+   curl -k https://localhost:8180/actuator/health
+   ```
+   → expected: `{"status":"UP"}`.
 
-> Attenzione: Se volete avviare i sistemi dal docker, ricordarsi di averli compilati in jar prima (altrimenti si ottiene l'errore di target mancante).
+Il Central System è la "Source of Truth" globale (utenti, tornei, statistiche aggregate) ed espone le API REST su `https://localhost:8180`.
+
+### 3.4 Avviare il Local Server (IntelliJ)
+
+1. In IntelliJ, aprire il file `local-server/src/main/java/com/gameplatform/local/LocalServerApplication.java`.
+2. Cliccare sulla freccia verde **Play** a fianco di `LocalServerApplication`.
+3. Attendere 6-7 secondi. Nel log comparirà:
+   ```
+   MQTT Client connected successfully
+   Started LocalServerApplication in X.XXX seconds (process running for X.XXX)
+   Local server registered successfully at central system
+   ```
+   La riga `Local server registered successfully` conferma che il Local Server si è auto-registrato presso il Central System (la replica è bidirezionale via pattern *Transactional Outbox*).
+4. Verificare:
+   ```bash
+   curl -k https://localhost:8181/actuator/health
+   ```
+   → expected: `{"status":"UP"}`.
+
+Il Local Server gestisce le sessioni di gioco e comunica col game device via MQTT; espone le API REST su `https://localhost:8181`.
+
+> L'ordine di avvio è importante: avviare SEMPRE prima il Central System e poi il Local Server, così l'auto-registrazione ha successo. Se si avvia il Local Server per primo o il Central è temporaneamente offline, il Local Server ritenterà l'auto-registrazione ad ogni tick dello scheduler — in tal caso nel log del central compaiono WARN `Connection refused` attesi finché il local non si registra con successo.
+
+### 3.5 Avviare il Game Client Emulator (IntelliJ)
+
+1. In IntelliJ, aprire il file `game-client-emulator/src/main/java/com/gameplatform/client/GameClientEmulatorApplication.java`.
+2. Cliccare sulla freccia verde **Play**.
+3. Si aprirà una finestra JavaFX con la schermata di login.
+
+Il Game Client Emulator è l'interfaccia grafica ufficiale. Parla **esclusivamente** col Local Server via REST (per login/iscrizioni/tornei/partite) e MQTT (per il play e i round del game device). Non esiste alcuna UI web accessibile dal browser: tutto passa per questa applicazione desktop.
+
+### 3.6 Creare gli utenti di prova con `setup-users.ps1`
+
+Uno script PowerShell (nella cartella `gamehandler-platform/`) crea automaticamente 4 utenti, uno per ciascun ruolo, ed esegue il binding del LOCAL_ADMIN al building-1. È idempotente: può essere rilanciato senza errori se gli utenti esistono già.
+
+1. Aprire un terminale PowerShell nella cartella `gamehandler-platform`:
+   ```powershell
+   cd C:\Users\VLT14\Documents\UNI\PISSIR\Progetto\gamehandler-platform
+   .\setup-users.ps1
+   ```
+2. Lo script esegue in automatico:
+   - Verifica prerequisiti (container Docker UP, server UP, DB raggiungibili)
+   - Registra 4 utenti sul Central System (tutti come `PLAYER` di default)
+   - Attende la replica su `local_db.replicated_users` (polling ogni 10 s)
+   - Assegna i ruoli corretti via SQL su entrambi i DB (chicken-egg workaround per il primo `PLATFORM_ADMIN`)
+   - Fa il binding `LOCAL_ADMIN↔building-1` via API REST + replica SQL immediata
+   - Stampa una tabella riepilogativa con username / password / ruolo / userId
+3. Output atteso — 4 utenti creati:
+
+   | Username | Password | Ruolo | Note |
+   |---|---|---|---|
+   | `player1` | `player-password` | `PLAYER` | Gioca partite, partecipa a tornei, consulta MyStats |
+   | `localadmin1` | `localadmin-password` | `LOCAL_ADMIN` | Bindato a building-1: gestisce giochi, dispositivi, statistiche del locale |
+   | `gameadmin1` | `gameadmin-password` | `GAME_ADMIN` | Definisce tipologie di giochi e regole di registrazione |
+   | `platformadmin1` | `platformadmin-password` | `PLATFORM_ADMIN` | Superuser: accesso a tutte le pagine |
+
+Per dettagli sui ruoli e sulla matrice di visibilità delle pagine GUI, vedere `documenti/ruoli_utenti.md`.
+
+### 3.7 Provare il software
+
+Con il sistema avviato (§3.2-§3.5) e gli utenti creati (§3.6), è possibile provare tutte le funzionalità. Di seguito le operazioni principali, ciascuna eseguibile dal Game Client Emulator dopo il login con l'utente indicato.
+
+#### Login
+Nella schermata del Game Client Emulator inserire username e password di uno dei 4 utenti. Il client parla col Local Server (`https://localhost:8181`). La navbar mostra solo le pagine autorizzate per il ruolo dell'utente (vedi `documenti/ruoli_utenti.md` per la matrice completa).
+
+#### Come PLAYER (`player1`)
+- **Games**: elenco dei giochi disponibili nel building-1. Selezionare un gioco per avviarlo o prenotare una slot.
+- **Giocare una partita single-player**: selezionare SLOT_MACHINE o ROULETTE → avvia sessione → effettua "tiri"/round → termina partita → il risultato viene registrato.
+- **Giocare una partita multi-player**: creare/entrare in una lobby per CHESS, FOOSBALL, DARTS, MONOPOLY o RISK → attendere l'avversario → giocare → terminare con vincitore.
+- **My Stats**: consulta le proprie statistiche personali (partite giocate, vittorie, sconfitte) per ogni tipo di gioco — aggiornate dopo ogni partita conclusa.
+- **My Matches**: elenco dei match dei tornei a cui si è iscritti (status SCHEDULED / IN_PROGRESS / COMPLETED).
+- **Tournaments**: elenco dei tornei aperti → iscriversi → (dopo schedule del PLATFORM_ADMIN) giocare il proprio match.
+
+#### Come LOCAL_ADMIN (`localadmin1`)
+- **Games**: elenco dei giochi del building.
+- **Aggregated Stats**: statistiche aggregate del building-1 (sessions / aborted / reservations per tipo di gioco).
+- **Local Dashboard**: crea/modifica/elimina giochi del building; monitora sessioni attive; configura dispositivi (CSR per game device MQTT); visualizza statistiche del locale.
+
+#### Come GAME_ADMIN (`gameadmin1`)
+- **Game Admin**: crea nuove tipologie di giochi (`GameDefinition`) sopra i `GameType` supportati (CHESS, FOOSBALL, DARTS, MONOPOLY, POKER, CONNECT4, BATTLESHIP, SLOT_MACHINE, ROULETTE, RISK); configura `minPlayers`/`maxPlayers`/`teamAllowed`/`registrationRules`; aggiorna definizioni esistenti. Le modifiche viaggiano via outbox async al Central System.
+
+#### Come PLATFORM_ADMIN (`platformadmin1`)
+-vede tutte le pagine del PLAYER + LOCAL_ADMIN + GAME_ADMIN + la pagina **Platform Admin**:
+  - **Platform Admin**: directory utenti con assegnazione ruoli; binding LOCAL_ADMIN↔building; lifecycle completo dei tornei (crea / open / schedule / cancel / update / delete); statistiche globali; monitor server registrati.
+  - **Admin Requests**: stato delle admin-request async (PENDING / COMPLETED / FAILED) emesse dalle operazioni sopra, con polling ogni 8 secondi.
+
+#### Scenario completo: torneo end-to-end
+
+Per provare l'intera pipeline tornei come PLATFORM_ADMIN + PLAYER:
+
+1. Login come `platformadmin1` → Platform Admin → "Create tournament" (tipo CHESS, formato SINGLE_ELIMINATION).
+2. "Open registration" → il torneo passa a `OPEN_REGISTRATION`.
+3. Logout, login come `player1` → Tournaments → iscriviti. Ripetere con altri player (o iscrivere più utenti dall'API).
+4. Login come `platformadmin1` → "Schedule" → il bracket viene generato e i match replicati al local.
+5. Login come `player1` → My Matches → "Start match" → `GameSession` creata → giocare via GUI → "End match" con winner.
+6. Il Central System fa `advanceWinner`; al termine del bracket il torneo è `COMPLETED` e le `standings` mostrano i rank 1..N.
+7. Verificare My Stats: vittorie/sconfitte integrate per ogni partecipante.
+
+Per uno scenario manuale più dettagliato con verifiche SQL/DB, vedere §8.5.
+
+> Per eseguire il debug delle applicazioni Spring Boot con IntelliJ, basta usare il pulsante **Debug** (invece di Run) a fianco della classe `main`: si possono mettere breakpoint e ispezionare le variabili senza riavviare Docker.
 
 ---
 
 ## 4. Ambiente di Produzione (Per l'Esame e la Consegna)
 
-Mentre l'Approccio Ibrido è perfetto per lo *sviluppo*, il professore dovrà poter eseguire il progetto completo in un solo click, senza dover aprire IntelliJ o configurare Java.
+Mentre l'approccio di §3 è perfetto per lo *sviluppo*, in fase di esame o consegna il progetto va eseguito in un solo click, senza dover aprire IntelliJ o configurare Java.
 
-Per l'ambiente di produzione (o "Test Finale" per voi prima della consegna), si sfrutta **interamente** la potenza di Docker. I `Dockerfile` **non compilano** il sorgente dentro il container: consumano artefatti Maven **già buildati** (`COPY target/*.jar`), quindi il `mvn clean package -DskipTests` dello step 2 è prerequisito obbligatorio prima del `docker-compose up --build`. Il file `docker-compose.yml` inoltre dichiara blocchi `healthcheck:` per `central-system`/`local-server` e per i rispettivi DB, con `depends_on` a condizione `service_healthy` per i DB (e `service_started` per il broker MQTT): in questo modo `docker-compose up` attende che i database siano sani prima di avviare i server.
+Per l'ambiente di produzione (o "Test Finale" per voi prima della consegna), si sfrutta **interamente** la potenza di Docker. I `Dockerfile` **non compilano** il sorgente dentro il container: consumano artefatti Maven **già buildati** (`COPY target/*.jar`), quindi il `mvn clean package -DskipTests` è prerequisito obbligatorio prima del `docker-compose up --build`. Il file `docker-compose.yml` inoltre dichiara blocchi `healthcheck:` per `central-system`/`local-server` e per i rispettivi DB, con `depends_on` a condizione `service_healthy` per i DB (e `service_started` per il broker MQTT): in questo modo `docker-compose up` attende che i database siano sani prima di avviare i server.
 
 ### Come simulare la Produzione:
 1. Fermate tutte le istanze avviate in IntelliJ.
@@ -102,6 +204,8 @@ Per l'ambiente di produzione (o "Test Finale" per voi prima della consegna), si 
    ```
    *(Nota: Aggiungendo il flag `-v` a fine comando, Docker eliminerà anche i volumi, azzerando completamente tutti i dati nei database).*
 
+> Per creare gli utenti di prova anche in ambiente produzione, è possibile eseguire `setup-users.ps1` (vedi §3.6) dopo che i container sono UP e il local-server risponde su `https://localhost:8181/actuator/health`.
+
 ---
 
 ## 5. Comandi di Manutenzione (Utility)
@@ -118,7 +222,9 @@ docker run --rm -v ${PWD}/infrastructure/mosquitto:/mosquitto/config eclipse-mos
 
 Questa sezione documenta come accedere ai pannelli amministrativi del **Central System** e del **Local Server**, gli endpoint di autenticazione, i ruoli e la procedura di bootstrap del primo amministratore di piattaforma.
 
-> **Nessun utente seed.** Gli `init.sql` di `infrastructure/mysql-central` e `infrastructure/mysql-local` **non contengono** `INSERT INTO users` (né in `users` né in `replicated_users`): sono seminati solo `game_catalog` e `game_definitions`. Non esistono credenziali admin predefinite: il primo `PLATFORM_ADMIN` va registrato e poi promosso manualmente via SQL (procedura in §6.1).
+> **Nessun utente seed.** Gli `init.sql` di `infrastructure/mysql-central` e `infrastructure/mysql-local` **non contengono** `INSERT INTO users` (né in `users` né in `replicated_users`): sono seminati solo `game_catalog` e `game_definitions`. Non esistono credenziali admin predefinite.
+>
+> Il modo consigliato per creare gli utenti di prova (uno per ruolo) è lo script `setup-users.ps1` documentato in §3.6, che automatizza registrazione + promozione ruolo + binding building in un colpo solo. La procedura manuale che segue è utile per interventi puntuali o per comprendere il funzionamento interno.
 
 ### 6.1 Central System (`https://localhost:8180`)
 
@@ -140,8 +246,8 @@ Questa sezione documenta come accedere ai pannelli amministrativi del **Central 
     -d '{"username":"admin","password":"password-scelta","email":"admin@example.com"}'
   ```
 
-#### Bootstrap del primo `PLATFORM_ADMIN`
-Non esiste un endpoint pubblico di promozione ruolo: `POST /api/admin/users/{userId}/roles` (sul **Local Server**) richiede già `PLATFORM_ADMIN` (`@PreAuthorize` in `PlatformAdminUserController.java:29` — problema chicken-and-egg). Procedura consigliata:
+#### Bootstrap manuale del primo `PLATFORM_ADMIN`
+Non esiste un endpoint pubblico di promozione ruolo: `POST /api/admin/users/{userId}/roles` (sul **Local Server**) richiede già `PLATFORM_ADMIN` (`@PreAuthorize` in `PlatformAdminUserController.java:29` — problema chicken-and-egg). La procedura automatica via `setup-users.ps1` (§3.6) bypassa l'ostacolo via SQL. Per la procedura manuale equivalente:
 1. Registra un utente sul Central come sopra (ottiene ruolo `PLAYER`).
 2. Promuovi a `PLATFORM_ADMIN` direttamente sul DB centrale:
    ```sql
@@ -199,13 +305,15 @@ Tutte le porte dei servizi sono **config-driven**: niente porte hardcoded nei so
 
 ### 7.2 URL di avvio dei servizi
 
+Tabella di riferimento per gli URL dei servizi; per la procedura di avvio con IntelliJ, vedere §3.2-§3.5.
+
 | Servizio | URL di avvio | Come si avvia |
 |---|---|---|
-| Central System | `https://localhost:8180` | `mvn spring-boot:run -pl central-system` oppure IntelliJ su `CentralSystemApplication` |
-| Local Server (building-1) | `https://localhost:8181` | `mvn spring-boot:run -pl local-server` oppure IntelliJ su `LocalServerApplication` |
+| Central System | `https://localhost:8180` | `mvn spring-boot:run -pl central-system` o IntelliJ su `CentralSystemApplication` (vedi §3.3) |
+| Local Server (building-1) | `https://localhost:8181` | `mvn spring-boot:run -pl local-server` o IntelliJ su `LocalServerApplication` (vedi §3.4) |
 | Local Server (building-2) | `https://localhost:8182` | `docker-compose -f docker-compose.yml -f docker-compose.multi.yml up local-server-2` |
 | Local Server (building-3) | `https://localhost:8183` | `docker-compose -f docker-compose.yml -f docker-compose.multi.yml up local-server-3` |
-| Game Client Emulator | — (app desktop JavaFX) | `mvn javafx:run -pl game-client-emulator` oppure IntelliJ su `GameClientEmulatorApplication` |
+| Game Client Emulator | — (app desktop JavaFX) | `mvn javafx:run -pl game-client-emulator` o IntelliJ su `GameClientEmulatorApplication` (vedi §3.5) |
 | MQTT broker building-1 | `tcp://localhost:1883` / `ssl://localhost:8883` | `docker-compose up mqtt-broker-1` |
 | MySQL central | `jdbc:mysql://localhost:3306/central_db` | `docker-compose up central-db` |
 | MySQL local building-1 | `jdbc:mysql://localhost:3307/local_db` | `docker-compose up local-db-1` |
@@ -271,22 +379,14 @@ I default in `local-server/src/main/resources/application.yml` (`server.port`, `
 
 ## 8. Smoke test (Docker)
 
-Procedura manuale per verificare il flusso end-to-end su Docker. Documentata come riferimento per la FASE 4 step 5 (avvio reale) del piano `workflow/analisi/risoluzione_comunicazioni_local_central.md` — non eseguita in CI perché richiede Docker daemon attivo.
+Procedura manuale per verificare il flusso end-to-end su Docker, intesa come osservazione avanzata deipattern outbox/replica e dei log di sistema. Per l'avvio del sistema dalla postazione di sviluppo (IntelliJ + Docker infrastruttura) vedere §3 "Avvio rapido del progetto"; qui si dà per scontato che i server siano già UP. La documentazione di riferimento è la FASE 4 step 5 (avvio reale) del piano `workflow/analisi/risoluzione_comunicazioni_local_central.md` — non eseguita in CI perché richiede Docker daemon attivo.
 
 ### 8.1 Prerequisiti
 - Docker + Docker Compose
 - Porte libere: 8180, 8181, 1883, 3306, 3307 (vedi §7 per la mappa completa)
+- Server `central-system` e `local-server` avviati (vedi §3.3 e §3.4)
 
-### 8.2 Avvio
-```bash
-cd gamehandler-platform
-docker-compose up -d --build central-db local-db-1 mqtt-broker-1
-mvn spring-boot:run -pl central-system
-# in un altro terminale:
-mvn spring-boot:run -pl local-server
-```
-
-### 8.3 Verifica (10-15 min di osservazione)
+### 8.2 Verifica (10-15 min di osservazione)
 1. **Auto-registrazione**: nel log del local compare `Local server registered with central system`. Nel DB central: `SELECT * FROM central_db.local_servers;` → riga `building-1` con `is_active=1`, `base_url=https://local-server-1:8181`.
 2. **Replica utenti**: registra un utente sul local → entro 5 min l'utente appare in `central_db.users`. Il central scheduler replica verso il local → l'utente appare in `local_db.users`.
 3. **Outbox**: `SELECT status, COUNT(*) FROM local_db.outbox_events GROUP BY status;` → PENDING → 0, SENT cresce, FAILED → 0 (promosso a DLQ da `OutboxDlqPromotionService`).
@@ -298,7 +398,7 @@ mvn spring-boot:run -pl local-server
 > - L'outbox retry 3 volte (`RetryTemplate` con backoff esponenziale 100 ms / 2.0× / 10 s, vedi `LocalLocalServerRegistryRestAdapter` e twin adapters), poi emette `ERROR` e l'evento è lasciato `PENDING` / marcato `FAILED` a seconda del path; il `LocalServerHealthMonitorService` disattiva l'entry (`is_active = 0`) non appena `lastSeenAt` supera `app.health.server-stale-threshold-ms` (default 15 min).
 > - Il `central-system` è progettato per rimanere operativo anche con uno o più local-server offline: gli eventi per quel building restano in coda e vengono recapitati al riavvio del local-server (re-registrazione → `is_active = 1` → catch-up R1). Per silenziare il rumore durante smoke run nativi, azzerare la tabella `central_db.local_servers` oppure avviare anche il `local-server`.
 
-### 8.4 Comandi curl di verifica
+### 8.3 Comandi curl di verifica
 
 La dipendenza `spring-boot-starter-actuator` (runtime) è presente nei `pom.xml` di `central-system` e `local-server`, e in entrambi gli `application.yml` è esposto solo l'endpoint `health` (`management.endpoints.web.exposure.include: health`). Il path `/actuator/health` è inoltre in `permitAll` in entrambi i `SecurityConfig`, quindi i seguenti curl funzionano senza credenziali:
 
@@ -311,7 +411,7 @@ curl -k https://localhost:8181/actuator/health
 
 > Nota: `curl` è installato anche dentro le immagini Docker (entry `RUN apt-get install -y curl` nei `Dockerfile`), così gli `healthcheck:` del compose possono usare `curl -kfsS https://localhost:818x/actuator/health`.
 
-### 8.5 Scenario — Tournament end-to-end
+### 8.4 Scenario — Tournament end-to-end
 
 Scenario smoke manuale che copre l'intero flusso torneo (FASE 4–7) dal punto di vista degli osservatori outbox/DB. Si aggiunge agli step della sezione "Verifica" qui sopra; i prerequisiti sono gli stessi (container `central-db`, `local-db-1`, `mqtt-broker-1` UP, `central-system` e `local-server` avviati). I test di riferimento automatici sono `central-system/src/test/java/com/gameplatform/central/application/service/TournamentFlowEndToEndIT.java` (flusso bracket Central su H2: schedule → `TOURNAMENT_MATCH_COMPLETED` → `advanceWinner` → standings) e `local-server/src/test/java/com/gameplatform/local/application/service/GameSessionServiceTournamentTest.java` (play lato Local: `start`/`end` bindato a `TournamentMatchLocal` → outbox `GAME_SESSION_COMPLETED` + `TOURNAMENT_MATCH_COMPLETED`).
 
@@ -347,7 +447,7 @@ Scenario smoke manuale che copre l'intero flusso torneo (FASE 4–7) dal punto d
 
 > Latenza attesa: ciascuno step admin/PLAYER attraversa il pattern outbox async (scheduler con `app.sync-interval-ms`, default 5 min in produzione); per lo smoke impostare `app.sync-interval-ms` basso (es. `10000`) o richiamare manualmente i scheduler per accelerare la propagazione.
 
-### 8.6 Smoke test multi-building
+### 8.5 Smoke test multi-building
 
 Avvio della composizione multi-building (building-1 da `docker-compose.yml` + building-2 e building-3 dall'override):
 ```bash

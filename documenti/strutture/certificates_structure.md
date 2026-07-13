@@ -35,8 +35,8 @@ graph TD
 
 | Componente | File nel Container / Classpath | Scopo |
 | :--- | :--- | :--- |
-| **Central System** | `central-system-https.p12` | Abilitare HTTPS Server (Port 8080) |
-| **Local Server** | `local-server-https.p12`<br>`local-truststore.p12`<br>`central-truststore.p12` | Abilitare HTTPS Server (Port 8081)<br>Fidarsi del Broker MQTT locale e dei client connessi<br>Fidarsi del Central System (REST HTTPS) |
+| **Central System** | `central-system-https.p12` | Abilitare HTTPS Server (Port 8180) |
+| **Local Server** | `local-server-https.p12`<br>`local-truststore.p12`<br>`central-truststore.p12` | Abilitare HTTPS Server (Port 8181)<br>Fidarsi del Broker MQTT locale e dei client connessi<br>Fidarsi del Central System (REST HTTPS) |
 | **MQTT Broker** | `ca.crt`<br>`server.crt`<br>`server.key` | Abilitare listener mTLS (Port 8883)<br>Validare i certificati client di emulatori e Local Server |
 | **Game Client (Generici)** | `game-client-keystore.p12`<br>`local-truststore.p12` | Autenticarsi al Broker MQTT locale via mTLS<br>Fidarsi del Broker MQTT e del Local Server (HTTPS) |
 

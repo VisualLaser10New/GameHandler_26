@@ -1,5 +1,6 @@
 ## Analisi: Supporto Slot Machine e Roulette
 
+
 ### Caratteristiche di questi giochi
 
 | Gioco | Giocatori | Turni | Punteggio | Risorse | Board | Peculiarità |

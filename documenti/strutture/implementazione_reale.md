@@ -3,7 +3,7 @@ La short answer: il sistema attuale ragiona già con la chiave `(buildingId, gam
 ## Cosa identifica già oggi chi gioca su cosa
 
 - `BuildingId`: identificativo dell'edificio (`app.building-id` nel `local-server`).
-- `GameId`: identificativo della singola macchina (record nella tabella `games`, con `gameType=FOOSBALL`). È univoco **all'interno del building**.
+- `GameId`: identificativo della singola macchina (record nella tabella `game_catalog`, con `gameType=FOOSBALL`). È univoco **all'interno del building**.
 - `SessionId`: identificativo della partita in corso (creato da `createLobby`, stato `WAITING`).
 - `UserId`: identificativo del giocatore (dal lookup utente del sistema centrale).
 
