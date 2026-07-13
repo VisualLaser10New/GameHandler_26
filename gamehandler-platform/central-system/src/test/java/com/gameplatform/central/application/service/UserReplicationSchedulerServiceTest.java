@@ -1,6 +1,7 @@
 package com.gameplatform.central.application.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gameplatform.central.domain.exception.TransientPushException;
 import com.gameplatform.central.domain.model.OutboxEvent;
 import com.gameplatform.central.domain.model.OutboxEventStatus;
 import com.gameplatform.central.domain.model.RegisteredLocalServer;
@@ -38,7 +39,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.web.client.ResourceAccessException;
 
+import java.net.ConnectException;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -762,6 +765,47 @@ class UserReplicationSchedulerServiceTest {
         verify(replicationProgressRepository, never()).save(new ReplicationProgress(event.getId(), "s1"));
         verify(replicationProgressRepository).save(new ReplicationProgress(event.getId(), "s2"));
         verify(outboxEventRepository).markAsSent(event.getId());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Connection-refused deactivation: an unreachable (ConnectException root cause)
+    // local server is immediately deactivated so subsequent ticks skip it, instead of
+    // spamming ERROR for 15 minutes until the health monitor would catch up.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void replicateLocalServerRegistryEvent_deactivatesServer_whenConnectionRefused() {
+        OutboxEvent event = buildLocalServerRegistryEvent("b-new", true);
+        RegisteredLocalServer server1 = buildServer("s1", "http://s1:8080");
+
+        when(outboxEventRepository.findPendingLimit(50)).thenReturn(List.of(event));
+        when(localServerRegistryPort.getActiveLocalServers()).thenReturn(List.of(server1));
+
+        RuntimeException connRefused = new RuntimeException("push failed",
+                new TransientPushException("transient",
+                        new ResourceAccessException("I/O error",
+                                new ConnectException("Connection refused"))));
+        doThrow(connRefused).when(pushLocalServerRegistryToLocalServersPort).push(any(), eq(server1));
+
+        schedulerService.replicateUsers();
+
+        verify(localServerRegistryPort).deactivate(server1.getBuildingId());
+        verify(outboxEventRepository, never()).markAsSent(any());
+    }
+
+    @Test
+    void replicateUsers_doesNotDeactivateServer_whenFailureIsNotConnectionRefused() {
+        OutboxEvent event = buildUserEvent("USER_REGISTERED");
+        RegisteredLocalServer server1 = buildServer("s1", "http://s1:8080");
+
+        when(outboxEventRepository.findPendingLimit(50)).thenReturn(List.of(event));
+        when(localServerRegistryPort.getActiveLocalServers()).thenReturn(List.of(server1));
+        doThrow(new RuntimeException("Timeout")).when(pushUserToLocalServersPort).pushUsers(any(), eq(server1));
+
+        schedulerService.replicateUsers();
+
+        verify(localServerRegistryPort, never()).deactivate(any(BuildingId.class));
+        verify(outboxEventRepository, never()).markAsSent(any());
     }
 
     // ──────────────────────────────────────────────────────────────────────────

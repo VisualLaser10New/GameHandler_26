@@ -293,6 +293,11 @@ mvn spring-boot:run -pl local-server
 4. **Statistiche**: `SELECT * FROM central_db.aggregated_statistics;` → `total_sessions`, `total_aborted_sessions`, `total_reservations` popolati.
 5. **Log**: nessun `ERROR` o `WARN` inatteso.
 
+> **Avvio del solo central-system (senza local-server).** Avviando SOLO il `central-system` (es. `mvn spring-boot:run -pl central-system` con il `local-server` fermo), compaiono log `ERROR` del tipo `Connection refused: getsockopt ... https://local-server-1:8181/internal/servers/sync` se nel DB central è presente una riga `local_servers` registrata in un run precedente. Sono **attesi e non indicano un bug**:
+> - l'hostname `local-server-1` risolve solo nella rete Docker (DNS del compose network); in esecuzione nativa (`mvn`) non risolve → `ResourceAccessException` classificata come transiente.
+> - L'outbox retry 3 volte (`RetryTemplate` con backoff esponenziale 100 ms / 2.0× / 10 s, vedi `LocalLocalServerRegistryRestAdapter` e twin adapters), poi emette `ERROR` e l'evento è lasciato `PENDING` / marcato `FAILED` a seconda del path; il `LocalServerHealthMonitorService` disattiva l'entry (`is_active = 0`) non appena `lastSeenAt` supera `app.health.server-stale-threshold-ms` (default 15 min).
+> - Il `central-system` è progettato per rimanere operativo anche con uno o più local-server offline: gli eventi per quel building restano in coda e vengono recapitati al riavvio del local-server (re-registrazione → `is_active = 1` → catch-up R1). Per silenziare il rumore durante smoke run nativi, azzerare la tabella `central_db.local_servers` oppure avviare anche il `local-server`.
+
 ### 8.4 Comandi curl di verifica
 
 La dipendenza `spring-boot-starter-actuator` (runtime) è presente nei `pom.xml` di `central-system` e `local-server`, e in entrambi gli `application.yml` è esposto solo l'endpoint `health` (`management.endpoints.web.exposure.include: health`). Il path `/actuator/health` è inoltre in `permitAll` in entrambi i `SecurityConfig`, quindi i seguenti curl funzionano senza credenziali:

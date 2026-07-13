@@ -120,7 +120,11 @@ public class LocalTeamMembersRestAdapter implements PushTeamMembersToLocalServer
                 }
             });
         } catch (Exception e) {
-            log.error("Failed to push team-members to local server at {} after retries.", url, e);
+            if (isConnectionRefusedRoot(e)) {
+                log.warn("Local server at {} unreachable — event will be retried; server marked inactive if persistent.", url);
+            } else {
+                log.error("Failed to push team-members to local server at {} after retries.", url, e);
+            }
             throw new RuntimeException("Failed to push team-members to local server: " + url, e);
         }
     }
@@ -132,6 +136,21 @@ public class LocalTeamMembersRestAdapter implements PushTeamMembersToLocalServer
         if (e instanceof HttpStatusCodeException) {
             HttpStatusCode status = ((HttpStatusCodeException) e).getStatusCode();
             return status.is5xxServerError() || status.value() == 429 || status.value() == 408;
+        }
+        return false;
+    }
+
+    static boolean isConnectionRefusedRoot(Throwable t) {
+        Throwable cur = t;
+        while (cur != null) {
+            if (cur instanceof java.net.ConnectException) {
+                return true;
+            }
+            Throwable next = cur.getCause();
+            if (next == cur) {
+                break;
+            }
+            cur = next;
         }
         return false;
     }

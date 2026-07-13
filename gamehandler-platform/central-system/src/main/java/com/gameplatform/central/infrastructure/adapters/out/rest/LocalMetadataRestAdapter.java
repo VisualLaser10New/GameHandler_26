@@ -113,7 +113,11 @@ public class LocalMetadataRestAdapter implements PushMetadataToLocalServersPort 
                 }
             });
         } catch (Exception e) {
-            log.error("Failed to push metadata to local server at {} after retries.", url, e);
+            if (isConnectionRefusedRoot(e)) {
+                log.warn("Local server at {} unreachable — event will be retried; server marked inactive if persistent.", url);
+            } else {
+                log.error("Failed to push metadata to local server at {} after retries.", url, e);
+            }
             throw new RuntimeException("Failed to push metadata to local server: " + url, e);
         }
     }
@@ -125,6 +129,21 @@ public class LocalMetadataRestAdapter implements PushMetadataToLocalServersPort 
         if (e instanceof HttpStatusCodeException) {
             org.springframework.http.HttpStatusCode status = ((HttpStatusCodeException) e).getStatusCode();
             return status.is5xxServerError() || status.value() == 429 || status.value() == 408;
+        }
+        return false;
+    }
+
+    static boolean isConnectionRefusedRoot(Throwable t) {
+        Throwable cur = t;
+        while (cur != null) {
+            if (cur instanceof java.net.ConnectException) {
+                return true;
+            }
+            Throwable next = cur.getCause();
+            if (next == cur) {
+                break;
+            }
+            cur = next;
         }
         return false;
     }

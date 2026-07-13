@@ -39,6 +39,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -314,8 +315,18 @@ public class UserReplicationSchedulerService {
                     } catch (Exception e) {
                         // Isolate per-server push failures: log and continue to the next server
                         allSucceeded.set(false);
-                        log.error("Failed to push user event [{}] to server [{}]: {}",
-                                event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                        if (isConnectionRefused(e)) {
+                            try {
+                                localServerRegistryPort.deactivate(server.getBuildingId());
+                            } catch (Exception dex) {
+                                log.warn("Failed to deactivate unreachable local server [{}]", server.getBaseUrl(), dex);
+                            }
+                            log.warn("Local server [{}] unreachable (connection refused) — marked inactive; will re-activate on next heartbeat",
+                                    server.getBaseUrl());
+                        } else {
+                            log.error("Failed to push user event [{}] to server [{}]: {}",
+                                    event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                        }
                         return;
                     }
 
@@ -420,8 +431,18 @@ public class UserReplicationSchedulerService {
                     // No poison isolation for metadata — just log + flip allSucceeded so a
                     // future tick retries. The local upsert/delete is idempotent by PK.
                     allSucceeded.set(false);
-                    log.error("Failed to push metadata event [{}] to server [{}]: {}",
-                            event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    if (isConnectionRefused(e)) {
+                        try {
+                            localServerRegistryPort.deactivate(server.getBuildingId());
+                        } catch (Exception dex) {
+                            log.warn("Failed to deactivate unreachable local server [{}]", server.getBaseUrl(), dex);
+                        }
+                        log.warn("Local server [{}] unreachable (connection refused) — marked inactive; will re-activate on next heartbeat",
+                                server.getBaseUrl());
+                    } else {
+                        log.error("Failed to push metadata event [{}] to server [{}]: {}",
+                                event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    }
                     return;
                 }
 
@@ -496,8 +517,18 @@ public class UserReplicationSchedulerService {
                     // No poison isolation for game-definition — just log + flip allSucceeded
                     // so a future tick retries. The local upsert is idempotent by PK (game_type).
                     allSucceeded.set(false);
-                    log.error("Failed to push game-definition event [{}] to server [{}]: {}",
-                            event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    if (isConnectionRefused(e)) {
+                        try {
+                            localServerRegistryPort.deactivate(server.getBuildingId());
+                        } catch (Exception dex) {
+                            log.warn("Failed to deactivate unreachable local server [{}]", server.getBaseUrl(), dex);
+                        }
+                        log.warn("Local server [{}] unreachable (connection refused) — marked inactive; will re-activate on next heartbeat",
+                                server.getBaseUrl());
+                    } else {
+                        log.error("Failed to push game-definition event [{}] to server [{}]: {}",
+                                event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    }
                     return;
                 }
 
@@ -582,8 +613,18 @@ public class UserReplicationSchedulerService {
                     // No poison isolation for tournament-summary — just log + flip allSucceeded
                     // so a future tick retries. The local upsert is idempotent by PK (tournamentId).
                     allSucceeded.set(false);
-                    log.error("Failed to push tournament-summary event [{}] to server [{}]: {}",
-                            event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    if (isConnectionRefused(e)) {
+                        try {
+                            localServerRegistryPort.deactivate(server.getBuildingId());
+                        } catch (Exception dex) {
+                            log.warn("Failed to deactivate unreachable local server [{}]", server.getBaseUrl(), dex);
+                        }
+                        log.warn("Local server [{}] unreachable (connection refused) — marked inactive; will re-activate on next heartbeat",
+                                server.getBaseUrl());
+                    } else {
+                        log.error("Failed to push tournament-summary event [{}] to server [{}]: {}",
+                                event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    }
                     return;
                 }
 
@@ -659,8 +700,18 @@ public class UserReplicationSchedulerService {
                     pushTournamentStandingsToLocalServersPort.push(List.of(dto), server);
                 } catch (Exception e) {
                     allSucceeded.set(false);
-                    log.error("Failed to push tournament-standings event [{}] to server [{}]: {}",
-                            event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    if (isConnectionRefused(e)) {
+                        try {
+                            localServerRegistryPort.deactivate(server.getBuildingId());
+                        } catch (Exception dex) {
+                            log.warn("Failed to deactivate unreachable local server [{}]", server.getBaseUrl(), dex);
+                        }
+                        log.warn("Local server [{}] unreachable (connection refused) — marked inactive; will re-activate on next heartbeat",
+                                server.getBaseUrl());
+                    } else {
+                        log.error("Failed to push tournament-standings event [{}] to server [{}]: {}",
+                                event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    }
                     return;
                 }
 
@@ -735,8 +786,18 @@ public class UserReplicationSchedulerService {
                     pushTournamentParticipantsToLocalServersPort.push(List.of(dto), server);
                 } catch (Exception e) {
                     allSucceeded.set(false);
-                    log.error("Failed to push tournament-participants event [{}] to server [{}]: {}",
-                            event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    if (isConnectionRefused(e)) {
+                        try {
+                            localServerRegistryPort.deactivate(server.getBuildingId());
+                        } catch (Exception dex) {
+                            log.warn("Failed to deactivate unreachable local server [{}]", server.getBaseUrl(), dex);
+                        }
+                        log.warn("Local server [{}] unreachable (connection refused) — marked inactive; will re-activate on next heartbeat",
+                                server.getBaseUrl());
+                    } else {
+                        log.error("Failed to push tournament-participants event [{}] to server [{}]: {}",
+                                event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    }
                     return;
                 }
 
@@ -811,8 +872,18 @@ public class UserReplicationSchedulerService {
                     pushLocalServerRegistryToLocalServersPort.push(List.of(dto), server);
                 } catch (Exception e) {
                     allSucceeded.set(false);
-                    log.error("Failed to push local-server-registry event [{}] to server [{}]: {}",
-                            event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    if (isConnectionRefused(e)) {
+                        try {
+                            localServerRegistryPort.deactivate(server.getBuildingId());
+                        } catch (Exception dex) {
+                            log.warn("Failed to deactivate unreachable local server [{}]", server.getBaseUrl(), dex);
+                        }
+                        log.warn("Local server [{}] unreachable (connection refused) — marked inactive; will re-activate on next heartbeat",
+                                server.getBaseUrl());
+                    } else {
+                        log.error("Failed to push local-server-registry event [{}] to server [{}]: {}",
+                                event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    }
                     return;
                 }
 
@@ -890,8 +961,18 @@ public class UserReplicationSchedulerService {
                     pushTeamMembersToLocalServersPort.push(List.of(dto), server);
                 } catch (Exception e) {
                     allSucceeded.set(false);
-                    log.error("Failed to push team-members event [{}] to server [{}]: {}",
-                            event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    if (isConnectionRefused(e)) {
+                        try {
+                            localServerRegistryPort.deactivate(server.getBuildingId());
+                        } catch (Exception dex) {
+                            log.warn("Failed to deactivate unreachable local server [{}]", server.getBaseUrl(), dex);
+                        }
+                        log.warn("Local server [{}] unreachable (connection refused) — marked inactive; will re-activate on next heartbeat",
+                                server.getBaseUrl());
+                    } else {
+                        log.error("Failed to push team-members event [{}] to server [{}]: {}",
+                                event.getId(), server.getBaseUrl(), e.getMessage(), e);
+                    }
                     return;
                 }
 
@@ -1019,8 +1100,18 @@ public class UserReplicationSchedulerService {
                     // No poison isolation for tournament-match — just log + flip allSucceeded
                     // so a future tick retries. The local upsert is idempotent by PK (matchId).
                     allSucceeded.set(false);
-                    log.error("Failed to push tournament-match event [{}] to server [{}]: {}",
-                            event.getId(), targetServer.getBaseUrl(), e.getMessage(), e);
+                    if (isConnectionRefused(e)) {
+                        try {
+                            localServerRegistryPort.deactivate(targetServer.getBuildingId());
+                        } catch (Exception dex) {
+                            log.warn("Failed to deactivate unreachable local server [{}]", targetServer.getBaseUrl(), dex);
+                        }
+                        log.warn("Local server [{}] unreachable (connection refused) — marked inactive; will re-activate on next heartbeat",
+                                targetServer.getBaseUrl());
+                    } else {
+                        log.error("Failed to push tournament-match event [{}] to server [{}]: {}",
+                                event.getId(), targetServer.getBaseUrl(), e.getMessage(), e);
+                    }
                     return;
                 }
 
@@ -1103,5 +1194,20 @@ public class UserReplicationSchedulerService {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to deserialize user replication event: " + event.getId(), e);
         }
+    }
+
+    private static boolean isConnectionRefused(Throwable t) {
+        Throwable cur = t;
+        while (cur != null) {
+            if (cur instanceof ConnectException) {
+                return true;
+            }
+            Throwable next = cur.getCause();
+            if (next == cur) {
+                break;
+            }
+            cur = next;
+        }
+        return false;
     }
 }
