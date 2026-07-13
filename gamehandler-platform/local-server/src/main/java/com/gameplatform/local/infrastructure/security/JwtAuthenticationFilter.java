@@ -34,26 +34,39 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String authHeader = request.getHeader("Authorization");
 
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            try {
-                Claims claims = jwtTokenValidator.validateToken(token);
-                String username = claims.getSubject();
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            // No Bearer token present — let the chain continue; security rules
+            // will reject unauthenticated access to protected endpoints.
+            filterChain.doFilter(request, response);
+            return;
+        }
 
-                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                    List<SimpleGrantedAuthority> authorities = jwtTokenValidator.getAuthorities(claims);
+        String token = authHeader.substring(7);
 
-                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                            username, null, authorities
-                    );
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        Claims claims;
+        try {
+            claims = jwtTokenValidator.validateToken(token);
+        } catch (Exception e) {
+            // Token present but invalid — reject immediately with 401
+            // (aligned with the central-system JwtAuthenticationFilter).
+            log.warn("Rejecting request to {} — invalid or expired JWT token: {}",
+                    request.getRequestURI(), e.getMessage());
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired JWT token");
+            return;
+        }
 
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-                    log.debug("Authenticated local user: {} with authorities: {}", username, authorities);
-                }
-            } catch (Exception e) {
-                log.warn("Local JWT authentication failed: {}", e.getMessage());
-            }
+        String username = claims.getSubject();
+
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            List<SimpleGrantedAuthority> authorities = jwtTokenValidator.getAuthorities(claims);
+
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                    username, null, authorities
+            );
+            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            log.debug("Authenticated local user: {} with authorities: {}", username, authorities);
         }
 
         filterChain.doFilter(request, response);

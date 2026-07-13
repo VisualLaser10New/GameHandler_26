@@ -38,16 +38,24 @@ class B2CentralRegisteredUserReplicatedToLocalTest extends DualContextTestBase {
         // 4. Trigger replication — pushes to the real local via HTTP PUT
         centralBean(UserReplicationSchedulerService.class).replicateUsers();
 
-        // 5. Assert central replication_progress has 1 row for building-1
+        // 5. Assert central replication_progress has 1 USER_REGISTERED row for building-1.
+        // (Scoping to event_type='USER_REGISTERED' isolates the user path from the
+        // LOCAL_SERVER_REGISTRY_UPSERTED progress row that registerBuildingAtCentral
+        // also produces — see LocalServerRepositoryAdapter.register outbox emit.)
         assertThat(centralJdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM replication_progress WHERE server_id='building-1'",
+                "SELECT COUNT(*) FROM replication_progress rp "
+                        + "JOIN outbox_events oe ON rp.event_id = oe.id "
+                        + "WHERE rp.server_id='building-1' AND oe.event_type='USER_REGISTERED'",
                 Integer.class))
-                .as("replication_progress has 1 row for building-1")
+                .as("replication_progress has 1 USER_REGISTERED row for building-1")
                 .isEqualTo(1);
 
-        // 6. Assert central outbox event is SENT
+        // 6. Assert central outbox event is SENT. Scope to USER_REGISTERED so the
+        // LOCAL_SERVER_REGISTRY_UPSERTED event (also drained by replicateUsers)
+        // does not inflate the count.
         assertThat(centralJdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM outbox_events WHERE status='SENT'", Integer.class))
+                "SELECT COUNT(*) FROM outbox_events WHERE status='SENT' AND event_type='USER_REGISTERED'",
+                Integer.class))
                 .as("central outbox event is SENT after replication")
                 .isEqualTo(1);
         assertThat(centralJdbcTemplate.queryForObject(

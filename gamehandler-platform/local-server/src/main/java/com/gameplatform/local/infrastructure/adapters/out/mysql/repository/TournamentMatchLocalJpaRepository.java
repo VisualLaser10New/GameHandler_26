@@ -17,9 +17,13 @@ public interface TournamentMatchLocalJpaRepository
 
     List<TournamentMatchLocalJpaEntity> findByTournamentId(String tournamentId);
 
-    @Query("SELECT m FROM TournamentMatchLocalJpaEntity m " +
-           "WHERE (m.participantA = :userId OR m.participantB = :userId) " +
-           "AND m.status = :status")
+    @Query("SELECT DISTINCT m FROM TournamentMatchLocalJpaEntity m " +
+           "WHERE m.status = :status " +
+           "AND (m.participantA = :userId OR m.participantB = :userId " +
+           "OR EXISTS (SELECT tm FROM TeamMemberLocalJpaEntity tm " +
+           "WHERE tm.tournamentId = m.tournamentId " +
+           "AND tm.userId = :userId " +
+           "AND (tm.teamId = m.participantA OR tm.teamId = m.participantB)))")
     List<TournamentMatchLocalJpaEntity> findByParticipantAndStatus(
             @Param("userId") String userId,
             @Param("status") String status);

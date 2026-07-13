@@ -84,10 +84,16 @@ class B9MultiBuildingReplicationNoSourceSkipTest extends DualContextTestBase {
                 .as("building-3 WireMock received 1 PUT")
                 .isEqualTo(1);
 
-        // 6. Assert central replication_progress has 3 rows
+        // 6. Assert central replication_progress has 3 USER_REGISTERED rows (one per active building).
+        // Scoping to event_type='USER_REGISTERED' isolates the user path from the
+        // LOCAL_SERVER_REGISTRY_UPSERTED progress rows the registerBuildingAtCentral
+        // calls also produce.
         assertThat(centralJdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM replication_progress", Integer.class))
-                .as("replication_progress has 3 rows (one per active building)")
+                "SELECT COUNT(*) FROM replication_progress rp "
+                        + "JOIN outbox_events oe ON rp.event_id = oe.id "
+                        + "WHERE oe.event_type='USER_REGISTERED'",
+                Integer.class))
+                .as("replication_progress has 3 USER_REGISTERED rows (one per active building)")
                 .isEqualTo(3);
 
         // 7. Assert central outbox event is SENT

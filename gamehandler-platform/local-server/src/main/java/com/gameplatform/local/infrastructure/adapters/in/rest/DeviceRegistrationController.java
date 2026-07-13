@@ -2,6 +2,7 @@ package com.gameplatform.local.infrastructure.adapters.in.rest;
 
 import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.GameJpaEntity;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.repository.GameJpaRepository;
+import com.gameplatform.local.infrastructure.security.LocalAdminBuildingAuthorizationManager;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.BasicConstraints;
 import org.bouncycastle.asn1.x509.Extension;
@@ -23,6 +24,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.InputStream;
@@ -39,12 +43,15 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/devices")
+@PreAuthorize("hasRole('LOCAL_ADMIN')")
 public class DeviceRegistrationController {
 
     private static final Logger log = LoggerFactory.getLogger(DeviceRegistrationController.class);
 
     private final GameJpaRepository gameRepository;
     private final ResourceLoader resourceLoader;
+    private final LocalAdminBuildingAuthorizationManager authorizationManager;
+    private final String buildingId;
 
     @Value("${ssl.ca-cert-path:classpath:ca.crt}")
     private String caCertPath;
@@ -56,13 +63,20 @@ public class DeviceRegistrationController {
         Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
     }
 
-    public DeviceRegistrationController(GameJpaRepository gameRepository, ResourceLoader resourceLoader) {
+    public DeviceRegistrationController(GameJpaRepository gameRepository,
+                                        ResourceLoader resourceLoader,
+                                        LocalAdminBuildingAuthorizationManager authorizationManager,
+                                        @Value("${app.building-id}") String buildingId) {
         this.gameRepository = gameRepository;
         this.resourceLoader = resourceLoader;
+        this.authorizationManager = authorizationManager;
+        this.buildingId = buildingId;
     }
 
     @PostMapping("/register")
     public ResponseEntity<?> registerDevice(@RequestBody Map<String, String> request) {
+        ensureAuthorized();
+
         String gameId = request.get("gameId");
         String csrPem = request.get("csr");
 
@@ -70,12 +84,18 @@ public class DeviceRegistrationController {
             return ResponseEntity.badRequest().body(Map.of("error", "gameId and csr are required"));
         }
 
-        // Verify if game exists in catalog
+        // Verify if game exists in catalog AND belongs to this admin's building
         Optional<GameJpaEntity> gameOpt = gameRepository.findById(gameId);
         if (gameOpt.isEmpty()) {
             log.warn("Device registration rejected: Game ID {} not found in catalog", gameId);
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Device is not pre-authorized in the catalog"));
+        }
+        if (!buildingId.equals(gameOpt.get().getBuildingId())) {
+            log.warn("Device registration rejected: Game ID {} belongs to building {} (admin building: {})",
+                    gameId, gameOpt.get().getBuildingId(), buildingId);
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Game does not belong to admin's building");
         }
 
         log.info("Registering device: Game ID = {}, name = {}", gameId, gameOpt.get().getName());
@@ -105,6 +125,14 @@ public class DeviceRegistrationController {
             log.error("Failed to sign CSR for gameId {}: {}", gameId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to sign certificate: " + e.getMessage()));
+        }
+    }
+
+    private void ensureAuthorized() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (!authorizationManager.canManageBuilding(authentication)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Local admin is not authorized to manage building " + buildingId);
         }
     }
 

@@ -10,6 +10,7 @@ import com.gameplatform.central.domain.ports.out.PushLocalServerRegistryToLocalS
 import com.gameplatform.central.domain.ports.out.PushMetadataToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushTournamentMatchToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushTournamentParticipantsToLocalServersPort;
+import com.gameplatform.central.domain.ports.out.PushTeamMembersToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushTournamentStandingsToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushTournamentSummaryToLocalServersPort;
 import com.gameplatform.central.domain.ports.out.PushUserToLocalServersPort;
@@ -23,6 +24,7 @@ import com.gameplatform.shared.dto.LocalAdminBuildingEventDto;
 import com.gameplatform.shared.dto.LocalServerRegistryEventDto;
 import com.gameplatform.shared.dto.TournamentMatchScheduledDto;
 import com.gameplatform.shared.dto.TournamentParticipantsEventDto;
+import com.gameplatform.shared.dto.TeamMembersEventDto;
 import com.gameplatform.shared.dto.TournamentStandingsEventDto;
 import com.gameplatform.shared.dto.TournamentSummaryEventDto;
 import com.gameplatform.shared.dto.UserSyncAckDto;
@@ -76,7 +78,8 @@ public class LateRegistrationCatchUpService {
             "TOURNAMENT_SUMMARY_UPSERTED",
             "TOURNAMENT_STANDINGS_UPSERTED",
             "TOURNAMENT_PARTICIPANTS_UPSERTED",
-            "LOCAL_SERVER_REGISTRY_UPSERTED");
+            "LOCAL_SERVER_REGISTRY_UPSERTED",
+            "TEAM_MEMBERS_UPSERTED");
 
 private final OutboxEventJpaRepository outboxEventJpaRepository;
     private final OutboxEventRepository outboxEventRepository;
@@ -90,6 +93,7 @@ private final OutboxEventJpaRepository outboxEventJpaRepository;
     private final PushTournamentSummaryToLocalServersPort pushTournamentSummaryToLocalServersPort;
     private final PushTournamentStandingsToLocalServersPort pushTournamentStandingsToLocalServersPort;
     private final PushTournamentParticipantsToLocalServersPort pushTournamentParticipantsToLocalServersPort;
+    private final PushTeamMembersToLocalServersPort pushTeamMembersToLocalServersPort;
     private final PushLocalServerRegistryToLocalServersPort pushLocalServerRegistryToLocalServersPort;
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -105,6 +109,7 @@ private final OutboxEventJpaRepository outboxEventJpaRepository;
                                        PushTournamentSummaryToLocalServersPort pushTournamentSummaryToLocalServersPort,
                                        PushTournamentStandingsToLocalServersPort pushTournamentStandingsToLocalServersPort,
                                        PushTournamentParticipantsToLocalServersPort pushTournamentParticipantsToLocalServersPort,
+                                       PushTeamMembersToLocalServersPort pushTeamMembersToLocalServersPort,
                                        PushLocalServerRegistryToLocalServersPort pushLocalServerRegistryToLocalServersPort) {
         this.outboxEventJpaRepository = outboxEventJpaRepository;
         this.outboxEventRepository = outboxEventRepository;
@@ -118,13 +123,14 @@ private final OutboxEventJpaRepository outboxEventJpaRepository;
         this.pushTournamentSummaryToLocalServersPort = pushTournamentSummaryToLocalServersPort;
         this.pushTournamentStandingsToLocalServersPort = pushTournamentStandingsToLocalServersPort;
         this.pushTournamentParticipantsToLocalServersPort = pushTournamentParticipantsToLocalServersPort;
+        this.pushTeamMembersToLocalServersPort = pushTeamMembersToLocalServersPort;
         this.pushLocalServerRegistryToLocalServersPort = pushLocalServerRegistryToLocalServersPort;
     }
 
     /**
-     * Backward-compat legacy ctor (S2): 10-arg delegating to the 13-arg production
-     * ctor with {@code null} for the three new S3 ports. Transitive delegation
-     * reaches the 13-arg production ctor.
+     * Backward-compat legacy ctor (S2): 10-arg delegating to the 14-arg production
+     * ctor with {@code null} for the four new S3/BUG-TEAM-3 ports. Transitive delegation
+     * reaches the 14-arg production ctor.
      */
     public LateRegistrationCatchUpService(OutboxEventJpaRepository outboxEventJpaRepository,
                                        OutboxEventRepository outboxEventRepository,
@@ -140,7 +146,7 @@ private final OutboxEventJpaRepository outboxEventJpaRepository;
                 objectMapper, replicationProgressRepository, pushMetadataToLocalServersPort,
                 pushGameDefinitionToLocalServersPort, pushTournamentMatchToLocalServersPort,
                 tournamentMatchRepository, pushTournamentSummaryToLocalServersPort,
-                null, null, null);
+                null, null, null, null);
     }
 
     /** Backward-compat legacy ctor (pre-S2): 9-arg delegating to the 10-arg with {@code null} for the new port. */
@@ -443,6 +449,47 @@ private final OutboxEventJpaRepository outboxEventJpaRepository;
                 continue;
             }
 
+            // BUG-TEAM-3 — team-members event branch: TEAM_MEMBERS_UPSERTED.
+            // No ack / poison isolation: the local upsert is a delete+insert snapshot
+            // idempotent by PK (tournamentId). Broadcast (no per-building routing) so
+            // every Local hosting any match of the tournament can resolve team→user
+            // membership for the myMatches JPQL join.
+            if (isTeamMembersEvent(eventType)) {
+                if (pushTeamMembersToLocalServersPort == null) {
+                    log.warn("Catch-up: team-members event [{}] — no PushTeamMembersToLocalServersPort wired (legacy ctor) — skipping.",
+                            eventId);
+                    continue;
+                }
+                TeamMembersEventDto teamMembersEvent;
+                try {
+                    teamMembersEvent = objectMapper.readValue(event.getPayload(), TeamMembersEventDto.class);
+                } catch (Exception e) {
+                    log.warn("Catch-up: skipping team-members event [{}] due to malformed payload: {}", eventId, e.getMessage());
+                    continue;
+                }
+
+                try {
+                    pushTeamMembersToLocalServersPort.push(List.of(teamMembersEvent), server);
+                } catch (Exception e) {
+                    log.error("Catch-up: failed to push team-members event [{}] (type={}) to building={}: {}",
+                            eventId, eventType, serverId, e.getMessage(), e);
+                    continue;
+                }
+
+                if (replicationProgressRepository.existsByEventIdAndServerId(eventId, serverId)) {
+                    log.info("Catch-up: replication_progress already present (pre-check) for team-members eventId={}, building={}", eventId, serverId);
+                } else {
+                    try {
+                        replicationProgressRepository.save(new ReplicationProgress(eventId, serverId));
+                        pushed++;
+                    } catch (DataIntegrityViolationException dup) {
+                        log.info("Catch-up: replication_progress already present for team-members eventId={}, building={} — treating as success",
+                                eventId, serverId);
+                    }
+                }
+                continue;
+            }
+
             // FASE 6 — tournament-match scheduled event branch.
             // Catch-up: the building is ALREADY assigned (the dto carries
             // buildingId OR the central match row does). Push ONLY if the
@@ -581,5 +628,9 @@ private final OutboxEventJpaRepository outboxEventJpaRepository;
 
     private static boolean isLocalServerRegistryEvent(String eventType) {
         return "LOCAL_SERVER_REGISTRY_UPSERTED".equals(eventType);
+    }
+
+    private static boolean isTeamMembersEvent(String eventType) {
+        return "TEAM_MEMBERS_UPSERTED".equals(eventType);
     }
 }

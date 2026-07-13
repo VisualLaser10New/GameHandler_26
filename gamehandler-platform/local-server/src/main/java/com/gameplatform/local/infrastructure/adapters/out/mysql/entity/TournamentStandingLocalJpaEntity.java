@@ -43,7 +43,7 @@ public class TournamentStandingLocalJpaEntity {
     @Column(name = "points", nullable = false)
     private Integer points;
 
-    @Column(name = "rank")
+    @Column(name = "`rank`")
     private Integer rank;
 
     @Column(name = "updated_at", nullable = false)

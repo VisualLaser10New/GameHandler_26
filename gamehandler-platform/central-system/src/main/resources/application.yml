@@ -11,7 +11,7 @@ spring:
     show-sql: true
 
 server:
-  port: 8080
+  port: ${PORT:8180}
   ssl:
     enabled: true
     key-store: ${SSL_KEYSTORE_PATH:classpath:central-system-https.p12}

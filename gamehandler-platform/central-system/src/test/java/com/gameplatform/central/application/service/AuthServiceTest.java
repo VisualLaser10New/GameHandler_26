@@ -230,7 +230,7 @@ class AuthServiceTest {
                 username,
                 passwordHash,
                 username + "@example.com",
-                List.of("USER"),
+                List.of(Role.PLAYER.name()),
                 Instant.now()
         );
     }

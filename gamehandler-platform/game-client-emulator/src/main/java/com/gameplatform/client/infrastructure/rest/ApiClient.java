@@ -4,12 +4,16 @@ import com.gameplatform.client.infrastructure.security.HttpClientHelper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
+import java.net.ConnectException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 /**
  * Centralised typed REST adapter for the Game Client Emulator
@@ -19,7 +23,7 @@ import java.util.concurrent.CompletableFuture;
  * {@link HttpClientHelper#getHttpClient(String)} so HTTPS calls to the
  * Local Server re-use the project {@code local-truststore.p12}
  * truststore. The base URL is resolved once (env var
- * {@code LOCAL_SERVER_URL}, default {@code http://localhost:8081}) — this
+ * {@code LOCAL_SERVER_URL}, default {@code https://localhost:8181}) — this
  * is the single point of truth for the entire client.
  * <p>
  * Every typed method:
@@ -42,7 +46,7 @@ import java.util.concurrent.CompletableFuture;
 public class ApiClient {
 
     /** Default base URL — overridable via {@code LOCAL_SERVER_URL} env var. */
-    public static final String DEFAULT_BASE_URL = "http://localhost:8081";
+    public static final String DEFAULT_BASE_URL = "https://localhost:8181";
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
 
@@ -113,7 +117,7 @@ public class ApiClient {
 
     public CompletableFuture<Void> delete(String path) {
         HttpRequest request = buildRequest(path, "DELETE", null);
-        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.discarding())
+        return wrapTransport(httpClient.sendAsync(request, HttpResponse.BodyHandlers.discarding())
                 .thenApply(response -> {
                     int code = response.statusCode();
                     if (code == 401) throw new AuthenticationException("Authentication required (401)");
@@ -121,7 +125,7 @@ public class ApiClient {
                     if (code >= 500) throw new ServerUnavailableException("Server error " + code);
                     if (code >= 400) throw new RuntimeException("Delete failed: HTTP " + code);
                     return null;
-                });
+                }));
     }
 
     // ───────────────────────────── request builders ────────────────
@@ -159,7 +163,7 @@ public class ApiClient {
     // ───────────────────────────── send + deserialise ──────────────
 
     private <T> CompletableFuture<T> sendAsync(HttpRequest request, Class<T> singleType, TypeReference<T> listType) {
-        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+        return wrapTransport(httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenApply(response -> {
                     int code = response.statusCode();
                     if (code == 401) {
@@ -178,7 +182,42 @@ public class ApiClient {
                         throw new RuntimeException("HTTP " + code + " — body=" + truncate(response.body(), 200));
                     }
                     return deserialize(response.body(), singleType, listType);
-                });
+                }));
+    }
+
+    /**
+     * Wraps transport-level failures (timeout, connection refused, generic
+     * IOException) raised by {@link HttpClient#sendAsync} into
+     * {@link ServerUnavailableException}, so callers can handle "Local Server
+     * unreachable" with a single user-friendly catch clause. Domain
+     * exceptions ({@link AuthenticationException}, {@link AuthorizationException},
+     * {@link ServerUnavailableException} already raised for 401/403/5xx) and
+     * other {@link RuntimeException}s are re-thrown unchanged so the existing
+     * 401/403/4xx contract is preserved (PIANO §7.C — ApiClient gap 2).
+     */
+    private <T> CompletableFuture<T> wrapTransport(CompletableFuture<T> future) {
+        return future.exceptionally(ex -> {
+            Throwable cause = (ex instanceof CompletionException && ex.getCause() != null)
+                    ? ex.getCause() : ex;
+            if (cause instanceof ServerUnavailableException
+                    || cause instanceof AuthenticationException
+                    || cause instanceof AuthorizationException) {
+                throw (RuntimeException) cause;
+            }
+            if (cause instanceof HttpTimeoutException) {
+                throw new ServerUnavailableException("Local Server unreachable: request timed out", cause);
+            }
+            if (cause instanceof ConnectException) {
+                throw new ServerUnavailableException("Local Server unreachable: connection refused", cause);
+            }
+            if (cause instanceof IOException) {
+                throw new ServerUnavailableException("Local Server unreachable: " + cause.getMessage(), cause);
+            }
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw new RuntimeException(cause);
+        });
     }
 
     @SuppressWarnings("unchecked")

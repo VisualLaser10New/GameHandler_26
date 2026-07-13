@@ -58,7 +58,7 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void invalidTokenContinuesWithoutAuth() throws ServletException, java.io.IOException {
+    void invalidTokenReturns401() throws ServletException, java.io.IOException {
         when(validator.validateToken(anyString())).thenThrow(new io.jsonwebtoken.JwtException("bad"));
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer bad.token");
@@ -66,8 +66,9 @@ class JwtAuthenticationFilterTest {
 
         filter.doFilterInternal(request, response, filterChain);
 
+        assertThat(response.getStatus()).isEqualTo(401);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-        verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(filterChain);
     }
 
     @Test
@@ -94,7 +95,7 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void emptyBearerValue() throws ServletException, java.io.IOException {
+    void emptyBearerValueReturns401() throws ServletException, java.io.IOException {
         when(validator.validateToken("")).thenThrow(new io.jsonwebtoken.JwtException("empty"));
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer ");
@@ -102,7 +103,8 @@ class JwtAuthenticationFilterTest {
 
         filter.doFilterInternal(request, response, filterChain);
 
+        assertThat(response.getStatus()).isEqualTo(401);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-        verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(filterChain);
     }
 }

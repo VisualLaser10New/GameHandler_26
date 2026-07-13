@@ -228,7 +228,7 @@ CREATE TABLE IF NOT EXISTS tournament_standings_local (
     wins           INT NOT NULL DEFAULT 0,
     losses         INT NOT NULL DEFAULT 0,
     points         INT NOT NULL DEFAULT 0,
-    rank           INT NULL,
+    `rank`           INT NULL,
     updated_at     TIMESTAMP NOT NULL,
     PRIMARY KEY (tournament_id, participant_id),
     INDEX idx_tsl_tournament (tournament_id)
@@ -282,4 +282,18 @@ CREATE TABLE IF NOT EXISTS admin_requests_local (
     outbox_event_id   VARCHAR(64) NULL,
     INDEX idx_arl_user_status (acting_user_id, status),
     INDEX idx_arl_status_created (status, created_at)
+) ENGINE=InnoDB;
+
+-- =============== BUG-TEAM-3 — team_members_local (Replica team→user membership) ===
+-- Replica read-only della membership team→user del Central `tournament_team_members`,
+-- replicata via outbox TEAM_MEMBERS_UPSERTED. PK composita (tournament_id, team_id,
+-- user_id); il sync service effettua delete+insert full-snapshot per tournamentId.
+-- Permette al PLAYER di vedere i match team_based in myMatches (JOIN con
+-- tournament_matches_local su participant_a / participant_b = teamId ↔ user_id).
+CREATE TABLE IF NOT EXISTS team_members_local (
+    tournament_id VARCHAR(36) NOT NULL,
+    team_id       VARCHAR(36) NOT NULL,
+    user_id       VARCHAR(36) NOT NULL,
+    PRIMARY KEY (tournament_id, team_id, user_id),
+    INDEX idx_tml_user (user_id)
 ) ENGINE=InnoDB;

@@ -30,13 +30,13 @@ services:
       central-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -kfsS https://localhost:8080/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -kfsS https://localhost:8180/actuator/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 10
       start_period: 40s
     ports:
-      - "8080:8080"
+      - "8180:8180"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:mysql://central-db:3306/central_db
       - SPRING_DATASOURCE_USERNAME=root
@@ -95,21 +95,21 @@ services:
       mqtt-broker-1:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -kfsS https://localhost:8081/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -kfsS https://localhost:8181/actuator/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 10
       start_period: 40s
     ports:
-      - "8081:8081"
+      - "8181:8181"
     environment:
       - BUILDING_ID=building-1
-      - PORT=8081
+      - PORT=8181
       - SPRING_DATASOURCE_URL=jdbc:mysql://local-db-1:3306/local_db
       - MQTT_BROKER_URL=ssl://mqtt-broker-1:8883
       - MQTT_USERNAME=local-server-1
       - MQTT_PASSWORD=localserver_password
-      - CENTRAL_SYSTEM_URL=https://central-system:8080
+      - CENTRAL_SYSTEM_URL=https://central-system:8180
       - SYNC_INTERVAL_MS=300000
       - HEALTHCHECK_INTERVAL_MS=300000
       - JWT_LOCAL_PRIVATE_KEY_PATH=file:/certs/local-private.pem
@@ -147,7 +147,7 @@ services:
       - GAME_TYPE=FOOSBALL
       - BUILDING_ID=building-1
       - MQTT_BROKER_URL=ssl://mqtt-broker-1:8883
-      - LOCAL_SERVER_URL=https://local-server-1:8081
+      - LOCAL_SERVER_URL=https://local-server-1:8181
       - MQTT_USERNAME=client-foosball-1
       - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
     networks:
@@ -165,7 +165,7 @@ services:
       - GAME_TYPE=CHESS
       - BUILDING_ID=building-1
       - MQTT_BROKER_URL=ssl://mqtt-broker-1:8883
-      - LOCAL_SERVER_URL=https://local-server-1:8081
+      - LOCAL_SERVER_URL=https://local-server-1:8181
       - MQTT_USERNAME=client-chess-1
       - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
     networks:

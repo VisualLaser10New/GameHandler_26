@@ -72,6 +72,8 @@ public class TournamentBracketService implements ScheduleTournamentMatchesUseCas
 
     private static final Logger log = LoggerFactory.getLogger(TournamentBracketService.class);
 
+    public enum AdvanceOutcome { PARENT_PATCHED, WAS_FINAL, NO_WINNER }
+
     private final TournamentRepository tournamentRepository;
     private final TournamentParticipantRepository tournamentParticipantRepository;
     private final TournamentMatchRepository tournamentMatchRepository;
@@ -276,12 +278,15 @@ public class TournamentBracketService implements ScheduleTournamentMatchesUseCas
      *
      * @param matchId  the completed match id
      * @param winnerId the winner participant id (normally non-null per Q2)
-     * @return the parent match, or {@code null} if the completed match was the
-     *         final (no parent round) or no winner could be resolved
+     * @return the outcome: {@link AdvanceOutcome#PARENT_PATCHED} if the parent
+     *         match was patched/created, {@link AdvanceOutcome#WAS_FINAL} if
+     *         the completed match was the final (no parent round),
+     *         {@link AdvanceOutcome#NO_WINNER} if no winner could be resolved
+     *         (both participants present but {@code winnerId == null})
      */
-    public TournamentMatch advanceWinner(TournamentMatchId matchId, String winnerId) {
+    public AdvanceOutcome advanceWinner(TournamentMatchId matchId, String winnerId) {
         if (matchId == null) {
-            return null;
+            return AdvanceOutcome.NO_WINNER;
         }
         TournamentMatch match = tournamentMatchRepository.findById(matchId)
                 .orElseThrow(() -> new TournamentNotFoundException("Match not found: " + matchId.value()));
@@ -296,7 +301,7 @@ public class TournamentBracketService implements ScheduleTournamentMatchesUseCas
                 // Both participants present but no winner resolved — skip advancement.
                 log.warn("advanceWinner: matchId={} has no winner and both participants present — skipping parent patching.",
                         matchId.value());
-                return null;
+                return AdvanceOutcome.NO_WINNER;
             }
         }
 
@@ -308,7 +313,7 @@ public class TournamentBracketService implements ScheduleTournamentMatchesUseCas
         int bracketSize = nextPow2((int) n);
         int totalRounds = 31 - Integer.numberOfLeadingZeros(bracketSize);
         if (parentRound > totalRounds) {
-            return null; // this match was the final — tournament completion signal
+            return AdvanceOutcome.WAS_FINAL; // this match was the final — tournament completion signal
         }
 
         Optional<TournamentMatch> parentOpt = tournamentMatchRepository
@@ -356,7 +361,7 @@ public class TournamentBracketService implements ScheduleTournamentMatchesUseCas
             }
         }
 
-        return savedParent;
+        return AdvanceOutcome.PARENT_PATCHED;
     }
 
     /**

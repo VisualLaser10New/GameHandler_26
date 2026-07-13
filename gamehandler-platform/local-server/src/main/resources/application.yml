@@ -13,7 +13,7 @@ spring:
     show-sql: true
 
 server:
-  port: ${PORT:8081}
+  port: ${PORT:8181}
   ssl:
     enabled: true
     key-store: ${SSL_KEYSTORE_PATH:classpath:local-server-https.p12}
@@ -23,8 +23,8 @@ server:
 
 app:
   building-id: ${BUILDING_ID:building-1}
-  local-base-url: ${LOCAL_BASE_URL:https://local-server-1:8081}
-  central-system-url: ${CENTRAL_SYSTEM_URL:https://localhost:8080}
+  local-base-url: ${LOCAL_BASE_URL:https://local-server-1:8181}
+  central-system-url: ${CENTRAL_SYSTEM_URL:https://localhost:8180}
   sync-interval-ms: ${SYNC_INTERVAL_MS:300000}
   healthcheck-interval-ms: ${HEALTHCHECK_INTERVAL_MS:300000}
   dlq-promotion-interval-ms: ${DLQ_PROMOTION_INTERVAL_MS:600000}

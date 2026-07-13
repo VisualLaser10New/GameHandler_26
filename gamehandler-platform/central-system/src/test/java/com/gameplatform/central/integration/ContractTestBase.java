@@ -52,7 +52,7 @@ public abstract class ContractTestBase {
     void baseSetUp() {
         wireMockServer = new WireMockServer(0); // random free port
         wireMockServer.start();
-        // central-system-url is configured to https://central-test:8080 by application-test.yml.
+        // central-system-url is configured to https://central-test:8180 by application-test.yml.
         // Tests that need REST outbound will override the adapter's centralSystemUrl programmatically
         // OR reconfigure the URL via @DynamicPropertySource. For this scoped-down test, we'll mostly
         // test inbound contracts (local → central) which don't need central outbound.

@@ -62,7 +62,7 @@ class SyncControllerTest {
     void registerServer_shouldReturn200_whenPayloadIsValid() throws Exception {
         Map<String, String> body = Map.of(
                 "buildingId", "building-123",
-                "baseUrl", "http://localhost:8081"
+                "baseUrl", "http://localhost:8181"
         );
 
         mockMvc.perform(post("/internal/servers/register")
@@ -77,7 +77,7 @@ class SyncControllerTest {
     void registerServer_shouldReturn400_whenBuildingIdIsBlank() throws Exception {
         Map<String, String> body = Map.of(
                 "buildingId", "",
-                "baseUrl", "http://localhost:8081"
+                "baseUrl", "http://localhost:8181"
         );
 
         mockMvc.perform(post("/internal/servers/register")

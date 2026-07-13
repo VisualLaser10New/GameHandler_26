@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * still-active building-2 (WireMock); building-1 is skipped.
  */
 @DisplayName("B10: Health monitor deactivates stale building and stops replication to it")
-class B10HealthMonitorDeactivatesStaleBuildingStopsReplicationTest extends DualContextTestBase {
+class B10HealthMonitorDeactivatesStaleBuildingTest extends DualContextTestBase {
 
     private WireMockServer wireMock;
 

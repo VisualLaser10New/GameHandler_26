@@ -11,6 +11,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.env.MockEnvironment;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,9 +46,11 @@ class InternalApiKeyFilterTest {
 
     private static final String VALID_KEY = "super-secret-key";
 
+    private final MockEnvironment environment = new MockEnvironment();
+
     /** Builds a filter with the given key and calls @PostConstruct manually. */
     private InternalApiKeyFilter buildFilter(String key) {
-        InternalApiKeyFilter filter = new InternalApiKeyFilter(key);
+        InternalApiKeyFilter filter = new InternalApiKeyFilter(key, environment);
         filter.validateConfiguration();
         return filter;
     }
@@ -63,7 +66,7 @@ class InternalApiKeyFilterTest {
         @Test
         @DisplayName("throws IllegalStateException when api-key is null")
         void nullApiKey_throwsIllegalStateException() {
-            InternalApiKeyFilter filter = new InternalApiKeyFilter(null);
+            InternalApiKeyFilter filter = new InternalApiKeyFilter(null, environment);
             assertThatThrownBy(filter::validateConfiguration)
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("internal.api-key");
@@ -72,7 +75,7 @@ class InternalApiKeyFilterTest {
         @Test
         @DisplayName("throws IllegalStateException when api-key is empty string")
         void emptyApiKey_throwsIllegalStateException() {
-            InternalApiKeyFilter filter = new InternalApiKeyFilter("");
+            InternalApiKeyFilter filter = new InternalApiKeyFilter("", environment);
             assertThatThrownBy(filter::validateConfiguration)
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("internal.api-key");
@@ -81,7 +84,7 @@ class InternalApiKeyFilterTest {
         @Test
         @DisplayName("throws IllegalStateException when api-key is whitespace only")
         void blankApiKey_throwsIllegalStateException() {
-            InternalApiKeyFilter filter = new InternalApiKeyFilter("   ");
+            InternalApiKeyFilter filter = new InternalApiKeyFilter("   ", environment);
             assertThatThrownBy(filter::validateConfiguration)
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("internal.api-key");
@@ -91,7 +94,7 @@ class InternalApiKeyFilterTest {
         @DisplayName("does not throw when api-key is a non-blank string")
         void validApiKey_doesNotThrow() {
             // Should complete without exception
-            InternalApiKeyFilter filter = new InternalApiKeyFilter(VALID_KEY);
+            InternalApiKeyFilter filter = new InternalApiKeyFilter(VALID_KEY, environment);
             filter.validateConfiguration();
         }
     }

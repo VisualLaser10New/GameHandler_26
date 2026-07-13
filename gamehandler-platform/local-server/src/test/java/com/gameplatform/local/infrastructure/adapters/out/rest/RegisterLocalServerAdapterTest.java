@@ -25,7 +25,7 @@ class RegisterLocalServerAdapterTest {
     private RegisterLocalServerAdapter newAdapter(String url) throws Exception {
         SSLContext ssl = SSLContext.getInstance("TLS");
         ssl.init(null, null, new java.security.SecureRandom());
-        return new RegisterLocalServerAdapter(ssl, url, "test-key", "building-1", "https://local-server-1:8081");
+        return new RegisterLocalServerAdapter(ssl, url, "test-key", "building-1", "https://local-server-1:8181");
     }
 
     private void startServer(int status) throws IOException {

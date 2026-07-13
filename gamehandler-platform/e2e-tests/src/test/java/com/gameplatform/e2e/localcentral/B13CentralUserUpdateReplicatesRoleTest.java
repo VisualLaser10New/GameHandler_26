@@ -19,10 +19,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * roles.
  */
 @DisplayName("B13: Central user update replicates role replacement to local")
-class B13CentralUserUpdateReplicatesRoleReplacementToLocalTest extends DualContextTestBase {
+class B13CentralUserUpdateReplicatesRoleTest extends DualContextTestBase {
 
     @Test
-    @DisplayName("Updating carol's roles from [USER] to [OPERATOR] replicates full replacement to local")
+    @DisplayName("Updating carol's roles from [PLAYER] to [OPERATOR] replicates full replacement to local")
     void centralUserUpdateReplicatesRoleReplacementToLocal() {
         // 1. Register building-1 at central
         registerBuildingAtCentral("building-1", "http://localhost:" + localPort);
@@ -41,8 +41,8 @@ class B13CentralUserUpdateReplicatesRoleReplacementToLocalTest extends DualConte
         String localRolesAfterRegister = localJdbcTemplate.queryForObject(
                 "SELECT roles FROM replicated_users WHERE username='carol'", String.class);
         assertThat(localRolesAfterRegister)
-                .as("local carol has USER role after register replication")
-                .contains("USER");
+                .as("local carol has PLAYER role after register replication")
+                .contains("PLAYER");
 
         // 5. Update carol on central: roles → [OPERATOR], password unchanged (null)
         centralBean(UserService.class).updateUser(new UserId(carol.getId().value()), null, List.of("OPERATOR"));
@@ -74,7 +74,7 @@ class B13CentralUserUpdateReplicatesRoleReplacementToLocalTest extends DualConte
                 .as("local carol has OPERATOR role after update replication")
                 .contains("OPERATOR");
         assertThat(localRolesAfterUpdate)
-                .as("local carol roles are fully replaced (USER is gone)")
-                .doesNotContain("USER");
+                .as("local carol roles are fully replaced (PLAYER is gone)")
+                .doesNotContain("PLAYER");
     }
 }

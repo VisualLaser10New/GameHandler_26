@@ -6,6 +6,7 @@ import com.gameplatform.client.application.service.HeartbeatService;
 import com.gameplatform.client.application.service.PlayerTournamentFlow;
 import com.gameplatform.client.infrastructure.config.MqttClientConfig;
 import com.gameplatform.client.infrastructure.mqtt.*;
+import com.gameplatform.client.infrastructure.rest.ApiClient;
 import com.gameplatform.client.infrastructure.security.HttpClientHelper;
 import com.gameplatform.client.infrastructure.ui.components.StatusBarComponent;
 import com.gameplatform.shared.dto.GameStateDto;
@@ -102,11 +103,11 @@ public class MainView extends Application {
 
     private void initializeServices() {
         try {
-            String brokerUrl = System.getenv().getOrDefault("MQTT_BROKER_URL", "tcp://localhost:1883");
+            String brokerUrl = System.getenv().getOrDefault("MQTT_BROKER_URL", MqttClientConfig.DEFAULT_BROKER_URL);
             String clientId  = System.getenv().getOrDefault("MQTT_CLIENT_ID", "game-client");
             buildingId       = System.getenv().getOrDefault("BUILDING_ID", "building-1");
             gameId           = System.getenv().getOrDefault("GAME_ID", "game-1");
-            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
+            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", ApiClient.DEFAULT_BASE_URL);
 
             if (brokerUrl.startsWith("ssl://")) {
                 statusBar.updateStatus("Enrollment certificati...");

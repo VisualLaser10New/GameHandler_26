@@ -150,6 +150,22 @@ class TournamentServiceTest {
                 .hasMessageContaining("does not allow team-based");
     }
 
+    @Test
+    void create_teamBasedWithTeamSize1_throwsInvalidTournament() {
+        Tournament input = new Tournament(
+                new TournamentId("t-1"), "Degenerate Team Cup", GameType.CHESS, true, 1,
+                TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.DRAFT,
+                FIXED_NOW, null, new UserId("admin"), FIXED_NOW);
+        GameDefinition gd = new GameDefinition(GameType.CHESS, "Scacchi", 2, 2, true, null, FIXED_NOW, FIXED_NOW);
+        when(gameDefinitionRepository.findByGameType(GameType.CHESS)).thenReturn(Optional.of(gd));
+
+        assertThatThrownBy(() -> service.create(input, List.of("b-1", "b-2")))
+                .isInstanceOf(InvalidTournamentException.class)
+                .hasMessageContaining("teamSize >= 2");
+
+        verify(tournamentRepository, never()).save(any());
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // open()
     // ──────────────────────────────────────────────────────────────────────────

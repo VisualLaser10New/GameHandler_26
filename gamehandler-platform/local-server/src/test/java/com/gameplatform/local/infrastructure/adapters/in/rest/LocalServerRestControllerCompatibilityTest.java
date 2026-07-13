@@ -8,6 +8,7 @@ import com.gameplatform.local.domain.model.Reservation;
 import com.gameplatform.local.domain.ports.in.GetAvailableGamesUseCase;
 import com.gameplatform.local.domain.ports.out.GameDefinitionLocalRepository;
 import com.gameplatform.local.application.service.ReservationService;
+import com.gameplatform.local.infrastructure.security.CurrentUserService;
 import com.gameplatform.shared.domain.model.*;
 import com.gameplatform.shared.domain.result.ChessResult;
 import com.gameplatform.shared.domain.result.GameResult;
@@ -47,13 +48,17 @@ class LocalServerRestControllerCompatibilityTest {
     @Mock
     private ReservationService reservationService;
 
+    @Mock
+    private CurrentUserService currentUserService;
+
     private GameController gameController;
     private ReservationController reservationController;
 
     @BeforeEach
     void setUp() {
         gameController = new GameController(getAvailableGamesUseCase, gameDefinitionLocalRepository);
-        reservationController = new ReservationController(reservationService, reservationService, reservationService);
+        reservationController = new ReservationController(reservationService, reservationService,
+                reservationService, currentUserService);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -141,6 +146,7 @@ class LocalServerRestControllerCompatibilityTest {
                     Instant.parse("2026-06-27T10:00:00Z")
             );
             given(reservationService.getByUser(new UserId("u-1"))).willReturn(List.of(reservation));
+            given(currentUserService.getCurrentUserId()).willReturn(Optional.of(new UserId("u-1")));
 
             var response = reservationController.getByUser("u-1");
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);

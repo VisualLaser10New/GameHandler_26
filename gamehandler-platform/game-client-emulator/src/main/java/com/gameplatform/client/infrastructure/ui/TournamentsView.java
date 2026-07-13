@@ -2,6 +2,7 @@ package com.gameplatform.client.infrastructure.ui;
 
 import com.gameplatform.client.application.service.PlayerTournamentFlow;
 import com.gameplatform.client.infrastructure.rest.ApiClient;
+import com.gameplatform.client.infrastructure.ui.components.ErrorPane;
 import com.gameplatform.client.infrastructure.ui.components.LoadingIndicator;
 import com.gameplatform.client.infrastructure.ui.components.StalenessBadge;
 import com.gameplatform.shared.domain.model.TournamentStatus;
@@ -63,6 +64,7 @@ public class TournamentsView {
     private final Label detailHeader = new Label();
     private final LoadingIndicator loading = new LoadingIndicator();
     private final StalenessBadge staleness;
+    private final ErrorPane errorPane = new ErrorPane();
     private volatile Instant latestUpdatedAt;
     private Consumer<String> onNavigate;   // accepts a VIEW_* constant
 
@@ -188,8 +190,10 @@ public class TournamentsView {
 
         content.getChildren().addAll(title, toolbar, split, new HBox(statusLabel, staleness));
 
-        StackPane stack = new StackPane(content, loading);
+        StackPane stack = new StackPane(content, loading, errorPane);
         StackPane.setAlignment(loading, Pos.CENTER);
+        StackPane.setAlignment(errorPane, Pos.CENTER);
+        errorPane.setVisible(false);
         root = new VBox(stack);
         root.setStyle("-fx-padding: 0; -fx-background-color: #1e1e1e;");
     }
@@ -218,9 +222,10 @@ public class TournamentsView {
                     latestUpdatedAt = computeMaxUpdatedAt(list);
                     staleness.refresh();
                     statusLabel.setText((list == null ? 0 : list.size()) + " tornei");
+                    errorPane.setVisible(false);
                     loading.hide();
                 }))
-                .exceptionally(this::error);
+                .exceptionally(ex -> errorWithRetry(this::loadTournaments, ex));
     }
 
     private static Instant computeMaxUpdatedAt(List<TournamentSummaryDto> list) {
@@ -365,6 +370,26 @@ public class TournamentsView {
         while (t.getCause() != null) t = t.getCause();
         String msg = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
         Platform.runLater(() -> statusLabel.setText("Errore: " + msg));
+        return null;
+    }
+
+    /**
+     * Variant of {@link #error(Throwable)} that surfaces the failure through
+     * the reusable {@link ErrorPane} overlay (PIANO §7.C — ErrorPane gap).
+     * Used for the summary-list fetch so a server-down/timeout is no longer
+     * rendered as an empty list with a tiny status line; the user gets a
+     * visible error card with a Retry button wired to {@code retryAction}.
+     */
+    private Void errorWithRetry(Runnable retryAction, Throwable ex) {
+        loading.hide();
+        Throwable t = ex;
+        while (t.getCause() != null) t = t.getCause();
+        String msg = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
+        Platform.runLater(() -> {
+            statusLabel.setText("Errore: " + msg);
+            errorPane.show("Tornei non disponibili", msg, retryAction);
+            errorPane.setVisible(true);
+        });
         return null;
     }
 }

@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * rationale).</p>
  */
 @DisplayName("B3: User signup retry on central down does not duplicate")
-class B3UserSignupRetryOnCentralDownDoesNotDuplicateTest extends DualContextTestBase {
+class B3UserSignupRetryOnCentralDownTest extends DualContextTestBase {
 
     @Test
     @DisplayName("Re-sending the same USER_REGISTERED eventId to central is idempotent")

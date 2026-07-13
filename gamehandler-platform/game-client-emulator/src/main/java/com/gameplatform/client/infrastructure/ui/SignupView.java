@@ -1,5 +1,6 @@
 package com.gameplatform.client.infrastructure.ui;
 
+import com.gameplatform.client.infrastructure.rest.ApiClient;
 import com.gameplatform.shared.dto.SignupRequestDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.geometry.Pos;
@@ -112,7 +113,7 @@ public class SignupView {
             ObjectMapper mapper = new ObjectMapper();
             String json = mapper.writeValueAsString(request);
 
-            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", "https://localhost:8081");
+            String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", ApiClient.DEFAULT_BASE_URL);
             HttpClient client = com.gameplatform.client.infrastructure.security.HttpClientHelper.getHttpClient(localServerUrl);
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(localServerUrl + "/api/auth/signup"))

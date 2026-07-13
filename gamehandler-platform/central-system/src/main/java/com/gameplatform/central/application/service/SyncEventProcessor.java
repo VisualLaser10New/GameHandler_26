@@ -12,6 +12,7 @@ import com.gameplatform.central.domain.model.TournamentMatch;
 import com.gameplatform.central.domain.ports.in.CancelTournamentUseCase;
 import com.gameplatform.central.domain.ports.in.CreateTournamentUseCase;
 import com.gameplatform.central.domain.ports.in.DeleteTournamentUseCase;
+import com.gameplatform.central.domain.ports.in.EmitTournamentSummaryUseCase;
 import com.gameplatform.central.domain.ports.in.OpenTournamentRegistrationUseCase;
 import com.gameplatform.central.domain.ports.in.RegisterUserFromSyncUseCase;
 import com.gameplatform.central.domain.ports.in.RegisterTournamentParticipantUseCase;
@@ -114,7 +115,7 @@ public class SyncEventProcessor {
      * {@code null} for these via the 11-arg delegating ctor); when {@code null},
      * the matching {@code *_REQUESTED} branch logs a warning and skips
      * (keeping the historical behaviour for legacy tests). In production Spring
-     * injects real beans via the {@code @Autowired} 20-arg constructor below.
+     * injects real beans via the {@code @Autowired} 21-arg constructor below.
      */
     private final UpdateUserUseCase updateUserUseCase;
     private final UpsertGameDefinitionUseCase upsertGameDefinitionUseCase;
@@ -125,6 +126,18 @@ public class SyncEventProcessor {
     private final UpdateTournamentUseCase updateTournamentUseCase;
     private final DeleteTournamentUseCase deleteTournamentUseCase;
     private final RegisterTournamentParticipantUseCase registerTournamentParticipantUseCase;
+
+    /**
+     * BUG-SCHEDULE-REQUEST-ID: emits a {@code TOURNAMENT_SUMMARY_UPSERTED}
+     * return event carrying {@code dto.requestId()} as
+     * {@code originatingRequestId} after a SCHEDULE, so the Local
+     * {@code admin_requests_local} row transitions to COMPLETED. May be
+     * {@code null} (the backward-compat 11-arg delegating ctor used by legacy
+     * unit tests passes {@code null}); when {@code null}, the
+     * {@code TOURNAMENT_SCHEDULE_REQUESTED} branch logs a warning and skips
+     * the summary emit (keeping the historical behaviour for legacy tests).
+     */
+    private final EmitTournamentSummaryUseCase emitTournamentSummaryUseCase;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -149,7 +162,8 @@ public class SyncEventProcessor {
                               ScheduleTournamentMatchesUseCase scheduleTournamentMatchesUseCase,
                               UpdateTournamentUseCase updateTournamentUseCase,
                               DeleteTournamentUseCase deleteTournamentUseCase,
-                              RegisterTournamentParticipantUseCase registerTournamentParticipantUseCase) {
+                              RegisterTournamentParticipantUseCase registerTournamentParticipantUseCase,
+                              EmitTournamentSummaryUseCase emitTournamentSummaryUseCase) {
         this.processedEventRepository = processedEventRepository;
         this.statisticsRepository = statisticsRepository;
         this.registerUserFromSyncUseCase = registerUserFromSyncUseCase;
@@ -170,16 +184,17 @@ public class SyncEventProcessor {
         this.updateTournamentUseCase = updateTournamentUseCase;
         this.deleteTournamentUseCase = deleteTournamentUseCase;
         this.registerTournamentParticipantUseCase = registerTournamentParticipantUseCase;
+        this.emitTournamentSummaryUseCase = emitTournamentSummaryUseCase;
     }
 
     /**
-     * Backward-compat legacy ctor (FASE 6): 11-arg delegating to the 20-arg
+     * Backward-compat legacy ctor (FASE 6): 11-arg delegating to the 21-arg
      * production ctor with {@code null} for the nine FASE 7-A3/S3 admin-request
-     * use cases. Preserves existing FASE 6 unit tests that still use the 11-arg
-     * ctor without stubs for the new use cases; the {@code @Autowired} 20-arg
-     * ctor remains the production entry point. When any of the nine is
-     * {@code null}, the matching {@code *_REQUESTED} branch logs a warning and
-     * skips.
+     * use cases and the BUG-SCHEDULE-REQUEST-ID summary-emit use case. Preserves
+     * existing FASE 6 unit tests that still use the 11-arg ctor without stubs
+     * for the new use cases; the {@code @Autowired} 21-arg ctor remains the
+     * production entry point. When any of the ten is {@code null}, the matching
+     * {@code *_REQUESTED} branch logs a warning and skips.
      */
     public SyncEventProcessor(ProcessedEventRepository processedEventRepository,
                               StatisticsRepository statisticsRepository,
@@ -196,7 +211,7 @@ public class SyncEventProcessor {
                 registerUserFromSyncUseCase, objectMapper, clock, retryHelper,
                 playerStatisticsProjection, tournamentBracketService, tournamentStandingsService,
                 tournamentRepository, tournamentMatchRepository,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     SyncEventProcessor(ProcessedEventRepository processedEventRepository,
@@ -254,6 +269,10 @@ public class SyncEventProcessor {
         } catch (DataIntegrityViolationException dup) {
             // race-condition duplicate of processed_events PK
             log.info("Duplicate sync event caught by DB constraint, skipping: {}", event.eventId());
+            return false;
+        } catch (JsonProcessingException e) {
+            log.warn("Sync event [{}] payload malformed: {}", event.eventId(), e.getMessage());
+            markProcessed(event.eventId());
             return false;
         }
         try {
@@ -409,11 +428,13 @@ public class SyncEventProcessor {
      *     {@code playedAt = Instant.now(clock)} and saves it;
      * (c) if {@code status == COMPLETED} →
      *     {@code tournamentStandingsService.recomputeAfterCompletion(matchId)};
-     * (d) {@code TournamentMatch parent = tournamentBracketService.advanceWinner(matchId, dto.winner())};
+     * (d) {@code AdvanceOutcome outcome = tournamentBracketService.advanceWinner(matchId, dto.winner())};
      *     per Q2, {@code dto.winner()} is non-null even for ABANDONED (the Local
      *     side sends the walkover winner);
-     * (e) if {@code parent == null} →
-     *     {@code tournamentBracketService.completeIfDone(tournamentId)}.
+     * (e) if {@code outcome == WAS_FINAL} →
+     *     {@code tournamentBracketService.completeIfDone(tournamentId)};
+     *     if {@code outcome == NO_WINNER} → log.error and skip completion;
+     *     if {@code outcome == PARENT_PATCHED} → log.info (no completion).
      *
      * <p>Runs inside the existing {@code @Transactional(REQUIRES_NEW)} of
      * {@link #processOne} — match update + standings recompute + bracket
@@ -453,11 +474,19 @@ public class SyncEventProcessor {
         }
 
         // (d) Advance the winner into the parent slot (Q2: winnerId is non-null even for ABANDONED).
-        TournamentMatch parent = tournamentBracketService.advanceWinner(match.getMatchId(), dto.winner());
+        TournamentBracketService.AdvanceOutcome outcome =
+                tournamentBracketService.advanceWinner(match.getMatchId(), dto.winner());
 
-        // (e) No parent → the tournament may be done.
-        if (parent == null) {
+        // (e) Branch on the outcome to decide whether to attempt tournament completion.
+        if (outcome == TournamentBracketService.AdvanceOutcome.WAS_FINAL) {
             tournamentBracketService.completeIfDone(match.getTournamentId());
+        } else if (outcome == TournamentBracketService.AdvanceOutcome.NO_WINNER) {
+            log.error("TOURNAMENT_MATCH_COMPLETED [matchId={}] received with null winner on a COMPLETED match "
+                    + "with both participants present — skipping bracket advancement and tournament completion "
+                    + "(tournament stays IN_PROGRESS).", dto.matchId());
+        } else {
+            log.info("TOURNAMENT_MATCH_COMPLETED [matchId={}] advanced winner to parent match.",
+                    dto.matchId());
         }
     }
 
@@ -566,17 +595,28 @@ public class SyncEventProcessor {
 
     /**
      * Handles a {@code TOURNAMENT_SCHEDULE_REQUESTED} event: delegates to
-     * {@link ScheduleTournamentMatchesUseCase#schedule}.
+     * {@link ScheduleTournamentMatchesUseCase#schedule} (which transitions the
+     * tournament {@code OPEN_REGISTRATION -> IN_PROGRESS}, persists the round-1
+     * bracket and emits one {@code TOURNAMENT_MATCH_SCHEDULED} outbox event per
+     * SCHEDULED match), then emits a single
+     * {@code TOURNAMENT_SUMMARY_UPSERTED} return event carrying
+     * {@code dto.requestId()} as {@code originatingRequestId} and the updated
+     * tournament snapshot (status {@code IN_PROGRESS}).
      *
-     * <p><strong>Known partial</strong>: the schedule use case emits multiple
-     * {@code TOURNAMENT_MATCH_SCHEDULED} events (one per match) which do NOT
-     * carry the {@code originatingRequestId}, so the admin-request closure for
-     * SCHEDULE is not wired end-to-end in S3. Threading
-     * {@code originatingRequestId} into a single
-     * {@code TOURNAMENT_SUMMARY_UPSERTED} return event (status IN_PROGRESS) is
-     * deferred to a follow-up. The Local {@code admin_requests_local} closure
-     * for SCHEDULE will be handled in ONDATA 2. See
-     * {@code workflow/architettura_classi.md} §18.</p>
+     * <p>The {@code TOURNAMENT_MATCH_SCHEDULED} rows do NOT carry the
+     * originatingRequestId (the schedule use case signature has no such param
+     * and threading it would ripple through the bracket/advance path), so
+     * without this summary emit the Local {@code admin_requests_local} row for
+     * SCHEDULE would stay PENDING until the timeout, surfacing as FAILED to the
+     * admin despite a successful schedule (BUG-SCHEDULE-REQUEST-ID). The
+     * Local {@code TournamentSummarySyncService.markCompletedIfRequested}
+     * closes the row as COMPLETED on receiving the summary upsert with a
+     * non-null {@code originatingRequestId}, independently of the summary
+     * payload content.</p>
+     *
+     * <p>Defensive: if {@code emitTournamentSummaryUseCase} is {@code null}
+     * (legacy 11-arg test ctor), logs a warning and skips the summary emit
+     * (historical behaviour for legacy tests).</p>
      */
     private void handleTournamentScheduleRequested(TournamentLifecycleRequestedEventDto dto) {
         if (scheduleTournamentMatchesUseCase == null) {
@@ -585,6 +625,14 @@ public class SyncEventProcessor {
             return;
         }
         scheduleTournamentMatchesUseCase.schedule(new TournamentId(dto.tournamentId()));
+        if (emitTournamentSummaryUseCase == null) {
+            log.warn("TOURNAMENT_SCHEDULE_REQUESTED [tournamentId={}] scheduled but EmitTournamentSummaryUseCase is null "
+                    + "(legacy test ctor) — skipping TOURNAMENT_SUMMARY_UPSERTED return emit; "
+                    + "admin_requests_local closure for SCHEDULE will NOT fire in this test context.",
+                    dto.tournamentId());
+            return;
+        }
+        emitTournamentSummaryUseCase.emitSummary(new TournamentId(dto.tournamentId()), dto.requestId());
     }
 
     /**

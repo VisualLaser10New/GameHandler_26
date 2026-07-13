@@ -127,7 +127,7 @@ class LateRegistrationCatchUpProgressPersistenceIT {
                 .thenReturn(List.of(new UserSyncAckDto("x", true, null)));
 
         RegisteredLocalServer server = new RegisteredLocalServer(
-                new BuildingId(BUILDING_ID), "http://localhost:8081", Instant.now(), true);
+                new BuildingId(BUILDING_ID), "http://localhost:8181", Instant.now(), true);
 
         // register() runs inside the (mimicked) tx: it persists the building row and
         // registers an afterCommit synchronization, but must NOT call the catch-up yet.

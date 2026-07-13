@@ -22,6 +22,7 @@ import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
 import com.gameplatform.local.domain.ports.out.ReservationRepository;
 import com.gameplatform.local.domain.ports.out.TournamentMatchLocalRepository;
 import com.gameplatform.shared.domain.model.*;
+import com.gameplatform.shared.domain.result.ChessResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -129,19 +130,40 @@ class GameSessionServiceTournamentTest {
     }
 
     @Test
-    void start_teamAllowedMismatch_throwsValidationException() {
+    void start_teamAllowed_2Participants_ok() {
         TournamentMatchLocal teamMatch = new TournamentMatchLocal(new TournamentMatchId("m-1"),
-                new TournamentId("t-1"), 1, 1, "team-1", null, GameType.CHESS, "game-1",
+                new TournamentId("t-1"), 1, 1, "team-1", "team-2", GameType.CHESS, "game-1",
+                TournamentMatchStatus.SCHEDULED, NOW);
+        when(tournamentMatchLocalRepository.findById(eq(new TournamentMatchId("m-1"))))
+                .thenReturn(Optional.of(teamMatch));
+        GameDefinitionLocal teamDef = new GameDefinitionLocal(GameType.CHESS, "Chess", 1, 4, true, null, NOW);
+        when(gameDefinitionLocalRepository.findByGameType(any())).thenReturn(Optional.of(teamDef));
+        when(gameSessionRepository.findActiveByGameId(any())).thenReturn(Optional.empty());
+        when(gameRepository.findByIdForUpdate(any())).thenReturn(Optional.of(availableGame()));
+        when(gameSessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        GameSession s = service.start(new GameId("game-1"), GameType.CHESS,
+                List.of(new UserId("team-1"), new UserId("team-2")), null, new TournamentMatchId("m-1"));
+
+        ArgumentCaptor<TournamentMatchLocal> matchCaptor = ArgumentCaptor.forClass(TournamentMatchLocal.class);
+        verify(tournamentMatchLocalRepository).save(matchCaptor.capture());
+        assertEquals(TournamentMatchStatus.IN_PROGRESS, matchCaptor.getValue().getStatus());
+        assertEquals(new TournamentMatchId("m-1"), s.getTournamentMatchId());
+    }
+
+    @Test
+    void start_teamAllowed_wrongSize_throwsValidationException() {
+        TournamentMatchLocal teamMatch = new TournamentMatchLocal(new TournamentMatchId("m-1"),
+                new TournamentId("t-1"), 1, 1, "team-1", "team-2", GameType.CHESS, "game-1",
                 TournamentMatchStatus.SCHEDULED, NOW);
         when(tournamentMatchLocalRepository.findById(eq(new TournamentMatchId("m-1"))))
                 .thenReturn(Optional.of(teamMatch));
         GameDefinitionLocal teamDef = new GameDefinitionLocal(GameType.CHESS, "Chess", 1, 4, true, null, NOW);
         when(gameDefinitionLocalRepository.findByGameType(any())).thenReturn(Optional.of(teamDef));
 
-        // Team definition but 2 user participants instead of 1 pseudo-participant → mismatch.
         assertThrows(TournamentMatchValidationException.class, () ->
                 service.start(new GameId("game-1"), GameType.CHESS,
-                        List.of(new UserId("u1"), new UserId("u2")), null, new TournamentMatchId("m-1")));
+                        List.of(new UserId("team-1")), null, new TournamentMatchId("m-1")));
 
         verify(gameSessionRepository, never()).save(any());
     }
@@ -164,10 +186,15 @@ class GameSessionServiceTournamentTest {
         GameSession s = tournamentSession();
         when(gameSessionRepository.findById(any())).thenReturn(Optional.of(s));
         when(gameRepository.findById(any())).thenReturn(Optional.of(inUseGame()));
+        when(gameDefinitionLocalRepository.findByGameType(any())).thenReturn(Optional.of(individualDef()));
         when(tournamentMatchLocalRepository.findById(eq(new TournamentMatchId("m-1"))))
                 .thenReturn(Optional.of(scheduledLocalMatch()));
 
-        service.end(new GameSessionId("s-1"), null);
+        ChessResult result = new ChessResult(
+                new UserId("u1"), List.of(new UserId("u1")),
+                "checkmate", "fen", WinCondition.WIN);
+
+        service.end(new GameSessionId("s-1"), result);
 
         ArgumentCaptor<OutboxEvent> outboxCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
         verify(outboxEventRepository, times(2)).save(outboxCaptor.capture());

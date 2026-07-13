@@ -10,6 +10,7 @@ import com.gameplatform.local.domain.model.Reservation;
 import com.gameplatform.local.domain.ports.in.CancelReservationUseCase;
 import com.gameplatform.local.domain.ports.in.CreateReservationUseCase;
 import com.gameplatform.local.domain.ports.in.GetReservationsUseCase;
+import com.gameplatform.local.infrastructure.security.CurrentUserService;
 import com.gameplatform.shared.domain.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
 class ReservationControllerTest {
@@ -29,11 +31,13 @@ class ReservationControllerTest {
     @Mock private CreateReservationUseCase createUseCase;
     @Mock private CancelReservationUseCase cancelUseCase;
     @Mock private GetReservationsUseCase getUseCase;
+    @Mock private CurrentUserService currentUserService;
     private MockMvc mvc;
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.standaloneSetup(new ReservationController(createUseCase, cancelUseCase, getUseCase))
+        mvc = MockMvcBuilders.standaloneSetup(
+                        new ReservationController(createUseCase, cancelUseCase, getUseCase, currentUserService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -88,6 +92,7 @@ class ReservationControllerTest {
 
     @Test
     void getByUserReturnsList() throws Exception {
+        when(currentUserService.getCurrentUserId()).thenReturn(Optional.of(new UserId("u1")));
         when(getUseCase.getByUser(new UserId("u1"))).thenReturn(List.of(sample()));
         mvc.perform(get("/api/reservations").param("userId", "u1"))
                 .andExpect(status().isOk())
@@ -96,9 +101,26 @@ class ReservationControllerTest {
 
     @Test
     void getByUserEmptyReturnsEmptyArray() throws Exception {
+        when(currentUserService.getCurrentUserId()).thenReturn(Optional.of(new UserId("u1")));
         when(getUseCase.getByUser(any())).thenReturn(List.of());
         mvc.perform(get("/api/reservations").param("userId", "u1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    void getByUser_otherUser_returns403() throws Exception {
+        when(currentUserService.getCurrentUserId()).thenReturn(Optional.of(new UserId("me")));
+        mvc.perform(get("/api/reservations").param("userId", "other"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(getUseCase);
+    }
+
+    @Test
+    void getByUser_noPrincipal_returns401() throws Exception {
+        when(currentUserService.getCurrentUserId()).thenReturn(Optional.empty());
+        mvc.perform(get("/api/reservations").param("userId", "u1"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(getUseCase);
     }
 }

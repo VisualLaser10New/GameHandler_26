@@ -51,6 +51,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>{@code TOURNAMENT_STANDINGS_UPSERTED} — {@code TournamentStandingsService}</li>
  *   <li>{@code TOURNAMENT_PARTICIPANTS_UPSERTED} — {@code TournamentRegistrationService}</li>
  *   <li>{@code LOCAL_SERVER_REGISTRY_UPSERTED}  — {@code LocalServerRepositoryAdapter}</li>
+ *   <li>{@code TEAM_MEMBERS_UPSERTED}            — {@code TournamentRegistrationService} (BUG-TEAM-3)</li>
  * </ul>
  * These are Central-emitted and pushed to Local servers (replication feed). They
  * do NOT belong in {@code EventTypeContractTest.EXPECTED_EVENT_TYPES} because
@@ -68,7 +69,8 @@ class ReplicationEventTypeContractTest {
             "TOURNAMENT_SUMMARY_UPSERTED",
             "TOURNAMENT_STANDINGS_UPSERTED",
             "TOURNAMENT_PARTICIPANTS_UPSERTED",
-            "LOCAL_SERVER_REGISTRY_UPSERTED"
+            "LOCAL_SERVER_REGISTRY_UPSERTED",
+            "TEAM_MEMBERS_UPSERTED"
     );
 
     /**

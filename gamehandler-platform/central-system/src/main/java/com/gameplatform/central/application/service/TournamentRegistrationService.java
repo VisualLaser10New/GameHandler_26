@@ -25,6 +25,8 @@ import com.gameplatform.shared.domain.model.TeamId;
 import com.gameplatform.shared.domain.model.TournamentId;
 import com.gameplatform.shared.domain.model.TournamentStatus;
 import com.gameplatform.shared.domain.model.UserId;
+import com.gameplatform.shared.dto.TeamMemberEntryDto;
+import com.gameplatform.shared.dto.TeamMembersEventDto;
 import com.gameplatform.shared.dto.TournamentParticipantDto;
 import com.gameplatform.shared.dto.TournamentParticipantViewDto;
 import com.gameplatform.shared.dto.TournamentParticipantsEventDto;
@@ -59,6 +61,7 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
         UnregisterTournamentParticipantUseCase, ListTournamentParticipantsUseCase {
 
     private static final String PARTICIPANTS_EVENT_TYPE = "TOURNAMENT_PARTICIPANTS_UPSERTED";
+    private static final String TEAM_MEMBERS_EVENT_TYPE = "TEAM_MEMBERS_UPSERTED";
 
     private final TournamentRepository tournamentRepository;
     private final TournamentTeamRepository tournamentTeamRepository;
@@ -165,6 +168,7 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
         TournamentParticipant p = new TournamentParticipant(
                 tournamentId, participantId, true, teamName, Instant.now(clock));
         tournamentParticipantRepository.save(p);
+        writeTeamMembersOutbox(tournamentId);
         return new TournamentParticipantDto(participantId, true, teamName);
     }
 
@@ -187,6 +191,7 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
             tournamentParticipantRepository.deleteByTournamentAndParticipantId(tournamentId, team.get().getTeamId().value());
             tournamentTeamRepository.deleteById(team.get().getTeamId());
             writeParticipantsOutbox(tournamentId, null);
+            writeTeamMembersOutbox(tournamentId);
         }
     }
 
@@ -234,6 +239,49 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
         }
         OutboxEvent event = new OutboxEvent(
                 eventId, PARTICIPANTS_EVENT_TYPE, payload, OutboxEventStatus.PENDING, Instant.now(clock), null);
+        outboxEventRepository.save(event);
+    }
+
+    /**
+     * Serialises a {@link TeamMembersEventDto} carrying the full per-tournament
+     * team→user membership snapshot (read via
+     * {@link TournamentTeamRepository#findByTournament}) and writes it to the
+     * outbox. Mirrors {@link #writeParticipantsOutbox(TournamentId, String)}:
+     * a single UUID is shared by the outbox event id and the DTO
+     * {@code eventId}. The {@code originatingRequestId} is always {@code null}
+     * on this path (BUG-TEAM-3): the admin-request closure for the registration
+     * use case is driven by the parallel {@code TOURNAMENT_PARTICIPANTS_UPSERTED}
+     * return event, so this event never drives an {@code admin_requests_local}
+     * state transition on the Local side. No-op when the outbox deps are
+     * {@code null} (legacy test ctor).
+     */
+    private void writeTeamMembersOutbox(TournamentId tournamentId) {
+        if (outboxEventRepository == null || objectMapper == null) {
+            return;
+        }
+        String eventId = UUID.randomUUID().toString();
+        List<TeamMemberEntryDto> snapshot =
+                Optional.ofNullable(tournamentTeamRepository.findByTournament(tournamentId))
+                        .orElse(List.of()).stream()
+                        .map(team -> new TeamMemberEntryDto(
+                                team.getTeamId().value(),
+                                team.getMembers().stream().map(UserId::value).toList()))
+                        .collect(Collectors.toList());
+        TeamMembersEventDto dto = new TeamMembersEventDto(
+                eventId,
+                TEAM_MEMBERS_EVENT_TYPE,
+                tournamentId.value(),
+                snapshot,
+                null,
+                Instant.now(clock));
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(dto);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize TeamMembersEventDto", e);
+        }
+        OutboxEvent event = new OutboxEvent(
+                eventId, TEAM_MEMBERS_EVENT_TYPE, payload, OutboxEventStatus.PENDING, Instant.now(clock), null);
         outboxEventRepository.save(event);
     }
 }

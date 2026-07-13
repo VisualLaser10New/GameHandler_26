@@ -45,22 +45,22 @@ services:
       central-system:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -kfsS https://localhost:8081/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -kfsS https://localhost:8181/actuator/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 10
       start_period: 40s
     ports:
-      - "8082:8081"
+      - "8182:8181"
     environment:
       - BUILDING_ID=building-2
-      - PORT=8081
-      - LOCAL_BASE_URL=https://local-server-2:8081
+      - PORT=8181
+      - LOCAL_BASE_URL=https://local-server-2:8181
       - SPRING_DATASOURCE_URL=jdbc:mysql://local-db-2:3306/local_db
       - MQTT_BROKER_URL=tcp://mqtt-broker-2:1883
       - MQTT_USERNAME=local-server-2
       - MQTT_PASSWORD=localserver_password
-      - CENTRAL_SYSTEM_URL=https://central-system:8080
+      - CENTRAL_SYSTEM_URL=https://central-system:8180
       - SYNC_INTERVAL_MS=300000
       - HEALTHCHECK_INTERVAL_MS=300000
       - JWT_LOCAL_PRIVATE_KEY_PATH=file:/certs/local-private.pem
@@ -126,22 +126,22 @@ services:
       central-system:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -kfsS https://localhost:8081/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -kfsS https://localhost:8181/actuator/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 10
       start_period: 40s
     ports:
-      - "8083:8081"
+      - "8183:8181"
     environment:
       - BUILDING_ID=building-3
-      - PORT=8081
-      - LOCAL_BASE_URL=https://local-server-3:8081
+      - PORT=8181
+      - LOCAL_BASE_URL=https://local-server-3:8181
       - SPRING_DATASOURCE_URL=jdbc:mysql://local-db-3:3306/local_db
       - MQTT_BROKER_URL=tcp://mqtt-broker-3:1883
       - MQTT_USERNAME=local-server-3
       - MQTT_PASSWORD=localserver_password
-      - CENTRAL_SYSTEM_URL=https://central-system:8080
+      - CENTRAL_SYSTEM_URL=https://central-system:8180
       - SYNC_INTERVAL_MS=300000
       - HEALTHCHECK_INTERVAL_MS=300000
       - JWT_LOCAL_PRIVATE_KEY_PATH=file:/certs/local-private.pem
@@ -179,7 +179,7 @@ services:
       - GAME_TYPE=CHESS
       - BUILDING_ID=building-2
       - MQTT_BROKER_URL=tcp://mqtt-broker-2:1883
-      - LOCAL_SERVER_URL=https://local-server-2:8081
+      - LOCAL_SERVER_URL=https://local-server-2:8181
       - MQTT_USERNAME=client-chess-2
       - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
     networks:
@@ -197,7 +197,7 @@ services:
       - GAME_TYPE=FOOSBALL
       - BUILDING_ID=building-3
       - MQTT_BROKER_URL=tcp://mqtt-broker-3:1883
-      - LOCAL_SERVER_URL=https://local-server-3:8081
+      - LOCAL_SERVER_URL=https://local-server-3:8181
       - MQTT_USERNAME=client-foosball-3
       - MQTT_PASSWORD=${GAME_CLIENT_MQTT_PASSWORD}
     networks:

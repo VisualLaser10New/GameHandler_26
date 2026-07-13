@@ -6,7 +6,7 @@ app:
   game-id: ${GAME_ID:game-1}
   game-type: ${GAME_TYPE:FOOSBALL}
   building-id: ${BUILDING_ID:building-1}
-  local-server-url: ${LOCAL_SERVER_URL:http://localhost:8081}
+  local-server-url: ${LOCAL_SERVER_URL:https://localhost:8181}
 
 ui:
   stale-threshold-ms: ${UI_STALE_THRESHOLD_MS:300000}

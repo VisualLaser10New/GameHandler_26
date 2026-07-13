@@ -43,7 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * transport layer.</p>
  */
 @DisplayName("B1: Local signup disconnected then connect propagates to central")
-class B1UserSignupDisconnectedThenConnectPropagatesToCentralTest extends DualContextTestBase {
+class B1UserSignupDisconnectedThenConnectTest extends DualContextTestBase {
 
     @Test
     @DisplayName("Local signup stays pending while disconnected, then propagates to central on sync")

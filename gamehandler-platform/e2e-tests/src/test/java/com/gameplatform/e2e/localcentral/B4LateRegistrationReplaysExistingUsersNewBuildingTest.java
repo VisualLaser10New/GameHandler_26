@@ -38,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * explicitly via {@link LateRegistrationCatchUpService#catchUpNewlyRegisteredServer}.</p>
  */
 @DisplayName("B4: Late registration catch-up replays existing users to new building")
-class B4LateRegistrationCatchUpReplaysExistingUsersToNewBuildingTest extends DualContextTestBase {
+class B4LateRegistrationReplaysExistingUsersNewBuildingTest extends DualContextTestBase {
 
     private WireMockServer wireMock;
 

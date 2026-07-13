@@ -18,8 +18,8 @@ server:
 
 app:
   building-id: building-test
-  local-base-url: https://local-test:8081
-  central-system-url: https://central-test:8080
+  local-base-url: https://local-test:8181
+  central-system-url: https://central-test:8180
   sync-interval-ms: 999999999
   healthcheck-interval-ms: 999999999
   dlq-promotion-interval-ms: 999999999

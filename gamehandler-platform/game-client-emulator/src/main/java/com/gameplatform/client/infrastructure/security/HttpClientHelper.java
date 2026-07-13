@@ -9,6 +9,8 @@ import java.net.http.HttpClient;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Helper to build an HttpClient instance.
@@ -23,6 +25,8 @@ import java.util.List;
  * role-aware navbar without decoding the JWT (PIANO §7.C line 728-729).
  */
 public class HttpClientHelper {
+
+    private static final Logger log = LoggerFactory.getLogger(HttpClientHelper.class);
 
     private static volatile String token;
     private static volatile String currentUsername;
@@ -92,6 +96,7 @@ public class HttpClientHelper {
 
     public static HttpClient getHttpClient(String localServerUrl) {
         if (localServerUrl.startsWith("https://")) {
+            log.info("HttpClient TLS enabled — base URL: {}", localServerUrl);
             try {
                 File truststoreFile = new File("certs/local-truststore.p12");
                 if (truststoreFile.exists()) {
@@ -105,6 +110,7 @@ public class HttpClientHelper {
                     SSLContext sslContext = SSLContext.getInstance("TLS");
                     sslContext.init(null, tmf.getTrustManagers(), new SecureRandom());
 
+                    log.info("HttpClient truststore loaded from filesystem: {}", truststoreFile.getPath());
                     return HttpClient.newBuilder()
                             .sslContext(sslContext)
                             .build();
@@ -120,6 +126,7 @@ public class HttpClientHelper {
                             SSLContext sslContext = SSLContext.getInstance("TLS");
                             sslContext.init(null, tmf.getTrustManagers(), new SecureRandom());
 
+                            log.info("HttpClient truststore loaded from classpath: /local-truststore.p12");
                             return HttpClient.newBuilder()
                                     .sslContext(sslContext)
                                     .build();
@@ -127,8 +134,10 @@ public class HttpClientHelper {
                     }
                 }
             } catch (Exception e) {
-                // Fallback to default HttpClient
+                log.warn("HttpClient TLS init failed for {}: {} — falling back to default HttpClient", localServerUrl, e.getMessage());
             }
+        } else {
+            log.warn("HttpClient TLS DISABLED — base URL {} is not https://; Local Server requires TLS (expected HTTP 400 'requires TLS' otherwise)", localServerUrl);
         }
         return HttpClient.newHttpClient();
     }

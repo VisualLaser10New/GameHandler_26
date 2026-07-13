@@ -45,7 +45,7 @@ class LocalServerUserCountRestTest {
     private RegisteredLocalServer server() {
         return new RegisteredLocalServer(
                 new BuildingId("building-1"),
-                "http://localhost:8081",
+                "http://localhost:8181",
                 Instant.parse("2026-07-05T12:00:00Z"),
                 true);
     }
@@ -55,7 +55,7 @@ class LocalServerUserCountRestTest {
         RestTemplate mockRest = mock(RestTemplate.class);
         LocalUserCountRestAdapter adapter = new LocalUserCountRestAdapter(mockRest, "test-api-key");
         when(mockRest.exchange(
-                eq("http://localhost:8081/internal/users/count"),
+                eq("http://localhost:8181/internal/users/count"),
                 eq(HttpMethod.GET),
                 any(HttpEntity.class),
                 eq(Long.class)))

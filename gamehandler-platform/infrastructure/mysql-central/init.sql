@@ -242,7 +242,7 @@ CREATE TABLE IF NOT EXISTS tournament_standings (
     wins           INT NOT NULL DEFAULT 0,
     losses         INT NOT NULL DEFAULT 0,
     points         INT NOT NULL DEFAULT 0,
-    rank           INT NULL,
+    `rank`           INT NULL,
     PRIMARY KEY (tournament_id, participant_id),
     FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;

@@ -37,6 +37,7 @@ import com.gameplatform.local.domain.ports.out.GameDefinitionLocalRepository;
 import com.gameplatform.local.domain.ports.out.TournamentMatchLocalRepository;
 import com.gameplatform.shared.domain.model.*;
 import com.gameplatform.shared.domain.result.GameResult;
+import com.gameplatform.shared.domain.result.TeamResult;
 import com.gameplatform.shared.dto.TournamentMatchResultDto;
 import com.gameplatform.shared.mqtt.MqttTopics;
 import org.slf4j.Logger;
@@ -141,25 +142,18 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                 GameDefinitionLocal def = tournamentDef.get();
                 boolean teamBased = def.isTeamAllowed();
                 if (teamBased) {
-                    // team match: the session carries a single pseudo-participant (team_id).
-                    if (activeParticipants.size() != 1) {
+                    if (activeParticipants.size() != 2) {
                         throw new TournamentMatchValidationException(
                                 "Team tournament match " + tournamentMatchId.value()
-                                        + " expects exactly 1 pseudo-participant (team_id), got "
+                                        + " expects exactly 2 pseudo-participants (team_ids), got "
                                         + activeParticipants.size());
                     }
-                    // requester validation skipped for team (ambiguity F — the user is not a
-                    // direct participant of the match; the pseudo-participant is the team_id).
                 } else {
-                    // individual match: two user participants.
                     if (activeParticipants.size() != 2) {
                         throw new TournamentMatchValidationException(
                                 "Individual tournament match " + tournamentMatchId.value()
                                         + " expects exactly 2 participants, got " + activeParticipants.size());
                     }
-                    // validate that the participants are exactly the match's
-                    // participantA / participantB (the requester is among the match
-                    // participants — defensive check against a caller passing arbitrary users).
                     String pa = localMatch.getParticipantA();
                     String pb = localMatch.getParticipantB();
                     for (UserId p : activeParticipants) {
@@ -316,8 +310,23 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
 
         boolean wasAborted = session.getStatus() == GameStatus.ABORTED;
 
-        // Transition session to COMPLETED status
-        session.complete(result, Instant.now(clock));
+        GameResult effectiveResult = result;
+        if (session.getTournamentMatchId() != null && result != null && result.getWinnerId() != null) {
+            Optional<GameDefinitionLocal> endDef = gameDefinitionLocalRepository.findByGameType(session.getGameType());
+            if (endDef.isPresent() && endDef.get().isTeamAllowed()) {
+                effectiveResult = new TeamResult(null, null,
+                        new TeamId(result.getWinnerId().value()), WinCondition.TEAM_VICTORY);
+            }
+        }
+
+        session.complete(effectiveResult, Instant.now(clock));
+        if (session.getTournamentMatchId() != null && session.getWinnerId() == null) {
+            log.warn("Tournament match {} end requires a non-null winner for session {}",
+                    session.getTournamentMatchId().value(), session.getId().value());
+            throw new IllegalStateException(
+                    "Tournament match end requires a non-null winner (matchId=" + session.getTournamentMatchId().value()
+                            + ", sessionId=" + session.getId().value() + ")");
+        }
         gameSessionRepository.save(session);
 
         Game game = gameRepository.findById(session.getGameId())
@@ -364,8 +373,8 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         if (!wasAborted) {
             try {
                 String resultJsonString = null;
-                if (result != null) {
-                    resultJsonString = objectMapper.writeValueAsString(result);
+                if (effectiveResult != null) {
+                    resultJsonString = objectMapper.writeValueAsString(effectiveResult);
                 }
 
                 Map<String, Object> payload = new java.util.HashMap<>();
@@ -412,7 +421,7 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                 // so the central SyncEventProcessor can readValue it back.
                 if (session.getTournamentMatchId() != null) {
                     String winner = session.getWinnerId() != null ? session.getWinnerId().value() : null;
-                    String resultData = result != null ? objectMapper.writeValueAsString(result) : null;
+                    String resultData = effectiveResult != null ? objectMapper.writeValueAsString(effectiveResult) : null;
                     TournamentMatchResultDto tournamentDto = new TournamentMatchResultDto(
                             session.getTournamentMatchId().value(),
                             winner,

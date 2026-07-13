@@ -9,6 +9,8 @@ package com.gameplatform.client.infrastructure.config;
  */
 public class MqttClientConfig {
 
+    public static final String DEFAULT_BROKER_URL = "tcp://localhost:1883";
+
     private final String brokerUrl;
     private final String clientId;
     private final String buildingId;

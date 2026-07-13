@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -62,7 +63,7 @@ class InternalLocalServerRegistryControllerTest {
     void setup() {
         mvc = MockMvcBuilders.standaloneSetup(
                         new InternalLocalServerRegistryController(registeredLocalServerSyncService))
-                .addFilter(new InternalApiKeyFilter(INTERNAL_API_KEY))
+                .addFilter(new InternalApiKeyFilter(INTERNAL_API_KEY, new MockEnvironment()))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
                 .build();

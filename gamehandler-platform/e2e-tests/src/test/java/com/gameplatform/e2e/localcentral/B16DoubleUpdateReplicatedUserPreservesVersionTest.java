@@ -32,7 +32,7 @@ class B16DoubleUpdateReplicatedUserPreservesVersionTest extends DualContextTestB
         String roles1 = localJdbcTemplate.queryForObject(
                 "SELECT roles FROM replicated_users WHERE user_id = ?",
                 String.class, user.getId().value());
-        assertThat(roles1).contains("USER");
+        assertThat(roles1).contains("PLAYER");
 
         // Update roles on central -> produces USER_UPDATED outbox event.
         // null password is safe: UserService only changes the password when a
@@ -57,6 +57,6 @@ class B16DoubleUpdateReplicatedUserPreservesVersionTest extends DualContextTestB
                 "SELECT roles FROM replicated_users WHERE user_id = ?",
                 String.class, user.getId().value());
         assertThat(roles2).contains("OPERATOR");
-        assertThat(roles2).doesNotContain("USER");
+        assertThat(roles2).doesNotContain("PLAYER");
     }
 }

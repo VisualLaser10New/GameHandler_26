@@ -1,0 +1,112 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -------------------< com.gameplatform:local-server >--------------------
+[INFO] Building local-server 1.0.0-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.2.0:run (default-cli) > test-compile @ local-server >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ local-server ---
+[WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources, i.e. build is platform dependent!
+[INFO] Copying 9 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ local-server ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ local-server ---
+[WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources, i.e. build is platform dependent!
+[INFO] Copying 1 resource from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ local-server ---
+[INFO] Recompiling the module because of changed source code.
+[WARNING] File encoding has not been set, using platform encoding UTF-8, i.e. build is platform dependent!
+[INFO] Compiling 123 source files with javac [debug parameters target 21] to target\test-classes
+[INFO] /C:/Users/VLT14/Documents/UNI/PISSIR/Progetto/gamehandler-platform/local-server/src/test/java/com/gameplatform/local/domain/model/UserTest.java: Some input files use or override a deprecated API.
+[INFO] /C:/Users/VLT14/Documents/UNI/PISSIR/Progetto/gamehandler-platform/local-server/src/test/java/com/gameplatform/local/domain/model/UserTest.java: Recompile with -Xlint:deprecation for details.
+[INFO] 
+[INFO] <<< spring-boot:3.2.0:run (default-cli) < test-compile @ local-server <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.2.0:run (default-cli) @ local-server ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v3.2.0)
+
+2026-07-13T03:48:01.063+02:00  INFO 24960 --- [local-server] [           main] c.g.local.LocalServerApplication         : Starting LocalServerApplication using Java 21.0.5 with PID 24960 (C:\Users\VLT14\Documents\UNI\PISSIR\Progetto\gamehandler-platform\local-server\target\classes started by VLT14 in C:\Users\VLT14\Documents\UNI\PISSIR\Progetto\gamehandler-platform\local-server)
+2026-07-13T03:48:01.066+02:00  INFO 24960 --- [local-server] [           main] c.g.local.LocalServerApplication         : No active profile set, falling back to 1 default profile: "default"
+2026-07-13T03:48:01.829+02:00  INFO 24960 --- [local-server] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-07-13T03:48:01.910+02:00  INFO 24960 --- [local-server] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 75 ms. Found 16 JPA repository interfaces.
+2026-07-13T03:48:02.535+02:00  INFO 24960 --- [local-server] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8081 (https)
+2026-07-13T03:48:02.543+02:00  INFO 24960 --- [local-server] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-07-13T03:48:02.543+02:00  INFO 24960 --- [local-server] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.16]
+2026-07-13T03:48:02.586+02:00  INFO 24960 --- [local-server] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-07-13T03:48:02.587+02:00  INFO 24960 --- [local-server] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1493 ms
+2026-07-13T03:48:02.704+02:00  WARN 24960 --- [local-server] [           main] c.g.l.i.security.InternalApiKeyFilter    : Security misconfiguration: 'internal.api-key' is using the default 'secret' value. Set a strong INTERNAL_API_KEY in production-like environments (active profiles: ).
+2026-07-13T03:48:02.705+02:00  INFO 24960 --- [local-server] [           main] c.g.l.i.security.InternalApiKeyFilter    : InternalApiKeyFilter initialized ΓÇö internal API key is configured.
+2026-07-13T03:48:02.711+02:00  INFO 24960 --- [local-server] [           main] c.g.l.infrastructure.config.JwtConfig    : Loading local private key from: classpath:local-private.pem
+2026-07-13T03:48:02.711+02:00  INFO 24960 --- [local-server] [           main] c.g.l.infrastructure.config.JwtConfig    : Loading local public key from: classpath:local-public.pem
+2026-07-13T03:48:02.712+02:00  INFO 24960 --- [local-server] [           main] c.g.l.infrastructure.config.JwtConfig    : Successfully loaded local RSA keypair
+2026-07-13T03:48:02.865+02:00  INFO 24960 --- [local-server] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-07-13T03:48:02.902+02:00  INFO 24960 --- [local-server] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.3.1.Final
+2026-07-13T03:48:02.924+02:00  INFO 24960 --- [local-server] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-07-13T03:48:03.077+02:00  INFO 24960 --- [local-server] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-07-13T03:48:03.095+02:00  INFO 24960 --- [local-server] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-07-13T03:48:03.316+02:00  INFO 24960 --- [local-server] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@4be7acd9
+2026-07-13T03:48:03.317+02:00  INFO 24960 --- [local-server] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-07-13T03:48:04.248+02:00  INFO 24960 --- [local-server] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-07-13T03:48:04.291+02:00  INFO 24960 --- [local-server] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-07-13T03:48:04.539+02:00  INFO 24960 --- [local-server] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-07-13T03:48:05.751+02:00  INFO 24960 --- [local-server] [           main] c.g.l.infrastructure.config.MqttConfig   : Creating MqttClient with brokerUrl: tcp://localhost:1883 and clientId: local-server-building-1-3aaec7a8
+2026-07-13T03:48:06.113+02:00  INFO 24960 --- [local-server] [           main] c.g.l.infrastructure.config.MqttConfig   : MQTT Client connected successfully
+2026-07-13T03:48:06.113+02:00  INFO 24960 --- [local-server] [ding-1-3aaec7a8] c.g.l.infrastructure.config.MqttConfig   : MQTT connection complete (reconnect: false, serverURI: tcp://localhost:1883)
+2026-07-13T03:48:06.119+02:00  INFO 24960 --- [local-server] [ding-1-3aaec7a8] c.g.l.infrastructure.config.MqttConfig   : MQTT Client subscribed to topics successfully
+2026-07-13T03:48:06.444+02:00  WARN 24960 --- [local-server] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-07-13T03:48:06.489+02:00  WARN 24960 --- [local-server] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 6e590917-7203-4190-a9cf-fccf7534969a
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-07-13T03:48:06.784+02:00  INFO 24960 --- [local-server] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint(s) beneath base path '/actuator'
+2026-07-13T03:48:06.836+02:00  INFO 24960 --- [local-server] [           main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with [org.springframework.security.web.session.DisableEncodeUrlFilter@732301d1, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@92b6b6f, org.springframework.security.web.context.SecurityContextHolderFilter@586f56d2, org.springframework.security.web.header.HeaderWriterFilter@26049ca2, org.springframework.web.filter.CorsFilter@2d6b3785, org.springframework.security.web.authentication.logout.LogoutFilter@5faea3cb, com.gameplatform.local.infrastructure.security.JwtAuthenticationFilter@14b95942, com.gameplatform.local.infrastructure.security.InternalApiKeyFilter@7b7068d8, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@1d067bce, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@4836e093, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@17b1fde5, org.springframework.security.web.session.SessionManagementFilter@3885d938, org.springframework.security.web.access.ExceptionTranslationFilter@6acb0d0d, org.springframework.security.web.access.intercept.AuthorizationFilter@773e5a18]
+2026-07-13T03:48:07.259+02:00  INFO 24960 --- [local-server] [           main] o.a.t.util.net.NioEndpoint.certificate   : Connector [https-jsse-nio-8081], TLS virtual host [_default_], certificate type [UNDEFINED] configured from keystore [C:\Users\VLT14\.keystore] using alias [local-server-https] with trust store [null]
+2026-07-13T03:48:07.272+02:00  INFO 24960 --- [local-server] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8081 (https) with context path ''
+2026-07-13T03:48:07.283+02:00  INFO 24960 --- [local-server] [           main] c.g.local.LocalServerApplication         : Started LocalServerApplication in 6.514 seconds (process running for 6.774)
+2026-07-13T03:48:07.310+02:00  WARN 24960 --- [local-server] [er-registration] c.g.l.i.a.o.r.CentralSystemRestAdapter   : Central system is unreachable at https://localhost:8080: I/O error on GET request for "https://localhost:8080/internal/sync/receive": Connection refused: getsockopt
+2026-07-13T03:48:07.310+02:00  INFO 24960 --- [local-server] [er-registration] c.g.l.a.s.LocalServerRegistrationService : Central system not reachable; will retry registration in 1000 ms.
+Hibernate: select gje1_0.id,gje1_0.building_id,gje1_0.game_type,gje1_0.name,gje1_0.status,gje1_0.version from game_catalog gje1_0
+Hibernate: select gsje1_0.id,gsje1_0.building_id,gsje1_0.duration_s,gsje1_0.ended_at,gsje1_0.game_id,gsje1_0.game_type,gsje1_0.result_data,gsje1_0.started_at,gsje1_0.status,gsje1_0.tournament_id,gsje1_0.tournament_match_id,gsje1_0.version,gsje1_0.win_condition,gsje1_0.winner_id from game_sessions gsje1_0 where gsje1_0.status=?
+Hibernate: select gsje1_0.id,gsje1_0.building_id,gsje1_0.duration_s,gsje1_0.ended_at,gsje1_0.game_id,gsje1_0.game_type,gsje1_0.result_data,gsje1_0.started_at,gsje1_0.status,gsje1_0.tournament_id,gsje1_0.tournament_match_id,gsje1_0.version,gsje1_0.win_condition,gsje1_0.winner_id from game_sessions gsje1_0 where gsje1_0.status=?
+2026-07-13T03:48:07.374+02:00  INFO 24960 --- [local-server] [   scheduling-1] c.g.l.i.a.out.mqtt.MqttPublisherAdapter  : Publishing session event to topic building/building-1/game/game-chess-1/heartbeat
+2026-07-13T03:48:07.383+02:00  INFO 24960 --- [local-server] [   scheduling-1] c.g.l.i.a.out.mqtt.MqttPublisherAdapter  : Publishing session event to topic building/building-1/game/game-darts-1/heartbeat
+2026-07-13T03:48:07.402+02:00  INFO 24960 --- [local-server] [ding-1-3aaec7a8] c.g.l.i.a.out.mqtt.MqttPublisherAdapter  : Publishing session event to topic building/building-1/game/game-chess-1/heartbeat/ack
+2026-07-13T03:48:07.407+02:00  INFO 24960 --- [local-server] [   scheduling-1] c.g.l.i.a.out.mqtt.MqttPublisherAdapter  : Publishing session event to topic building/building-1/game/game-foosball-1/heartbeat
+2026-07-13T03:48:07.414+02:00  INFO 24960 --- [local-server] [ding-1-3aaec7a8] c.g.l.i.a.out.mqtt.MqttPublisherAdapter  : Publishing session event to topic building/building-1/game/game-darts-1/heartbeat/ack
+2026-07-13T03:48:07.418+02:00  INFO 24960 --- [local-server] [   scheduling-1] c.g.l.i.a.out.mqtt.MqttPublisherAdapter  : Publishing session event to topic building/building-1/game/game-slot-1/heartbeat
+2026-07-13T03:48:07.424+02:00  INFO 24960 --- [local-server] [ding-1-3aaec7a8] c.g.l.i.a.out.mqtt.MqttPublisherAdapter  : Publishing session event to topic building/building-1/game/game-foosball-1/heartbeat/ack
+Hibernate: select gsje1_0.id,gsje1_0.building_id,gsje1_0.duration_s,gsje1_0.ended_at,gsje1_0.game_id,gsje1_0.game_type,gsje1_0.result_data,gsje1_0.started_at,gsje1_0.status,gsje1_0.tournament_id,gsje1_0.tournament_match_id,gsje1_0.version,gsje1_0.win_condition,gsje1_0.winner_id from game_sessions gsje1_0 where gsje1_0.status=?
+Hibernate: select rje1_0.id,rje1_0.created_at,rje1_0.end_time,rje1_0.game_id,rje1_0.start_time,rje1_0.status,rje1_0.user_id,rje1_0.version from reservations rje1_0 where rje1_0.status in (?,?) and rje1_0.end_time<?
+Hibernate: select arlje1_0.request_id,arlje1_0.acting_role,arlje1_0.acting_user_id,arlje1_0.building_id,arlje1_0.completed_at,arlje1_0.created_at,arlje1_0.event_type,arlje1_0.outbox_event_id,arlje1_0.payload,arlje1_0.result_data,arlje1_0.status from admin_requests_local arlje1_0 where arlje1_0.status=? and arlje1_0.created_at<?
+Hibernate: select oeje1_0.id,oeje1_0.created_at,oeje1_0.event_type,oeje1_0.payload,oeje1_0.retry_count,oeje1_0.sent_at,oeje1_0.status from outbox_events oeje1_0 where oeje1_0.status=? order by oeje1_0.created_at
+Hibernate: select count(*) from outbox_dead_letter dleje1_0
+2026-07-13T03:48:07.475+02:00  INFO 24960 --- [local-server] [   scheduling-1] c.g.l.a.s.OutboxDlqPromotionService      : Promoted 0 failed outbox events to DLQ (current DLQ size: 0)
+2026-07-13T03:48:07.475+02:00  INFO 24960 --- [local-server] [ding-1-3aaec7a8] c.g.l.i.a.out.mqtt.MqttPublisherAdapter  : Publishing session event to topic building/building-1/game/game-slot-1/heartbeat/ack
+Hibernate: delete from outbox_events where status='SENT' and sent_at<?
+Hibernate: select oeje1_0.id,oeje1_0.created_at,oeje1_0.event_type,oeje1_0.payload,oeje1_0.retry_count,oeje1_0.sent_at,oeje1_0.status from outbox_events oeje1_0 where oeje1_0.status=? order by oeje1_0.created_at limit ?,?
+2026-07-13T03:48:08.500+02:00  WARN 24960 --- [local-server] [er-registration] c.g.l.i.a.o.r.CentralSystemRestAdapter   : Central system is unreachable at https://localhost:8080: I/O error on GET request for "https://localhost:8080/internal/sync/receive": Connection refused: getsockopt
+2026-07-13T03:48:08.500+02:00  INFO 24960 --- [local-server] [er-registration] c.g.l.a.s.LocalServerRegistrationService : Central system not reachable; will retry registration in 2000 ms.
+2026-07-13T03:48:10.607+02:00  WARN 24960 --- [local-server] [er-registration] c.g.l.i.a.o.r.CentralSystemRestAdapter   : Central system is unreachable at https://localhost:8080: I/O error on GET request for "https://localhost:8080/internal/sync/receive": Connection refused: getsockopt
+2026-07-13T03:48:10.607+02:00  INFO 24960 --- [local-server] [er-registration] c.g.l.a.s.LocalServerRegistrationService : Central system not reachable; will retry registration in 4000 ms.
+2026-07-13T03:48:15.070+02:00  WARN 24960 --- [local-server] [er-registration] c.g.l.i.a.o.r.CentralSystemRestAdapter   : Central system is unreachable at https://localhost:8080: I/O error on GET request for "https://localhost:8080/internal/sync/receive": Connection refused: getsockopt
+2026-07-13T03:48:15.070+02:00  INFO 24960 --- [local-server] [er-registration] c.g.l.a.s.LocalServerRegistrationService : Central system not reachable; will retry registration in 8000 ms.
+2026-07-13T03:48:22.390+02:00  WARN 24960 --- [local-server] [er-registration] c.g.l.i.a.o.r.CentralSystemRestAdapter   : Central system is unreachable at https://localhost:8080: I/O error on GET request for "https://localhost:8080/internal/sync/receive": Connection refused: getsockopt
+2026-07-13T03:48:22.390+02:00  INFO 24960 --- [local-server] [er-registration] c.g.l.a.s.LocalServerRegistrationService : Central system not reachable; will retry registration in 16000 ms.
+2026-07-13T03:48:36.366+02:00  WARN 24960 --- [local-server] [er-registration] c.g.l.i.a.o.r.CentralSystemRestAdapter   : Central system is unreachable at https://localhost:8080: I/O error on GET request for "https://localhost:8080/internal/sync/receive": Connection refused: getsockopt
+2026-07-13T03:48:36.366+02:00  INFO 24960 --- [local-server] [er-registration] c.g.l.a.s.LocalServerRegistrationService : Central system not reachable; will retry registration in 30000 ms.

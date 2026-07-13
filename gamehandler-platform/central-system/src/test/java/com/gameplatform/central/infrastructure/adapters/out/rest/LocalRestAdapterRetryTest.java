@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
 class LocalRestAdapterRetryTest {
 
     private RegisteredLocalServer server() {
-        return new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8081", Instant.now(), true);
+        return new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8181", Instant.now(), true);
     }
 
     private List<UserSyncDto> users() {

@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * local side and no extra progress row is written.
  */
 @DisplayName("B5: Late registration catch-up does not re-duplicate already replicated users")
-class B5LateRegistrationCatchUpDoesNotReduplicateAlreadyReplicatedUserTest extends DualContextTestBase {
+class B5LateRegistrationDoesNotReduplicateTest extends DualContextTestBase {
 
     @Test
     @DisplayName("Re-registering building-1 after replication does not duplicate the local user")
@@ -35,10 +35,14 @@ class B5LateRegistrationCatchUpDoesNotReduplicateAlreadyReplicatedUserTest exten
                 "SELECT COUNT(*) FROM replicated_users WHERE username='carol'", Integer.class))
                 .as("local replicated_users has carol after first replication")
                 .isEqualTo(1);
+        // Scope progress to USER_REGISTERED so the LOCAL_SERVER_REGISTRY_UPSERTED
+        // progress row from registerBuildingAtCentral does not inflate the count.
         assertThat(centralJdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM replication_progress WHERE server_id='building-1'",
+                "SELECT COUNT(*) FROM replication_progress rp "
+                        + "JOIN outbox_events oe ON rp.event_id = oe.id "
+                        + "WHERE rp.server_id='building-1' AND oe.event_type='USER_REGISTERED'",
                 Integer.class))
-                .as("replication_progress has 1 row for building-1 after first replication")
+                .as("replication_progress has 1 USER_REGISTERED row for building-1 after first replication")
                 .isEqualTo(1);
 
         // 5. Deactivate building-1 so the re-registration triggers catch-up (wasInactive=true)
@@ -54,11 +58,13 @@ class B5LateRegistrationCatchUpDoesNotReduplicateAlreadyReplicatedUserTest exten
                 .as("local still has exactly 1 carol after re-registration catch-up")
                 .isEqualTo(1);
 
-        // 8. Assert central replication_progress still has exactly 1 row for building-1
+        // 8. Assert central replication_progress still has exactly 1 USER_REGISTERED row for building-1
         assertThat(centralJdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM replication_progress WHERE server_id='building-1'",
+                "SELECT COUNT(*) FROM replication_progress rp "
+                        + "JOIN outbox_events oe ON rp.event_id = oe.id "
+                        + "WHERE rp.server_id='building-1' AND oe.event_type='USER_REGISTERED'",
                 Integer.class))
-                .as("replication_progress still has exactly 1 row for building-1")
+                .as("replication_progress still has exactly 1 USER_REGISTERED row for building-1")
                 .isEqualTo(1);
     }
 }

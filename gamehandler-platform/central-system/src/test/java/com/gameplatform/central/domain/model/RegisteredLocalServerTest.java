@@ -15,10 +15,10 @@ class RegisteredLocalServerTest {
         BuildingId buildingId = new BuildingId("bld-1");
         Instant now = Instant.now();
 
-        RegisteredLocalServer server = new RegisteredLocalServer(buildingId, "http://localhost:8080", now, true);
+        RegisteredLocalServer server = new RegisteredLocalServer(buildingId, "http://localhost:8180", now, true);
 
         assertThat(server.getBuildingId()).isEqualTo(buildingId);
-        assertThat(server.getBaseUrl()).isEqualTo("http://localhost:8080");
+        assertThat(server.getBaseUrl()).isEqualTo("http://localhost:8180");
         assertThat(server.getLastSeenAt()).isEqualTo(now);
         assertThat(server.isActive()).isTrue();
     }
@@ -29,7 +29,7 @@ class RegisteredLocalServerTest {
         Instant now = Instant.now();
 
         // Null BuildingId
-        assertThatThrownBy(() -> new RegisteredLocalServer(null, "http://localhost:8080", now, true))
+        assertThatThrownBy(() -> new RegisteredLocalServer(null, "http://localhost:8180", now, true))
                 .isInstanceOf(IllegalArgumentException.class);
 
         // Null/empty/blank baseUrl

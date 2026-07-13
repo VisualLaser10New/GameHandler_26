@@ -61,7 +61,7 @@ class LocalRestAdapterTest {
     void shouldSuccessfullyPushUsersWithoutRetry() {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
         LocalRestAdapter adapter = new LocalRestAdapter(mockRestTemplate, "test-api-key");
-        RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8081", Instant.now(), true);
+        RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8181", Instant.now(), true);
         List<UserSyncDto> users = Collections.singletonList(new UserSyncDto("u1", "user1", "hash", List.of("ROLE_USER")));
 
         when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
@@ -80,7 +80,7 @@ class LocalRestAdapterTest {
     void shouldRetryOnTransientFailureAndSucceed() {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
         LocalRestAdapter adapter = new LocalRestAdapter(mockRestTemplate, "test-api-key");
-        RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8081", Instant.now(), true);
+        RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8181", Instant.now(), true);
         List<UserSyncDto> users = Collections.singletonList(new UserSyncDto("u1", "user1", "hash", List.of("ROLE_USER")));
 
         // Throw transient network exception on first call, succeed on second
@@ -99,7 +99,7 @@ class LocalRestAdapterTest {
     void shouldRetryOnTransientHttp500FailureAndEventuallyFail() {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
         LocalRestAdapter adapter = new LocalRestAdapter(mockRestTemplate, "test-api-key");
-        RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8081", Instant.now(), true);
+        RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8181", Instant.now(), true);
         List<UserSyncDto> users = Collections.singletonList(new UserSyncDto("u1", "user1", "hash", List.of("ROLE_USER")));
 
         when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
@@ -118,7 +118,7 @@ class LocalRestAdapterTest {
     void shouldNotRetryOnNonTransientHttp400Failure() {
         RestTemplate mockRestTemplate = mock(RestTemplate.class);
         LocalRestAdapter adapter = new LocalRestAdapter(mockRestTemplate, "test-api-key");
-        RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8081", Instant.now(), true);
+        RegisteredLocalServer server = new RegisteredLocalServer(new BuildingId("building-1"), "http://localhost:8181", Instant.now(), true);
         List<UserSyncDto> users = Collections.singletonList(new UserSyncDto("u1", "user1", "hash", List.of("ROLE_USER")));
 
         when(mockRestTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),

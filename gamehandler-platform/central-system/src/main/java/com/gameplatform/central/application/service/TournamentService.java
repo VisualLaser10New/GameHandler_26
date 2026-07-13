@@ -11,6 +11,7 @@ import com.gameplatform.central.domain.model.Tournament;
 import com.gameplatform.central.domain.ports.in.CancelTournamentUseCase;
 import com.gameplatform.central.domain.ports.in.CreateTournamentUseCase;
 import com.gameplatform.central.domain.ports.in.DeleteTournamentUseCase;
+import com.gameplatform.central.domain.ports.in.EmitTournamentSummaryUseCase;
 import com.gameplatform.central.domain.ports.in.GetTournamentUseCase;
 import com.gameplatform.central.domain.ports.in.ListTournamentsUseCase;
 import com.gameplatform.central.domain.ports.in.OpenTournamentRegistrationUseCase;
@@ -49,7 +50,7 @@ import java.util.UUID;
 @Transactional
 public class TournamentService implements CreateTournamentUseCase, OpenTournamentRegistrationUseCase,
         CancelTournamentUseCase, GetTournamentUseCase, ListTournamentsUseCase,
-        UpdateTournamentUseCase, DeleteTournamentUseCase {
+        UpdateTournamentUseCase, DeleteTournamentUseCase, EmitTournamentSummaryUseCase {
 
     private static final String SUMMARY_EVENT_TYPE = "TOURNAMENT_SUMMARY_UPSERTED";
 
@@ -110,6 +111,9 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
         }
         if (!tournament.isTeamBased() && tournament.getTeamSize() != 1) {
             throw new InvalidTournamentException("Individual tournament must have teamSize == 1");
+        }
+        if (tournament.isTeamBased() && tournament.getTeamSize() < 2) {
+            throw new InvalidTournamentException("Team-based tournament must have teamSize >= 2");
         }
         Tournament draft = new Tournament(
                 tournament.getTournamentId(),
@@ -261,5 +265,38 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
         OutboxEvent event = new OutboxEvent(
                 eventId, SUMMARY_EVENT_TYPE, payload, OutboxEventStatus.PENDING, Instant.now(clock), null);
         outboxEventRepository.save(event);
+    }
+
+    /**
+     * Emits a {@code TOURNAMENT_SUMMARY_UPSERTED} outbox event carrying the
+     * current snapshot of the tournament (status, buildings, participantsCount)
+     * with the supplied {@code originatingRequestId}. Used as the special-ack
+     * return event for admin-request flows whose primary use case does not
+     * itself emit a summary upsert (e.g. SCHEDULE: the schedule use case emits
+     * {@code TOURNAMENT_MATCH_SCHEDULED} rows which do NOT carry the
+     * originatingRequestId, so the Local {@code admin_requests_local} row
+     * would stay PENDING; this method closes that gap — BUG-SCHEDULE-REQUEST-ID).
+     *
+     * <p>Loads the tournament (404 if absent), the building ids and the
+     * participants count, then delegates to {@link #writeOutboxEvent}. The
+     * outbox save is atomic with the caller's transaction ({@code @Transactional}
+     * on the caller side — e.g. {@code SyncEventProcessor.handleTournamentScheduleRequested}
+     * runs inside {@code processOne}'s {@code REQUIRES_NEW}). No-op (logs a
+     * warning) when the outbox deps are {@code null} (legacy test ctor).</p>
+     */
+    @Override
+    @Transactional
+    public void emitSummary(TournamentId tournamentId, String originatingRequestId) {
+        if (outboxEventRepository == null || objectMapper == null) {
+            return;
+        }
+        if (tournamentId == null) {
+            return;
+        }
+        Tournament t = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new TournamentNotFoundException("Tournament not found: " + tournamentId.value()));
+        List<String> buildings = tournamentBuildingRepository.findByTournament(tournamentId);
+        long participantsCount = tournamentParticipantRepository.countByTournament(tournamentId);
+        writeOutboxEvent(t, buildings, participantsCount, false, originatingRequestId);
     }
 }

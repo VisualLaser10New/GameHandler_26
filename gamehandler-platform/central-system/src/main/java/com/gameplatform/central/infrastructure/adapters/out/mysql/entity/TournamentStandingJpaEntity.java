@@ -22,7 +22,7 @@ public class TournamentStandingJpaEntity {
     private Integer losses;
     @Column(name = "points", nullable = false)
     private Integer points;
-    @Column(name = "rank")
+    @Column(name = "`rank`")
     private Integer rank;
 
     public TournamentStandingJpaEntity() {
