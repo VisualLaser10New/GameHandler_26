@@ -27,7 +27,7 @@ import java.util.Optional;
  */
 @RestController
 @RequestMapping("/api/admin/games")
-@PreAuthorize("hasRole('GAME_ADMIN')")
+@PreAuthorize("hasRole('GAME_ADMIN') or hasRole('PLATFORM_ADMIN')")
 public class GameAdminController {
 
     private final UpsertGameDefinitionRequestedUseCase upsertUseCase;

@@ -55,7 +55,7 @@ public class GameAdminController {
     }
 
     @PostMapping("/definitions")
-    @PreAuthorize("hasRole('GAME_ADMIN')")
+    @PreAuthorize("hasRole('GAME_ADMIN') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<GameDefinitionDto> upsertDefinition(@Valid @RequestBody UpsertGameDefinitionRequestDto request) {
         Instant now = Instant.now(clock);
         GameDefinition saved = upsertUseCase.upsert(new GameDefinition(
@@ -71,7 +71,7 @@ public class GameAdminController {
     }
 
     @PutMapping("/definitions/{gameType}")
-    @PreAuthorize("hasRole('GAME_ADMIN')")
+    @PreAuthorize("hasRole('GAME_ADMIN') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<GameDefinitionDto> updateDefinition(@PathVariable GameType gameType,
                                                               @Valid @RequestBody UpsertGameDefinitionRequestDto request) {
         if (request.gameType() != gameType) {

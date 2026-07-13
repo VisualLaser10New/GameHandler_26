@@ -28,7 +28,7 @@ import java.util.Optional;
  */
 @RestController
 @RequestMapping("/api/tournaments")
-@PreAuthorize("hasRole('PLAYER')")
+@PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
 public class PlayerTournamentRegistrationController {
 
     private final RegisterTournamentParticipantRequestedUseCase registerUseCase;

@@ -53,7 +53,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/admin/local")
-@PreAuthorize("hasRole('LOCAL_ADMIN')")
+@PreAuthorize("hasRole('LOCAL_ADMIN') or hasRole('PLATFORM_ADMIN')")
 public class AdminLocalController {
 
     private final ManageGameCatalogUseCase manageGameCatalogUseCase;

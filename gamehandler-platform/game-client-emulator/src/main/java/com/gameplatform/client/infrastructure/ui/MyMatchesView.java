@@ -136,7 +136,7 @@ public class MyMatchesView {
                     statusLabel.setText((matches == null ? 0 : matches.size()) + " partite");
                     loading.hide();
                 }))
-                .exceptionally(this::handleError);
+                .exceptionally(ex -> { Platform.runLater(() -> handleError(ex)); return null; });
     }
 
     private Void handleError(Throwable ex) {

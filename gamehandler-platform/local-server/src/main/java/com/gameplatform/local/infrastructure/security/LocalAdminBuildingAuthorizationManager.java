@@ -6,6 +6,7 @@ import com.gameplatform.local.domain.ports.out.UserRepository;
 import com.gameplatform.shared.domain.model.BuildingId;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
@@ -42,6 +43,13 @@ public class LocalAdminBuildingAuthorizationManager {
     public boolean canManageBuilding(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return false;
+        }
+        if (authentication.getAuthorities() != null) {
+            for (GrantedAuthority ga : authentication.getAuthorities()) {
+                if ("ROLE_PLATFORM_ADMIN".equals(ga.getAuthority())) {
+                    return true;
+                }
+            }
         }
         Object principal = authentication.getPrincipal();
         String username = principal instanceof UserDetails ud ? ud.getUsername()

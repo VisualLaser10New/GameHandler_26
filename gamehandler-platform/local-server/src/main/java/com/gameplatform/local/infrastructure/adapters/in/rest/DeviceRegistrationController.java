@@ -43,7 +43,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/devices")
-@PreAuthorize("hasRole('LOCAL_ADMIN')")
+@PreAuthorize("hasRole('LOCAL_ADMIN') or hasRole('PLATFORM_ADMIN')")
 public class DeviceRegistrationController {
 
     private static final Logger log = LoggerFactory.getLogger(DeviceRegistrationController.class);

@@ -22,7 +22,7 @@ import java.util.List;
 import static com.gameplatform.local.infrastructure.adapters.in.rest.GameSessionController.getGameSessionDto;
 
 @RestController
-@PreAuthorize("hasRole('PLAYER')")
+@PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
 public class StatisticsController {
 
     private final GetStatisticsUseCase getStatisticsUseCase;

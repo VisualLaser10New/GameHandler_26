@@ -51,7 +51,7 @@ public class TournamentRegistrationController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('PLAYER')")
+    @PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<TournamentParticipantDto> register(@PathVariable String id,
                                                              @Valid @RequestBody RegisterTournamentParticipantDto request) {
         UserId captainId = currentUserService.getCurrentUserId()
@@ -60,7 +60,7 @@ public class TournamentRegistrationController {
     }
 
     @DeleteMapping
-    @PreAuthorize("hasRole('PLAYER')")
+    @PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<Void> unregister(@PathVariable String id) {
         UserId uid = currentUserService.getCurrentUserId()
                 .orElseThrow(() -> new InvalidTournamentException("Authenticated user could not be resolved"));

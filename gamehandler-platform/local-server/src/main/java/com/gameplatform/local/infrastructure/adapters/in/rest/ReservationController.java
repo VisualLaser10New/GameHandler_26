@@ -20,7 +20,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/reservations")
-@PreAuthorize("hasRole('PLAYER')")
+@PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
 public class ReservationController {
 
     private final CreateReservationUseCase createReservationUseCase;

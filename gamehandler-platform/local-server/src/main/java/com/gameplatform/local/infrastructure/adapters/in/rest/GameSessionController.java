@@ -31,7 +31,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/sessions")
-@PreAuthorize("hasRole('PLAYER')")
+@PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
 public class GameSessionController {
 
     private final StartGameSessionUseCase startGameSessionUseCase;

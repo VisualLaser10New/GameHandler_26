@@ -65,7 +65,7 @@ public class PlayerTournamentController {
      * part of.
      */
     @GetMapping("/me/matches")
-    @PreAuthorize("hasRole('PLAYER')")
+    @PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<List<TournamentMatchDto>> myMatches() {
         Optional<UserId> currentUserId = currentUserService.getCurrentUserId();
         if (currentUserId.isEmpty()) {
@@ -119,7 +119,7 @@ public class PlayerTournamentController {
      * delegates to GameSessionService.start(... tournamentMatchId).
      */
     @PostMapping("/matches/{matchId}/start")
-    @PreAuthorize("hasRole('PLAYER')")
+    @PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<GameSessionDto> startMatch(@PathVariable String matchId,
                                                      @RequestParam(name = "gameId", required = false) String gameId) {
         TournamentMatchLocal local = tournamentMatchLocalRepository.findById(new TournamentMatchId(matchId))

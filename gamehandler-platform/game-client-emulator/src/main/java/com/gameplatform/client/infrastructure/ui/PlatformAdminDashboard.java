@@ -20,7 +20,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
-import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.*;
 
 import java.time.Instant;
@@ -92,9 +91,9 @@ public class PlatformAdminDashboard {
         usersRows = FXCollections.observableArrayList();
         usersTable = new TableView<>(usersRows);
         usersTable.setPrefHeight(220);
-        addPropCol(usersTable, "userId",   "userId");
-        addPropCol(usersTable, "username", "username");
-        addPropCol(usersTable, "email",    "email");
+        TableColumns.addColumn(usersTable, "userId",   UsersDirectoryDto::userId);
+        TableColumns.addColumn(usersTable, "username", UsersDirectoryDto::username);
+        TableColumns.addColumn(usersTable, "email",    u -> u.email() == null ? "" : u.email());
         TableColumns.addColumn(usersTable, "roles", u -> u.roles() == null ? "" : String.join(",", u.roles()));
         usersTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
@@ -184,7 +183,14 @@ public class PlatformAdminDashboard {
                 titled("Monitoraggio local-server (GET /api/admin/servers/health)", serversTable, 180),
                 statusLabel);
 
-        StackPane stack = new StackPane(content, loading);
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setFitToHeight(false);
+        scroll.setStyle("-fx-background: #1e1e1e; -fx-background-color: #1e1e1e;");
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+
+        StackPane stack = new StackPane(scroll, loading);
         StackPane.setAlignment(loading, Pos.CENTER);
         root = new VBox(stack);
         root.setStyle("-fx-padding: 0; -fx-background-color: #1e1e1e;");
@@ -341,13 +347,6 @@ public class PlatformAdminDashboard {
     }
 
     // ── helpers ──
-    @SuppressWarnings("unchecked")
-    private static <S> void addPropCol(TableView<S> table, String header, String property) {
-        TableColumn<S, String> col = new TableColumn<>(header);
-        col.setCellValueFactory(new PropertyValueFactory<>(property));
-        table.getColumns().add(col);
-    }
-
     private static VBox titled(String header, javafx.scene.Node content, int prefHeight) {
         Label h = new Label(header);
         h.setStyle("-fx-text-fill: #3498db; -fx-font-weight: bold;");

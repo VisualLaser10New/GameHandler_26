@@ -53,7 +53,7 @@ public class PlayerStatisticsController {
     }
 
     @GetMapping("/me/statistics")
-    @PreAuthorize("hasRole('PLAYER')")
+    @PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<List<PlayerStatisticsDto>> getMyStatistics(
             @RequestParam(value = "gameType", required = false) String gameType) {
         UserId userId = requireCurrentUserId();

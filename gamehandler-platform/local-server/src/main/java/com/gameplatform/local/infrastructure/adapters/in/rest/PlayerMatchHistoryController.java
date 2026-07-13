@@ -25,7 +25,7 @@ import java.util.Optional;
  */
 @RestController
 @RequestMapping("/api/players/me/matches")
-@PreAuthorize("hasRole('PLAYER')")
+@PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
 public class PlayerMatchHistoryController {
 
     private final ListPlayerMatchesUseCase listPlayerMatchesUseCase;
