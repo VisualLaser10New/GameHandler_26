@@ -185,9 +185,14 @@ public class MainView extends Application {
                 try { Thread.sleep(200); } catch (InterruptedException ignored) {}
                 Platform.runLater(() -> {
                     String username = HttpClientHelper.getCurrentUsername();
+                    String userId = HttpClientHelper.getCurrentUserId();
                     if (username != null) {
                         lobbyView.setCurrentUser(username);
                         gamePlayView.setCurrentUser(username);
+                        if (userId != null) {
+                            lobbyView.setCurrentUserId(userId);
+                            gamePlayView.setCurrentUserId(userId);
+                        }
                         connectionMonitor.onLoggedIn();
                         statusBar.updateStatus("Connected as: " + username
                                 + "  · roles=" + HttpClientHelper.getRoles());

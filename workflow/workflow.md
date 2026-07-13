@@ -912,8 +912,8 @@
 
 
 Verifiche da effettuare:
-- [ ] tutte le funzionalità delle gui di ogni singolo tipo ri ruolo utente funzionino, per testare creare dei test per ogni singola funzionalità
-- [ ] gli utenti possono eseguire solo le operazioni limitate al loro role, non possono fare altro. verificare che il local server effettui verifiche rigorose per ogni singola operazione effettuabile via post o get o push o delete ( se ci sono)
-- [ ] tutte le enum e tutti i loro values, come i ruoli degli utenti non siano mai hardcoded o stringhe nel codice, e sempre richiamate come enum
-- [ ] tutta la gui sia in inglese
-- [ ] l'intera pipeline dei tornei funzioni a livello stretto con gui: verificare che gli admin possono creare tornei e i giocatori, iscriversi, partecipare, giocare senza bugs. La verifica deve essere fatta quasi a livello gui.
+- [x] tutte le funzionalità delle gui di ogni singolo tipo ri ruolo utente funzionino, per testare creare dei test per ogni singola funzionalità
+- [x] gli utenti possono eseguire solo le operazioni limitate al loro role, non possono fare altro. verificare che il local server effettui verifiche rigorose per ogni singola operazione effettuabile via post o get o push o delete ( se ci sono)
+- [x] tutte le enum e tutti i loro values, come i ruoli degli utenti non siano mai hardcoded o stringhe nel codice, e sempre richiamate come enum
+- [x] tutta la gui sia in inglese
+- [x] l'intera pipeline dei tornei funzioni a livello stretto con gui: verificare che gli admin possono creare tornei e i giocatori, iscriversi, partecipare, giocare senza bugs. La verifica deve essere fatta quasi a livello gui.

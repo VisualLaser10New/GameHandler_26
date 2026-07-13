@@ -51,6 +51,7 @@ public class LobbyView {
 
     private GameStateDto currentGame;
     private String currentUsername = "player";
+    private String currentUserId;
     private String lobbySessionId;       // assigned by server after create
     private final List<String> participants = new ArrayList<>();
     // Role determined once in configure() based on the game status at
@@ -143,6 +144,20 @@ public class LobbyView {
     /** Sets the current user's username (used as creatorId / joinerId). */
     public void setCurrentUser(String username) {
         if (username != null && !username.isBlank()) this.currentUsername = username;
+    }
+
+    /**
+     * Sets the authenticated user's stable id (UUID resolved from
+     * {@code /api/auth/me}). For single-player games this is sent to the
+     * server as the lobby creator identity (and therefore the session
+     * participant) so the Central {@code player_statistics} /
+     * {@code player_match_facts} read-models key statistics on the user id,
+     * matching the {@code /api/players/me/statistics} query. May be
+     * {@code null} (e.g. user not yet locally replicated); in that case the
+     * username fallback keeps the historical behaviour.
+     */
+    public void setCurrentUserId(String userId) {
+        this.currentUserId = userId;
     }
 
     /** Called when the user cancels and wants to go back to game selection. */
@@ -285,6 +300,24 @@ public class LobbyView {
 
     // ─────────────────────────── Button handlers ──────────────────────────────
 
+    /**
+     * Identity the server should record as the lobby creator / session
+     * participant. For single-player games (maxPlayers == 1) the user id
+     * (UUID) is returned so the Central player read-models key statistics
+     * on the user id (matching {@code /api/players/me/statistics}); for
+     * multiplayer games the username is returned to preserve the existing
+     * lobby echo / turn-sync display contract (see known-limit in the
+     * project report). Falls back to the username when the user id has not
+     * been resolved.
+     */
+    private String serverIdentityForLobby() {
+        if (currentGame != null && currentGame.maxPlayers() == 1
+                && currentUserId != null && !currentUserId.isBlank()) {
+            return currentUserId;
+        }
+        return currentUsername;
+    }
+
     private void handleActionButton() {
         if (currentGame == null) return;
 
@@ -294,7 +327,7 @@ public class LobbyView {
             // lobby session id.
             this.lobbyCreateInitiated = true;
             if (sessionPublisher != null) {
-                sessionPublisher.publishLobbyCreate(currentGame.gameId(), currentGame.gameType(), currentUsername);
+                sessionPublisher.publishLobbyCreate(currentGame.gameId(), currentGame.gameType(), serverIdentityForLobby());
             }
             participants.clear();
             participants.add(currentUsername);
@@ -353,7 +386,7 @@ public class LobbyView {
             try {
                 if (lobbySessionId != null) {
                     // Normal path: we have the session id, cancel via MQTT.
-                    sessionPublisher.publishLobbyCancel(currentGame.gameId(), lobbySessionId, currentUsername);
+                    sessionPublisher.publishLobbyCancel(currentGame.gameId(), lobbySessionId, serverIdentityForLobby());
                 } else {
                     // Race condition: the lobby/create echo hasn't arrived
                     // yet so we don't have lobbySessionId.  Use a REST
@@ -381,12 +414,12 @@ public class LobbyView {
     private void cancelLobbyByGameViaRest(String gameId) {
         new Thread(() -> {
             try {
-                String body = "{\"userId\":\"" + currentUsername + "\"}";
+                String body = "{\"userId\":\"" + serverIdentityForLobby() + "\"}";
                 com.gameplatform.client.infrastructure.rest.ApiClient.instance()
                         .post("/api/sessions/lobby/cancel-by-game?gameId=" + gameId, body, GameSessionDto.class)
                         .thenAccept(session -> {
                             if (session != null && session.id() != null && sessionPublisher != null) {
-                                sessionPublisher.publishLobbyCancel(gameId, session.id(), currentUsername);
+                                sessionPublisher.publishLobbyCancel(gameId, session.id(), serverIdentityForLobby());
                             }
                         });
             } catch (Exception ignored) {}

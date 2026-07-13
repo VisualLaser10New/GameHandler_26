@@ -56,6 +56,7 @@ public class GamePlayView {
     private String buildingId;
     private GameStateDto currentGameState;
     private String currentUsername = "player";
+    private String currentUserId;
     private String gameId = "game-1";
     private GamePanel activePanel;
 
@@ -144,6 +145,19 @@ public class GamePlayView {
         if (username != null && !username.isBlank()) this.currentUsername = username;
     }
 
+    /**
+     * Sets the authenticated user's stable id (UUID resolved from
+     * {@code /api/auth/me}). Used as the server-facing participant identity
+     * for single-player games so the Central {@code player_statistics} /
+     * {@code player_match_facts} read-models key the player's matches on the
+     * user id (matching {@code /api/players/me/statistics}); the username is
+     * still used purely for in-panel display. May be {@code null}, in which
+     * case the username fallback preserves the historical behaviour.
+     */
+    public void setCurrentUserId(String userId) {
+        this.currentUserId = userId;
+    }
+
     /** Sets the game machine ID (from env GAME_ID). */
     public void setGameId(String id) {
         if (id != null && !id.isBlank()) this.gameId = id;
@@ -206,7 +220,7 @@ public class GamePlayView {
 
         List<String> participants = lobbyParticipants != null
                 ? lobbyParticipants
-                : List.of(currentUsername);
+                : List.of(currentUserId != null ? currentUserId : currentUsername);
 
         if (orchestrationService != null) {
             // Real server-backed start
@@ -314,6 +328,16 @@ public class GamePlayView {
         }
 
         if (activePanel != null) activePanel.onGameStopped();
+
+        // Single-player games (min == max == 1): the panel renders the local
+        // user's USERNAME as the winner; publish the user's stable id (UUID)
+        // instead so the server records the participant / winner on the user
+        // id, matching /api/players/me/statistics. Multiplayer keeps the
+        // panel's reported identity (turn-sync echo contract — see report).
+        if (currentGameState != null && currentGameState.maxPlayers() == 1
+                && currentUserId != null && winnerId != null) {
+            winnerId = currentUserId;
+        }
 
         // Publish session/end to the server so it can release the game machine.
         // We must use the gameId from currentGameState (e.g. "game-slot-1"),

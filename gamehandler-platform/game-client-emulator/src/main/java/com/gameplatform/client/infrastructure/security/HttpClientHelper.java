@@ -30,6 +30,7 @@ public class HttpClientHelper {
 
     private static volatile String token;
     private static volatile String currentUsername;
+    private static volatile String currentUserId;
     private static volatile List<String> roles = List.of();
     private static volatile List<String> buildings = List.of();
 
@@ -47,6 +48,14 @@ public class HttpClientHelper {
 
     public static String getCurrentUsername() {
         return currentUsername;
+    }
+
+    public static void setCurrentUserId(String userId) {
+        currentUserId = userId;
+    }
+
+    public static String getCurrentUserId() {
+        return currentUserId;
     }
 
     /**
@@ -90,6 +99,7 @@ public class HttpClientHelper {
     public static void clearSession() {
         token = null;
         currentUsername = null;
+        currentUserId = null;
         roles = List.of();
         buildings = List.of();
     }

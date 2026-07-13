@@ -18,6 +18,7 @@ import com.gameplatform.local.domain.model.OutboxEventStatus;
 import com.gameplatform.local.domain.model.Reservation;
 import com.gameplatform.local.domain.model.GameDefinitionLocal;
 import com.gameplatform.local.domain.model.TournamentMatchLocal;
+import com.gameplatform.local.domain.model.User;
 import com.gameplatform.local.domain.ports.in.EndGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.PauseGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.ResumeGameSessionUseCase;
@@ -36,6 +37,7 @@ import com.gameplatform.local.domain.ports.out.PublishGameStatePort;
 import com.gameplatform.local.domain.ports.out.ReservationRepository;
 import com.gameplatform.local.domain.ports.out.GameDefinitionLocalRepository;
 import com.gameplatform.local.domain.ports.out.TournamentMatchLocalRepository;
+import com.gameplatform.local.domain.ports.out.UserRepository;
 import com.gameplatform.shared.domain.model.*;
 import com.gameplatform.shared.domain.result.GameResult;
 import com.gameplatform.shared.domain.result.TeamResult;
@@ -69,8 +71,28 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
     private final ObjectMapper objectMapper;
     private final GameDefinitionLocalRepository gameDefinitionLocalRepository;
     private final TournamentMatchLocalRepository tournamentMatchLocalRepository;
+    private final UserRepository userRepository;
     private final String buildingId;
 
+    /**
+     * Production constructor (Spring {@code @Autowired}): injects every port
+     * including {@link UserRepository}, used to canonicalise the
+     * server-facing player identity (username &rarr; stable user id / UUID)
+     * before it is stored on a {@link GameSession} and emitted to the
+     * {@code GAME_SESSION_COMPLETED} outbox. Without this resolution the
+     * Central {@link com.gameplatform.central.application.service.PlayerStatisticsProjectionService}
+     * would key {@code player_match_facts} / {@code player_statistics} on the
+     * client-sent participant string; since {@code GET /api/players/me/statistics}
+     * resolves the authenticated user id from the JWT via
+     * {@link com.gameplatform.central.infrastructure.security.CurrentUserService}
+     * (Local: {@code LocalCurrentUserService}) &mdash; the stable user id, not the
+     * username &mdash; rows keyed on the username would be invisible to "MyStats".
+     * The graceful fallback ({@code findByUsername} returns empty) preserves
+     * already-canonical ids (UUIDs from the upgraded Game Client Emulator) and
+     * team-ids for team-based tournaments (no row in {@code replicated_users},
+     * so the lookup misses and the team-id is kept as-is).
+     */
+    @org.springframework.beans.factory.annotation.Autowired
     public GameSessionService(
             GameSessionRepository gameSessionRepository,
             GameRepository gameRepository,
@@ -81,7 +103,8 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
             ObjectMapper objectMapper,
             GameDefinitionLocalRepository gameDefinitionLocalRepository,
             TournamentMatchLocalRepository tournamentMatchLocalRepository,
-            @Value("${app.building-id}") String buildingId) {
+            @Value("${app.building-id}") String buildingId,
+            UserRepository userRepository) {
         this.gameSessionRepository = gameSessionRepository;
         this.gameRepository = gameRepository;
         this.outboxEventRepository = outboxEventRepository;
@@ -92,6 +115,75 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         this.gameDefinitionLocalRepository = gameDefinitionLocalRepository;
         this.tournamentMatchLocalRepository = tournamentMatchLocalRepository;
         this.buildingId = buildingId;
+        this.userRepository = userRepository;
+    }
+
+    /**
+     * Backward-compat legacy constructor retained for unit tests that
+     * construct a real {@link GameSessionService} slice without a
+     * {@link UserRepository} stub (e.g.
+     * {@code SinglePlayerGamePlayStatisticsTest},
+     * {@code MultiPlayerGamePlayStatisticsTest}). Delegates to the
+     * production 11-arg ctor with {@code null} for the user repository; the
+     * resolution helpers skip cleanly when it is {@code null}, preserving the
+     * historical (pre-resolution) behaviour byte-identical for those tests.
+     */
+    public GameSessionService(
+            GameSessionRepository gameSessionRepository,
+            GameRepository gameRepository,
+            OutboxEventRepository outboxEventRepository,
+            PublishGameStatePort publishGameStatePort,
+            ReservationRepository reservationRepository,
+            Clock clock,
+            ObjectMapper objectMapper,
+            GameDefinitionLocalRepository gameDefinitionLocalRepository,
+            TournamentMatchLocalRepository tournamentMatchLocalRepository,
+            String buildingId) {
+        this(gameSessionRepository, gameRepository, outboxEventRepository,
+                publishGameStatePort, reservationRepository, clock, objectMapper,
+                gameDefinitionLocalRepository, tournamentMatchLocalRepository,
+                buildingId, null);
+    }
+
+    /**
+     * Canonicalises a single participant identity for storage / projection:
+     * if the supplied value matches a locally replicated username, the user's
+     * stable id (UUID) is used instead; otherwise the value is kept verbatim
+     * (it is already a UUID, a team-id, or a not-yet-replicated transient
+     * username). Gracefully skips when the user repository is {@code null}
+     * (legacy test ctor / no resolution wired).
+     */
+    private UserId resolveCanonicalUserId(UserId raw) {
+        if (raw == null || userRepository == null) {
+            return raw;
+        }
+        String value = raw.value();
+        if (value == null || value.isBlank()) {
+            return raw;
+        }
+        return userRepository.findByUsername(value)
+                .map(User::getUserId)
+                .orElse(raw);
+    }
+
+    /**
+     * Canonicalises a list of participant identities (see
+     * {@link #resolveCanonicalUserId(UserId)}). Nulls and blank values are
+     * dropped, mirroring the defensive iteration in
+     * {@link com.gameplatform.central.application.service.PlayerStatisticsProjectionService#onGameSessionCompleted}.
+     */
+    private List<UserId> resolveCanonicalParticipants(List<UserId> raw) {
+        if (raw == null || userRepository == null) {
+            return raw;
+        }
+        java.util.List<UserId> resolved = new java.util.ArrayList<>(raw.size());
+        for (UserId p : raw) {
+            if (p == null || p.value() == null || p.value().isBlank()) {
+                continue;
+            }
+            resolved.add(resolveCanonicalUserId(p));
+        }
+        return resolved;
     }
 
     @Override
@@ -237,6 +329,15 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         gameRepository.save(game);
 
         GameSessionId sessionId = new GameSessionId(UUID.randomUUID().toString());
+        // Canonicalise the server-facing participant identity for non-tournament
+        // sessions so the Central player read-models key statistics on the
+        // user id (matching /api/players/me/statistics). Tournament-bound
+        // sessions keep the raw participants (their identity is enforced by
+        // the TournamentMatchLocal participantA/B check above; team-based
+        // matches would be silently denatured by a username lookup).
+        List<UserId> storedParticipants = (tournamentMatchId != null)
+                ? activeParticipants
+                : resolveCanonicalParticipants(activeParticipants);
         GameSession session;
         if (tournamentMatchId != null) {
             session = new GameSession(
@@ -251,7 +352,7 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                     null,
                     null,
                     null,
-                    activeParticipants,
+                    storedParticipants,
                     tournamentMatchId,
                     resolvedTournamentId
             );
@@ -268,7 +369,7 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                     null,
                     null,
                     null,
-                    activeParticipants
+                    storedParticipants
             );
         }
 
@@ -393,10 +494,17 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                 // GameResult JSON. Idempotent backward-compat: older Central code
                 // that ignores these fields is unaffected (the payload stays a JSON
                 // String; OutboxEventDto/SyncPayloadDto shapes are unchanged).
-                payload.put("participants", session.getParticipants().stream()
+                // Canonicalise the server-facing identity (username → UUID) before
+                // writing the outbox so the Central PlayerStatisticsProjection
+                // keys player_match_facts / player_statistics on the user id
+                // (matching /api/players/me/statistics). Reprocessing already-
+                // canonical values is a no-op (findByUsername misses the UUID).
+                List<UserId> payloadParticipants = resolveCanonicalParticipants(session.getParticipants());
+                UserId payloadWinner = resolveCanonicalUserId(session.getWinnerId());
+                payload.put("participants", payloadParticipants.stream()
                         .map(UserId::value).toList());
-                payload.put("winnerId", session.getWinnerId() != null
-                        ? session.getWinnerId().value() : null);
+                payload.put("winnerId", payloadWinner != null
+                        ? payloadWinner.value() : null);
                 payload.put("winCondition", session.getWinCondition() != null
                         ? session.getWinCondition().name() : null);
                 if (resultJsonString != null) {
@@ -421,7 +529,11 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                 // serialised TournamentMatchResultDto record (per Q5 — NOT a Map)
                 // so the central SyncEventProcessor can readValue it back.
                 if (session.getTournamentMatchId() != null) {
-                    String winner = session.getWinnerId() != null ? session.getWinnerId().value() : null;
+                    // Reuse the canonicalised winner for both outbox rows so the
+                    // central TOURNAMENT_MATCH_COMPLETED bracket advance agrees
+                    // with the GAME_SESSION_COMPLETED player projection (no-op
+                    // for team-based tournaments, where the team-id stays raw).
+                    String winner = payloadWinner != null ? payloadWinner.value() : null;
                     String resultData = effectiveResult != null ? objectMapper.writeValueAsString(effectiveResult) : null;
                     TournamentMatchResultDto tournamentDto = new TournamentMatchResultDto(
                             session.getTournamentMatchId().value(),
@@ -548,6 +660,9 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         gameRepository.save(game);
 
         GameSessionId sessionId = new GameSessionId(UUID.randomUUID().toString());
+        // Canonicalise the lobby creator id (username → UUID) so the session
+        // participants list is stored on the user id, mirroring start().
+        UserId storedCreator = resolveCanonicalUserId(creatorId);
         GameSession session = new GameSession(
                 sessionId,
                 gameId,
@@ -560,7 +675,7 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                 null,
                 null,
                 null,
-                List.of(creatorId)
+                List.of(storedCreator)
         );
 
         GameSession savedSession = gameSessionRepository.save(session);
@@ -597,7 +712,9 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
             throw new IllegalStateException("Lobby is already full");
         }
 
-        session.addParticipant(userId);
+        // Canonicalise the joiner identity (username → UUID) before adding
+        // so the participants list stays uniformly keyed on the user id.
+        session.addParticipant(resolveCanonicalUserId(userId));
         GameSession savedSession = gameSessionRepository.save(session);
 
         // Publish to MQTT

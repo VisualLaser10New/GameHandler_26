@@ -113,6 +113,7 @@ public class LoginView {
                 .thenAccept(userInfo -> Platform.runLater(() -> {
                     if (userInfo != null) {
                         HttpClientHelper.setCurrentUsername(userInfo.username());
+                        HttpClientHelper.setCurrentUserId(userInfo.userId());
                         HttpClientHelper.setRoles(userInfo.roles());
                         HttpClientHelper.setBuildings(userInfo.buildings());
                     }
