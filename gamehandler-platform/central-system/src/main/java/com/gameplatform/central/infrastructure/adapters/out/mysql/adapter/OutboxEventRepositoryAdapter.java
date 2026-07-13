@@ -1,6 +1,7 @@
 package com.gameplatform.central.infrastructure.adapters.out.mysql.adapter;
 
 import com.gameplatform.central.domain.model.OutboxEvent;
+import com.gameplatform.central.domain.model.OutboxEventStatus;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity;
 import com.gameplatform.central.infrastructure.adapters.out.mysql.mapper.OutboxEventMapper;
@@ -35,14 +36,14 @@ public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
 
     @Override
     public List<OutboxEvent> findPending() {
-        return jpaRepository.findByStatusOrderByCreatedAtAsc("PENDING").stream()
+        return jpaRepository.findByStatusOrderByCreatedAtAsc(OutboxEventStatus.PENDING.name()).stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<OutboxEvent> findPendingLimit(int limit) {
-        return jpaRepository.findByStatusOrderByCreatedAtAsc("PENDING", PageRequest.of(0, limit)).stream()
+        return jpaRepository.findByStatusOrderByCreatedAtAsc(OutboxEventStatus.PENDING.name(), PageRequest.of(0, limit)).stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
     }
@@ -54,7 +55,7 @@ public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
             return;
         }
         jpaRepository.findById(id).ifPresent(entity -> {
-            entity.setStatus("SENT");
+            entity.setStatus(OutboxEventStatus.SENT.name());
             entity.setSentAt(Instant.now(clock));
             jpaRepository.save(entity);
         });
@@ -67,7 +68,7 @@ public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
             return;
         }
         jpaRepository.findById(id).ifPresent(entity -> {
-            entity.setStatus("FAILED");
+            entity.setStatus(OutboxEventStatus.FAILED.name());
             jpaRepository.save(entity);
         });
     }

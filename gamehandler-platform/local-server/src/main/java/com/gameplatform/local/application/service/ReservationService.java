@@ -6,6 +6,7 @@ import com.gameplatform.local.domain.exception.ReservationExpiredException;
 import com.gameplatform.local.domain.exception.ReservationNotFoundException;
 import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.model.OutboxEvent;
+import com.gameplatform.local.domain.model.OutboxEventStatus;
 import com.gameplatform.local.domain.model.Reservation;
 import com.gameplatform.local.domain.ports.in.CancelReservationUseCase;
 import com.gameplatform.local.domain.ports.in.CreateReservationUseCase;
@@ -98,9 +99,9 @@ public class ReservationService implements CreateReservationUseCase, CancelReser
 
             OutboxEvent outboxEvent = new OutboxEvent(
                     UUID.randomUUID().toString(),
-                    "RESERVATION_CREATED",
+                    com.gameplatform.shared.domain.events.ReservationCreatedEvent.EVENT_TYPE,
                     payloadJson,
-                    "PENDING",
+                    OutboxEventStatus.PENDING.name(),
                     Instant.now(clock),
                     null,
                     0
@@ -133,8 +134,22 @@ public class ReservationService implements CreateReservationUseCase, CancelReser
 
     @Override
     public void cancel(ReservationId reservationId) {
+        doCancel(reservationId, null);
+    }
+
+    @Override
+    public void cancel(ReservationId reservationId, UserId actingUserId) {
+        doCancel(reservationId, actingUserId);
+    }
+
+    private void doCancel(ReservationId reservationId, UserId actingUserId) {
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ReservationNotFoundException("Reservation not found: " + reservationId.value()));
+
+        if (actingUserId != null && !reservation.getUserId().equals(actingUserId)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Cannot cancel a reservation belonging to another user");
+        }
 
         if (reservation.getStatus() == ReservationStatus.EXPIRED) {
             throw new ReservationExpiredException("Cannot cancel an expired reservation: " + reservationId.value());
@@ -168,9 +183,9 @@ public class ReservationService implements CreateReservationUseCase, CancelReser
 
             OutboxEvent outboxEvent = new OutboxEvent(
                     UUID.randomUUID().toString(),
-                    "RESERVATION_CANCELLED",
+                    com.gameplatform.shared.domain.events.ReservationCancelledEvent.EVENT_TYPE,
                     payloadJson,
-                    "PENDING",
+                    OutboxEventStatus.PENDING.name(),
                     Instant.now(clock),
                     null,
                     0

@@ -457,7 +457,7 @@ public class SyncEventProcessor {
                 .orElseThrow(() -> new IllegalStateException(
                         "Tournament match not found for TOURNAMENT_MATCH_COMPLETED: " + dto.matchId()));
 
-        TournamentMatchStatus status = "ABANDONED".equals(dto.status())
+        TournamentMatchStatus status = TournamentMatchStatus.ABANDONED.name().equals(dto.status())
                 ? TournamentMatchStatus.ABANDONED : TournamentMatchStatus.COMPLETED;
         TournamentMatch updated = new TournamentMatch(
                 match.getMatchId(), match.getTournamentId(),

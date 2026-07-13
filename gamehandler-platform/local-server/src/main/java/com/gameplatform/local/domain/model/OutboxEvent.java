@@ -44,23 +44,23 @@ public class OutboxEvent {
     }
 
     public void markAsSent(Instant sentAt) {
-        this.status = "SENT";
+        this.status = OutboxEventStatus.SENT.name();
         this.sentAt = sentAt;
     }
 
     public void incrementRetry() {
         this.retryCount++;
         if (this.retryCount >= FAILED_THRESHOLD) {
-            this.status = "FAILED";
+            this.status = OutboxEventStatus.FAILED.name();
         }
     }
 
     public void markAsFailed() {
-        this.status = "FAILED";
+        this.status = OutboxEventStatus.FAILED.name();
     }
 
     public boolean hasFailed() {
-        return "FAILED".equalsIgnoreCase(status);
+        return OutboxEventStatus.FAILED.name().equalsIgnoreCase(status);
     }
 
     public String getId() {

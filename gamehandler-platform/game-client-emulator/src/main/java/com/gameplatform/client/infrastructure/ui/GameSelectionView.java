@@ -63,7 +63,7 @@ public class GameSelectionView {
                 if (empty || item == null) {
                     setText(null);
                 } else {
-                    String suffix = item.status() == GameMachineStatus.LOBBY ? "  (lobby aperta)" : "";
+                    String suffix = item.status() == GameMachineStatus.LOBBY ? "  (open lobby)" : "";
                     setText(item.name() + "  [" + item.gameType() + "]  -  " + item.status() + suffix);
                     if (item.status() == GameMachineStatus.AVAILABLE) {
                         setStyle("-fx-text-fill: #2ecc71;");

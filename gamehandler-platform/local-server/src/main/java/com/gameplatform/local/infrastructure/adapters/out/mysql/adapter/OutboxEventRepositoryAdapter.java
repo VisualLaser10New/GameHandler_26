@@ -1,6 +1,7 @@
 package com.gameplatform.local.infrastructure.adapters.out.mysql.adapter;
 
 import com.gameplatform.local.domain.model.OutboxEvent;
+import com.gameplatform.local.domain.model.OutboxEventStatus;
 import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.mapper.OutboxEventMapper;
@@ -36,7 +37,7 @@ public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
 
     @Override
     public List<OutboxEvent> findPending() {
-        return jpaRepository.findByStatusOrderByCreatedAtAsc("PENDING").stream()
+        return jpaRepository.findByStatusOrderByCreatedAtAsc(OutboxEventStatus.PENDING.name()).stream()
             .map(mapper::toDomain)
             .collect(Collectors.toList());
     }
@@ -46,7 +47,7 @@ public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
         if (limit <= 0) {
             return java.util.Collections.emptyList();
         }
-        return jpaRepository.findByStatusOrderByCreatedAtAsc("PENDING", PageRequest.of(0, limit)).stream()
+        return jpaRepository.findByStatusOrderByCreatedAtAsc(OutboxEventStatus.PENDING.name(), PageRequest.of(0, limit)).stream()
             .map(mapper::toDomain)
             .collect(Collectors.toList());
     }

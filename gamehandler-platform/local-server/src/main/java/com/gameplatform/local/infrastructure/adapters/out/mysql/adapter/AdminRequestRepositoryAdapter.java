@@ -1,6 +1,7 @@
 package com.gameplatform.local.infrastructure.adapters.out.mysql.adapter;
 
 import com.gameplatform.local.domain.model.AdminRequestLocal;
+import com.gameplatform.local.domain.model.AdminRequestStatus;
 import com.gameplatform.local.domain.ports.out.AdminRequestRepository;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.AdminRequestLocalJpaEntity;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.mapper.AdminRequestLocalMapper;
@@ -107,7 +108,7 @@ public class AdminRequestRepositoryAdapter implements AdminRequestRepository {
         if (threshold == null) {
             return List.of();
         }
-        return jpaRepository.findByStatusAndCreatedAtBefore("PENDING", threshold).stream()
+        return jpaRepository.findByStatusAndCreatedAtBefore(AdminRequestStatus.PENDING.name(), threshold).stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
     }

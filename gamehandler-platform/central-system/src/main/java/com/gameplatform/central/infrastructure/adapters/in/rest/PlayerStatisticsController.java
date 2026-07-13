@@ -5,6 +5,7 @@ import com.gameplatform.central.domain.ports.in.GetPlayerStatisticsUseCase;
 import com.gameplatform.central.infrastructure.security.CurrentUserService;
 import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.domain.model.UserId;
+import com.gameplatform.shared.domain.security.Role;
 import com.gameplatform.shared.dto.PlayerStatisticsDto;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -67,7 +68,7 @@ public class PlayerStatisticsController {
             @RequestParam(value = "gameType", required = false) String gameType) {
         UserId targetUserId = new UserId(userId);
         UserId currentUserId = requireCurrentUserId();
-        boolean isPlatformAdmin = currentUserService.hasRole("PLATFORM_ADMIN");
+        boolean isPlatformAdmin = currentUserService.hasRole(Role.PLATFORM_ADMIN.name());
         if (!isPlatformAdmin && !currentUserId.equals(targetUserId)) {
             throw new PlayerStatisticsAccessDeniedException(
                     "Access denied: cannot view statistics for user " + userId);

@@ -127,7 +127,7 @@ public class HealthCheckService {
                     if (activeSessionOpt.isPresent()) {
                         GameSession session = activeSessionOpt.get();
                         try {
-                            sessionAbortHelper.abortAndEmit(session, StopReason.TIMEOUT, "TIMEOUT");
+                            sessionAbortHelper.abortAndEmit(session, StopReason.TIMEOUT, StopReason.TIMEOUT.name());
                         } catch (Exception e) {
                             log.error("Per-game abort+outbox failed for gameId={}; tx rolled back, will retry next tick", gameId, e);
                         }

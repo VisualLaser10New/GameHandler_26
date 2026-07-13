@@ -4,6 +4,7 @@ import com.gameplatform.client.infrastructure.rest.ApiClient;
 import com.gameplatform.client.infrastructure.ui.components.LoadingIndicator;
 import com.gameplatform.client.infrastructure.ui.components.TableColumns;
 import com.gameplatform.shared.domain.model.GameType;
+import com.gameplatform.shared.domain.security.Role;
 import com.gameplatform.shared.dto.AdminRequestDto;
 import com.gameplatform.shared.dto.CreateTournamentRequestDto;
 import com.gameplatform.shared.dto.GameStateDto;
@@ -66,7 +67,7 @@ public class PlatformAdminDashboard {
     private final VBox root;
     private final TableView<UsersDirectoryDto> usersTable;
     private final ObservableList<UsersDirectoryDto> usersRows;
-    private final TextField rolesField = new TextField("PLAYER");
+    private final TextField rolesField = new TextField(Role.PLAYER.name());
     private final TableView<ServerHealthDto> serversTable;
     private final ObservableList<ServerHealthDto> serversRows;
     private final TextArea createTournamentArea = new TextArea(
@@ -80,10 +81,10 @@ public class PlatformAdminDashboard {
         VBox content = new VBox(10);
         content.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
 
-        Label title = new Label("Dashboard PLATFORM_ADMIN");
+        Label title = new Label("PLATFORM_ADMIN Dashboard");
         title.setStyle("-fx-font-size: 18; -fx-font-weight: bold; -fx-text-fill: #eee;");
 
-        Button refreshAll = new Button("Aggiorna tutto");
+        Button refreshAll = new Button("Refresh all");
         refreshAll.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 6 16;");
         refreshAll.setOnAction(e -> refreshAll());
 
@@ -98,11 +99,11 @@ public class PlatformAdminDashboard {
         usersTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         rolesField.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
-        Button assignBtn = new Button("Assegna ruoli (selezionato)");
+        Button assignBtn = new Button("Assign roles (selected)");
         assignBtn.setStyle("-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-padding: 6 16;");
         assignBtn.setOnAction(e -> assignRoles());
         HBox usersBar = new HBox(8,
-                new Label() {{ setText("Nuovi ruoli (comma-separated):"); setStyle("-fx-text-fill: #ccc;"); setPadding(new Insets(4, 0, 0, 0));}},
+                new Label() {{ setText("New roles (comma-separated):"); setStyle("-fx-text-fill: #ccc;"); setPadding(new Insets(4, 0, 0, 0));}},
                 rolesField, assignBtn);
         usersBar.setAlignment(Pos.CENTER_LEFT);
 
@@ -111,7 +112,7 @@ public class PlatformAdminDashboard {
         createTournamentArea.setPrefRowCount(8);
         createTournamentArea.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-font-family: monospace;");
 
-        Button createTBtn = new Button("Crea torneo (POST)");
+        Button createTBtn = new Button("Create tournament (POST)");
         createTBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-padding: 6 16;");
         createTBtn.setOnAction(e -> createTournament());
         HBox tourBar = new HBox(8, createTBtn);
@@ -152,7 +153,7 @@ public class PlatformAdminDashboard {
         updateBar.setAlignment(Pos.CENTER_LEFT);
 
         // ── global statistics ──────────────────────────────────────
-        Button loadStatsBtn = new Button("Carica statistiche globali");
+        Button loadStatsBtn = new Button("Load global statistics");
         loadStatsBtn.setStyle("-fx-background-color: #555; -fx-text-fill: white; -fx-padding: 6 16;");
         loadStatsBtn.setOnAction(e -> loadStats());
         statsArea.setPrefRowCount(6);
@@ -175,12 +176,12 @@ public class PlatformAdminDashboard {
         statusLabel.setWrapText(true);
 
         content.getChildren().addAll(title, refreshAll,
-                titled("Directory utenti (replicated_users)", usersTable, 220), usersBar,
-                titled("Tornei — lifecycle editor (DRAFT only for PUT/DELETE)", createTournamentArea, 160), tourBar,
+                titled("Users directory (replicated_users)", usersTable, 220), usersBar,
+                titled("Tournaments — lifecycle editor (DRAFT only for PUT/DELETE)", createTournamentArea, 160), tourBar,
                 lifecycleBar, updateBar,
-                titled("Classifiche & bracket — vedi \"Tournaments\" (ruariable)", new Label("(riuso viste PLAYER)"), 24),
-                titled("Statistiche globali (GET /api/statistics)", statsBox, 200),
-                titled("Monitoraggio local-server (GET /api/admin/servers/health)", serversTable, 180),
+                titled("Standings & bracket — see \"Tournaments\" (variable)", new Label("(reusing PLAYER views)"), 24),
+                titled("Global statistics (GET /api/statistics)", statsBox, 200),
+                titled("Local-server monitoring (GET /api/admin/servers/health)", serversTable, 180),
                 statusLabel);
 
         ScrollPane scroll = new ScrollPane(content);
@@ -206,7 +207,7 @@ public class PlatformAdminDashboard {
 
     public void refreshAll() {
         loading.show();
-        statusLabel.setText("Aggiornamento dashboard...");
+        statusLabel.setText("Refreshing dashboard...");
         var client = ApiClient.instance();
         client.get("/api/admin/users", new TypeReference<List<UsersDirectoryDto>>() {})
                 .thenAccept(list -> Platform.runLater(() -> usersRows.setAll(list == null ? List.of() : list)))
@@ -229,16 +230,16 @@ public class PlatformAdminDashboard {
     // ── role assignment ──
     private void assignRoles() {
         UsersDirectoryDto sel = usersTable.getSelectionModel().getSelectedItem();
-        if (sel == null) { statusLabel.setText("Seleziona un utente prima di assegnare ruoli"); return; }
+        if (sel == null) { statusLabel.setText("Select a user before assigning roles"); return; }
         String[] parts = rolesField.getText().split(",");
         var body = java.util.Arrays.stream(parts).map(String::strip).filter(s -> !s.isBlank()).toList();
-        if (body.isEmpty()) { statusLabel.setText("Elenco ruoli vuoto"); return; }
+        if (body.isEmpty()) { statusLabel.setText("Empty roles list"); return; }
         loading.show();
         statusLabel.setText("POST /api/admin/users/" + sel.userId() + "/roles ...");
         ApiClient.instance().post("/api/admin/users/" + sel.userId() + "/roles", body, AdminRequestDto.class)
                 .thenAccept(req -> Platform.runLater(() -> {
                     loading.hide();
-                    statusLabel.setText("Assegnazione PENDING (reqId=" + reqId(req) + ") → polling Admin Requests");
+                    statusLabel.setText("Assignment PENDING (reqId=" + reqId(req) + ") → polling Admin Requests");
                     if (onNavigateToRequests != null) onNavigateToRequests.run();
                 }))
                 .exceptionally(this::error);
@@ -260,7 +261,7 @@ public class PlatformAdminDashboard {
             @SuppressWarnings("unchecked")
             List<String> buildingIds = (List<String>) raw.get("buildingIds");
             if (buildingIds == null || buildingIds.size() < 2) {
-                statusLabel.setText("buildingIds deve contenere almeno 2 edifici");
+                statusLabel.setText("buildingIds must contain at least 2 buildings");
                 return;
             }
             CreateTournamentRequestDto body = new CreateTournamentRequestDto(
@@ -270,17 +271,17 @@ public class PlatformAdminDashboard {
             ApiClient.instance().post("/api/admin/tournaments", body, AdminRequestDto.class)
                     .thenAccept(req -> Platform.runLater(() -> {
                         loading.hide();
-                        statusLabel.setText("Torneo PENDING (reqId=" + reqId(req) + ") → polling Admin Requests");
-                        if (onNavigateToRequests != null) onNavigateToRequests.run();
-                    }))
-                    .exceptionally(this::error);
+                    statusLabel.setText("Tournament PENDING (reqId=" + reqId(req) + ") → polling Admin Requests");
+                    if (onNavigateToRequests != null) onNavigateToRequests.run();
+                }))
+                .exceptionally(this::error);
         } catch (Exception e) {
-            statusLabel.setText("Errore parsing JSON: " + e.getMessage());
+            statusLabel.setText("JSON parse error: " + e.getMessage());
         }
     }
 
     private void lifecycle(String id, String action) {
-        if (id == null || id.isBlank()) { statusLabel.setText("Inserisci tournamentId"); return; }
+        if (id == null || id.isBlank()) { statusLabel.setText("Enter a tournamentId"); return; }
         loading.show();
         statusLabel.setText("POST /api/admin/tournaments/" + id + "/" + action + " ...");
         ApiClient.instance().postEmpty("/api/admin/tournaments/" + id + "/" + action, AdminRequestDto.class)
@@ -293,7 +294,7 @@ public class PlatformAdminDashboard {
     }
 
     private void updateTournament(String id, String newName, String startsAtStr, String buildingsCsv) {
-        if (id == null || id.isBlank()) { statusLabel.setText("Inserisci tournamentId"); return; }
+        if (id == null || id.isBlank()) { statusLabel.setText("Enter a tournamentId"); return; }
         try {
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
@@ -311,12 +312,12 @@ public class PlatformAdminDashboard {
                     }))
                     .exceptionally(this::error);
         } catch (Exception e) {
-            statusLabel.setText("Errore parsing update JSON: " + e.getMessage());
+            statusLabel.setText("Update JSON parse error: " + e.getMessage());
         }
     }
 
     private void deleteTournament(String id) {
-        if (id == null || id.isBlank()) { statusLabel.setText("Inserisci tournamentId"); return; }
+        if (id == null || id.isBlank()) { statusLabel.setText("Enter a tournamentId"); return; }
         loading.show();
         statusLabel.setText("DELETE /api/admin/tournaments/" + id + " ...");
         // The DELETE endpoint returns an AdminRequestDto (PENDING) — but our ApiClient
@@ -324,7 +325,7 @@ public class PlatformAdminDashboard {
         ApiClient.instance().delete("/api/admin/tournaments/" + id)
                 .thenAccept(v -> Platform.runLater(() -> {
                     loading.hide();
-                    statusLabel.setText("Delete accepted (no body) → controlla Admin Requests");
+                    statusLabel.setText("Delete accepted (no body) → check Admin Requests");
                     if (onNavigateToRequests != null) onNavigateToRequests.run();
                 }))
                 .exceptionally(this::error);
@@ -335,7 +336,7 @@ public class PlatformAdminDashboard {
         loading.show();
         ApiClient.instance().get("/api/statistics", new TypeReference<List<JsonNode>>() {})
                 .thenAccept(list -> Platform.runLater(() -> {
-                    if (list == null || list.isEmpty()) statsArea.setText("Nessuna statistica");
+                    if (list == null || list.isEmpty()) statsArea.setText("No statistics");
                     else {
                         StringBuilder sb = new StringBuilder();
                         for (JsonNode n : list) sb.append(n.toPrettyString()).append("\n");
@@ -371,7 +372,7 @@ public class PlatformAdminDashboard {
         Throwable t = ex;
         while (t.getCause() != null) t = t.getCause();
         String msg = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
-        Platform.runLater(() -> statusLabel.setText("Errore: " + msg));
+        Platform.runLater(() -> statusLabel.setText("Error: " + msg));
         return null;
     }
 }

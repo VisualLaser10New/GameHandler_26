@@ -14,6 +14,7 @@ import com.gameplatform.local.domain.exception.TournamentMatchValidationExceptio
 import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.model.GameSession;
 import com.gameplatform.local.domain.model.OutboxEvent;
+import com.gameplatform.local.domain.model.OutboxEventStatus;
 import com.gameplatform.local.domain.model.Reservation;
 import com.gameplatform.local.domain.model.GameDefinitionLocal;
 import com.gameplatform.local.domain.model.TournamentMatchLocal;
@@ -405,9 +406,9 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
 
                 OutboxEvent outboxEvent = new OutboxEvent(
                         UUID.randomUUID().toString(),
-                        "GAME_SESSION_COMPLETED",
+                        com.gameplatform.shared.domain.events.GameSessionCompletedEvent.EVENT_TYPE,
                         payloadJson,
-                        "PENDING",
+                        OutboxEventStatus.PENDING.name(),
                         Instant.now(clock),
                         null,
                         0
@@ -426,14 +427,14 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                             session.getTournamentMatchId().value(),
                             winner,
                             resultData,
-                            "COMPLETED"
+                            TournamentMatchStatus.COMPLETED.name()
                     );
                     String tournamentPayloadJson = objectMapper.writeValueAsString(tournamentDto);
                     OutboxEvent tournamentOutboxEvent = new OutboxEvent(
                             UUID.randomUUID().toString(),
-                            "TOURNAMENT_MATCH_COMPLETED",
+                            com.gameplatform.shared.domain.events.TournamentMatchCompletedEvent.EVENT_TYPE,
                             tournamentPayloadJson,
-                            "PENDING",
+                            OutboxEventStatus.PENDING.name(),
                             Instant.now(clock),
                             null,
                             0

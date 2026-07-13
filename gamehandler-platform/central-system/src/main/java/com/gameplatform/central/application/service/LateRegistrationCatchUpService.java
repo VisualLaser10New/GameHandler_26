@@ -68,7 +68,9 @@ public class LateRegistrationCatchUpService {
     private static final Logger log = LoggerFactory.getLogger(LateRegistrationCatchUpService.class);
 
     /** R1: replay both SENT (already broadcast to old servers) and PENDING (never sent). */
-    private static final List<String> REPLAY_STATUSES = List.of("SENT", "PENDING");
+    private static final List<String> REPLAY_STATUSES = List.of(
+            com.gameplatform.central.domain.model.OutboxEventStatus.SENT.name(),
+            com.gameplatform.central.domain.model.OutboxEventStatus.PENDING.name());
     /** D2: replay user-replication AND LOCAL_ADMIN↔building metadata events. */
     private static final List<String> REPLICATION_EVENT_TYPES = List.of(
             "USER_REGISTERED", "USER_UPDATED",

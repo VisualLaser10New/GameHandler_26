@@ -48,4 +48,19 @@ public class CurrentUserService {
         }
         return userRepository.findByUsername(username).map(User::getUserId);
     }
+
+    /**
+     * @return {@code true} iff the authenticated principal carries the
+     *         {@code ROLE_<role>} authority (the {@code role} argument is given
+     *         without the {@code ROLE_} prefix, e.g. {@code "PLATFORM_ADMIN"})
+     */
+    public boolean hasRole(String role) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return false;
+        }
+        String authority = (role != null && role.startsWith("ROLE_")) ? role : "ROLE_" + role;
+        return authentication.getAuthorities().stream()
+                .anyMatch(a -> authority.equals(a.getAuthority()));
+    }
 }

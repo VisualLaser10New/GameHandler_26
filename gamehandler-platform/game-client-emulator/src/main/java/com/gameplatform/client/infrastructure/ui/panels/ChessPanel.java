@@ -55,7 +55,7 @@ public class ChessPanel implements GamePanel {
         root.setAlignment(Pos.CENTER);
         root.setStyle("-fx-padding: 16;");
 
-        turnLabel = new Label("In attesa...");
+        turnLabel = new Label("Waiting...");
         turnLabel.setStyle("-fx-font-size: 14; -fx-text-fill: #eee; -fx-font-weight: bold;");
 
         // Board grid
@@ -68,25 +68,25 @@ public class ChessPanel implements GamePanel {
         // Capture controls
         captureCombo = new ComboBox<>();
         captureCombo.getItems().addAll(
-            "♟ Pedone nero", "♞ Cavallo nero", "♝ Alfiere nero", "♜ Torre nera", "♛ Regina nera",
-            "♙ Pedone bianco", "♘ Cavallo bianco", "♗ Alfiere bianco", "♖ Torre bianca", "♕ Regina bianca"
+            "♟ Black Pawn", "♞ Black Knight", "♝ Black Bishop", "♜ Black Rook", "♛ Black Queen",
+            "♙ White Pawn", "♘ White Knight", "♗ White Bishop", "♖ White Rook", "♕ White Queen"
         );
-        captureCombo.setPromptText("Seleziona pezzo mangiato");
+        captureCombo.setPromptText("Select captured piece");
         captureCombo.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
         captureCombo.setDisable(true);
 
-        captureButton = new Button("Registra pezzo mangiato");
+        captureButton = new Button("Record captured piece");
         captureButton.setStyle("-fx-background-color: #8e44ad; -fx-text-fill: white; -fx-padding: 6 14;");
         captureButton.setDisable(true);
 
-        capturedLabel = new Label("Mangiati: nessuno");
+        capturedLabel = new Label("Captured: none");
         capturedLabel.setStyle("-fx-text-fill: #bbb; -fx-font-size: 12;");
 
         captureButton.setOnAction(e -> {
             String selected = captureCombo.getValue();
             if (selected != null) {
                 capturedPieces.add(selected);
-                capturedLabel.setText("Mangiati: " + String.join(", ", capturedPieces));
+                capturedLabel.setText("Captured: " + String.join(", ", capturedPieces));
                 captureCombo.setValue(null);
             }
         });
@@ -94,7 +94,7 @@ public class ChessPanel implements GamePanel {
         HBox captureBox = new HBox(8, captureCombo, captureButton);
         captureBox.setAlignment(Pos.CENTER);
 
-        endTurnButton = new Button("✓ Fine Turno");
+        endTurnButton = new Button("✓ End Turn");
         endTurnButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14; -fx-padding: 10 24;");
         endTurnButton.setDisable(true);
         endTurnButton.setOnAction(e -> endTurn());
@@ -110,7 +110,7 @@ public class ChessPanel implements GamePanel {
         this.players = new ArrayList<>(participants);
         this.turnIndex = 0;
         this.capturedPieces.clear();
-        capturedLabel.setText("Mangiati: nessuno");
+        capturedLabel.setText("Captured: none");
         initBoard();
         updateTurnLabel();
         applyTurnControls();
@@ -149,10 +149,10 @@ public class ChessPanel implements GamePanel {
         String target = board[toRow][toCol];
         if (capturedPiece != null && !capturedPiece.isEmpty()) {
             capturedPieces.add(capturedPiece);
-            capturedLabel.setText("Mangiati: " + String.join(", ", capturedPieces));
+            capturedLabel.setText("Captured: " + String.join(", ", capturedPieces));
         } else if (!target.isEmpty() && !target.equals(piece)) {
             capturedPieces.add(target);
-            capturedLabel.setText("Mangiati: " + String.join(", ", capturedPieces));
+            capturedLabel.setText("Captured: " + String.join(", ", capturedPieces));
         }
         board[toRow][toCol] = piece;
         board[fromRow][fromCol] = "";
@@ -165,7 +165,7 @@ public class ChessPanel implements GamePanel {
         endTurnButton.setDisable(true);
         captureButton.setDisable(true);
         captureCombo.setDisable(true);
-        turnLabel.setText("Partita terminata");
+        turnLabel.setText("Match ended");
         turnLabel.setStyle("-fx-font-size: 14; -fx-text-fill: #f39c12; -fx-font-weight: bold;");
     }
 
@@ -302,8 +302,8 @@ public class ChessPanel implements GamePanel {
     private void updateTurnLabel() {
         if (players.isEmpty()) return;
         String current = players.get(turnIndex);
-        String color = turnIndex % 2 == 0 ? "Bianco ♔" : "Nero ♚";
-        turnLabel.setText("Turno di: " + current + " (" + color + ")");
+        String color = turnIndex % 2 == 0 ? "White ♔" : "Black ♚";
+        turnLabel.setText("Turn of: " + current + " (" + color + ")");
         turnLabel.setStyle("-fx-font-size: 14; -fx-text-fill: " + (turnIndex % 2 == 0 ? "#f0d9b5" : "#555") + "; -fx-font-weight: bold;");
     }
 

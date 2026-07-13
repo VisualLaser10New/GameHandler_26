@@ -59,7 +59,7 @@ public class SlotMachinePanel implements GamePanel {
         resultLabel = new Label(" ");
         resultLabel.setStyle("-fx-font-size: 16; -fx-text-fill: #2ecc71; -fx-font-weight: bold;");
 
-        scoreLabel = new Label("Punteggio: 0");
+        scoreLabel = new Label("Score: 0");
         scoreLabel.setStyle("-fx-font-size: 14; -fx-text-fill: #eee;");
 
         spinButton = new Button("🎰  SPIN!");
@@ -77,7 +77,7 @@ public class SlotMachinePanel implements GamePanel {
     public void onGameStarted(List<String> participants) {
         playerName = participants.isEmpty() ? "player" : participants.get(0);
         totalScore = 0;
-        scoreLabel.setText("Punteggio di " + playerName + ": 0");
+        scoreLabel.setText("Score of " + playerName + ": 0");
         resultLabel.setText(" ");
         reel1.setText("❓");
         reel2.setText("❓");
@@ -88,7 +88,7 @@ public class SlotMachinePanel implements GamePanel {
     @Override
     public void onGameStopped() {
         spinButton.setDisable(true);
-        resultLabel.setText("Sessione terminata — Punteggio finale: " + totalScore);
+        resultLabel.setText("Session ended — Final score: " + totalScore);
         resultLabel.setStyle("-fx-font-size: 14; -fx-text-fill: #f39c12; -fx-font-weight: bold;");
     }
 
@@ -113,7 +113,7 @@ public class SlotMachinePanel implements GamePanel {
         if (spinning) return;
         spinning = true;
         spinButton.setDisable(true);
-        resultLabel.setText("Girando...");
+        resultLabel.setText("Spinning...");
         resultLabel.setStyle("-fx-font-size: 16; -fx-text-fill: #f39c12;");
 
         // Brief animation: cycle symbols 10 times before settling
@@ -136,17 +136,17 @@ public class SlotMachinePanel implements GamePanel {
 
             int payout = calculatePayout(s1, s2, s3);
             totalScore += payout;
-            scoreLabel.setText("Punteggio di " + playerName + ": " + totalScore);
+            scoreLabel.setText("Score of " + playerName + ": " + totalScore);
             publishScore();
 
             if (payout >= 100) {
-                resultLabel.setText("🎉 JACKPOT! +" + payout + " punti!");
+                resultLabel.setText("🎉 JACKPOT! +" + payout + " points!");
                 resultLabel.setStyle("-fx-font-size: 18; -fx-text-fill: #f1c40f; -fx-font-weight: bold;");
             } else if (payout > 0) {
-                resultLabel.setText("👍 Vincita! +" + payout + " punti");
+                resultLabel.setText("👍 Win! +" + payout + " points");
                 resultLabel.setStyle("-fx-font-size: 16; -fx-text-fill: #2ecc71;");
             } else {
-                resultLabel.setText("😔 Nessuna vincita");
+                resultLabel.setText("😔 No win");
                 resultLabel.setStyle("-fx-font-size: 16; -fx-text-fill: #e74c3c;");
             }
             spinning = false;

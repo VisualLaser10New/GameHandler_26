@@ -39,7 +39,7 @@ public class MonopolyPanel implements GamePanel {
         Label title = new Label("🏦  MONOPOLY");
         title.setStyle("-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #27ae60;");
 
-        turnLabel = new Label("In attesa...");
+        turnLabel = new Label("Waiting...");
         turnLabel.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-text-fill: #eee;");
 
         playersBox = new VBox(4);
@@ -48,16 +48,16 @@ public class MonopolyPanel implements GamePanel {
         playersBox.setMinWidth(240);
 
         // Transfer controls
-        Label txLabel = new Label("Trasferimento denaro:");
+        Label txLabel = new Label("Money transfer:");
         txLabel.setStyle("-fx-text-fill: #ccc; -fx-font-size: 13;");
 
         fromCombo = new ComboBox<>();
-        fromCombo.setPromptText("Da");
+        fromCombo.setPromptText("From");
         fromCombo.setStyle("-fx-background-color: #333;");
         fromCombo.setDisable(true);
 
         toCombo = new ComboBox<>();
-        toCombo.setPromptText("A");
+        toCombo.setPromptText("To");
         toCombo.setStyle("-fx-background-color: #333;");
         toCombo.setDisable(true);
 
@@ -66,7 +66,7 @@ public class MonopolyPanel implements GamePanel {
         amountSpinner.setPrefWidth(100);
         amountSpinner.setDisable(true);
 
-        transferButton = new Button("💸 Trasferisci");
+        transferButton = new Button("💸 Transfer");
         transferButton.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-padding: 8 18;");
         transferButton.setDisable(true);
         transferButton.setOnAction(e -> doTransfer());
@@ -75,7 +75,7 @@ public class MonopolyPanel implements GamePanel {
                 new Label("€") {{ setStyle("-fx-text-fill:#ccc;"); }}, amountSpinner, transferButton);
         txRow.setAlignment(Pos.CENTER);
 
-        endTurnButton = new Button("✓ Fine Turno");
+        endTurnButton = new Button("✓ End Turn");
         endTurnButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14; -fx-padding: 10 24; -fx-background-radius: 6;");
         endTurnButton.setDisable(true);
         endTurnButton.setOnAction(e -> endTurn());
@@ -126,7 +126,7 @@ public class MonopolyPanel implements GamePanel {
         amountSpinner.setDisable(true);
         transferButton.setDisable(true);
         endTurnButton.setDisable(true);
-        turnLabel.setText("Partita terminata");
+        turnLabel.setText("Match ended");
         turnLabel.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-text-fill: #f39c12;");
     }
 
@@ -185,7 +185,7 @@ public class MonopolyPanel implements GamePanel {
 
     private void updateTurnLabel() {
         if (players.isEmpty()) return;
-        turnLabel.setText("Turno di: " + players.get(turnIndex));
+        turnLabel.setText("Turn of: " + players.get(turnIndex));
         turnLabel.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-text-fill: #27ae60;");
     }
 

@@ -5,6 +5,8 @@ import com.gameplatform.shared.domain.model.ReservationId;
 import java.time.Instant;
 
 public record ReservationCancelledEvent(String eventId, Instant occurredAt, ReservationId reservationId) implements DomainEvent {
+    public static final String EVENT_TYPE = "RESERVATION_CANCELLED";
+
     @Override
     public String getEventId() {
         return eventId;
@@ -17,6 +19,6 @@ public record ReservationCancelledEvent(String eventId, Instant occurredAt, Rese
 
     @Override
     public String getEventType() {
-        return "RESERVATION_CANCELLED";
+        return EVENT_TYPE;
     }
 }

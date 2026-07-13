@@ -6,6 +6,8 @@ import java.time.Instant;
 import java.util.List;
 
 public record UserRegisteredEvent(String eventId, Instant occurredAt, UserId userId, String username, String hashedPassword, List<String> roles) implements DomainEvent {
+    public static final String EVENT_TYPE = "USER_REGISTERED";
+
     @Override
     public String getEventId() {
         return eventId;
@@ -18,6 +20,6 @@ public record UserRegisteredEvent(String eventId, Instant occurredAt, UserId use
 
     @Override
     public String getEventType() {
-        return "USER_REGISTERED";
+        return EVENT_TYPE;
     }
 }

@@ -7,6 +7,8 @@ import com.gameplatform.shared.domain.model.TournamentMatchStatus;
 import java.time.Instant;
 
 public record TournamentMatchCompletedEvent(String eventId, Instant occurredAt, TournamentMatchId matchId, TournamentId tournamentId, String winner, String resultData, TournamentMatchStatus status) implements DomainEvent {
+    public static final String EVENT_TYPE = "TOURNAMENT_MATCH_COMPLETED";
+
     @Override
     public String getEventId() {
         return eventId;
@@ -19,6 +21,6 @@ public record TournamentMatchCompletedEvent(String eventId, Instant occurredAt, 
 
     @Override
     public String getEventType() {
-        return "TOURNAMENT_MATCH_COMPLETED";
+        return EVENT_TYPE;
     }
 }

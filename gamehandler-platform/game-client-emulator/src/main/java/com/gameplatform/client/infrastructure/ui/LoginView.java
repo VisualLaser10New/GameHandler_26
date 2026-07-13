@@ -127,9 +127,9 @@ public class LoginView {
                     Throwable cause = ex;
                     while (cause.getCause() != null) cause = cause.getCause();
                     if (cause instanceof com.gameplatform.client.infrastructure.rest.AuthenticationException) {
-                        errorLabel.setText("Credenziali non valide");
+                        errorLabel.setText("Invalid credentials");
                     } else if (cause instanceof com.gameplatform.client.infrastructure.rest.ServerUnavailableException) {
-                        errorLabel.setText("Server non raggiungibile: " + cause.getMessage());
+                        errorLabel.setText("Server unreachable: " + cause.getMessage());
                     } else {
                         errorLabel.setText("Login error: " + cause.getMessage());
                     }

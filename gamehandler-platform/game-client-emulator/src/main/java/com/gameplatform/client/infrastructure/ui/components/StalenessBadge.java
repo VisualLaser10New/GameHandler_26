@@ -32,8 +32,8 @@ public final class StalenessBadge extends HBox {
     private static final DateTimeFormatter HOURS_MINUTES_SECONDS =
             DateTimeFormatter.ofPattern("HH:mm:ss");
 
-    private final Label timestampLabel = new Label("Dati aggiornati al: —");
-    private final Label staleBadge    = new Label("in attesa di replica");
+    private final Label timestampLabel = new Label("Data updated at: —");
+    private final Label staleBadge    = new Label("waiting for replication");
     private final Supplier<java.util.Optional<Instant>> latestUpdatedSupplier;
     private final long staleThresholdMs;
 
@@ -61,12 +61,12 @@ public final class StalenessBadge extends HBox {
                 ? java.util.Optional.empty()
                 : latestUpdatedSupplier.get();
         if (latest.isEmpty()) {
-            timestampLabel.setText("Dati aggiornati al: —");
+            timestampLabel.setText("Data updated at: —");
             staleBadge.setVisible(false);
             return;
         }
         Instant max = latest.get();
-        timestampLabel.setText("Dati aggiornati al: "
+        timestampLabel.setText("Data updated at: "
                 + LocalTime.ofInstant(max, ZoneId.systemDefault()).format(HOURS_MINUTES_SECONDS));
         long lag = Duration.between(max, Instant.now()).toMillis();
         staleBadge.setVisible(lag > staleThresholdMs);

@@ -50,12 +50,12 @@ public class AdminRequestsView {
         VBox content = new VBox(10);
         content.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
 
-        Label title = new Label("Stato richieste admin");
+        Label title = new Label("Admin requests status");
         title.setStyle("-fx-font-size: 18; -fx-font-weight: bold; -fx-text-fill: #eee;");
-        Label sub = new Label("Polling GET /api/admin/requests ogni " + (POLL_INTERVAL_MS / 1000) + "s");
+        Label sub = new Label("Polling GET /api/admin/requests every " + (POLL_INTERVAL_MS / 1000) + "s");
         sub.setStyle("-fx-text-fill: #888; -fx-font-size: 11;");
 
-        Button refreshBtn = new Button("Aggiorna ora");
+        Button refreshBtn = new Button("Refresh now");
         refreshBtn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 6 16;");
         refreshBtn.setOnAction(e -> refresh());
 
@@ -103,7 +103,7 @@ public class AdminRequestsView {
 
     private void refresh() {
         loading.show();
-        statusLabel.setText("Caricamento richieste...");
+        statusLabel.setText("Loading requests...");
         ApiClient.instance().get("/api/admin/requests", new TypeReference<List<AdminRequestDto>>() {})
                 .thenAccept(list -> Platform.runLater(() -> {
                     rows.setAll(list == null ? List.<AdminRequestDto>of() : list);
@@ -114,7 +114,7 @@ public class AdminRequestsView {
                                     .max(Comparator.naturalOrder())
                                     .orElse(Instant.now());
                     render();
-                    statusLabel.setText((list == null ? 0 : list.size()) + " richieste");
+                    statusLabel.setText((list == null ? 0 : list.size()) + " requests");
                     loading.hide();
                 }))
                 .exceptionally(this::error);
@@ -123,7 +123,7 @@ public class AdminRequestsView {
     private void render() {
         cardsContainer.getChildren().clear();
         if (rows.isEmpty()) {
-            Label empty = new Label("Nessuna richiesta in corso");
+            Label empty = new Label("No pending requests");
             empty.setStyle("-fx-text-fill: #999;");
             cardsContainer.getChildren().add(empty);
             return;
@@ -142,10 +142,10 @@ public class AdminRequestsView {
         Label header = new Label(r.eventType() + "  ·  " + r.requestId());
         header.setStyle("-fx-text-fill: #3498db; -fx-font-weight: bold;");
 
-        Label meta = new Label("ruolo=" + r.actingRole()
+        Label meta = new Label("role=" + r.actingRole()
                 + "  ·  building=" + r.buildingId()
-                + "  ·  creato=" + (r.createdAt() == null ? "?" : r.createdAt())
-                + (r.completedAt() == null ? "" : "  ·  completato=" + r.completedAt()));
+                + "  ·  created=" + (r.createdAt() == null ? "?" : r.createdAt())
+                + (r.completedAt() == null ? "" : "  ·  completed=" + r.completedAt()));
         meta.setStyle("-fx-text-fill: #aaa; -fx-font-size: 11;");
 
         HBox statusRow = new HBox(8);
@@ -157,7 +157,7 @@ public class AdminRequestsView {
                 ProgressIndicator pi = new ProgressIndicator();
                 pi.setMaxSize(20, 20);
                 pi.setStyle("-fx-progress-color: #f39c12;");
-                state.setText("in attesa di conferma…");
+                state.setText("waiting for confirmation…");
                 state.setStyle("-fx-text-fill: #f39c12;");
                 statusRow.getChildren().addAll(pi, state);
             }
@@ -167,7 +167,7 @@ public class AdminRequestsView {
                 statusRow.getChildren().add(state);
             }
             case "FAILED" -> {
-                state.setText("Operazione non confermata entro il timeout — riprova/riesamina"
+                state.setText("Operation not confirmed within timeout — retry/recheck"
                         + "  (reason: " + readableResult(r) + ")");
                 state.setStyle("-fx-text-fill: #e74c3c;");
                 statusRow.getChildren().add(state);
@@ -202,7 +202,7 @@ public class AdminRequestsView {
         Throwable t = ex;
         while (t.getCause() != null) t = t.getCause();
         String msg = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
-        Platform.runLater(() -> statusLabel.setText("Errore: " + msg));
+        Platform.runLater(() -> statusLabel.setText("Error: " + msg));
         return null;
     }
 }

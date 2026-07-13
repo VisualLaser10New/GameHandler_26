@@ -54,20 +54,20 @@ public class GameAdminDashboard {
         VBox content = new VBox(10);
         content.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
 
-        Label title = new Label("Dashboard GAME_ADMIN — definizioni giochi");
+        Label title = new Label("GAME_ADMIN Dashboard — game definitions");
         title.setStyle("-fx-font-size: 18; -fx-font-weight: bold; -fx-text-fill: #eee;");
         Label note = new Label("POST/PUT /api/admin/games → outbox GAME_DEFINITION_UPSERT_REQUESTED → polling");
         note.setStyle("-fx-text-fill: #888; -fx-font-size: 11;");
 
-        Button refreshBtn = new Button("Aggiorna catalogo");
+        Button refreshBtn = new Button("Refresh catalog");
         refreshBtn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 6 16;");
         refreshBtn.setOnAction(e -> refreshCatalog());
 
-        Button createBtn = new Button("Invia nuova definizione (POST)");
+        Button createBtn = new Button("Submit new definition (POST)");
         createBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-padding: 6 16;");
         createBtn.setOnAction(e -> submitCreate());
 
-        Button updateBtn = new Button("Aggiorna definizione esistente (PUT)");
+        Button updateBtn = new Button("Update existing definition (PUT)");
         updateBtn.setStyle("-fx-background-color: #f39c12; -fx-text-fill: white; -fx-padding: 6 16;");
         updateBtn.setOnAction(e -> submitUpdate());
 
@@ -132,11 +132,11 @@ public class GameAdminDashboard {
     /** Loads the building-scoped catalog via {@code GET /api/games}. */
     public void refreshCatalog() {
         loading.show();
-        statusLabel.setText("Caricamento catalogo...");
+        statusLabel.setText("Loading catalog...");
         ApiClient.instance().get("/api/games", new TypeReference<List<GameStateDto>>() {})
                 .thenAccept(list -> Platform.runLater(() -> {
                     catalogRows.setAll(list == null ? List.of() : list);
-                    statusLabel.setText((list == null ? 0 : list.size()) + " definizioni");
+                    statusLabel.setText((list == null ? 0 : list.size()) + " definitions");
                     loading.hide();
                 }))
                 .exceptionally(this::error);
@@ -144,17 +144,17 @@ public class GameAdminDashboard {
 
     private void submitCreate() {
         GameType gt = gameTypeField.getValue();
-        if (gt == null) { statusLabel.setText("Seleziona gameType"); return; }
+        if (gt == null) { statusLabel.setText("Select a gameType"); return; }
         Map<String, Object> rules = parseRulesOrEmpty();
         var body = new UpsertGameDefinitionRequestDto(gt, nameField.getText().trim(),
                 parseIntOr(minPlayersField, 1), parseIntOr(maxPlayersField, 1),
                 teamAllowedField.isSelected(), rules);
         loading.show();
-        statusLabel.setText("Invio definizione (POST /api/admin/games)...");
+        statusLabel.setText("Sending definition (POST /api/admin/games)...");
         ApiClient.instance().post("/api/admin/games", body, AdminRequestDto.class)
                 .thenAccept(req -> Platform.runLater(() -> {
                     loading.hide();
-                    statusLabel.setText("Definizione PENDING (reqId=" + reqId(req) + ") → polling in Admin Requests");
+                    statusLabel.setText("Definition PENDING (reqId=" + reqId(req) + ") → polling in Admin Requests");
                     if (onNavigateToRequests != null) onNavigateToRequests.run();
                 }))
                 .exceptionally(this::error);
@@ -162,13 +162,13 @@ public class GameAdminDashboard {
 
     private void submitUpdate() {
         GameType gt = gameTypeField.getValue();
-        if (gt == null) { statusLabel.setText("Seleziona gameType"); return; }
+        if (gt == null) { statusLabel.setText("Select a gameType"); return; }
         Map<String, Object> rules = parseRulesOrEmpty();
         var body = new UpsertGameDefinitionRequestDto(gt, nameField.getText().trim(),
                 parseIntOr(minPlayersField, 1), parseIntOr(maxPlayersField, 1),
                 teamAllowedField.isSelected(), rules);
         loading.show();
-        statusLabel.setText("Invio aggiornamento (PUT /api/admin/games/" + gt + ")...");
+        statusLabel.setText("Sending update (PUT /api/admin/games/" + gt + ")...");
         ApiClient.instance().put("/api/admin/games/" + gt.name(), body, AdminRequestDto.class)
                 .thenAccept(req -> Platform.runLater(() -> {
                     loading.hide();
@@ -192,7 +192,7 @@ public class GameAdminDashboard {
         try {
             return new ObjectMapper().readValue(s, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
-            statusLabel.setText("registrationRules non è un JSON valido → uso {} (steps: " + e.getMessage() + ")");
+            statusLabel.setText("registrationRules is not valid JSON → using {} (steps: " + e.getMessage() + ")");
             return Map.of();
         }
     }
@@ -203,7 +203,7 @@ public class GameAdminDashboard {
         Throwable t = ex;
         while (t.getCause() != null) t = t.getCause();
         String msg = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
-        Platform.runLater(() -> statusLabel.setText("Errore: " + msg));
+        Platform.runLater(() -> statusLabel.setText("Error: " + msg));
         return null;
     }
 }

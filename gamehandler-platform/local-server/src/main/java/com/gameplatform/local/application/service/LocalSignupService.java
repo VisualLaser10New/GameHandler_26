@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.domain.exception.UserAlreadyExistsException;
 import com.gameplatform.local.domain.model.LocalSignupUser;
 import com.gameplatform.local.domain.model.OutboxEvent;
+import com.gameplatform.local.domain.model.OutboxEventStatus;
 import com.gameplatform.local.domain.ports.in.RegisterLocalUserUseCase;
 import com.gameplatform.local.domain.ports.out.LocalSignupUserRepository;
 import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
@@ -115,9 +116,9 @@ public class LocalSignupService implements RegisterLocalUserUseCase {
 
             OutboxEvent outboxEvent = new OutboxEvent(
                     UUID.randomUUID().toString(),
-                    "USER_REGISTERED",
+                    com.gameplatform.shared.domain.events.UserRegisteredEvent.EVENT_TYPE,
                     payloadJson,
-                    "PENDING",
+                    OutboxEventStatus.PENDING.name(),
                     user.getCreatedAt(),
                     null,
                     0

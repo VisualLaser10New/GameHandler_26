@@ -29,8 +29,8 @@ public class FoosballPanel implements GamePanel {
     private final Button undoTeam1Button;
     private final Button undoTeam2Button;
 
-    private String team1Name = "Squadra 1";
-    private String team2Name = "Squadra 2";
+    private String team1Name = "Team 1";
+    private String team2Name = "Team 2";
     private int score1 = 0;
     private int score2 = 0;
     private Consumer<Map<String, Integer>> scoreConsumer;
@@ -41,7 +41,7 @@ public class FoosballPanel implements GamePanel {
         root.setAlignment(Pos.CENTER);
         root.setStyle("-fx-padding: 20;");
 
-        turnLabel = new Label("In attesa dei giocatori...");
+        turnLabel = new Label("Waiting for players...");
         turnLabel.setStyle("-fx-font-size: 14; -fx-text-fill: #aaa;");
 
         // Score display
@@ -57,12 +57,12 @@ public class FoosballPanel implements GamePanel {
         scoreBox.setAlignment(Pos.CENTER);
 
         // Goal buttons
-        goalTeam1Button = new Button("⚽  GOL " + team1Name.toUpperCase());
+        goalTeam1Button = new Button("⚽  GOAL " + team1Name.toUpperCase());
         goalTeam1Button.setStyle("-fx-background-color: #2980b9; -fx-text-fill: white; -fx-font-size: 16; -fx-padding: 14 30; -fx-background-radius: 8;");
         goalTeam1Button.setDisable(true);
         goalTeam1Button.setOnAction(e -> recordGoal(1));
 
-        goalTeam2Button = new Button("⚽  GOL " + team2Name.toUpperCase());
+        goalTeam2Button = new Button("⚽  GOAL " + team2Name.toUpperCase());
         goalTeam2Button.setStyle("-fx-background-color: #c0392b; -fx-text-fill: white; -fx-font-size: 16; -fx-padding: 14 30; -fx-background-radius: 8;");
         goalTeam2Button.setDisable(true);
         goalTeam2Button.setOnAction(e -> recordGoal(2));
@@ -71,12 +71,12 @@ public class FoosballPanel implements GamePanel {
         goalButtons.setAlignment(Pos.CENTER);
 
         // Undo buttons
-        undoTeam1Button = new Button("↩ Annulla gol " + team1Name);
+        undoTeam1Button = new Button("↩ Undo goal " + team1Name);
         undoTeam1Button.setStyle("-fx-background-color: #555; -fx-text-fill: #ddd; -fx-font-size: 12; -fx-padding: 6 16;");
         undoTeam1Button.setDisable(true);
         undoTeam1Button.setOnAction(e -> undoGoal(1));
 
-        undoTeam2Button = new Button("↩ Annulla gol " + team2Name);
+        undoTeam2Button = new Button("↩ Undo goal " + team2Name);
         undoTeam2Button.setStyle("-fx-background-color: #555; -fx-text-fill: #ddd; -fx-font-size: 12; -fx-padding: 6 16;");
         undoTeam2Button.setDisable(true);
         undoTeam2Button.setOnAction(e -> undoGoal(2));
@@ -106,16 +106,16 @@ public class FoosballPanel implements GamePanel {
         }
 
         updateScoreLabels();
-        goalTeam1Button.setText("⚽  GOL " + team1Name.toUpperCase());
-        goalTeam2Button.setText("⚽  GOL " + team2Name.toUpperCase());
-        undoTeam1Button.setText("↩ Annulla gol " + team1Name);
-        undoTeam2Button.setText("↩ Annulla gol " + team2Name);
+        goalTeam1Button.setText("⚽  GOAL " + team1Name.toUpperCase());
+        goalTeam2Button.setText("⚽  GOAL " + team2Name.toUpperCase());
+        undoTeam1Button.setText("↩ Undo goal " + team1Name);
+        undoTeam2Button.setText("↩ Undo goal " + team2Name);
 
         goalTeam1Button.setDisable(false);
         goalTeam2Button.setDisable(false);
         undoTeam1Button.setDisable(false);
         undoTeam2Button.setDisable(false);
-        turnLabel.setText("Partita in corso — premi il pulsante quando viene segnato un gol");
+        turnLabel.setText("Match in progress — press the button when a goal is scored");
         turnLabel.setStyle("-fx-font-size: 13; -fx-text-fill: #2ecc71;");
     }
 
@@ -125,7 +125,7 @@ public class FoosballPanel implements GamePanel {
         goalTeam2Button.setDisable(true);
         undoTeam1Button.setDisable(true);
         undoTeam2Button.setDisable(true);
-        turnLabel.setText("Partita terminata — " + team1Name + " " + score1 + " : " + score2 + " " + team2Name);
+        turnLabel.setText("Match ended — " + team1Name + " " + score1 + " : " + score2 + " " + team2Name);
         turnLabel.setStyle("-fx-font-size: 13; -fx-text-fill: #f39c12;");
     }
 

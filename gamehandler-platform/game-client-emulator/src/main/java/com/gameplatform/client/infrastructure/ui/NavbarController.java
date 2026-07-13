@@ -1,6 +1,7 @@
 package com.gameplatform.client.infrastructure.ui;
 
 import com.gameplatform.client.infrastructure.security.HttpClientHelper;
+import com.gameplatform.shared.domain.security.Role;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -96,10 +97,10 @@ public class NavbarController {
             return;
         }
 
-        boolean isPlayer        = roles.contains("PLAYER");
-        boolean isLocalAdmin    = roles.contains("LOCAL_ADMIN");
-        boolean isGameAdmin     = roles.contains("GAME_ADMIN");
-        boolean isPlatformAdmin = roles.contains("PLATFORM_ADMIN");
+        boolean isPlayer        = roles.contains(Role.PLAYER.name());
+        boolean isLocalAdmin    = roles.contains(Role.LOCAL_ADMIN.name());
+        boolean isGameAdmin     = roles.contains(Role.GAME_ADMIN.name());
+        boolean isPlatformAdmin = roles.contains(Role.PLATFORM_ADMIN.name());
 
         if (isPlayer || isLocalAdmin || isPlatformAdmin) {
             addButton("Games", VIEW_GAME_SELECTION);

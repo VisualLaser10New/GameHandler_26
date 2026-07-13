@@ -41,9 +41,19 @@ public class ReservationController {
 
     @PostMapping
     public ResponseEntity<ReservationDto> create(@RequestBody CreateReservationRequestDto req) {
+        Optional<UserId> me = currentUserService.getCurrentUserId();
+        if (me.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        UserId bodyUserId = new UserId(req.userId());
+        boolean isPlatformAdmin = currentUserService.hasRole("PLATFORM_ADMIN");
+        if (!isPlatformAdmin && !me.get().equals(bodyUserId)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Cannot create a reservation for another user");
+        }
         Reservation reservation = createReservationUseCase.create(
                 new GameId(req.gameId()),
-                new UserId(req.userId()),
+                bodyUserId,
                 req.startTime(),
                 req.endTime()
         );
@@ -52,7 +62,16 @@ public class ReservationController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> cancel(@PathVariable String id) {
-        cancelReservationUseCase.cancel(new ReservationId(id));
+        Optional<UserId> me = currentUserService.getCurrentUserId();
+        if (me.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        ReservationId rid = new ReservationId(id);
+        if (currentUserService.hasRole("PLATFORM_ADMIN")) {
+            cancelReservationUseCase.cancel(rid);
+        } else {
+            cancelReservationUseCase.cancel(rid, me.get());
+        }
         return ResponseEntity.noContent().build();
     }
 

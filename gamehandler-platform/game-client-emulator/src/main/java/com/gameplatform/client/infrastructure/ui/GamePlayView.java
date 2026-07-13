@@ -99,11 +99,11 @@ public class GamePlayView {
         controlsArea.setAlignment(Pos.CENTER);
         controlsArea.setStyle("-fx-padding: 10;");
 
-        startButton = createButton("▶  Avvia Partita", "#27ae60");
-        pauseButton = createButton("⏸  Pausa", "#f39c12");
-        stopButton  = createButton("⏹  Termina", "#e74c3c");
-        resumeButton = createButton("▶  Riprendi", "#3498db");
-        backToHomeButton = createButton("←  Torna alla home", "#7f8c8d");
+        startButton = createButton("▶  Start Match", "#27ae60");
+        pauseButton = createButton("⏸  Pause", "#f39c12");
+        stopButton  = createButton("⏹  End", "#e74c3c");
+        resumeButton = createButton("▶  Resume", "#3498db");
+        backToHomeButton = createButton("←  Back to home", "#7f8c8d");
 
         startButton.setOnAction(e -> startGame());
         pauseButton.setOnAction(e -> pauseGame());
@@ -173,7 +173,7 @@ public class GamePlayView {
         this.lobbySessionId = null;
         this.gameEnded = false;
         gameInfoLabel.setText(state.name() + "  [" + state.gameType() + "]");
-        statusLabel.setText("Pronto per avviare la partita");
+        statusLabel.setText("Ready to start the match");
         setInLobbyState();
     }
 
@@ -191,7 +191,7 @@ public class GamePlayView {
         this.lobbyParticipants = participants;
         this.gameEnded = false;
         gameInfoLabel.setText(state.name() + "  [" + state.gameType() + "]");
-        statusLabel.setText("Lobby avviata — partita in corso");
+        statusLabel.setText("Lobby started — match in progress");
         buildGamePanel();
         timer.startTimer();
         setGameRunningState();
@@ -201,7 +201,7 @@ public class GamePlayView {
 
     private void startGame() {
         if (currentGameState == null) return;
-        setStatus("Avvio in corso...");
+        setStatus("Starting...");
         startButton.setDisable(true);
 
         List<String> participants = lobbyParticipants != null
@@ -219,13 +219,13 @@ public class GamePlayView {
                         buildGamePanel();
                         timer.startTimer();
                         setGameRunningState();
-                        setStatus("Partita in corso");
+                        setStatus("Match in progress");
                     });
                 } catch (Exception ex) {
                     Platform.runLater(() -> {
-                        showError("Impossibile avviare la partita: " + ex.getMessage());
+                        showError("Unable to start the match: " + ex.getMessage());
                         startButton.setDisable(false);
-                        setStatus("Errore avvio");
+                        setStatus("Start error");
                     });
                 }
             }, "start-game-thread").start();
@@ -234,7 +234,7 @@ public class GamePlayView {
             buildGamePanel();
             timer.startTimer();
             setGameRunningState();
-            setStatus("Partita in corso (locale)");
+            setStatus("Match in progress (local)");
         }
     }
 
@@ -253,7 +253,7 @@ public class GamePlayView {
         }
         timer.stopTimer();
         setGamePausedState();
-        setStatus("Partita in pausa");
+        setStatus("Match paused");
     }
 
     private void resumeGame() {
@@ -271,7 +271,7 @@ public class GamePlayView {
         }
         timer.resumeTimer();
         setGameRunningState();
-        setStatus("Partita in corso");
+        setStatus("Match in progress");
     }
 
     private void stopGame() {
@@ -344,7 +344,7 @@ public class GamePlayView {
         activePanel = null;
         scoreboard.updateScores(null);
         setGameEndedState();
-        setStatus("Partita terminata");
+        setStatus("Match ended");
     }
 
     /**
@@ -378,8 +378,8 @@ public class GamePlayView {
         setGameEndedState();
 
         String winner = endPayload != null && endPayload.winnerId() != null
-                ? endPayload.winnerId() : "avversario";
-        setStatus("Partita terminata dall'avversario (" + winner + ")");
+                ? endPayload.winnerId() : "opponent";
+        setStatus("Match ended by the opponent (" + winner + ")");
     }
 
     // ─────────────────────────── Helpers ──────────────────────────────────────
@@ -537,7 +537,7 @@ public class GamePlayView {
         backToHomeButton.setDisable(true);
         backToHomeButton.setVisible(false);
         controlsArea.getChildren().clear();
-        controlsArea.getChildren().add(new Label("Seleziona un gioco e premi Avvia") {{
+        controlsArea.getChildren().add(new Label("Select a game and press Start") {{
             setStyle("-fx-text-fill: #666; -fx-font-size: 14;");
         }});
         root.setCenter(controlsArea);
@@ -570,7 +570,7 @@ public class GamePlayView {
         backToHomeButton.setDisable(false);
         backToHomeButton.setVisible(true);
         controlsArea.getChildren().clear();
-        controlsArea.getChildren().add(new Label("Partita terminata") {{
+        controlsArea.getChildren().add(new Label("Match ended") {{
             setStyle("-fx-text-fill: #27ae60; -fx-font-size: 16; -fx-font-weight: bold;");
         }});
         root.setCenter(controlsArea);
@@ -582,7 +582,7 @@ public class GamePlayView {
 
     private void showError(String msg) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Errore");
+        alert.setTitle("Error");
         alert.setHeaderText(null);
         alert.setContentText(msg);
         alert.showAndWait();

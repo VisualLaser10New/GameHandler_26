@@ -6,6 +6,8 @@ import com.gameplatform.shared.domain.model.GameType;
 import java.time.Instant;
 
 public record GameSessionCompletedEvent(String eventId, Instant occurredAt, GameSessionId sessionId, GameType gameType, String resultJson) implements DomainEvent {
+    public static final String EVENT_TYPE = "GAME_SESSION_COMPLETED";
+
     @Override
     public String getEventId() {
         return eventId;
@@ -18,6 +20,6 @@ public record GameSessionCompletedEvent(String eventId, Instant occurredAt, Game
 
     @Override
     public String getEventType() {
-        return "GAME_SESSION_COMPLETED";
+        return EVENT_TYPE;
     }
 }

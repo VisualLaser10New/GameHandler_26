@@ -9,6 +9,7 @@ import com.gameplatform.client.infrastructure.mqtt.*;
 import com.gameplatform.client.infrastructure.rest.ApiClient;
 import com.gameplatform.client.infrastructure.security.HttpClientHelper;
 import com.gameplatform.client.infrastructure.ui.components.StatusBarComponent;
+import com.gameplatform.shared.domain.security.Role;
 import com.gameplatform.shared.dto.GameStateDto;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -80,7 +81,7 @@ public class MainView extends Application {
         root.setTop(navbar.getNode());
 
         statusBar = new StatusBarComponent();
-        statusBar.updateStatus("Inizializzazione...");
+        statusBar.updateStatus("Initializing...");
         root.setBottom(statusBar);
 
         initializeServices();
@@ -110,28 +111,28 @@ public class MainView extends Application {
             String localServerUrl = System.getenv().getOrDefault("LOCAL_SERVER_URL", ApiClient.DEFAULT_BASE_URL);
 
             if (brokerUrl.startsWith("ssl://")) {
-                statusBar.updateStatus("Enrollment certificati...");
+                statusBar.updateStatus("Certificate enrollment...");
                 com.gameplatform.client.infrastructure.security.CertificateEnrollmentService enrollmentService =
                         new com.gameplatform.client.infrastructure.security.CertificateEnrollmentService(gameId, localServerUrl);
                 boolean enrolled = enrollmentService.enrollIfNecessary();
-                statusBar.updateStatus(enrolled ? "Enrollment completato." : "Enrollment fallito, si procede senza cert.");
+                statusBar.updateStatus(enrolled ? "Enrollment completed." : "Enrollment failed, proceeding without certificates.");
             }
 
             MqttClientConfig mqttConfig = new MqttClientConfig(brokerUrl, clientId, buildingId);
             mqttAdapter = new MqttClientAdapter(mqttConfig);
             mqttAdapter.setCallback(new org.eclipse.paho.client.mqttv3.MqttCallbackExtended() {
                 @Override public void connectComplete(boolean reconnect, String serverURI) {
-                    Platform.runLater(() -> statusBar.updateStatus("Connesso a MQTT"));
+                    Platform.runLater(() -> statusBar.updateStatus("Connected to MQTT"));
                 }
                 @Override public void connectionLost(Throwable cause) {
-                    String msg = cause != null ? cause.getMessage() : "motivo sconosciuto";
-                    Platform.runLater(() -> statusBar.updateStatus("Disconnesso: " + msg));
+                    String msg = cause != null ? cause.getMessage() : "unknown reason";
+                    Platform.runLater(() -> statusBar.updateStatus("Disconnected: " + msg));
                 }
                 @Override public void messageArrived(String topic, org.eclipse.paho.client.mqttv3.MqttMessage message) {}
                 @Override public void deliveryComplete(org.eclipse.paho.client.mqttv3.IMqttDeliveryToken token) {}
             });
             mqttAdapter.connect();
-            statusBar.updateStatus("Connesso a MQTT");
+            statusBar.updateStatus("Connected to MQTT");
 
             connectionManager = new MqttConnectionManager(mqttAdapter);
             HeartbeatPublisher heartbeatPublisher = new HeartbeatPublisher(mqttAdapter, buildingId);
@@ -153,7 +154,7 @@ public class MainView extends Application {
             connectionMonitor.start(gameId);
             connectionMonitor.onConnected();
         } catch (Exception e) {
-            statusBar.updateStatus("Errore MQTT: " + e.getMessage());
+            statusBar.updateStatus("MQTT error: " + e.getMessage());
         }
     }
 
@@ -188,8 +189,8 @@ public class MainView extends Application {
                         lobbyView.setCurrentUser(username);
                         gamePlayView.setCurrentUser(username);
                         connectionMonitor.onLoggedIn();
-                        statusBar.updateStatus("Connesso come: " + username
-                                + "  · ruoli=" + HttpClientHelper.getRoles());
+                        statusBar.updateStatus("Connected as: " + username
+                                + "  · roles=" + HttpClientHelper.getRoles());
                     }
                     navbar.rebuild();
                     navigateTo(defaultViewAfterLogin());
@@ -316,9 +317,9 @@ public class MainView extends Application {
      * (otherwise the navbar would offer no matching button).
      */
     private String defaultViewAfterLogin() {
-        if (HttpClientHelper.hasRole("PLATFORM_ADMIN")) return NavbarController.VIEW_ADMIN_PLATFORM;
-        if (HttpClientHelper.hasRole("GAME_ADMIN"))     return NavbarController.VIEW_ADMIN_GAME;
-        if (HttpClientHelper.hasRole("LOCAL_ADMIN"))    return NavbarController.VIEW_ADMIN_LOCAL;
+        if (HttpClientHelper.hasRole(Role.PLATFORM_ADMIN.name())) return NavbarController.VIEW_ADMIN_PLATFORM;
+        if (HttpClientHelper.hasRole(Role.GAME_ADMIN.name()))     return NavbarController.VIEW_ADMIN_GAME;
+        if (HttpClientHelper.hasRole(Role.LOCAL_ADMIN.name()))    return NavbarController.VIEW_ADMIN_LOCAL;
         return NavbarController.VIEW_GAME_SELECTION;
     }
 
@@ -327,7 +328,7 @@ public class MainView extends Application {
     private void doLogout() {
         try {
             HttpClientHelper.clearSession();
-            statusBar.updateStatus("Logout effettuato");
+            statusBar.updateStatus("Logout completed");
             navigateTo(NavbarController.VIEW_LOGIN);
         } catch (Exception e) {
             statusBar.updateStatus("Logout error: " + e.getMessage());

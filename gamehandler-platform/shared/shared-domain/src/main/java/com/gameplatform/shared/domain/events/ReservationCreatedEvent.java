@@ -8,6 +8,8 @@ import com.gameplatform.shared.domain.model.UserId;
 import java.time.Instant;
 
 public record ReservationCreatedEvent(String eventId, Instant occurredAt, ReservationId reservationId, GameId gameId, UserId userId, BuildingId buildingId) implements DomainEvent {
+    public static final String EVENT_TYPE = "RESERVATION_CREATED";
+
     @Override
     public String getEventId() {
         return eventId;
@@ -20,6 +22,6 @@ public record ReservationCreatedEvent(String eventId, Instant occurredAt, Reserv
 
     @Override
     public String getEventType() {
-        return "RESERVATION_CREATED";
+        return EVENT_TYPE;
     }
 }

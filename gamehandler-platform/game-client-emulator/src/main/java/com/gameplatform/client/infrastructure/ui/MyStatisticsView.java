@@ -54,7 +54,7 @@ public class MyStatisticsView {
         content.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
         content.setSpacing(10);
 
-        Label title = new Label("Le mie statistiche");
+        Label title = new Label("My Statistics");
         title.setStyle("-fx-font-size: 18; -fx-font-weight: bold; -fx-text-fill: #eee;");
 
         Label sub = new Label("GET /api/players/me/statistics");
@@ -63,34 +63,34 @@ public class MyStatisticsView {
         gameTypeFilter = new ComboBox<>(FXCollections.observableArrayList(GameType.values()));
         gameTypeFilter.getItems().add(0, null);
         gameTypeFilter.setConverter(new StringConverter<>() {
-            @Override public String toString(GameType gt) { return gt == null ? "Tutti i giochi" : gt.name(); }
+            @Override public String toString(GameType gt) { return gt == null ? "All games" : gt.name(); }
             @Override public GameType fromString(String s) {
-                if (s == null || s.isBlank() || "Tutti i giochi".equals(s)) return null;
+                if (s == null || s.isBlank() || "All games".equals(s)) return null;
                 try { return GameType.valueOf(s); } catch (Exception e) { return null; }
             }
         });
         gameTypeFilter.setValue(null);
         gameTypeFilter.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
 
-        Button refreshBtn = new Button("Aggiorna");
+        Button refreshBtn = new Button("Refresh");
         refreshBtn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 6 16;");
         refreshBtn.setOnAction(e -> refresh());
 
         HBox toolbar = new HBox(10,
-                new Label() {{ setText("Filtra per gioco:"); setStyle("-fx-text-fill: #ccc;"); setPadding(new Insets(4, 0, 0, 0)); }},
+                new Label() {{ setText("Filter by game:"); setStyle("-fx-text-fill: #ccc;"); setPadding(new Insets(4, 0, 0, 0)); }},
                 gameTypeFilter, refreshBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
 
         rows = FXCollections.observableArrayList();
         table = new TableView<>(rows);
-        TableColumn<PlayerStatisticsDto, String> gameCol = new TableColumn<>("Gioco");
+        TableColumn<PlayerStatisticsDto, String> gameCol = new TableColumn<>("Game");
         gameCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
                 c.getValue() == null || c.getValue().gameType() == null ? "" : c.getValue().gameType().name()));
-        TableColumn<PlayerStatisticsDto, Integer> playedCol = new TableColumn<>("Partite giocate");
+        TableColumn<PlayerStatisticsDto, Integer> playedCol = new TableColumn<>("Matches played");
         playedCol.setCellValueFactory(c -> new javafx.beans.property.SimpleObjectProperty<>(c.getValue().matchesPlayed()));
-        TableColumn<PlayerStatisticsDto, Integer> wonCol = new TableColumn<>("Vittorie");
+        TableColumn<PlayerStatisticsDto, Integer> wonCol = new TableColumn<>("Wins");
         wonCol.setCellValueFactory(c -> new javafx.beans.property.SimpleObjectProperty<>(c.getValue().matchesWon()));
-        TableColumn<PlayerStatisticsDto, String> lastCol = new TableColumn<>("Ultima partita");
+        TableColumn<PlayerStatisticsDto, String> lastCol = new TableColumn<>("Last match");
         lastCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
                 c.getValue().lastPlayedAt() == null ? "—" : c.getValue().lastPlayedAt().toString()));
         table.getColumns().setAll(List.of(gameCol, playedCol, wonCol, lastCol));
@@ -119,7 +119,7 @@ public class MyStatisticsView {
 
     public void refresh() {
         loading.show();
-        statusLabel.setText("Caricamento statistiche...");
+        statusLabel.setText("Loading statistics...");
         ApiClient client = ApiClient.instance();
         GameType filter = gameTypeFilter.getValue();
         String path = "/api/players/me/statistics";
@@ -133,7 +133,7 @@ public class MyStatisticsView {
                                     .max(Comparator.naturalOrder())
                                     .orElse(Instant.now());
                     staleness.refresh();
-                    statusLabel.setText((stats == null ? 0 : stats.size()) + " voci");
+                    statusLabel.setText((stats == null ? 0 : stats.size()) + " entries");
                     loading.hide();
                 }))
                 .exceptionally(ex -> { Platform.runLater(() -> handleError(ex)); return null; });
@@ -144,9 +144,9 @@ public class MyStatisticsView {
         String cause = rootCause(ex);
         if (ex.getCause() instanceof ServerUnavailableException
                 || ex.getCause() instanceof com.gameplatform.client.infrastructure.rest.AuthenticationException) {
-            statusLabel.setText("Errore: " + ex.getCause().getMessage());
+            statusLabel.setText("Error: " + ex.getCause().getMessage());
         } else {
-            statusLabel.setText("Errore caricamento statistiche: " + cause);
+            statusLabel.setText("Error loading statistics: " + cause);
         }
         return null;
     }

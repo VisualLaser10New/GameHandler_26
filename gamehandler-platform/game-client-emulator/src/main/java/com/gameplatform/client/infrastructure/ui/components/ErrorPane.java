@@ -19,7 +19,7 @@ public final class ErrorPane extends VBox {
 
     private final Label headline = new Label();
     private final Label detail   = new Label();
-    private final Button retry    = new Button("Riprova");
+    private final Button retry    = new Button("Retry");
 
     public ErrorPane() {
         setAlignment(Pos.CENTER);
@@ -40,7 +40,7 @@ public final class ErrorPane extends VBox {
             Platform.runLater(() -> show(title, message, retryCallback));
             return;
         }
-        headline.setText(title == null ? "Errore" : title);
+        headline.setText(title == null ? "Error" : title);
         detail.setText(message == null ? "" : message);
         if (retryCallback != null) {
             retry.setOnAction(e -> retryCallback.run());

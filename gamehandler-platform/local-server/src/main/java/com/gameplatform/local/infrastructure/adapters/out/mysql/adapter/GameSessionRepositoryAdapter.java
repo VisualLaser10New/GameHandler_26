@@ -1,6 +1,7 @@
 package com.gameplatform.local.infrastructure.adapters.out.mysql.adapter;
 
 import com.gameplatform.local.domain.model.GameSession;
+import com.gameplatform.local.domain.model.OutboxEventStatus;
 import com.gameplatform.local.domain.ports.out.GameSessionRepository;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.GameSessionJpaEntity;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.mapper.GameSessionMapper;
@@ -78,8 +79,11 @@ public class GameSessionRepositoryAdapter implements GameSessionRepository {
 
     @Override
     public List<GameSession> findPendingSync() {
-        List<GameSessionJpaEntity> completedOrAbortedSessions = jpaRepository.findByStatusIn(List.of("COMPLETED", "ABORTED"));
-        List<OutboxEventJpaEntity> sentEvents = outboxEventRepository.findByEventTypeAndStatus("GAME_SESSION_COMPLETED", "SENT");
+        List<GameSessionJpaEntity> completedOrAbortedSessions = jpaRepository.findByStatusIn(
+                List.of(GameStatus.COMPLETED.name(), GameStatus.ABORTED.name()));
+        List<OutboxEventJpaEntity> sentEvents = outboxEventRepository.findByEventTypeAndStatus(
+                com.gameplatform.shared.domain.events.GameSessionCompletedEvent.EVENT_TYPE,
+                OutboxEventStatus.SENT.name());
         
         Set<String> sentSessionIds = sentEvents.stream()
             .map(event -> {
@@ -104,7 +108,7 @@ public class GameSessionRepositoryAdapter implements GameSessionRepository {
     public Optional<GameSession> findActiveByGameId(GameId gameId) {
         return jpaRepository.findFirstByGameIdAndStatusIn(
             gameId.id(),
-            List.of("WAITING", "IN_PROGRESS", "PAUSED")
+            List.of(GameStatus.WAITING.name(), GameStatus.IN_PROGRESS.name(), GameStatus.PAUSED.name())
         ).map(mapper::toDomain);
     }
 

@@ -3,7 +3,9 @@ package com.gameplatform.local.application.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.domain.model.AdminRequestLocal;
+import com.gameplatform.local.domain.model.AdminRequestStatus;
 import com.gameplatform.local.domain.model.OutboxEvent;
+import com.gameplatform.local.domain.model.OutboxEventStatus;
 import com.gameplatform.local.domain.ports.out.AdminRequestRepository;
 import com.gameplatform.local.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.shared.dto.AdminRequestDto;
@@ -66,10 +68,10 @@ public class AdminRequestOutboxWriter {
         String payloadJson = serialize(eventType, payload);
         AdminRequestLocal adminReq = new AdminRequestLocal(
                 requestId, eventType, actingUserId, actingRole, buildingId,
-                payloadJson, "PENDING", null, now, null, requestId);
+                payloadJson, AdminRequestStatus.PENDING.name(), null, now, null, requestId);
         adminRequestRepository.save(adminReq);
         OutboxEvent outbox = new OutboxEvent(
-                requestId, eventType, payloadJson, "PENDING", now, null, 0);
+                requestId, eventType, payloadJson, OutboxEventStatus.PENDING.name(), now, null, 0);
         outboxEventRepository.save(outbox);
         log.info("Admin request {} persisted as PENDING (eventType={}, user={}, building={})",
                 requestId, eventType, actingUserId, buildingId);
@@ -94,7 +96,7 @@ public class AdminRequestOutboxWriter {
         String payloadJson = serialize(eventType, payload);
         AdminRequestLocal adminReq = new AdminRequestLocal(
                 requestId, eventType, actingUserId, actingRole, buildingId,
-                payloadJson, "FAILED", reason, now, now, null);
+                payloadJson, AdminRequestStatus.FAILED.name(), reason, now, now, null);
         adminRequestRepository.save(adminReq);
         log.warn("Admin request {} persisted as FAILED (eventType={}, user={}, reason={})",
                 requestId, eventType, actingUserId, reason);

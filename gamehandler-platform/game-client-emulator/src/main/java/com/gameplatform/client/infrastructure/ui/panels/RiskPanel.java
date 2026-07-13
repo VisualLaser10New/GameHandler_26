@@ -41,7 +41,7 @@ public class RiskPanel implements GamePanel {
         Label title = new Label("🗺️  RISK");
         title.setStyle("-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #e67e22;");
 
-        turnLabel = new Label("In attesa...");
+        turnLabel = new Label("Waiting...");
         turnLabel.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-text-fill: #eee;");
 
         armiesBox = new VBox(4);
@@ -50,16 +50,16 @@ public class RiskPanel implements GamePanel {
         armiesBox.setMinWidth(240);
 
         // Attack controls
-        Label atkLabel = new Label("Attacco:");
+        Label atkLabel = new Label("Attack:");
         atkLabel.setStyle("-fx-text-fill: #ccc; -fx-font-size: 13;");
 
         attackerCombo = new ComboBox<>();
-        attackerCombo.setPromptText("Attaccante");
+        attackerCombo.setPromptText("Attacker");
         attackerCombo.setStyle("-fx-background-color: #333;");
         attackerCombo.setDisable(true);
 
         defenderCombo = new ComboBox<>();
-        defenderCombo.setPromptText("Difensore");
+        defenderCombo.setPromptText("Defender");
         defenderCombo.setStyle("-fx-background-color: #333;");
         defenderCombo.setDisable(true);
 
@@ -69,7 +69,7 @@ public class RiskPanel implements GamePanel {
         diceCombo.setStyle("-fx-background-color: #333;");
         diceCombo.setDisable(true);
 
-        attackButton = new Button("⚔️ Attacca");
+        attackButton = new Button("⚔️ Attack");
         attackButton.setStyle("-fx-background-color: #c0392b; -fx-text-fill: white; -fx-padding: 8 18;");
         attackButton.setDisable(true);
         attackButton.setOnAction(e -> doAttack());
@@ -81,7 +81,7 @@ public class RiskPanel implements GamePanel {
         battleResultLabel = new Label(" ");
         battleResultLabel.setStyle("-fx-text-fill: #f39c12; -fx-font-size: 13;");
 
-        endTurnButton = new Button("✓ Fine Turno");
+        endTurnButton = new Button("✓ End Turn");
         endTurnButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14; -fx-padding: 10 24; -fx-background-radius: 6;");
         endTurnButton.setDisable(true);
         endTurnButton.setOnAction(e -> endTurn());
@@ -132,7 +132,7 @@ public class RiskPanel implements GamePanel {
         diceCombo.setDisable(true);
         attackButton.setDisable(true);
         endTurnButton.setDisable(true);
-        turnLabel.setText("Partita terminata");
+        turnLabel.setText("Match ended");
         turnLabel.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-text-fill: #f39c12;");
     }
 
@@ -173,7 +173,7 @@ public class RiskPanel implements GamePanel {
         armies.replaceAll((p, v) -> Math.max(v, 0));
 
         String result = "⚔️ " + attacker + " " + atkRolls + " vs " + defender + " " + defRolls +
-                " → Perdite: " + attacker + " -" + atkLoss + ", " + defender + " -" + defLoss;
+                " → Losses: " + attacker + " -" + atkLoss + ", " + defender + " -" + defLoss;
         battleResultLabel.setText(result);
         refreshArmiesBox();
     }
@@ -217,14 +217,14 @@ public class RiskPanel implements GamePanel {
 
     private void updateTurnLabel() {
         if (players.isEmpty()) return;
-        turnLabel.setText("Turno di: " + players.get(turnIndex));
+        turnLabel.setText("Turn of: " + players.get(turnIndex));
         turnLabel.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-text-fill: #e67e22;");
     }
 
     private void refreshArmiesBox() {
         armiesBox.getChildren().clear();
         armies.forEach((p, a) -> {
-            Label l = new Label(p + "  →  " + a + " armate");
+            Label l = new Label(p + "  →  " + a + " armies");
             l.setStyle("-fx-text-fill: " + (a <= 0 ? "#e74c3c" : "#ddd") + "; -fx-font-size: 13;");
             armiesBox.getChildren().add(l);
         });

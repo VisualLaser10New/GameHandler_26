@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.model.GameSession;
 import com.gameplatform.local.domain.model.OutboxEvent;
+import com.gameplatform.local.domain.model.OutboxEventStatus;
 import com.gameplatform.local.domain.model.TournamentMatchLocal;
 import com.gameplatform.local.domain.ports.out.GameRepository;
 import com.gameplatform.local.domain.ports.out.GameSessionRepository;
@@ -153,7 +154,7 @@ public class SessionAbortHelper {
                 UUID.randomUUID().toString(),
                 "GAME_SESSION_ABORTED",
                 payloadJson,
-                "PENDING",
+                OutboxEventStatus.PENDING.name(),
                 Instant.now(clock),
                 null,
                 0
@@ -199,14 +200,14 @@ public class SessionAbortHelper {
                         session.getTournamentMatchId().value(),
                         walkoverWinner,
                         null,
-                        "ABANDONED"
+                        TournamentMatchStatus.ABANDONED.name()
                 );
                 String tournamentPayloadJson = objectMapper.writeValueAsString(tournamentDto);
                 OutboxEvent tournamentOutboxEvent = new OutboxEvent(
                         UUID.randomUUID().toString(),
-                        "TOURNAMENT_MATCH_COMPLETED",
+                        com.gameplatform.shared.domain.events.TournamentMatchCompletedEvent.EVENT_TYPE,
                         tournamentPayloadJson,
-                        "PENDING",
+                        OutboxEventStatus.PENDING.name(),
                         Instant.now(clock),
                         null,
                         0

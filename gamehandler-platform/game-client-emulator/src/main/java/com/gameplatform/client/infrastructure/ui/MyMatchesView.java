@@ -47,7 +47,7 @@ public class MyMatchesView {
         VBox content = new VBox(10);
         content.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
 
-        Label title = new Label("Le mie partite (storico)");
+        Label title = new Label("My Matches (history)");
         title.setStyle("-fx-font-size: 18; -fx-font-weight: bold; -fx-text-fill: #eee;");
 
         Label sub = new Label("GET /api/players/me/matches/history");
@@ -56,41 +56,41 @@ public class MyMatchesView {
         gameTypeFilter = new ComboBox<>(FXCollections.observableArrayList(GameType.values()));
         gameTypeFilter.getItems().add(0, null);
         gameTypeFilter.setConverter(new StringConverter<>() {
-            @Override public String toString(GameType gt) { return gt == null ? "Tutti i giochi" : gt.name(); }
+            @Override public String toString(GameType gt) { return gt == null ? "All games" : gt.name(); }
             @Override public GameType fromString(String s) {
-                if (s == null || s.isBlank() || "Tutti i giochi".equals(s)) return null;
+                if (s == null || s.isBlank() || "All games".equals(s)) return null;
                 try { return GameType.valueOf(s); } catch (Exception e) { return null; }
             }
         });
         gameTypeFilter.setValue(null);
         gameTypeFilter.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
 
-        Button refreshBtn = new Button("Aggiorna");
+        Button refreshBtn = new Button("Refresh");
         refreshBtn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 6 16;");
         refreshBtn.setOnAction(e -> refresh());
 
         HBox toolbar = new HBox(10,
-                new Label() {{ setText("Filtra per gioco:"); setStyle("-fx-text-fill: #ccc;"); setPadding(new Insets(4, 0, 0, 0)); }},
+                new Label() {{ setText("Filter by game:"); setStyle("-fx-text-fill: #ccc;"); setPadding(new Insets(4, 0, 0, 0)); }},
                 gameTypeFilter, refreshBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
 
         rows = FXCollections.observableArrayList();
         table = new TableView<>(rows);
-        TableColumn<PlayerMatchDto, String> gameCol = new TableColumn<>("Gioco");
+        TableColumn<PlayerMatchDto, String> gameCol = new TableColumn<>("Game");
         gameCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
                 c.getValue() == null || c.getValue().gameType() == null ? "" : c.getValue().gameType().name()));
-        TableColumn<PlayerMatchDto, String> startCol = new TableColumn<>("Inizio");
+        TableColumn<PlayerMatchDto, String> startCol = new TableColumn<>("Start");
         startCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
                 c.getValue().startedAt() == null ? "" : c.getValue().startedAt().toString()));
-        TableColumn<PlayerMatchDto, Integer> durCol = new TableColumn<>("Durata (s)");
+        TableColumn<PlayerMatchDto, Integer> durCol = new TableColumn<>("Duration (s)");
         durCol.setCellValueFactory(c -> new javafx.beans.property.SimpleObjectProperty<>(c.getValue().durationSeconds()));
-        TableColumn<PlayerMatchDto, String> winnerCol = new TableColumn<>("Vincitore");
+        TableColumn<PlayerMatchDto, String> winnerCol = new TableColumn<>("Winner");
         winnerCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
                 c.getValue().winnerId() == null ? "(team)" : c.getValue().winnerId()));
         TableColumn<PlayerMatchDto, String> condCol = new TableColumn<>("WinCondition");
         condCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
                 c.getValue().winCondition() == null ? "" : c.getValue().winCondition().name()));
-        TableColumn<PlayerMatchDto, String> partsCol = new TableColumn<>("Partecipanti");
+        TableColumn<PlayerMatchDto, String> partsCol = new TableColumn<>("Participants");
         partsCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
                 c.getValue().participants() == null ? ""
                         : String.join(", ", c.getValue().participants())));
@@ -119,7 +119,7 @@ public class MyMatchesView {
 
     public void refresh() {
         loading.show();
-        statusLabel.setText("Caricamento storico partite...");
+        statusLabel.setText("Loading match history...");
         ApiClient client = ApiClient.instance();
         GameType filter = gameTypeFilter.getValue();
         String path = "/api/players/me/matches/history";
@@ -133,7 +133,7 @@ public class MyMatchesView {
                                     .max(Comparator.naturalOrder())
                                     .orElse(Instant.now());
                     staleness.refresh();
-                    statusLabel.setText((matches == null ? 0 : matches.size()) + " partite");
+                    statusLabel.setText((matches == null ? 0 : matches.size()) + " matches");
                     loading.hide();
                 }))
                 .exceptionally(ex -> { Platform.runLater(() -> handleError(ex)); return null; });
@@ -143,7 +143,7 @@ public class MyMatchesView {
         loading.hide();
         Throwable t = ex;
         while (t.getCause() != null) t = t.getCause();
-        statusLabel.setText("Errore: " + (t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage()));
+        statusLabel.setText("Error: " + (t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage()));
         return null;
     }
 }

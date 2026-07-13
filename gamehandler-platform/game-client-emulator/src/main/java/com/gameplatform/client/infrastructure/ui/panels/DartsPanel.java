@@ -40,10 +40,10 @@ public class DartsPanel implements GamePanel {
         root.setAlignment(Pos.CENTER);
         root.setStyle("-fx-padding: 20;");
 
-        turnLabel = new Label("In attesa...");
+        turnLabel = new Label("Waiting...");
         turnLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold; -fx-text-fill: #eee;");
 
-        Label scoreLabel = new Label("Punteggio tiro (0–180):");
+        Label scoreLabel = new Label("Throw score (0–180):");
         scoreLabel.setStyle("-fx-text-fill: #ccc; -fx-font-size: 13;");
 
         scoreSpinner = new Spinner<>(0, 180, 0, 1);
@@ -51,12 +51,12 @@ public class DartsPanel implements GamePanel {
         scoreSpinner.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
         scoreSpinner.setDisable(true);
 
-        recordButton = new Button("🎯 Registra Tiro");
+        recordButton = new Button("🎯 Record Throw");
         recordButton.setStyle("-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-size: 14; -fx-padding: 10 24; -fx-background-radius: 6;");
         recordButton.setDisable(true);
         recordButton.setOnAction(e -> recordThrow());
 
-        endTurnButton = new Button("✓ Fine Turno");
+        endTurnButton = new Button("✓ End Turn");
         endTurnButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14; -fx-padding: 10 24; -fx-background-radius: 6;");
         endTurnButton.setDisable(true);
         endTurnButton.setOnAction(e -> endTurn());
@@ -64,7 +64,7 @@ public class DartsPanel implements GamePanel {
         HBox buttons = new HBox(12, recordButton, endTurnButton);
         buttons.setAlignment(Pos.CENTER);
 
-        Label sbTitle = new Label("Classifica:");
+        Label sbTitle = new Label("Standings:");
         sbTitle.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-text-fill: #eee;");
 
         scoreboardBox = new VBox(4);
@@ -117,7 +117,7 @@ public class DartsPanel implements GamePanel {
         scoreSpinner.setDisable(true);
         recordButton.setDisable(true);
         endTurnButton.setDisable(true);
-        turnLabel.setText("Partita terminata");
+        turnLabel.setText("Match ended");
         turnLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold; -fx-text-fill: #f39c12;");
     }
 
@@ -210,7 +210,7 @@ public class DartsPanel implements GamePanel {
 
     private void updateTurnLabel() {
         if (players.isEmpty()) return;
-        turnLabel.setText("Turno di: " + players.get(turnIndex));
+        turnLabel.setText("Turn of: " + players.get(turnIndex));
         turnLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold; -fx-text-fill: #f39c12;");
     }
 

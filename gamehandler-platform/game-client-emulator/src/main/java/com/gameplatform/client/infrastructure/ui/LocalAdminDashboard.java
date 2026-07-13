@@ -57,11 +57,11 @@ public class LocalAdminDashboard {
 
         Label title = new Label("Dashboard LOCAL_ADMIN");
         title.setStyle("-fx-font-size: 18; -fx-font-weight: bold; -fx-text-fill: #eee;");
-        Label note = new Label("Riepilogo edifici (sola lettura AWS-side)");
+        Label note = new Label("Building summary (read-only)");
         note.setStyle("-fx-text-fill: #888; -fx-font-size: 11;");
 
         // ── toolbar ────────────────────────────────────────────────────────
-        Button refreshBtn = new Button("Aggiorna tutto");
+        Button refreshBtn = new Button("Refresh all");
         refreshBtn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 6 16;");
         refreshBtn.setOnAction(e -> refreshAll());
         HBox toolbar = new HBox(8, refreshBtn);
@@ -100,12 +100,12 @@ public class LocalAdminDashboard {
             }
         });
         gameTypeStatFilter.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
-        Button loadStatsBtn = new Button("Carica statistiche");
+        Button loadStatsBtn = new Button("Load statistics");
         loadStatsBtn.setStyle("-fx-background-color: #555; -fx-text-fill: white; -fx-padding: 6 16;");
         loadStatsBtn.setOnAction(e -> loadStatistics());
 
         HBox statsBar = new HBox(10,
-                new Label() {{ setText("Statistiche edificio — gameType:"); setStyle("-fx-text-fill: #ccc;"); setPadding(new Insets(4, 0, 0, 0)); }},
+                new Label() {{ setText("Building statistics — gameType:"); setStyle("-fx-text-fill: #ccc;"); setPadding(new Insets(4, 0, 0, 0)); }},
                 gameTypeStatFilter, loadStatsBtn);
         statsBar.setAlignment(Pos.CENTER_LEFT);
         statLabel.setStyle("-fx-text-fill: #eee;");
@@ -116,8 +116,8 @@ public class LocalAdminDashboard {
         statusLabel.setStyle("-fx-text-fill: #aaa; -fx-font-size: 11;");
 
         content.getChildren().addAll(title, note, toolbar,
-                titled("Giochi building", gamesTable, 180),
-                titled("Sessioni attive", sessionsTable, 180),
+                titled("Building games", gamesTable, 180),
+                titled("Active sessions", sessionsTable, 180),
                 statsBar, statLabel, statusLabel);
 
         StackPane stack = new StackPane(content, loading);
@@ -132,7 +132,7 @@ public class LocalAdminDashboard {
 
     public void refreshAll() {
         loading.show();
-        statusLabel.setText("Caricamento dashboard...");
+        statusLabel.setText("Loading dashboard...");
         var client = ApiClient.instance();
         client.get("/api/admin/local/devices", new TypeReference<List<GameStateDto>>() {})
                 .thenAccept(list -> Platform.runLater(() -> gamesRows.setAll(list == null ? List.of() : list)))
@@ -140,7 +140,7 @@ public class LocalAdminDashboard {
         client.get("/api/admin/local/sessions/active", new TypeReference<List<GameSessionDto>>() {})
                 .thenAccept(list -> Platform.runLater(() -> {
                     sessionsRows.setAll(list == null ? List.of() : list);
-                    statusLabel.setText("Aggiornato " + (list == null ? 0 : list.size()) + " sessioni");
+                    statusLabel.setText("Updated " + (list == null ? 0 : list.size()) + " sessions");
                     loading.hide();
                 }))
                 .exceptionally(this::error);
@@ -149,7 +149,7 @@ public class LocalAdminDashboard {
     private void loadStatistics() {
         GameType filter = gameTypeStatFilter.getValue();
         if (filter == null) {
-            statLabel.setText("Seleziona un gameType");
+            statLabel.setText("Select a gameType");
             return;
         }
         loading.show();
@@ -157,7 +157,7 @@ public class LocalAdminDashboard {
                 "gameType=" + filter.name(),
                 new TypeReference<com.fasterxml.jackson.databind.JsonNode>() {})
                 .thenAccept(node -> Platform.runLater(() -> {
-                    statLabel.setText(node == null ? "Nessun dato" : node.toPrettyString());
+                    statLabel.setText(node == null ? "No data" : node.toPrettyString());
                     loading.hide();
                 }))
                 .exceptionally(this::error);
@@ -178,7 +178,7 @@ public class LocalAdminDashboard {
         Throwable t = ex;
         while (t.getCause() != null) t = t.getCause();
         String msg = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
-        Platform.runLater(() -> statusLabel.setText("Errore: " + msg));
+        Platform.runLater(() -> statusLabel.setText("Error: " + msg));
         return null;
     }
 }

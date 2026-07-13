@@ -78,7 +78,7 @@ public class TournamentsView {
         VBox content = new VBox(10);
         content.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
 
-        Label title = new Label("Tornei");
+        Label title = new Label("Tournaments");
         title.setStyle("-fx-font-size: 18; -fx-font-weight: bold; -fx-text-fill: #eee;");
 
         // ── master / detail split ─────────────────────────────────────
@@ -89,7 +89,7 @@ public class TournamentsView {
                 super.updateItem(item, empty);
                 if (empty || item == null) { setText(null); return; }
                 setText(item.name() + "  [" + item.gameType() + "]  —  " + item.status()
-                        + (item.startsAt() == null ? "" : "  inizia " + item.startsAt()));
+                        + (item.startsAt() == null ? "" : "  starts " + item.startsAt()));
                 setStyle("-fx-text-fill: #eee;");
             }
         });
@@ -128,37 +128,37 @@ public class TournamentsView {
                 super.updateItem(item, empty);
                 if (empty || item == null) { setText(null); return; }
                 setText(item.displayName() + (item.isTeam() ? " (team)" : "")
-                        + " — registrato il " + item.registeredAt());
+                        + " — registered on " + item.registeredAt());
                 setStyle("-fx-text-fill: #eee;");
             }
         });
 
         // central detail column
         VBox detail = new VBox(10,
-                titledPane("Classifica (standings)", standingsList),
+                titledPane("Standings", standingsList),
                 titledPane("Bracket (matches)",       matchesList),
-                titledPane("Partecipanti",           participantsList));
+                titledPane("Participants",           participantsList));
         detailHeader.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-text-fill: #3498db;");
         detail.getChildren().add(0, detailHeader);
 
         // ── toolbar: refresh + create-team-registration form + "my matches" button ──
-        Button refreshBtn = new Button("Aggiorna tornei");
+        Button refreshBtn = new Button("Refresh tournaments");
         refreshBtn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 6 16;");
         refreshBtn.setOnAction(e -> loadTournaments());
 
-        Button registerSelfBtn = new Button("Iscrivimi (io)");
+        Button registerSelfBtn = new Button("Register me (self)");
         registerSelfBtn.setStyle("-fx-background-color: #2ecc71; -fx-text-fill: white; -fx-padding: 6 16;");
         registerSelfBtn.setOnAction(e -> registerSelf());
 
-        Button registerTeamBtn = new Button("Iscrivi squadra");
+        Button registerTeamBtn = new Button("Register team");
         registerTeamBtn.setStyle("-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-padding: 6 16;");
         registerTeamBtn.setOnAction(e -> registerTeam());
 
-        Button myMatchesBtn = new Button("I miei match / Avvia");
+        Button myMatchesBtn = new Button("My matches / Start");
         myMatchesBtn.setStyle("-fx-background-color: #f39c12; -fx-text-fill: white; -fx-padding: 6 16;");
         myMatchesBtn.setOnAction(e -> loadMyMatches());
 
-        Button startSelectedBtn = new Button("Avvia match selezionato");
+        Button startSelectedBtn = new Button("Start selected match");
         startSelectedBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-padding: 6 16;");
         startSelectedBtn.setOnAction(e -> startSelectedMatch());
 
@@ -177,7 +177,7 @@ public class TournamentsView {
                 setStyle("-fx-text-fill: #eee;");
             }
         });
-        VBox myColumn = titledPane("I miei match (SCHEDULED)", myMatchesList);
+        VBox myColumn = titledPane("My matches (SCHEDULED)", myMatchesList);
 
         SplitPane split = new SplitPane();
         split.setStyle("-fx-background-color: #1e1e1e;");
@@ -215,13 +215,13 @@ public class TournamentsView {
 
     private void loadTournaments() {
         loading.show();
-        statusLabel.setText("Caricamento tornei...");
+        statusLabel.setText("Loading tournaments...");
         flow.listTournaments()
                 .thenAccept(list -> Platform.runLater(() -> {
                     summaries.setAll(list == null ? List.of() : list);
                     latestUpdatedAt = computeMaxUpdatedAt(list);
                     staleness.refresh();
-                    statusLabel.setText((list == null ? 0 : list.size()) + " tornei");
+                    statusLabel.setText((list == null ? 0 : list.size()) + " tournaments");
                     errorPane.setVisible(false);
                     loading.hide();
                 }))
@@ -241,7 +241,7 @@ public class TournamentsView {
 
     private void showTournament(String tournamentId) {
         loading.show();
-        detailHeader.setText("Dettaglio: " + tournamentId);
+        detailHeader.setText("Detail: " + tournamentId);
         flow.getTournament(tournamentId)
                 .thenAccept(detail -> Platform.runLater(() -> {
                     renderDetail(detail);
@@ -253,15 +253,15 @@ public class TournamentsView {
     @SuppressWarnings("unchecked")
     private void renderDetail(TournamentDetailDto detail) {
         if (detail == null || detail.summary() == null) {
-            detailHeader.setText("Dettaglio: non disponibile");
+            detailHeader.setText("Detail: not available");
             standingsList.getItems().clear();
             matchesList.getItems().clear();
             participantsList.getItems().clear();
             return;
         }
         var s = detail.summary();
-        detailHeader.setText("Dettaglio: " + s.name() + " [" + s.gameType() + "] " + s.status()
-                + "  (" + s.participantsCount() + " iscritti)"
+        detailHeader.setText("Detail: " + s.name() + " [" + s.gameType() + "] " + s.status()
+                + "  (" + s.participantsCount() + " registered)"
                 + "  starts " + s.startsAt());
         standingsList.setItems(FXCollections.observableArrayList(detail.standings() == null ? List.of() : detail.standings()));
         matchesList.setItems(FXCollections.observableArrayList(detail.matches() == null ? List.of() : detail.matches()));
@@ -273,18 +273,18 @@ public class TournamentsView {
     private void registerSelf() {
         TournamentSummaryDto sel = summaryList.getSelectionModel().getSelectedItem();
         if (sel == null) {
-            statusLabel.setText("Seleziona un torneo prima di iscriverti");
+            statusLabel.setText("Select a tournament before registering");
             return;
         }
-        statusLabel.setText("Iscrizione in corso (PENDING)...");
+        statusLabel.setText("Registration in progress (PENDING)...");
         loading.show();
         flow.registerSelf(sel.tournamentId())
                 .thenAccept(req -> Platform.runLater(() -> {
                     loading.hide();
                     String msg = req == null
-                            ? "Iscrizione avviata"
-                            : "Iscrizione PENDING (reqId=" + req.requestId() + ")";
-                    statusLabel.setText(msg + " — vedi Admin Requests per il polling");
+                            ? "Registration started"
+                            : "Registration PENDING (reqId=" + req.requestId() + ")";
+                    statusLabel.setText(msg + " — see Admin Requests for polling");
                     // Banner / redirect: navigate to VIEW_ADMIN_REQUESTS so the
                     // user can poll the outcome.
                     if (onNavigate != null) onNavigate.accept(NavbarController.VIEW_ADMIN_REQUESTS);
@@ -295,11 +295,11 @@ public class TournamentsView {
     private void registerTeam() {
         TournamentSummaryDto sel = summaryList.getSelectionModel().getSelectedItem();
         if (sel == null) {
-            statusLabel.setText("Seleziona un torneo prima di iscriverti");
+            statusLabel.setText("Select a tournament before registering");
             return;
         }
         TextInputDialog teamName = new TextInputDialog();
-        teamName.setHeaderText("Nome squadra (treating self as captain)");
+        teamName.setHeaderText("Team name (treating self as captain)");
         teamName.setContentText("Team name:");
         teamName.showAndWait().ifPresent(name -> {
             // For demo purposes we register a single-member team (the
@@ -309,7 +309,7 @@ public class TournamentsView {
             flow.register(sel.tournamentId(), body)
                     .thenAccept(req -> Platform.runLater(() -> {
                         loading.hide();
-                        statusLabel.setText("Iscrizione squadra PENDING (reqId="
+                        statusLabel.setText("Team registration PENDING (reqId="
                                 + (req == null ? "?" : req.requestId()) + ")");
                         if (onNavigate != null) onNavigate.accept(NavbarController.VIEW_ADMIN_REQUESTS);
                     }))
@@ -322,11 +322,11 @@ public class TournamentsView {
     @SuppressWarnings("unchecked")
     private void loadMyMatches() {
         loading.show();
-        statusLabel.setText("Caricamento miei match...");
+        statusLabel.setText("Loading my matches...");
         flow.myMatches()
                 .thenAccept(matches -> Platform.runLater(() -> {
                     myMatchesList.setItems(FXCollections.observableArrayList(matches == null ? List.of() : matches));
-                    statusLabel.setText((matches == null ? 0 : matches.size()) + " miei match");
+                    statusLabel.setText((matches == null ? 0 : matches.size()) + " my matches");
                     loading.hide();
                 }))
                 .exceptionally(this::error);
@@ -335,18 +335,18 @@ public class TournamentsView {
     private void startSelectedMatch() {
         TournamentMatchDto sel = myMatchesList.getSelectionModel().getSelectedItem();
         if (sel == null) {
-            statusLabel.setText("Seleziona prima un match dalla lista 'I miei match'");
+            statusLabel.setText("First select a match from the 'My matches' list");
             return;
         }
         loading.show();
-        statusLabel.setText("Avvio match " + sel.id() + "...");
+        statusLabel.setText("Starting match " + sel.id() + "...");
         flow.startMatch(sel.id(), sel.gameId())
                 .thenAccept(session -> Platform.runLater(() -> {
                     loading.hide();
                     GameSessionDto s = session;
                     String msg = s == null
-                            ? "Match avviato (nessun dettaglio sessione)"
-                            : "Match avviato! sessionId=" + s.id() + " game=" + s.gameId()
+                            ? "Match started (no session details)"
+                            : "Match started! sessionId=" + s.id() + " game=" + s.gameId()
                                     + " status=" + s.status();
                     statusLabel.setText(msg);
                 }))
@@ -369,7 +369,7 @@ public class TournamentsView {
         Throwable t = ex;
         while (t.getCause() != null) t = t.getCause();
         String msg = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
-        Platform.runLater(() -> statusLabel.setText("Errore: " + msg));
+        Platform.runLater(() -> statusLabel.setText("Error: " + msg));
         return null;
     }
 
@@ -386,8 +386,8 @@ public class TournamentsView {
         while (t.getCause() != null) t = t.getCause();
         String msg = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
         Platform.runLater(() -> {
-            statusLabel.setText("Errore: " + msg);
-            errorPane.show("Tornei non disponibili", msg, retryAction);
+            statusLabel.setText("Error: " + msg);
+            errorPane.show("Tournaments unavailable", msg, retryAction);
             errorPane.setVisible(true);
         });
         return null;

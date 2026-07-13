@@ -108,7 +108,7 @@ public class LobbyView {
         infoLabel = new Label("");
         infoLabel.setStyle("-fx-font-size: 12; -fx-text-fill: #aaa;");
 
-        Label participantsTitle = new Label("Giocatori nella lobby:");
+        Label participantsTitle = new Label("Players in the lobby:");
         participantsTitle.setStyle("-fx-font-size: 13; -fx-text-fill: #ccc;");
 
         participantsBox = new VBox(6);
@@ -116,16 +116,16 @@ public class LobbyView {
         participantsBox.setStyle("-fx-background-color: #2a2a2a; -fx-padding: 12; -fx-background-radius: 6;");
         participantsBox.setMinWidth(260);
 
-        actionButton = new Button("Crea Lobby");
+        actionButton = new Button("Create Lobby");
         actionButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 15; -fx-padding: 10 28; -fx-background-radius: 6;");
         actionButton.setOnAction(e -> handleActionButton());
 
-        startButton = new Button("▶  Avvia Partita");
+        startButton = new Button("▶  Start Match");
         startButton.setStyle("-fx-background-color: #2980b9; -fx-text-fill: white; -fx-font-size: 15; -fx-padding: 10 28; -fx-background-radius: 6;");
         startButton.setVisible(false);
         startButton.setOnAction(e -> startLobby());
 
-        backButton = new Button("← Torna alla selezione");
+        backButton = new Button("← Back to selection");
         backButton.setStyle("-fx-background-color: #555; -fx-text-fill: #ccc; -fx-padding: 8 20;");
         backButton.setOnAction(e -> handleBackButton());
 
@@ -179,25 +179,25 @@ public class LobbyView {
         if (creatorMode) {
             boolean singlePlayer = state.maxPlayers() == 1;
             if (singlePlayer) {
-                modeLabel.setText("Gioco per giocatore singolo");
-                actionButton.setText("▶  Gioca!");
+                modeLabel.setText("Single-player game");
+                actionButton.setText("▶  Play!");
                 actionButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 15; -fx-padding: 10 28; -fx-background-radius: 6;");
-                infoLabel.setText("Premi 'Gioca' per iniziare subito la partita.");
+                infoLabel.setText("Press 'Play' to start the match right away.");
             } else {
-                modeLabel.setText("Sei il primo giocatore — crea la lobby");
-                actionButton.setText("Crea Lobby");
+                modeLabel.setText("You are the first player — create the lobby");
+                actionButton.setText("Create Lobby");
                 actionButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 15; -fx-padding: 10 28; -fx-background-radius: 6;");
-                infoLabel.setText("Gli altri giocatori potranno unirsi dopo che hai creato la lobby.");
+                infoLabel.setText("Other players will be able to join after you create the lobby.");
             }
         } else {
             // JOINER mode: the game machine is in LOBBY status, meaning a lobby
             // session already exists on the server. We fetch the active session
             // id via REST (see fetchActiveLobbySession) so the joiner can press
-            // "Unisciti" immediately, without waiting for an MQTT join event.
-            modeLabel.setText("Lobby attiva — unisciti alla partita");
-            actionButton.setText("Unisciti alla Lobby");
+            // "Join" immediately, without waiting for an MQTT join event.
+            modeLabel.setText("Active lobby — join the match");
+            actionButton.setText("Join the Lobby");
             actionButton.setStyle("-fx-background-color: #8e44ad; -fx-text-fill: white; -fx-font-size: 15; -fx-padding: 10 28; -fx-background-radius: 6;");
-            infoLabel.setText("Premi 'Unisciti' per entrare nella lobby attiva.");
+            infoLabel.setText("Press 'Join' to enter the active lobby.");
             fetchActiveLobbySession(state.gameId());
         }
 
@@ -252,12 +252,12 @@ public class LobbyView {
                 .get("/api/sessions/lobby/active", "gameId=" + gameId, GameSessionDto.class)
                 .thenAccept(session -> Platform.runLater(() -> {
                     if (session == null) {
-                        infoLabel.setText("Lobby vuota.");
+                        infoLabel.setText("Empty lobby.");
                         return;
                     }
                     // 200: lobby session found — populate state.
                     lobbySessionId = session.id();
-                    infoLabel.setText("Lobby attiva trovata. Premi 'Unisciti' per entrare.");
+                    infoLabel.setText("Active lobby found. Press 'Join' to enter.");
                     participants.clear();
                     if (session.participants() != null) {
                         for (String p : session.participants()) {
@@ -279,7 +279,7 @@ public class LobbyView {
                         fallbackToCreatorMode();
                         return;
                     }
-                    infoLabel.setText("Impossibile recuperare la lobby: " + t.getMessage());
+                    infoLabel.setText("Unable to retrieve the lobby: " + t.getMessage());
                 }); return null; });
     }
 
@@ -300,12 +300,12 @@ public class LobbyView {
             participants.add(currentUsername);
             boolean singlePlayer = currentGame.maxPlayers() == 1;
             if (singlePlayer) {
-                infoLabel.setText("Avvio partita...");
+                infoLabel.setText("Starting match...");
             } else {
                 int minPlayers = currentGame.minPlayers();
                 int maxPlayers = currentGame.maxPlayers();
-                infoLabel.setText("Lobby creata! In attesa di altri giocatori (minimo " + minPlayers
-                        + ", massimo " + maxPlayers + ")...");
+                infoLabel.setText("Lobby created! Waiting for other players (min " + minPlayers
+                        + ", max " + maxPlayers + ")...");
                 startButton.setVisible(true);
                 startButton.setDisable(true); // enabled when enough players join via MQTT
             }
@@ -319,7 +319,7 @@ public class LobbyView {
             // instead ask the user to wait a moment and re-enable the
             // button so they can retry.
             if (lobbySessionId == null) {
-                infoLabel.setText("Sessione lobby non ancora disponibile — attendi un momento e riprova.");
+                infoLabel.setText("Lobby session not available yet — wait a moment and try again.");
                 actionButton.setDisable(false);
                 return;
             }
@@ -333,7 +333,7 @@ public class LobbyView {
     private void startLobby() {
         if (sessionPublisher != null && lobbySessionId != null) {
             sessionPublisher.publishLobbyStart(currentGame.gameId(), lobbySessionId);
-            infoLabel.setText("Partita avviata!");
+            infoLabel.setText("Match started!");
             startButton.setDisable(true);
         }
     }
@@ -465,15 +465,15 @@ public class LobbyView {
         creatorMode = true;
         boolean singlePlayer = currentGame != null && currentGame.maxPlayers() == 1;
         if (singlePlayer) {
-            modeLabel.setText("Gioco per giocatore singolo");
-            actionButton.setText("▶  Gioca!");
+            modeLabel.setText("Single-player game");
+            actionButton.setText("▶  Play!");
             actionButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 15; -fx-padding: 10 28; -fx-background-radius: 6;");
-            infoLabel.setText("Nessuna lobby attiva. Premi 'Gioca' per iniziare subito la partita.");
+            infoLabel.setText("No active lobby. Press 'Play' to start the match right away.");
         } else {
-            modeLabel.setText("Sei il primo giocatore — crea la lobby");
-            actionButton.setText("Crea Lobby");
+            modeLabel.setText("You are the first player — create the lobby");
+            actionButton.setText("Create Lobby");
             actionButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 15; -fx-padding: 10 28; -fx-background-radius: 6;");
-            infoLabel.setText("Nessuna lobby attiva. Crea una nuova lobby per iniziare.");
+            infoLabel.setText("No active lobby. Create a new lobby to start.");
         }
         actionButton.setDisable(false);
         startButton.setVisible(false);
@@ -543,11 +543,11 @@ public class LobbyView {
         startButton.setVisible(false);
         startButton.setDisable(true);
 
-        modeLabel.setText("Lobby attiva — unisciti alla partita");
-        actionButton.setText("Unisciti alla Lobby");
+        modeLabel.setText("Active lobby — join the match");
+        actionButton.setText("Join the Lobby");
         actionButton.setStyle("-fx-background-color: #8e44ad; -fx-text-fill: white; -fx-font-size: 15; -fx-padding: 10 28; -fx-background-radius: 6;");
         actionButton.setDisable(false);
-        infoLabel.setText("Una lobby è già stata creata da un altro giocatore. Premi 'Unisciti' per entrare.");
+        infoLabel.setText("A lobby has already been created by another player. Press 'Join' to enter.");
 
         if (currentGame != null) {
             fetchActiveLobbySession(currentGame.gameId());
@@ -579,8 +579,8 @@ public class LobbyView {
                             startButton.setDisable(true);
                             int minPlayers = currentGame != null ? currentGame.minPlayers() : 1;
                             int currentSize = participants.size();
-                            infoLabel.setText("Lobby confermata (ID: " + lobbySessionId.substring(0, 8)
-                                    + "...). In attesa di giocatori (" + currentSize + "/" + minPlayers + ").");
+                            infoLabel.setText("Lobby confirmed (ID: " + lobbySessionId.substring(0, 8)
+                                    + "...). Waiting for players (" + currentSize + "/" + minPlayers + ").");
                         }
                     }
                 }
@@ -602,11 +602,11 @@ public class LobbyView {
                         int minPlayers = currentGame != null ? currentGame.minPlayers() : 1;
                         if (participants.size() >= minPlayers) {
                             startButton.setDisable(false);
-                            infoLabel.setText(joined + " si è unito alla lobby. (" + participants.size()
-                                    + " giocatori) — Puoi avviare la partita!");
+                            infoLabel.setText(joined + " joined the lobby. (" + participants.size()
+                                    + " players) — You can start the match!");
                         } else {
-                            infoLabel.setText(joined + " si è unito alla lobby. (" + participants.size()
-                                    + "/" + minPlayers + " giocatori minimi)");
+                            infoLabel.setText(joined + " joined the lobby. (" + participants.size()
+                                    + "/" + minPlayers + " minimum players)");
                         }
                     }
                 }
@@ -623,7 +623,7 @@ public class LobbyView {
                 }
                 case "cancel" -> {
                     // Lobby was cancelled (e.g. creator left). Inform the user.
-                    infoLabel.setText("La lobby è stata chiusa. Torna alla selezione.");
+                    infoLabel.setText("The lobby has been closed. Go back to selection.");
                     actionButton.setDisable(true);
                     startButton.setDisable(true);
                     lobbySessionId = null;
@@ -637,14 +637,14 @@ public class LobbyView {
     private void refreshParticipantsBox() {
         participantsBox.getChildren().clear();
         if (participants.isEmpty()) {
-            Label empty = new Label("Nessun giocatore ancora");
+            Label empty = new Label("No players yet");
             empty.setStyle("-fx-text-fill: #666; -fx-font-size: 12;");
             participantsBox.getChildren().add(empty);
         } else {
             for (int i = 0; i < participants.size(); i++) {
                 String p = participants.get(i);
                 String icon = (i == 0) ? "👑 " : "👤 ";
-                Label l = new Label(icon + p + (p.equals(currentUsername) ? "  (tu)" : ""));
+                Label l = new Label(icon + p + (p.equals(currentUsername) ? "  (you)" : ""));
                 l.setStyle("-fx-text-fill: " + (i == 0 ? "#f1c40f" : "#ddd") + "; -fx-font-size: 13;");
                 participantsBox.getChildren().add(l);
             }

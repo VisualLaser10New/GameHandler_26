@@ -40,12 +40,12 @@ public class RoulettePanel implements GamePanel {
         Label title = new Label("🎡  ROULETTE");
         title.setStyle("-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #e74c3c;");
 
-        statusLabel = new Label("In attesa dei giocatori...");
+        statusLabel = new Label("Waiting for players...");
         statusLabel.setStyle("-fx-font-size: 13; -fx-text-fill: #aaa;");
 
         // Bet controls
         playerCombo = new ComboBox<>();
-        playerCombo.setPromptText("Seleziona giocatore");
+        playerCombo.setPromptText("Select player");
         playerCombo.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
         playerCombo.setDisable(true);
 
@@ -59,7 +59,7 @@ public class RoulettePanel implements GamePanel {
         amountSpinner.setPrefWidth(100);
         amountSpinner.setDisable(true);
 
-        betButton = new Button("Piazza Puntata");
+        betButton = new Button("Place Bet");
         betButton.setStyle("-fx-background-color: #2980b9; -fx-text-fill: white; -fx-padding: 8 18;");
         betButton.setDisable(true);
         betButton.setOnAction(e -> placeBet());
@@ -71,7 +71,7 @@ public class RoulettePanel implements GamePanel {
                 amountSpinner, betButton);
         betRow.setAlignment(Pos.CENTER);
 
-        spinButton = new Button("🎡  Gira la Ruota!");
+        spinButton = new Button("🎡  Spin the Wheel!");
         spinButton.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 16; -fx-font-weight: bold; -fx-padding: 12 32; -fx-background-radius: 8;");
         spinButton.setDisable(true);
         spinButton.setOnAction(e -> spinWheel());
@@ -84,7 +84,7 @@ public class RoulettePanel implements GamePanel {
         betsBox.setAlignment(Pos.CENTER_LEFT);
         betsBox.setMinWidth(240);
 
-        root.getChildren().addAll(title, statusLabel, betRow, spinButton, resultLabel, new Label("Puntate correnti:") {{ setStyle("-fx-text-fill:#ccc; -fx-font-size:13;"); }}, betsBox);
+        root.getChildren().addAll(title, statusLabel, betRow, spinButton, resultLabel, new Label("Current bets:") {{ setStyle("-fx-text-fill:#ccc; -fx-font-size:13;"); }}, betsBox);
     }
 
     @Override
@@ -107,7 +107,7 @@ public class RoulettePanel implements GamePanel {
         amountSpinner.setDisable(false);
         betButton.setDisable(false);
         spinButton.setDisable(false);
-        statusLabel.setText("Piazza le puntate, poi gira la ruota!");
+        statusLabel.setText("Place your bets, then spin the wheel!");
         statusLabel.setStyle("-fx-font-size: 13; -fx-text-fill: #2ecc71;");
         resultLabel.setText(" ");
         refreshBetsBox();
@@ -120,7 +120,7 @@ public class RoulettePanel implements GamePanel {
         amountSpinner.setDisable(true);
         betButton.setDisable(true);
         spinButton.setDisable(true);
-        statusLabel.setText("Sessione terminata");
+        statusLabel.setText("Session ended");
     }
 
     public String getWinnerId() {
@@ -142,7 +142,7 @@ public class RoulettePanel implements GamePanel {
         int amount = amountSpinner.getValue();
         int balance = balances.getOrDefault(player, 0);
         if (amount > balance) {
-            statusLabel.setText(player + " non ha abbastanza saldo!");
+            statusLabel.setText(player + " does not have enough balance!");
             statusLabel.setStyle("-fx-font-size: 13; -fx-text-fill: #e74c3c;");
             return;
         }
@@ -153,14 +153,14 @@ public class RoulettePanel implements GamePanel {
 
     private void spinWheel() {
         int drawn = new Random().nextInt(37);
-        StringBuilder result = new StringBuilder("Numero estratto: " + drawn + "\n");
+        StringBuilder result = new StringBuilder("Number drawn: " + drawn + "\n");
         // Resolve bets
         bets.forEach((player, playerBets) -> {
             int win = playerBets.getOrDefault(String.valueOf(drawn), 0);
             if (win > 0) {
                 int payout = win * 35;
                 balances.merge(player, payout, Integer::sum);
-                result.append(player).append(" VINCE ").append(payout).append("€! ");
+                result.append(player).append(" WINS ").append(payout).append("€! ");
             }
         });
         bets.forEach((p, b) -> b.clear());
@@ -174,8 +174,8 @@ public class RoulettePanel implements GamePanel {
         betsBox.getChildren().clear();
         balances.forEach((p, b) -> {
             Map<String, Integer> pb = bets.getOrDefault(p, Map.of());
-            String betStr = pb.isEmpty() ? "nessuna" : pb.toString();
-            Label l = new Label(p + " | Saldo: " + b + "€ | Puntate: " + betStr);
+            String betStr = pb.isEmpty() ? "none" : pb.toString();
+            Label l = new Label(p + " | Balance: " + b + "€ | Bets: " + betStr);
             l.setStyle("-fx-text-fill: #ccc; -fx-font-size: 12;");
             betsBox.getChildren().add(l);
         });

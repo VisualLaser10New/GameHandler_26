@@ -1,6 +1,7 @@
 package com.gameplatform.local.application.service;
 
 import com.gameplatform.local.domain.model.DeadLetterEvent;
+import com.gameplatform.local.domain.model.OutboxEventStatus;
 import com.gameplatform.local.domain.ports.out.DeadLetterRepository;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.entity.OutboxEventJpaEntity;
 import com.gameplatform.local.infrastructure.adapters.out.mysql.repository.OutboxEventJpaRepository;
@@ -33,7 +34,7 @@ public class OutboxDlqPromotionService {
     private static final Logger log = LoggerFactory.getLogger(OutboxDlqPromotionService.class);
 
     public static final String REASON_RETRY_THRESHOLD_EXCEEDED = "RETRY_THRESHOLD_EXCEEDED";
-    private static final String FAILED_STATUS = "FAILED";
+    private static final String FAILED_STATUS = OutboxEventStatus.FAILED.name();
 
     private final OutboxEventJpaRepository outboxJpaRepository;
     private final DeadLetterRepository deadLetterRepository;
