@@ -1,0 +1,166 @@
+/* Dark theme additions for ComboBox controls (BUG 1 fix).
+   Covers the visible button cell of a closed combo (so that the
+   selected value text shows on the #333 dark background) and the
+   popup list-view surface, rows hover/selected states. */
+
+.combo-box-base > .list-cell {
+    -fx-text-fill: #eee;
+    -fx-background-color: #333;
+}
+
+.combo-box > .list-cell {
+    -fx-text-fill: #eee;
+    -fx-background-color: #333;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: #333;
+    -fx-border-color: #444;
+}
+
+.combo-box-popup .list-view .list-cell {
+    -fx-text-fill: #eee;
+    -fx-background-color: #333;
+}
+
+.combo-box-popup .list-view .list-cell:hover {
+    -fx-background-color: #444;
+}
+
+.combo-box-popup .list-view .list-cell:filled:selected {
+    -fx-background-color: #555;
+    -fx-text-fill: #eee;
+}
+
+.combo-box-popup .list-view .list-cell:filled:selected:hover {
+    -fx-background-color: #666;
+}
+
+.combo-box-popup .scroll-bar .track {
+    -fx-background-color: #2b2b2b;
+}
+
+.combo-box-popup .scroll-bar:vertical .thumb {
+    -fx-background-color: #555;
+}
+
+.combo-box-popup .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: #666;
+}
+
+/* Dark theme for TextArea: the inline setStyle only affects the outer
+   control; the internal .content node (ScrollPane) keeps its default
+   white background and makes the text nearly invisible. This forces the
+   content surface and focused state to the same dark palette as the
+   login/signup text fields. */
+.text-area {
+    -fx-background-color: #333;
+    -fx-background-radius: 4;
+    -fx-text-fill: #eee;
+    -fx-prompt-text-fill: #888;
+}
+
+.text-area .content {
+    -fx-background-color: #333;
+}
+
+.text-area:focused .content {
+    -fx-background-color: #333;
+}
+
+.text-area .scroll-pane {
+    -fx-background-color: #333;
+}
+
+.text-area .scroll-pane .viewport {
+    -fx-background-color: #333;
+}
+
+/* ── TableView dark theme ───────────────────────────────────────
+   Applied to every TableView in the app via the global stylesheet
+   registered on the main Scene (and on DialogPanes). Header rows
+   use bold white text on a dark background; cells, selection,
+   hover and scrollbars follow the same palette. */
+
+.table-view {
+    -fx-background-color: #333;
+    -fx-background-radius: 4;
+    -fx-border-color: #444;
+    -fx-table-cell-border-color: transparent;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: #2b2b2b;
+}
+
+.table-view .column-header-background .filler {
+    -fx-background-color: #2b2b2b;
+}
+
+.table-view .column-header {
+    -fx-background-color: #2b2b2b;
+    -fx-border-color: transparent transparent #444 transparent;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: #fff;
+    -fx-font-weight: bold;
+}
+
+.table-view .table-row-cell {
+    -fx-background-color: #333;
+    -fx-text-fill: #eee;
+}
+
+.table-view .table-row-cell:odd {
+    -fx-background-color: #383838;
+}
+
+.table-view .table-row-cell:selected {
+    -fx-background-color: #555;
+    -fx-text-fill: #eee;
+}
+
+.table-view .table-row-cell:hover {
+    -fx-background-color: #444;
+}
+
+.table-view .table-row-cell .table-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #eee;
+    -fx-border-color: transparent transparent transparent transparent;
+}
+
+.table-view .table-row-cell:selected .table-cell {
+    -fx-text-fill: #eee;
+}
+
+.table-view .table-row-cell:empty {
+    -fx-background-color: #333;
+}
+
+.table-view:focused {
+    -fx-background-color: #333;
+}
+
+.table-view .corner {
+    -fx-background-color: #2b2b2b;
+}
+
+/* Scrollbars inside tables */
+.table-view .scroll-bar .track {
+    -fx-background-color: #2b2b2b;
+}
+
+.table-view .scroll-bar .thumb {
+    -fx-background-color: #555;
+}
+
+.table-view .scroll-bar .thumb:hover {
+    -fx-background-color: #666;
+}
+
+/* Tombstones / placeholder ("no content in table") */
+.table-view .table-row-cell .table-cell:hover {
+    -fx-background-color: #444;
+}

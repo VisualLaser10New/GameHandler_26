@@ -72,7 +72,7 @@ public class ChessPanel implements GamePanel {
             "♙ White Pawn", "♘ White Knight", "♗ White Bishop", "♖ White Rook", "♕ White Queen"
         );
         captureCombo.setPromptText("Select captured piece");
-        captureCombo.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
+        captureCombo.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         captureCombo.setDisable(true);
 
         captureButton = new Button("Record captured piece");

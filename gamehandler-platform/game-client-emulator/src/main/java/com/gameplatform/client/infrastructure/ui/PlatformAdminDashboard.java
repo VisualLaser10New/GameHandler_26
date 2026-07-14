@@ -98,7 +98,7 @@ public class PlatformAdminDashboard {
         TableColumns.addColumn(usersTable, "roles", u -> u.roles() == null ? "" : String.join(",", u.roles()));
         usersTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
-        rolesField.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
+        rolesField.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         Button assignBtn = new Button("Assign roles (selected)");
         assignBtn.setStyle("-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-padding: 6 16;");
         assignBtn.setOnAction(e -> assignRoles());
@@ -110,7 +110,7 @@ public class PlatformAdminDashboard {
         // ── tournament lifecycle editor ────────────────────────────
         createTournamentArea.setMaxWidth(800);
         createTournamentArea.setPrefRowCount(8);
-        createTournamentArea.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-font-family: monospace;");
+        createTournamentArea.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4; -fx-font-family: monospace;");
 
         Button createTBtn = new Button("Create tournament (POST)");
         createTBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-padding: 6 16;");
@@ -121,7 +121,7 @@ public class PlatformAdminDashboard {
         // lifecycle actions onto a selected id
         TextField tourIdField = new TextField();
         tourIdField.setPromptText("tournamentId");
-        tourIdField.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 6;");
+        tourIdField.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         Button openBtn     = lifecycleButton(tourIdField, "open");
         Button cancelBtn   = lifecycleButton(tourIdField, "cancel");
         Button scheduleBtn = lifecycleButton(tourIdField, "schedule");
@@ -129,15 +129,15 @@ public class PlatformAdminDashboard {
         // update + delete
         TextField updateNameField = new TextField();
         updateNameField.setPromptText("newName");
-        updateNameField.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 6;");
+        updateNameField.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         TextField updateStartField = new TextField();
         updateStartField.setPromptText("startsAt ISO-8601 (e.g. 2030-01-01T00:00:00Z)");
         updateStartField.setPrefWidth(220);
-        updateStartField.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 6;");
+        updateStartField.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         TextField updateBldField = new TextField();
         updateBldField.setPromptText("buildingIds (comma-separated, ≥2)");
         updateBldField.setPrefWidth(260);
-        updateBldField.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 6;");
+        updateBldField.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
 
         Button updateBtn = new Button("Update (PUT) DRAFT-only");
         updateBtn.setStyle("-fx-background-color: #f39c12; -fx-text-fill: white; -fx-padding: 6 16;");
@@ -158,7 +158,7 @@ public class PlatformAdminDashboard {
         loadStatsBtn.setOnAction(e -> loadStats());
         statsArea.setPrefRowCount(6);
         statsArea.setMaxWidth(900);
-        statsArea.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-font-family: monospace;");
+        statsArea.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4; -fx-font-family: monospace;");
         VBox statsBox = new VBox(8, loadStatsBtn, statsArea);
 
         // ── server monitor ─────────────────────────────────────────

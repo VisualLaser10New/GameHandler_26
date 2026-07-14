@@ -55,18 +55,18 @@ public class RiskPanel implements GamePanel {
 
         attackerCombo = new ComboBox<>();
         attackerCombo.setPromptText("Attacker");
-        attackerCombo.setStyle("-fx-background-color: #333;");
+        attackerCombo.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         attackerCombo.setDisable(true);
 
         defenderCombo = new ComboBox<>();
         defenderCombo.setPromptText("Defender");
-        defenderCombo.setStyle("-fx-background-color: #333;");
+        defenderCombo.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         defenderCombo.setDisable(true);
 
         diceCombo = new ComboBox<>();
         diceCombo.getItems().addAll(1, 2, 3);
         diceCombo.setValue(1);
-        diceCombo.setStyle("-fx-background-color: #333;");
+        diceCombo.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         diceCombo.setDisable(true);
 
         attackButton = new Button("⚔️ Attack");

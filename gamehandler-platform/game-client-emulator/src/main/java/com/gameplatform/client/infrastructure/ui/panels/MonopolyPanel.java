@@ -53,12 +53,12 @@ public class MonopolyPanel implements GamePanel {
 
         fromCombo = new ComboBox<>();
         fromCombo.setPromptText("From");
-        fromCombo.setStyle("-fx-background-color: #333;");
+        fromCombo.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         fromCombo.setDisable(true);
 
         toCombo = new ComboBox<>();
         toCombo.setPromptText("To");
-        toCombo.setStyle("-fx-background-color: #333;");
+        toCombo.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         toCombo.setDisable(true);
 
         amountSpinner = new Spinner<>(1, 10000, 200, 100);

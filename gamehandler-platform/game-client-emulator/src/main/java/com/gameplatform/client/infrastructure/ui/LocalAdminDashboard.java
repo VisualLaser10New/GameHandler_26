@@ -134,7 +134,7 @@ public class LocalAdminDashboard {
                 try { return GameType.valueOf(s); } catch (Exception e) { return null; }
             }
         });
-        gameTypeStatFilter.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
+        gameTypeStatFilter.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         Button loadStatsBtn = new Button("Load statistics");
         loadStatsBtn.setStyle("-fx-background-color: #555; -fx-text-fill: white; -fx-padding: 6 16;");
         loadStatsBtn.setOnAction(e -> loadStatistics());
@@ -211,15 +211,19 @@ public class LocalAdminDashboard {
             }
         });
         typeCombo.setValue(GameType.CHESS);
-        typeCombo.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
+        typeCombo.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         TextField nameField = new TextField("New game");
-        nameField.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
+        nameField.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         VBox box = new VBox(8, new Label("Game type:"), typeCombo, new Label("Name:"), nameField);
         box.setPadding(new Insets(10));
 
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.setTitle("Add game");
         alert.setHeaderText("Create a new game instance in this building");
+        java.net.URL darkCss = LocalAdminDashboard.class.getResource("/styles/dark-theme.css");
+        if (darkCss != null) {
+            alert.getDialogPane().getStylesheets().add(darkCss.toExternalForm());
+        }
         alert.getDialogPane().setContent(box);
         java.util.Optional<ButtonType> choice = alert.showAndWait();
         if (choice.isEmpty() || choice.get() != ButtonType.OK) {
@@ -346,7 +350,7 @@ public class LocalAdminDashboard {
     private void ensureBuildingSelectorIfPlatformAdmin() {
         if (buildingSelectorInstalled) return;
         if (!HttpClientHelper.hasRole(Role.PLATFORM_ADMIN.name())) return;
-        buildingSelector.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
+        buildingSelector.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         buildingSelector.setOnAction(e -> switchBuilding(buildingSelector.getValue()));
         Label bLabel = new Label("Building:");
         bLabel.setStyle("-fx-text-fill: #ccc;");

@@ -46,7 +46,7 @@ public class RoulettePanel implements GamePanel {
         // Bet controls
         playerCombo = new ComboBox<>();
         playerCombo.setPromptText("Select player");
-        playerCombo.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
+        playerCombo.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
         playerCombo.setDisable(true);
 
         numberSpinner = new Spinner<>(0, 36, 7);

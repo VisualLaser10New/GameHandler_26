@@ -88,6 +88,10 @@ public class MainView extends Application {
         initializeViews();
 
         Scene scene = new Scene(root, 1100, 720);
+        java.net.URL darkCss = MainView.class.getResource("/styles/dark-theme.css");
+        if (darkCss != null) {
+            scene.getStylesheets().add(darkCss.toExternalForm());
+        }
         stage.setScene(scene);
         stage.setOnCloseRequest(e -> shutdown());
         stage.show();

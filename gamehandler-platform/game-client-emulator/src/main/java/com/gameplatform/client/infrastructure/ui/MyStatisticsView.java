@@ -70,7 +70,7 @@ public class MyStatisticsView {
             }
         });
         gameTypeFilter.setValue(null);
-        gameTypeFilter.setStyle("-fx-background-color: #333; -fx-text-fill: #eee;");
+        gameTypeFilter.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;");
 
         Button refreshBtn = new Button("Refresh");
         refreshBtn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 6 16;");
