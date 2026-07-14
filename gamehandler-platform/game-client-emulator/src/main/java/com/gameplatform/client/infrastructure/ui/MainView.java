@@ -333,6 +333,7 @@ public class MainView extends Application {
     private void doLogout() {
         try {
             HttpClientHelper.clearSession();
+            ApiClient.instance().setBaseUrl(ApiClient.DEFAULT_BASE_URL);
             statusBar.updateStatus("Logout completed");
             navigateTo(NavbarController.VIEW_LOGIN);
         } catch (Exception e) {

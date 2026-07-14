@@ -48,9 +48,22 @@ public class ApiClient {
     /** Default base URL — overridable via {@code LOCAL_SERVER_URL} env var. */
     public static final String DEFAULT_BASE_URL = "https://localhost:8181";
 
+    /**
+     * Feature 2 — fixed dev mapping {@code buildingId → https://localhost:<port>}.
+     * The docker-compose dev topology exposes every Local Server on a stable
+     * localhost port, so the PLATFORM_ADMIN building selector can switch the
+     * ApiClient base URL without resolving service DNS names (which won't
+     * resolve on the dev host).
+     */
+    public static final java.util.Map<String, String> BUILDING_URLS = java.util.Map.of(
+            "building-1", "https://localhost:8181",
+            "building-2", "https://localhost:8182",
+            "building-3", "https://localhost:8183"
+    );
+
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
 
-    private final String baseUrl;
+    private volatile String baseUrl;
     private final HttpClient httpClient;
     private final ObjectMapper mapper;
 
@@ -68,6 +81,28 @@ public class ApiClient {
         this.baseUrl = baseUrl == null || baseUrl.isBlank() ? DEFAULT_BASE_URL : baseUrl;
         this.httpClient = HttpClientHelper.getHttpClient(this.baseUrl);
         this.mapper = ObjectMappers.SHARED;
+    }
+
+    /**
+     * Feature 2 — dynamically retargets the singleton to a different Local
+     * Server base URL (used by the PLATFORM_ADMIN building selector). The
+     * underlying {@link HttpClient} is reused: every Local Server shares the
+     * same TLS certificate (issued by the Local CA, SAN includes
+     * {@code localhost}) so the original truststore validates all of them.
+     * Only the host/port of subsequent requests changes.
+     *
+     * @param baseUrl the new base URL (e.g. {@code https://localhost:8182});
+     *                a blank/null value is ignored
+     */
+    public void setBaseUrl(String baseUrl) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return;
+        }
+        this.baseUrl = baseUrl;
+    }
+
+    public String getBaseUrl() {
+        return baseUrl;
     }
 
     // ───────────────────────────── GET ─────────────────────────────
@@ -111,6 +146,10 @@ public class ApiClient {
 
     public <T> CompletableFuture<T> put(String path, Object body, Class<T> responseType) {
         return sendAsync(buildPUT(path, body), responseType, null);
+    }
+
+    public <T> CompletableFuture<T> patch(String path, Object body, Class<T> responseType) {
+        return sendAsync(buildRequest(path, "PATCH", serialize(body)), responseType, null);
     }
 
     // ───────────────────────────── DELETE ──────────────────────────

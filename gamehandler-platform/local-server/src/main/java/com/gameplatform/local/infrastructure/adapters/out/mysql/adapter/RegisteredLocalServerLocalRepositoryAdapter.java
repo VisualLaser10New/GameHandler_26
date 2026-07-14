@@ -64,4 +64,18 @@ public class RegisteredLocalServerLocalRepositoryAdapter implements RegisteredLo
         }
         jpaRepository.deleteById(buildingId);
     }
+
+    @Override
+    @Transactional
+    public Optional<RegisteredLocalServerLocal> setActive(String buildingId, boolean active) {
+        if (buildingId == null || buildingId.isBlank()) {
+            return Optional.empty();
+        }
+        return jpaRepository.findById(buildingId).map(entity -> {
+            entity.setActive(active);
+            entity.setUpdatedAt(java.time.Instant.now());
+            RegisteredLocalServerLocalJpaEntity saved = jpaRepository.save(entity);
+            return mapper.toDomain(saved);
+        });
+    }
 }

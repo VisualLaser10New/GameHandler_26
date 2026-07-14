@@ -19,4 +19,11 @@ public interface RegisteredLocalServerLocalRepository {
     List<RegisteredLocalServerLocal> findAll();
 
     void deleteById(String buildingId);
+
+    /**
+     * Feature 3 — flips the {@code active} flag of the projection row keyed by
+     * {@code buildingId}. Returns the updated row, or {@link Optional#empty()}
+     * when no such building exists locally.
+     */
+    Optional<RegisteredLocalServerLocal> setActive(String buildingId, boolean active);
 }

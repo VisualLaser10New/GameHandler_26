@@ -170,6 +170,29 @@ public class PlatformAdminDashboard {
         TableColumns.addColumn(serversTable, "lastSeenAt",   s -> s.lastSeenAt() == null ? "—" : s.lastSeenAt().toString());
         TableColumns.addColumn(serversTable, "active",       s -> String.valueOf(s.active()));
         TableColumns.addColumn(serversTable, "pendingReplica", s -> String.valueOf(s.pendingReplicationCount()));
+
+        TableColumn<ServerHealthDto, Void> toggleCol = new TableColumn<>("Action");
+        toggleCol.setCellFactory(col -> new TableCell<>() {
+            private final Button btn = new Button("Toggle active");
+            {
+                btn.setStyle("-fx-background-color: #f39c12; -fx-text-fill: white; -fx-padding: 4 10;");
+                btn.setOnAction(e -> {
+                    ServerHealthDto row = getTableRow() == null ? null : getTableRow().getItem();
+                    if (row == null) return;
+                    toggleServerActive(row);
+                });
+            }
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    setGraphic(null);
+                } else {
+                    setGraphic(btn);
+                }
+            }
+        });
+        serversTable.getColumns().add(toggleCol);
         serversTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         statusLabel.setStyle("-fx-text-fill: #aaa; -fx-font-size: 11;");
@@ -241,6 +264,21 @@ public class PlatformAdminDashboard {
                     loading.hide();
                     statusLabel.setText("Assignment PENDING (reqId=" + reqId(req) + ") → polling Admin Requests");
                     if (onNavigateToRequests != null) onNavigateToRequests.run();
+                }))
+                .exceptionally(this::error);
+    }
+
+    private void toggleServerActive(ServerHealthDto server) {
+        if (server == null) return;
+        boolean newActive = !server.active();
+        loading.show();
+        statusLabel.setText("Toggling " + server.buildingId() + " active=" + newActive + " ...");
+        ApiClient.instance().patch("/api/admin/servers/" + server.buildingId() + "/active",
+                Map.of("active", newActive), ServerHealthDto.class)
+                .thenAccept(s -> Platform.runLater(() -> {
+                    loading.hide();
+                    statusLabel.setText("Server " + server.buildingId() + " active=" + newActive);
+                    refreshAll();
                 }))
                 .exceptionally(this::error);
     }
