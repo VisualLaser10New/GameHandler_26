@@ -910,10 +910,14 @@
 - [x] `EventTypeContractTest` esteso con 8 literal `*_REQUESTED` Local-emitted (15 totale); TODO S3-A rimosso.
 - [x] `ReplicationEventTypeContractTest` (NUOVO) — 10 literal Central-emitted drained → 8 producer Central (gap S1 §16.7 A5 chiuso).
 
-
-Verifiche da effettuare:
+## 9.1 Verifiche da effettuare:
 - [x] tutte le funzionalità delle gui di ogni singolo tipo ri ruolo utente funzionino, per testare creare dei test per ogni singola funzionalità
 - [x] gli utenti possono eseguire solo le operazioni limitate al loro role, non possono fare altro. verificare che il local server effettui verifiche rigorose per ogni singola operazione effettuabile via post o get o push o delete ( se ci sono)
 - [x] tutte le enum e tutti i loro values, come i ruoli degli utenti non siano mai hardcoded o stringhe nel codice, e sempre richiamate come enum
 - [x] tutta la gui sia in inglese
 - [x] l'intera pipeline dei tornei funzioni a livello stretto con gui: verificare che gli admin possono creare tornei e i giocatori, iscriversi, partecipare, giocare senza bugs. La verifica deve essere fatta quasi a livello gui.
+
+### 9.2 Passi finali
+- [ ] test dei tornei
+- [ ] scrivere 4 documenti in /documenti/. (non quelli in strutture, perché sono già aggiornati), basarsi su guida_documenti_up.md
+- [ ] presentazione power point seguendo il suo modello
