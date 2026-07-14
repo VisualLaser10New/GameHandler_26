@@ -233,14 +233,30 @@ public class LocalAdminDashboard {
             statusLabel.setText("gameType and name are required");
             return;
         }
+        statusLabel.setText("Creating game " + gameType + " '" + name + "'...");
         loading.show();
         Map<String, Object> body = Map.of("gameType", gameType, "name", name);
         ApiClient.instance().post("/api/admin/local/games", body, GameStateDto.class)
-                .thenAccept(g -> Platform.runLater(() -> { statusLabel.setText("Game created"); refreshAll(); }))
+                .thenAccept(g -> Platform.runLater(() -> {
+                    loading.hide();
+                    Alert done = new Alert(Alert.AlertType.INFORMATION,
+                            "Game created successfully" + (g == null ? "" : ": " + g.name() + " (" + g.gameId() + ")"));
+                    done.setHeaderText("Add game");
+                    done.show();
+                    refreshAll();
+                }))
                 .exceptionally(ex -> {
-                    System.err.println("DEBUG ADD GAME: POST failed: " + ex);
-                    ex.printStackTrace();
-                    return error(ex);
+                    Platform.runLater(() -> {
+                        loading.hide();
+                        Throwable t = ex;
+                        while (t != null && t.getCause() != null) t = t.getCause();
+                        String msg = t == null ? "(unknown)" : (t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage());
+                        Alert err = new Alert(Alert.AlertType.ERROR, "Failed to create game: " + msg);
+                        err.setHeaderText("Add game");
+                        err.show();
+                        refreshAll();
+                    });
+                    return null;
                 });
     }
 
@@ -248,8 +264,26 @@ public class LocalAdminDashboard {
         if (game == null) return;
         loading.show();
         ApiClient.instance().delete("/api/admin/local/games/" + game.gameId())
-                .thenAccept(v -> Platform.runLater(() -> { statusLabel.setText("Game removed"); refreshAll(); }))
-                .exceptionally(this::error);
+                .thenAccept(v -> Platform.runLater(() -> {
+                    loading.hide();
+                    Alert done = new Alert(Alert.AlertType.INFORMATION, "Game removed: " + game.name());
+                    done.setHeaderText("Remove game");
+                    done.show();
+                    refreshAll();
+                }))
+                .exceptionally(ex -> {
+                    Platform.runLater(() -> {
+                        loading.hide();
+                        Throwable t = ex;
+                        while (t != null && t.getCause() != null) t = t.getCause();
+                        String msg = t == null ? "(unknown)" : (t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage());
+                        Alert err = new Alert(Alert.AlertType.ERROR, "Failed to remove game: " + msg);
+                        err.setHeaderText("Remove game");
+                        err.show();
+                        refreshAll();
+                    });
+                    return null;
+                });
     }
 
     private void toggleGameStatus(GameStateDto game) {
@@ -259,8 +293,27 @@ public class LocalAdminDashboard {
         loading.show();
         Map<String, Object> body = Map.of("status", newStatus);
         ApiClient.instance().put("/api/admin/local/games/" + game.gameId(), body, GameStateDto.class)
-                .thenAccept(g -> Platform.runLater(() -> { statusLabel.setText("Game set to " + newStatus); refreshAll(); }))
-                .exceptionally(this::error);
+                .thenAccept(g -> Platform.runLater(() -> {
+                    loading.hide();
+                    Alert done = new Alert(Alert.AlertType.INFORMATION,
+                            "Game '" + game.name() + "' set to " + newStatus);
+                    done.setHeaderText("Toggle game status");
+                    done.show();
+                    refreshAll();
+                }))
+                .exceptionally(ex -> {
+                    Platform.runLater(() -> {
+                        loading.hide();
+                        Throwable t = ex;
+                        while (t != null && t.getCause() != null) t = t.getCause();
+                        String msg = t == null ? "(unknown)" : (t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage());
+                        Alert err = new Alert(Alert.AlertType.ERROR, "Failed to toggle status: " + msg);
+                        err.setHeaderText("Toggle game status");
+                        err.show();
+                        refreshAll();
+                    });
+                    return null;
+                });
     }
 
     private void switchBuilding(String buildingId) {

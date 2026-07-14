@@ -226,6 +226,52 @@ class AdminLocalControllerTest {
     }
 
     @Test
+    void createGame_returns201_forSlotMachine_afterSeedFix() throws Exception {
+        // Regression: SLOT_MACHINE non era presente in game_definitions_local
+        // (DATABASE_INIT_ADDBUG — il seed centrale NON emette outbox
+        // GAME_DEFINITION_UPSERTED, quindi la replica non raggiungeva il local).
+        // existsByGameType(SLOT_MACHINE) ritornava false -> POST /games 400 ->
+        // la GUI "Add game" non creava nessun nuovo gioco. Il seed locale negli
+        // init.sql locali (mysql-local/init*.sql) ora popola la tabella: questo
+        // test PROVA che, con existsByGameType(SLOT_MACHINE)=true, la POST 201.
+        when(authorizationManager.canManageBuilding(any())).thenReturn(true);
+        when(gameDefinitionLocalRepository.existsByGameType(GameType.SLOT_MACHINE)).thenReturn(true);
+        Game slot = new Game(new GameId("g-slot"), GameType.SLOT_MACHINE, "Slot 1",
+                new BuildingId(BUILDING_ID), GameMachineStatus.AVAILABLE);
+        when(manageGameCatalogUseCase.createGame(GameType.SLOT_MACHINE, "Slot 1", new BuildingId(BUILDING_ID)))
+                .thenReturn(slot);
+        when(gameDefinitionLocalRepository.findByGameType(GameType.SLOT_MACHINE))
+                .thenReturn(Optional.empty());
+
+        mvc.perform(post("/api/admin/local/games")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"gameType\":\"SLOT_MACHINE\",\"name\":\"Slot 1\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.gameId").value("g-slot"))
+                .andExpect(jsonPath("$.gameType").value("SLOT_MACHINE"));
+
+        verify(manageGameCatalogUseCase).createGame(GameType.SLOT_MACHINE, "Slot 1", new BuildingId(BUILDING_ID));
+    }
+
+    @Test
+    void createGame_returns201_forChess_confirmsAvailableGameDefinitionsLocal() throws Exception {
+        // Conferma: CHESS era gia replicato localmente prima del fix e continua a
+        // funzionare (controllo che il seed locale non rompe il path gia verde).
+        when(authorizationManager.canManageBuilding(any())).thenReturn(true);
+        when(gameDefinitionLocalRepository.existsByGameType(GameType.CHESS)).thenReturn(true);
+        when(manageGameCatalogUseCase.createGame(GameType.CHESS, "Chess Table 2", new BuildingId(BUILDING_ID)))
+                .thenReturn(sampleGame());
+        when(gameDefinitionLocalRepository.findByGameType(GameType.CHESS))
+                .thenReturn(Optional.empty());
+
+        mvc.perform(post("/api/admin/local/games")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"gameType\":\"CHESS\",\"name\":\"Chess Table 2\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.gameType").value("CHESS"));
+    }
+
+    @Test
     void updateGame_returns200_whenAuthorized() throws Exception {
         when(authorizationManager.canManageBuilding(any())).thenReturn(true);
         Game updated = new Game(new GameId("g1"), GameType.CHESS, "Chess Table Renamed",

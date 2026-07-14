@@ -168,6 +168,21 @@ CREATE TABLE IF NOT EXISTS game_definitions_local (
     PRIMARY KEY (game_type)
 ) ENGINE=InnoDB;
 
+-- Seed game definitions locale (mirror del seed centrale in mysql-central/init.sql):
+-- i seed centrali NON emettono outbox GAME_DEFINITION_UPSERTED, quindi senza
+-- questo seed il LOCAL_ADMIN non potrebbe creare istanze dei game types non
+-- ancora replicati (es. SLOT_MACHINE) -> POST /api/admin/local/games 400.
+-- ON DUPLICATE KEY UPDATE garantisce idempotenza su DB gia popolati via replica.
+INSERT INTO game_definitions_local (game_type, name, min_players, max_players, team_allowed, registration_rules, updated_at) VALUES
+    ('CHESS',        'Scacchi',        2, 2,  FALSE, NULL, NOW()),
+    ('FOOSBALL',     'Calciobalilla',  2, 4,  TRUE,  NULL, NOW()),
+    ('DARTS',        'Freccette',      1, 4,  TRUE,  NULL, NOW()),
+    ('MONOPOLY',     'Monopoli',       2, 6,  TRUE,  NULL, NOW()),
+    ('RISK',         'Rischio',        2, 6,  TRUE,  NULL, NOW()),
+    ('SLOT_MACHINE', 'Slot Machine',   1, 1,  FALSE, NULL, NOW()),
+    ('ROULETTE',     'Roulette',       1, 20, TRUE,  NULL, NOW())
+ON DUPLICATE KEY UPDATE name=VALUES(name), min_players=VALUES(min_players), max_players=VALUES(max_players), team_allowed=VALUES(team_allowed), updated_at=NOW();
+
 -- =============== FASE 6 — Replica tournament matches (read-only) ===============
 -- Replica read-only dei match del torneo destinati a questo building, replicati
 -- dal Central via outbox TOURNAMENT_MATCH_SCHEDULED. Usata da
