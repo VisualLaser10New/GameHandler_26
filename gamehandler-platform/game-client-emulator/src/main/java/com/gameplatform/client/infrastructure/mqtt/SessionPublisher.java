@@ -172,6 +172,18 @@ public class SessionPublisher {
         }
     }
 
+    public void publishLobbyLeave(String gameId, String sessionId, String userId) {
+        try {
+            String topic = "building/" + buildingId + "/game/" + gameId + "/session/lobby/leave";
+            com.gameplatform.shared.mqtt.payload.LobbyLeavePayload payload = new com.gameplatform.shared.mqtt.payload.LobbyLeavePayload(sessionId, userId);
+            byte[] bytes = MqttPayloadSerializer.serialize(payload);
+            log.info("Publishing lobby leave to topic {}: {}", topic, payload);
+            adapter.publish(topic, bytes, MqttQos.SESSION, false);
+        } catch (MqttException e) {
+            log.error("Failed to publish lobby leave", e);
+        }
+    }
+
     /**
      * Publishes a turn-change event so that all emulators participating
      * in a turn-based multiplayer game stay in sync on whose turn it is.

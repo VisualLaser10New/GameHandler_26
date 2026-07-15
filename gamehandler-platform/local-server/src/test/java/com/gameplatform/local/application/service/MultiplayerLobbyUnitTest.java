@@ -249,7 +249,8 @@ class MultiplayerLobbyUnitTest {
                 gameSessionRepository,
                 gameRepository,
                 publishGameStatePort,
-                clockOneMin
+                clockOneMin,
+                2L
         );
         expirationService1.expireLobbies();
 
@@ -266,7 +267,8 @@ class MultiplayerLobbyUnitTest {
                 gameSessionRepository,
                 gameRepository,
                 publishGameStatePort,
-                clockThreeMin
+                clockThreeMin,
+                2L
         );
         expirationService3.expireLobbies();
 

@@ -32,6 +32,11 @@ app:
   outbox-purge-interval-ms: ${OUTBOX_PURGE_INTERVAL_MS:86400000}
   outbox:
     batch-size: ${OUTBOX_BATCH_SIZE:50}
+  lobby:
+    # How long a lobby (WAITING GameSession) may stay open before the
+    # LobbyExpirationService aborts it and releases the game machine back
+    # to AVAILABLE. Default 2 minutes.
+    expiration-minutes: ${LOBBY_EXPIRATION_MINUTES:2}
 
 ssl:
   trust-store: ${SSL_TRUSTSTORE_PATH:classpath:central-truststore.p12}

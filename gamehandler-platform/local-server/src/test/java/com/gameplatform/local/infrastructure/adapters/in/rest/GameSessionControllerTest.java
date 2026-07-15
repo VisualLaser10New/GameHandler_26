@@ -8,7 +8,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.application.service.GameSessionService;
 import com.gameplatform.local.domain.model.GameSession;
+import com.gameplatform.local.domain.model.User;
 import com.gameplatform.local.domain.ports.in.*;
+import com.gameplatform.local.domain.ports.out.UserRepository;
 import com.gameplatform.shared.domain.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,7 @@ class GameSessionControllerTest {
     @Mock private StartLobbyUseCase startLobbyUseCase;
     @Mock private CancelLobbyUseCase cancelLobbyUseCase;
     @Mock private GetActiveLobbyUseCase getActiveLobbyUseCase;
+    @Mock private UserRepository userRepository;
     private MockMvc mvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -46,7 +49,7 @@ class GameSessionControllerTest {
                 com.gameplatform.local.infrastructure.config.JacksonConfig.GameResultMixIn.class);
 
         mvc = MockMvcBuilders.standaloneSetup(
-                new GameSessionController(startUseCase, gameSessionService, endUseCase, pauseUseCase, resumeUseCase, createLobbyUseCase, joinLobbyUseCase, startLobbyUseCase, cancelLobbyUseCase, getActiveLobbyUseCase, testMapper))
+                new GameSessionController(startUseCase, gameSessionService, endUseCase, pauseUseCase, resumeUseCase, createLobbyUseCase, joinLobbyUseCase, startLobbyUseCase, cancelLobbyUseCase, getActiveLobbyUseCase, testMapper, userRepository))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(testMapper))
                 .build();
@@ -139,5 +142,46 @@ class GameSessionControllerTest {
 
         mvc.perform(get("/api/sessions/lobby/active").param("gameId", "g1"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getActiveLobbyResolvesParticipantUuidsToDisplayUsernames() throws Exception {
+        // The server stores lobby participants as canonical UUIDs (see
+        // GameSessionServiceParticipantResolutionTest). The lobby-active
+        // REST endpoint must resolve them back to display usernames so the
+        // joining Game Client Emulator shows names (not UUIDs) in the lobby
+        // roster and in the in-match scoreboard.
+        UserId creatorUuid = new UserId("11111111-1111-4111-8111-111111111111");
+        User creator = new User(creatorUuid, "alice", "hash",
+                List.of("PLAYER"), Instant.parse("2026-01-01T00:00:00Z"));
+        GameSession lobby = new GameSession(new GameSessionId("s1"), new GameId("g1"),
+                GameType.CHESS, new BuildingId("b1"), GameStatus.WAITING,
+                Instant.parse("2026-02-01T10:00:00Z"), null, null, null, null, null,
+                List.of(creatorUuid));
+        when(getActiveLobbyUseCase.getActiveLobby(eq(new GameId("g1")))).thenReturn(java.util.Optional.of(lobby));
+        when(userRepository.findById(creatorUuid)).thenReturn(java.util.Optional.of(creator));
+
+        mvc.perform(get("/api/sessions/lobby/active").param("gameId", "g1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.participants[0]").value("alice"))
+                .andExpect(jsonPath("$.id").value("s1"));
+    }
+
+    @Test
+    void getActiveLobbyKeepsParticipantWhenUserNotReplicated() throws Exception {
+        // An id absent from replicated_users (e.g. a transient username
+        // that was not yet canonicalised, or a team-id) is kept verbatim —
+        // idempotent resolution that never degrades the historical behaviour.
+        UserId rawId = new UserId("unreplicated-name");
+        GameSession lobby = new GameSession(new GameSessionId("s1"), new GameId("g1"),
+                GameType.CHESS, new BuildingId("b1"), GameStatus.WAITING,
+                Instant.parse("2026-02-01T10:00:00Z"), null, null, null, null, null,
+                List.of(rawId));
+        when(getActiveLobbyUseCase.getActiveLobby(eq(new GameId("g1")))).thenReturn(java.util.Optional.of(lobby));
+        when(userRepository.findById(rawId)).thenReturn(java.util.Optional.empty());
+
+        mvc.perform(get("/api/sessions/lobby/active").param("gameId", "g1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.participants[0]").value("unreplicated-name"));
     }
 }

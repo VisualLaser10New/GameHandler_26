@@ -20,6 +20,7 @@ import javafx.scene.Parent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -128,6 +129,35 @@ public class GamePlayView {
     /** Returns the root JavaFX node for this view. */
     public Parent getView() {
         return root;
+    }
+
+    /**
+     * Wraps the given content in a {@link ScrollPane} bounded to the
+     * centre's available width/height (fit-to-width + fit-to-height),
+     * never showing horizontal scrollbars and showing a vertical bar
+     * only when the content is taller than the viewport.
+     * <p>
+     * Because the returned ScrollPane is placed in {@code root}'s centre
+     * (a BorderPane), {@code root}'s bottom — the {@code buttonBar} — is
+     * always laid out below it and stays fully visible/clickable no
+     * matter how tall the wrapped game panel turns out to be. This fixes
+     * the overflow that pushed the button bar out of the window.
+     */
+    private ScrollPane wrapScroll(Parent content) {
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setFitToHeight(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.setPannable(false);
+        scroll.setStyle("-fx-background: #1a1a1a; -fx-background-color: #1a1a1a;");
+        return scroll;
+    }
+
+    /** Sets the centre region of this view, wrapping the content in a
+     *  bounded ScrollPane so the bottom buttonBar is never pushed off-screen. */
+    private void setCenterContent(Parent content) {
+        root.setCenter(wrapScroll(content));
     }
 
     /** Injects the orchestration service. Must be called before showing this view. */
@@ -385,7 +415,7 @@ public class GamePlayView {
 
         unsubscribeTurnTopic();
         timer.stopTimer();
-        root.setCenter(controlsArea);
+        setCenterContent(controlsArea);
         activePanel = null;
         scoreboard.updateScores(null);
         setGameEndedState();
@@ -417,7 +447,7 @@ public class GamePlayView {
 
         unsubscribeTurnTopic();
         timer.stopTimer();
-        root.setCenter(controlsArea);
+        setCenterContent(controlsArea);
         activePanel = null;
         scoreboard.updateScores(null);
         setGameEndedState();
@@ -453,7 +483,7 @@ public class GamePlayView {
         activePanel.onGameStarted(participants);
         activePanel.setScoreConsumer(scoreboard::updateScores);
         wireTurnSynchronization();
-        root.setCenter(activePanel.getView());
+        setCenterContent(activePanel.getView());
 
         java.util.Map<String, Integer> scores = new java.util.LinkedHashMap<>();
         participants.forEach(p -> scores.put(p, 0));
@@ -585,7 +615,7 @@ public class GamePlayView {
         controlsArea.getChildren().add(new Label("Select a game and press Start") {{
             setStyle("-fx-text-fill: #666; -fx-font-size: 14;");
         }});
-        root.setCenter(controlsArea);
+        setCenterContent(controlsArea);
     }
 
     private void setGameRunningState() {
@@ -618,7 +648,7 @@ public class GamePlayView {
         controlsArea.getChildren().add(new Label("Match ended") {{
             setStyle("-fx-text-fill: #27ae60; -fx-font-size: 16; -fx-font-weight: bold;");
         }});
-        root.setCenter(controlsArea);
+        setCenterContent(controlsArea);
     }
 
     private void setStatus(String msg) {

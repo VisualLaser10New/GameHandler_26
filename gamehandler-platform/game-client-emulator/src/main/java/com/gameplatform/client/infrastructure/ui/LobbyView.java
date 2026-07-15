@@ -10,6 +10,7 @@ import com.gameplatform.shared.dto.GameStateDto;
 import com.gameplatform.shared.mqtt.MqttPayloadSerializer;
 import com.gameplatform.shared.mqtt.payload.GameStatePayload;
 import com.gameplatform.shared.mqtt.payload.LobbyJoinPayload;
+import com.gameplatform.shared.mqtt.payload.LobbyLeavePayload;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
@@ -397,6 +398,24 @@ public class LobbyView {
             } catch (Exception ignored) {
                 // Best-effort cancel; navigate back regardless
             }
+        } else if (hasJoinedLobby()) {
+            // JOINER back-button: publish lobby/leave so the server removes
+            // this user from the participants list and the remaining players
+            // see them disappear from the list (root-cause fix for the
+            // "joiner goes back but stays in the lobby" bug).
+            // Guard: only publish leave if this client actually joined the
+            // lobby (its username is in the local participants list, which
+            // is populated by the server's join echo). A joiner who only
+            // opened the lobby view but never pressed "Join" must NOT
+            // publish leave (they are not on the server's participants
+            // list, so a leave would be a spurious no-op event).
+            try {
+                if (lobbySessionId != null && sessionPublisher != null) {
+                    sessionPublisher.publishLobbyLeave(currentGame.gameId(), lobbySessionId, serverIdentityForLobby());
+                }
+            } catch (Exception ignored) {
+                // Best-effort leave; navigate back regardless
+            }
         }
         if (onCancel != null) onCancel.run();
     }
@@ -451,6 +470,24 @@ public class LobbyView {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Determines whether this client may publish a {@code lobby/leave}
+     * event on back navigation.  Returns true only when this is a JOINER
+     * (creatorMode==false) that has actually joined the lobby: the local
+     * participants list (populated by the server's {@code lobby/join}
+     * echo via the {@code case "join"} handler, and by
+     * {@code fetchActiveLobbySession} on joiner-mode entry) contains
+     * this client's username.  This guard is essential to avoid
+     * publishing spurious {@code lobby/leave} events when a joiner only
+     * opened the lobby view but never pressed "Join" (they are not on
+     * the server's participants list, so a leave would be wasted noise).
+     */
+    private boolean hasJoinedLobby() {
+        return !creatorMode
+                && lobbySessionId != null
+                && participants.contains(currentUsername);
     }
 
     // ─────────────────────────── MQTT ─────────────────────────────────────────
@@ -642,6 +679,27 @@ public class LobbyView {
                         }
                     }
                 }
+                case "leave" -> {
+                    // A participant (joiner) left the lobby.  Remove them from
+                    // the local participants list so the UI updates in real
+                    // time.  Idempotent: if the leaving user was already
+                    // removed (QoS-1 redelivery) the remove is a no-op.
+                    LobbyLeavePayload leavePayload = MqttPayloadSerializer.deserialize(payload, LobbyLeavePayload.class);
+                    String left = leavePayload.userId();
+                    if (left != null) {
+                        participants.remove(left);
+                        refreshParticipantsBox();
+                        int minPlayers = currentGame != null ? currentGame.minPlayers() : 1;
+                        if (participants.size() >= minPlayers) {
+                            startButton.setDisable(false);
+                            infoLabel.setText(left + " left the lobby. (" + participants.size() + " players)");
+                        } else {
+                            startButton.setDisable(true);
+                            infoLabel.setText(left + " left the lobby. (" + participants.size()
+                                    + "/" + minPlayers + " minimum players)");
+                        }
+                    }
+                }
                 case "start" -> {
                     // Server confirmed start — fire the callback to navigate
                     // to GamePlayView.  Clean up subscriptions FIRST so we
@@ -654,11 +712,18 @@ public class LobbyView {
                     }
                 }
                 case "cancel" -> {
-                    // Lobby was cancelled (e.g. creator left). Inform the user.
-                    infoLabel.setText("The lobby has been closed. Go back to selection.");
-                    actionButton.setDisable(true);
-                    startButton.setDisable(true);
+                    // The creator (or the lobby expiration timer) closed the
+                    // lobby.  Auto-navigate every joiner back to game
+                    // selection so the lobby is closed for ALL users, not
+                    // just locally informed — root-cause fix for the
+                    // "creator backs out but joiners stay stuck on the
+                    // lobby screen" bug.  cleanupSubscriptions() first to
+                    // avoid stale MQTT callbacks after navigation.
+                    cleanupSubscriptions();
                     lobbySessionId = null;
+                    if (onCancel != null) {
+                        onCancel.run();
+                    }
                 }
             }
         } catch (Exception e) {

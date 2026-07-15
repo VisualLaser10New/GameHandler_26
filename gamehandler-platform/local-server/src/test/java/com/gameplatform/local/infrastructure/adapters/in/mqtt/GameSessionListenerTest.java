@@ -7,12 +7,14 @@ import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.domain.ports.in.EndGameSessionUseCase;
+import com.gameplatform.local.domain.ports.in.LeaveLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.PauseGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.ResumeGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.StartGameSessionUseCase;
 import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.mqtt.MqttPayloadSerializer;
+import com.gameplatform.shared.mqtt.payload.LobbyLeavePayload;
 import com.gameplatform.shared.mqtt.payload.SessionEndPayload;
 import com.gameplatform.shared.mqtt.payload.SessionPausePayload;
 import com.gameplatform.shared.mqtt.payload.SessionResumePayload;
@@ -32,6 +34,7 @@ class GameSessionListenerTest {
     @Mock private EndGameSessionUseCase endGameSessionUseCase;
     @Mock private PauseGameSessionUseCase pauseGameSessionUseCase;
     @Mock private ResumeGameSessionUseCase resumeGameSessionUseCase;
+    @Mock private LeaveLobbyUseCase leaveLobbyUseCase;
     @Mock private ObjectMapper objectMapper;
     @InjectMocks private GameSessionListener listener;
 
@@ -39,6 +42,7 @@ class GameSessionListenerTest {
     private String endTopic() { return "building/b1/game/g1/session/end"; }
     private String pauseTopic() { return "building/b1/game/g1/session/pause"; }
     private String resumeTopic() { return "building/b1/game/g1/session/resume"; }
+    private String lobbyLeaveTopic() { return "building/b1/game/g1/session/lobby/leave"; }
 
     @Test
     void startDeserializesAndCallsStartWithNullReservation() {
@@ -120,5 +124,15 @@ class GameSessionListenerTest {
         listener.handleSessionMessage(topic, payload);
         verifyNoInteractions(startGameSessionUseCase, endGameSessionUseCase,
                 pauseGameSessionUseCase, resumeGameSessionUseCase);
+    }
+
+    @Test
+    void handleSessionMessage_lobbyLeave_invokesLeaveLobbyUseCase() {
+        byte[] payload = MqttPayloadSerializer.serialize(
+                new LobbyLeavePayload("s1", "user-2"));
+        listener.handleSessionMessage(lobbyLeaveTopic(), payload);
+        verify(leaveLobbyUseCase).leaveLobby(
+                eq(new com.gameplatform.shared.domain.model.GameSessionId("s1")),
+                eq(new UserId("user-2")));
     }
 }

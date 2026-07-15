@@ -277,6 +277,32 @@ public class GameSession {
         this.participants = List.copyOf(newList);
     }
 
+    /**
+     * Removes a participant from the lobby.  Mirrors {@link #addParticipant}
+     * but for the lobby "leave" flow.  Idempotent: returning silently when the
+     * user is not in the list mirrors the no-op-on-duplicate behaviour of
+     * {@code addParticipant} and makes the operation resilient to MQTT
+     * QoS-1 redelivery (a re-delivered {@code lobby/leave} for an already
+     * removed participant is a no-op rather than an error).  The lobby
+     * creator (participants.get(0)) can never be removed through this
+     * method — they must use {@link #cancelLobby(Instant)} instead, otherwise
+     * the lobby would be orphaned without a creator.
+     */
+    public void removeParticipant(UserId userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("UserId cannot be null");
+        }
+        if (!this.participants.isEmpty() && this.participants.get(0).equals(userId)) {
+            throw new IllegalStateException("The lobby creator cannot leave; cancel the lobby instead");
+        }
+        if (!this.participants.contains(userId)) {
+            return; // Idempotent no-op for QoS-1 redelivery / non-participant
+        }
+        List<UserId> newList = new ArrayList<>(this.participants);
+        newList.remove(userId);
+        this.participants = List.copyOf(newList);
+    }
+
     public void setStatus(GameStatus status) {
         this.status = status;
     }

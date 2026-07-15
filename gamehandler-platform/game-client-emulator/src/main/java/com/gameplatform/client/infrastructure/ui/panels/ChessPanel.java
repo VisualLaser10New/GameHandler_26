@@ -63,6 +63,27 @@ public class ChessPanel implements GamePanel {
         boardGrid.setAlignment(Pos.CENTER);
         boardGrid.setHgap(0);
         boardGrid.setVgap(0);
+        // Make the 8x8 board scale with the available space: each column
+        // and row gets 12.5% of the grid's width/height. This replaces the
+        // fixed 52px per cell that caused the board to overflow the centre
+        // and push the bottom buttonBar off-screen.
+        for (int i = 0; i < 8; i++) {
+            ColumnConstraints cc = new ColumnConstraints();
+            cc.setPercentWidth(12.5);
+            cc.setHgrow(Priority.ALWAYS);
+            cc.setFillWidth(true);
+            boardGrid.getColumnConstraints().add(cc);
+
+            RowConstraints rc = new RowConstraints();
+            rc.setPercentHeight(12.5);
+            rc.setVgrow(Priority.ALWAYS);
+            rc.setFillHeight(true);
+            boardGrid.getRowConstraints().add(rc);
+        }
+        boardGrid.setMinSize(0, 0);
+        // Let the board absorb any leftover vertical space inside the
+        // VBox so the squares grow instead of leaving empty space below.
+        VBox.setVgrow(boardGrid, Priority.ALWAYS);
         initBoard();
 
         // Capture controls
@@ -178,7 +199,8 @@ public class ChessPanel implements GamePanel {
                 final int c = col;
                 boolean lightSquare = (row + col) % 2 == 0;
                 Label cell = new Label(board[row][col]);
-                cell.setMinSize(52, 52);
+                cell.setMinSize(0, 0);
+                cell.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
                 cell.setAlignment(Pos.CENTER);
                 cell.setStyle(
                     "-fx-font-size: 28; " +
@@ -228,7 +250,7 @@ public class ChessPanel implements GamePanel {
                             if (!target.isEmpty()) {
                                 capturedPieces.add(target);
                                 captured = target;
-                                capturedLabel.setText("Mangiati: " + String.join(", ", capturedPieces));
+                                capturedLabel.setText("Captured: " + String.join(", ", capturedPieces));
                             }
                             // Move the piece
                             board[r][c] = piece;

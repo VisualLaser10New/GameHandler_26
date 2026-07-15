@@ -6,6 +6,7 @@ import com.gameplatform.local.domain.ports.in.CancelLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.CreateLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.EndGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.JoinLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.LeaveLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.PauseGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.ResumeGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.StartGameSessionUseCase;
@@ -44,10 +45,11 @@ class MqttConfigEchoDeduplicationTest {
         JoinLobbyUseCase joinLobbyUseCase = mock(JoinLobbyUseCase.class);
         StartLobbyUseCase startLobbyUseCase = mock(StartLobbyUseCase.class);
         CancelLobbyUseCase cancelLobbyUseCase = mock(CancelLobbyUseCase.class);
+        LeaveLobbyUseCase leaveLobbyUseCase = mock(LeaveLobbyUseCase.class);
         com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
         GameSessionListener gameSessionListener = new GameSessionListener(
                 startGameSessionUseCase, endGameSessionUseCase, pauseGameSessionUseCase, resumeGameSessionUseCase,
-                createLobbyUseCase, joinLobbyUseCase, startLobbyUseCase, cancelLobbyUseCase, objectMapper);
+                createLobbyUseCase, joinLobbyUseCase, startLobbyUseCase, cancelLobbyUseCase, leaveLobbyUseCase, objectMapper);
 
         GameStateListener gameStateListener = mock(GameStateListener.class);
         HeartbeatListener heartbeatListener = mock(HeartbeatListener.class);
@@ -95,10 +97,11 @@ class MqttConfigEchoDeduplicationTest {
         JoinLobbyUseCase joinLobbyUseCase = mock(JoinLobbyUseCase.class);
         StartLobbyUseCase startLobbyUseCase = mock(StartLobbyUseCase.class);
         CancelLobbyUseCase cancelLobbyUseCase = mock(CancelLobbyUseCase.class);
+        LeaveLobbyUseCase leaveLobbyUseCase = mock(LeaveLobbyUseCase.class);
         com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
         GameSessionListener gameSessionListener = new GameSessionListener(
                 startGameSessionUseCase, endGameSessionUseCase, pauseGameSessionUseCase, resumeGameSessionUseCase,
-                createLobbyUseCase, joinLobbyUseCase, startLobbyUseCase, cancelLobbyUseCase, objectMapper);
+                createLobbyUseCase, joinLobbyUseCase, startLobbyUseCase, cancelLobbyUseCase, leaveLobbyUseCase, objectMapper);
 
         GameStateListener gameStateListener = mock(GameStateListener.class);
         HeartbeatListener heartbeatListener = mock(HeartbeatListener.class);

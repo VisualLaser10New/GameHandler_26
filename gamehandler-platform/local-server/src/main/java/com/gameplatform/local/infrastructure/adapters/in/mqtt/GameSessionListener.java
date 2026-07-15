@@ -19,8 +19,10 @@ import com.gameplatform.local.domain.ports.in.CreateLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.JoinLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.StartLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.CancelLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.LeaveLobbyUseCase;
 import com.gameplatform.shared.mqtt.payload.LobbyCreatePayload;
 import com.gameplatform.shared.mqtt.payload.LobbyJoinPayload;
+import com.gameplatform.shared.mqtt.payload.LobbyLeavePayload;
 import com.gameplatform.shared.mqtt.payload.LobbyStartPayload;
 import com.gameplatform.shared.mqtt.payload.LobbyCancelPayload;
 import com.gameplatform.shared.domain.model.GameType;
@@ -39,6 +41,7 @@ public class GameSessionListener {
     private final JoinLobbyUseCase joinLobbyUseCase;
     private final StartLobbyUseCase startLobbyUseCase;
     private final CancelLobbyUseCase cancelLobbyUseCase;
+    private final LeaveLobbyUseCase leaveLobbyUseCase;
     private final ObjectMapper objectMapper;
 
     public GameSessionListener(
@@ -50,6 +53,7 @@ public class GameSessionListener {
             JoinLobbyUseCase joinLobbyUseCase,
             StartLobbyUseCase startLobbyUseCase,
             CancelLobbyUseCase cancelLobbyUseCase,
+            LeaveLobbyUseCase leaveLobbyUseCase,
             ObjectMapper objectMapper) {
         this.startGameSessionUseCase = startGameSessionUseCase;
         this.endGameSessionUseCase = endGameSessionUseCase;
@@ -59,6 +63,7 @@ public class GameSessionListener {
         this.joinLobbyUseCase = joinLobbyUseCase;
         this.startLobbyUseCase = startLobbyUseCase;
         this.cancelLobbyUseCase = cancelLobbyUseCase;
+        this.leaveLobbyUseCase = leaveLobbyUseCase;
         this.objectMapper = objectMapper;
     }
 
@@ -80,6 +85,10 @@ public class GameSessionListener {
                             case "join" -> {
                                 LobbyJoinPayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyJoinPayload.class);
                                 joinLobbyUseCase.joinLobby(new GameSessionId(payloadDto.sessionId()), new UserId(payloadDto.userId()));
+                            }
+                            case "leave" -> {
+                                LobbyLeavePayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyLeavePayload.class);
+                                leaveLobbyUseCase.leaveLobby(new GameSessionId(payloadDto.sessionId()), new UserId(payloadDto.userId()));
                             }
                             case "start" -> {
                                 LobbyStartPayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyStartPayload.class);

@@ -3,6 +3,7 @@ package com.gameplatform.local.infrastructure.adapters.in.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.application.service.GameSessionService;
 import com.gameplatform.local.domain.model.GameSession;
+import com.gameplatform.local.domain.model.User;
 import com.gameplatform.local.domain.ports.in.EndGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.PauseGameSessionUseCase;
 import com.gameplatform.local.domain.ports.in.ResumeGameSessionUseCase;
@@ -26,6 +27,7 @@ import com.gameplatform.local.domain.ports.in.JoinLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.StartLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.CancelLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.GetActiveLobbyUseCase;
+import com.gameplatform.local.domain.ports.out.UserRepository;
 import com.gameplatform.shared.dto.JoinSessionRequestDto;
 import java.util.List;
 
@@ -45,6 +47,7 @@ public class GameSessionController {
     private final CancelLobbyUseCase cancelLobbyUseCase;
     private final GetActiveLobbyUseCase getActiveLobbyUseCase;
     private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
 
     public GameSessionController(
             StartGameSessionUseCase startGameSessionUseCase,
@@ -57,7 +60,8 @@ public class GameSessionController {
             StartLobbyUseCase startLobbyUseCase,
             CancelLobbyUseCase cancelLobbyUseCase,
             GetActiveLobbyUseCase getActiveLobbyUseCase,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            UserRepository userRepository) {
         this.startGameSessionUseCase = startGameSessionUseCase;
         this.gameSessionService = gameSessionService;
         this.endGameSessionUseCase = endGameSessionUseCase;
@@ -69,6 +73,7 @@ public class GameSessionController {
         this.cancelLobbyUseCase = cancelLobbyUseCase;
         this.getActiveLobbyUseCase = getActiveLobbyUseCase;
         this.objectMapper = objectMapper;
+        this.userRepository = userRepository;
     }
 
     @PostMapping("/start")
@@ -145,9 +150,47 @@ public class GameSessionController {
     @GetMapping("/lobby/active")
     public ResponseEntity<GameSessionDto> getActiveLobby(@RequestParam("gameId") String gameId) {
         return getActiveLobbyUseCase.getActiveLobby(new GameId(gameId))
-                .map(this::toDto)
+                .map(this::toLobbyDisplayDto)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Maps the active lobby session to a {@link GameSessionDto} whose
+     * {@code participants} list carries the players' display usernames
+     * instead of the canonical user ids / UUIDs stored on the session.
+     * Used only by {@code GET /api/sessions/lobby/active}: the joining
+     * Game Client Emulator renders the lobby roster from this list (and
+     * later feeds the same strings to the in-match scoreboard and per-game
+     * panels), so the lobby and scoreboard show names — mirroring the
+     * client-side {@code displayName()} resolution of the tournament flow.
+     * The canonical ids stay stored on the {@link GameSession} and flow
+     * to the outbox / Central player read-models unchanged (see
+     * {@code GameSessionService#resolveCanonicalUserId}). Values not
+     * replicated locally (team-ids, transient usernames, ids missing
+     * from {@code replicated_users}) are kept verbatim, so the resolution
+     * is idempotent and never degrades the historical behaviour.
+     */
+    private GameSessionDto toLobbyDisplayDto(GameSession session) {
+        GameSessionDto dto = getGameSessionDto(session, objectMapper);
+        List<String> displayNames = resolveParticipantDisplayNames(session.getParticipants());
+        return new GameSessionDto(
+                dto.id(), dto.gameId(), dto.gameType(), dto.status(),
+                dto.startedAt(), dto.endedAt(), dto.durationSeconds(),
+                dto.winnerId(), dto.winCondition(), dto.resultData(),
+                displayNames);
+    }
+
+    private List<String> resolveParticipantDisplayNames(List<UserId> participants) {
+        if (participants == null || participants.isEmpty()) {
+            return List.of();
+        }
+        return participants.stream()
+                .filter(p -> p != null && p.value() != null && !p.value().isBlank())
+                .map(p -> userRepository.findById(p)
+                        .map(User::getUsername)
+                        .orElse(p.value()))
+                .toList();
     }
 
     /**

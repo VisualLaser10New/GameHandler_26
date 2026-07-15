@@ -259,12 +259,14 @@ public class MainView extends Application {
                 root.setCenter(loginView.getView());
                 // Hide the navbar until login+roles resolve (PIANO §7.C)
                 navbar.getNode().setVisible(false);
+                navbar.getNode().setManaged(false);
                 showNavbar = false;
             }
             case NavbarController.VIEW_SIGNUP -> {
                 signupView.reset();
                 root.setCenter(signupView.getView());
                 navbar.getNode().setVisible(false);
+                navbar.getNode().setManaged(false);
                 showNavbar = false;
             }
             case NavbarController.VIEW_GAME_SELECTION -> {
@@ -274,11 +276,13 @@ public class MainView extends Application {
             case NavbarController.VIEW_LOBBY -> {
                 root.setCenter(lobbyView.getView());
                 navbar.getNode().setVisible(false);
+                navbar.getNode().setManaged(false);
                 showNavbar = false;
             }
             case NavbarController.VIEW_GAME_PLAY -> {
                 root.setCenter(gamePlayView.getView());
                 navbar.getNode().setVisible(false);
+                navbar.getNode().setManaged(false);
                 showNavbar = false;
             }
             case NavbarController.VIEW_STATISTICS -> {
@@ -322,6 +326,7 @@ public class MainView extends Application {
         }
         if (showNavbar) {
             navbar.getNode().setVisible(true);
+            navbar.getNode().setManaged(true);
             navbar.rebuild();
         }
         root.requestLayout();

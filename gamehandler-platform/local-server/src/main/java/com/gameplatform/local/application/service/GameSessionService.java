@@ -27,6 +27,7 @@ import com.gameplatform.local.domain.ports.in.CreateLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.JoinLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.StartLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.CancelLobbyUseCase;
+import com.gameplatform.local.domain.ports.in.LeaveLobbyUseCase;
 import com.gameplatform.local.domain.ports.in.GetActiveLobbyUseCase;
 import com.gameplatform.shared.domain.game.GameFactory;
 import com.gameplatform.shared.domain.game.GameLifecycle;
@@ -58,7 +59,7 @@ import java.util.UUID;
 
 @Service
 @Transactional
-public class GameSessionService implements StartGameSessionUseCase, EndGameSessionUseCase, PauseGameSessionUseCase, ResumeGameSessionUseCase, CreateLobbyUseCase, JoinLobbyUseCase, StartLobbyUseCase, CancelLobbyUseCase, GetActiveLobbyUseCase {
+public class GameSessionService implements StartGameSessionUseCase, EndGameSessionUseCase, PauseGameSessionUseCase, ResumeGameSessionUseCase, CreateLobbyUseCase, JoinLobbyUseCase, StartLobbyUseCase, CancelLobbyUseCase, LeaveLobbyUseCase, GetActiveLobbyUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(GameSessionService.class);
 
@@ -739,6 +740,38 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
     }
 
     @Override
+    public GameSession leaveLobby(GameSessionId sessionId, UserId userId) {
+        GameSession session = gameSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Game session not found: " + sessionId.value()));
+
+        if (session.getStatus() != GameStatus.WAITING) {
+            throw new IllegalStateException("Session is not in WAITING (lobby) state");
+        }
+
+        // Canonicalise the leaving identity (username → UUID) before removing
+        // so the removal matches the UUID stored by addParticipant/joinLobby.
+        // removeParticipant is idempotent on non-participants and rejects the
+        // creator (participants.get(0)) with IllegalStateException.
+        session.removeParticipant(resolveCanonicalUserId(userId));
+        GameSession savedSession = gameSessionRepository.save(session);
+
+        // Publish to MQTT — emit the RAW (non-canonicalised) userId so the
+        // other clients can remove the username from their local participants
+        // list (which stores usernames, mirroring the join echo contract).
+        deferMqttPublish(() -> {
+            String topic = lobbyTopic(session, "leave");
+            com.gameplatform.shared.mqtt.payload.LobbyLeavePayload payload =
+                    new com.gameplatform.shared.mqtt.payload.LobbyLeavePayload(
+                            savedSession.getId().value(),
+                            userId.value()
+                    );
+            publishGameStatePort.publishSessionEvent(topic, payload);
+        });
+
+        return savedSession;
+    }
+
+    @Override
     public GameSession startLobby(GameSessionId sessionId) {
         GameSession session = gameSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Game session not found: " + sessionId.value()));
@@ -789,8 +822,16 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         // restrict cancellation based on participant count: if the creator
         // leaves, the lobby should be torn down regardless of whether other
         // players had joined (they may have already disconnected).
+        // Canonicalise the requester identity (username → UUID) before
+        // comparing with the stored creator (participants.get(0)) —
+        // createLobby stores the canonical UUID, but the client sends the
+        // raw username for multiplayer games (see LobbyView.serverIdentityForLobby).
+        // Without this canonicalisation the cancel silently fails with
+        // "Only the lobby creator can cancel" because UUID != username,
+        // leaving the lobby stuck in WAITING / the game machine stuck in LOBBY.
+        UserId canonicalUserId = resolveCanonicalUserId(userId);
         if (session.getParticipants().isEmpty()
-                || !session.getParticipants().get(0).equals(userId)) {
+                || !session.getParticipants().get(0).equals(canonicalUserId)) {
             throw new IllegalStateException("Only the lobby creator can cancel the lobby");
         }
 
