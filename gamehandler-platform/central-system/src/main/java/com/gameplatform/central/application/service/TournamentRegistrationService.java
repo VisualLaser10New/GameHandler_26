@@ -215,6 +215,7 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
         if (p.isPresent() && !p.get().isTeam()) {
             tournamentParticipantRepository.deleteByTournamentAndParticipantId(tournamentId, currentUserId.value());
             writeParticipantsOutbox(tournamentId, null);
+            emitSummaryAfterRegistration(tournamentId, null);
             return;
         }
         Optional<Team> team = tournamentTeamRepository.findByTournamentAndMember(tournamentId, currentUserId);
@@ -223,6 +224,7 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
             tournamentTeamRepository.deleteById(team.get().getTeamId());
             writeParticipantsOutbox(tournamentId, null);
             writeTeamMembersOutbox(tournamentId);
+            emitSummaryAfterRegistration(tournamentId, null);
         }
     }
 

@@ -28,14 +28,17 @@ public class MqttPublisherAdapter implements PublishGameStatePort, PublishAlertP
     private final IMqttClient mqttClient;
     private final ObjectMapper objectMapper;
     private final String buildingId;
+    private final OutboundMessageDeduplicationCache deduplicationCache;
 
     public MqttPublisherAdapter(
             @org.springframework.context.annotation.Lazy IMqttClient mqttClient,
             ObjectMapper objectMapper,
-            @Value("${app.building-id}") String buildingId) {
+            @Value("${app.building-id}") String buildingId,
+            OutboundMessageDeduplicationCache deduplicationCache) {
         this.mqttClient = mqttClient;
         this.objectMapper = objectMapper;
         this.buildingId = buildingId;
+        this.deduplicationCache = deduplicationCache;
     }
 
     @Override
@@ -50,6 +53,7 @@ public class MqttPublisherAdapter implements PublishGameStatePort, PublishAlertP
             message.setRetained(true);
             
             log.info("Publishing game state to topic {}: {}", topic, payload);
+            deduplicationCache.recordOutbound(topic, bytes);
             mqttClient.publish(topic, message);
         } catch (Exception e) {
             log.error("Failed to publish game state", e);
@@ -101,6 +105,7 @@ public class MqttPublisherAdapter implements PublishGameStatePort, PublishAlertP
             message.setRetained(false);
 
             log.info("Publishing session event to topic {}", topic);
+            deduplicationCache.recordOutbound(topic, bytes);
             mqttClient.publish(topic, message);
         } catch (Exception e) {
             log.error("Failed to publish session event on topic {}", topic, e);
@@ -118,6 +123,7 @@ public class MqttPublisherAdapter implements PublishGameStatePort, PublishAlertP
             message.setRetained(false);
 
             log.info("Publishing alert to topic {}: {}", topic, payload);
+            deduplicationCache.recordOutbound(topic, bytes);
             mqttClient.publish(topic, message);
         } catch (Exception e) {
             log.error("Failed to publish alert", e);

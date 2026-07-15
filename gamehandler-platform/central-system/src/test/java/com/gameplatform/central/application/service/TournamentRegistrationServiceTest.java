@@ -228,6 +228,58 @@ class TournamentRegistrationServiceTest {
         verify(tournamentParticipantRepository).deleteByTournamentAndParticipantId(tid, "u-1");
     }
 
+    @Test
+    void unregister_individual_emitsSummaryUpsert_bugParticipantCount() {
+        TournamentId tid = new TournamentId("t-1");
+        UserId current = new UserId("u-1");
+        Tournament open = new Tournament(
+                tid, "Test Cup", GameType.CHESS, false, 1,
+                TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.OPEN_REGISTRATION,
+                FIXED_NOW, null, new UserId("admin"), FIXED_NOW);
+        TournamentParticipant individual = new TournamentParticipant(tid, "u-1", false, "alice", FIXED_NOW);
+        when(tournamentRepository.findById(tid)).thenReturn(Optional.of(open));
+        when(tournamentParticipantRepository.findByTournamentAndParticipantId(tid, "u-1"))
+                .thenReturn(Optional.of(individual));
+
+        EmitTournamentSummaryUseCase emit = mock(EmitTournamentSummaryUseCase.class);
+        TournamentRegistrationService full = new TournamentRegistrationService(
+                tournamentRepository, tournamentTeamRepository,
+                tournamentParticipantRepository, userRepository, clock,
+                null, null, emit);
+
+        full.unregister(tid, current);
+
+        verify(emit).emitSummary(tid, null);
+    }
+
+    @Test
+    void unregister_team_emitsSummaryUpsert_bugParticipantCount() {
+        TournamentId tid = new TournamentId("t-1");
+        UserId current = new UserId("u-1");
+        Tournament open = new Tournament(
+                tid, "Team Cup", GameType.FOOSBALL, true, 2,
+                TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.OPEN_REGISTRATION,
+                FIXED_NOW, null, new UserId("admin"), FIXED_NOW);
+        com.gameplatform.central.domain.model.Team team = new com.gameplatform.central.domain.model.Team(
+                new com.gameplatform.shared.domain.model.TeamId("team-1"), tid, "MyTeam",
+                List.of(new UserId("u-1"), new UserId("u-2")), FIXED_NOW);
+        when(tournamentRepository.findById(tid)).thenReturn(Optional.of(open));
+        when(tournamentParticipantRepository.findByTournamentAndParticipantId(tid, "u-1"))
+                .thenReturn(Optional.empty());
+        when(tournamentTeamRepository.findByTournamentAndMember(tid, current))
+                .thenReturn(Optional.of(team));
+
+        EmitTournamentSummaryUseCase emit = mock(EmitTournamentSummaryUseCase.class);
+        TournamentRegistrationService full = new TournamentRegistrationService(
+                tournamentRepository, tournamentTeamRepository,
+                tournamentParticipantRepository, userRepository, clock,
+                null, null, emit);
+
+        full.unregister(tid, current);
+
+        verify(emit).emitSummary(tid, null);
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // listParticipants()
     // ──────────────────────────────────────────────────────────────────────────

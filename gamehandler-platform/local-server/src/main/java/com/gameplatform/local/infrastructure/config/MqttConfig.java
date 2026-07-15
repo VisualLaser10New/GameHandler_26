@@ -3,6 +3,7 @@ package com.gameplatform.local.infrastructure.config;
 import com.gameplatform.local.infrastructure.adapters.in.mqtt.GameSessionListener;
 import com.gameplatform.local.infrastructure.adapters.in.mqtt.GameStateListener;
 import com.gameplatform.local.infrastructure.adapters.in.mqtt.HeartbeatListener;
+import com.gameplatform.local.infrastructure.adapters.out.mqtt.OutboundMessageDeduplicationCache;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
@@ -55,9 +56,12 @@ public class MqttConfig {
     private String mqttKeyStorePassword;
 
     private final ResourceLoader resourceLoader;
+    private final OutboundMessageDeduplicationCache deduplicationCache;
 
-    public MqttConfig(ResourceLoader resourceLoader) {
+    public MqttConfig(ResourceLoader resourceLoader,
+                      OutboundMessageDeduplicationCache deduplicationCache) {
         this.resourceLoader = resourceLoader;
+        this.deduplicationCache = deduplicationCache;
     }
 
     @Bean(destroyMethod = "disconnect")
@@ -124,32 +128,48 @@ public class MqttConfig {
                 log.info("MQTT connection complete (reconnect: {}, serverURI: {})", reconnect, serverURI);
                 try {
                     client.subscribe(gameStateTopic, 1, (topic, msg) -> {
+                        byte[] payload = msg.getPayload();
+                        if (deduplicationCache.isRecentOutbound(topic, payload)) {
+                            return;
+                        }
                         try {
-                            gameStateListener.handleStateMessage(topic, msg.getPayload());
+                            gameStateListener.handleStateMessage(topic, payload);
                         } catch (Exception e) {
                             log.error("Error in GameStateListener on topic {}: {}", topic, e.getMessage(), e);
                         }
                     });
 
                     client.subscribe(sessionTopic, 1, (topic, msg) -> {
+                        byte[] payload = msg.getPayload();
+                        if (deduplicationCache.isRecentOutbound(topic, payload)) {
+                            return;
+                        }
                         try {
-                            gameSessionListener.handleSessionMessage(topic, msg.getPayload());
+                            gameSessionListener.handleSessionMessage(topic, payload);
                         } catch (Exception e) {
                             log.error("Error in GameSessionListener on topic {}: {}", topic, e.getMessage(), e);
                         }
                     });
 
                     client.subscribe(heartbeatTopic, 0, (topic, msg) -> {
+                        byte[] payload = msg.getPayload();
+                        if (deduplicationCache.isRecentOutbound(topic, payload)) {
+                            return;
+                        }
                         try {
-                            heartbeatListener.handleHeartbeat(topic, msg.getPayload());
+                            heartbeatListener.handleHeartbeat(topic, payload);
                         } catch (Exception e) {
                             log.error("Error in HeartbeatListener on topic {}: {}", topic, e.getMessage(), e);
                         }
                     });
 
                     client.subscribe(heartbeatAckTopic, 0, (topic, msg) -> {
+                        byte[] payload = msg.getPayload();
+                        if (deduplicationCache.isRecentOutbound(topic, payload)) {
+                            return;
+                        }
                         try {
-                            heartbeatListener.handleHeartbeat(topic, msg.getPayload());
+                            heartbeatListener.handleHeartbeat(topic, payload);
                         } catch (Exception e) {
                             log.error("Error in HeartbeatListener on topic {}: {}", topic, e.getMessage(), e);
                         }

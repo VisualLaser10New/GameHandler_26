@@ -28,10 +28,11 @@ class MqttPublisherAdapterTest {
     @Mock private IMqttClient mqttClient;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     private MqttPublisherAdapter adapter;
+    private final OutboundMessageDeduplicationCache deduplicationCache = new OutboundMessageDeduplicationCache();
 
     @BeforeEach
     void setup() {
-        adapter = new MqttPublisherAdapter(mqttClient, objectMapper, "b1");
+        adapter = new MqttPublisherAdapter(mqttClient, objectMapper, "b1", deduplicationCache);
     }
 
     @Test

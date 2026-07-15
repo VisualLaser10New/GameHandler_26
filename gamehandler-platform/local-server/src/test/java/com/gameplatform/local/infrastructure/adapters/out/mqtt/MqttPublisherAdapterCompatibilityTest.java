@@ -53,6 +53,7 @@ class MqttPublisherAdapterCompatibilityTest {
 
     private MqttPublisherAdapter adapter;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final OutboundMessageDeduplicationCache deduplicationCache = new OutboundMessageDeduplicationCache();
 
     @BeforeEach
     void setUp() {
@@ -64,7 +65,7 @@ class MqttPublisherAdapterCompatibilityTest {
                 com.gameplatform.local.infrastructure.config.JacksonConfig.RouletteResultMixIn.class);
         objectMapper.addMixIn(com.gameplatform.shared.domain.result.SlotResult.class,
                 com.gameplatform.local.infrastructure.config.JacksonConfig.SlotResultMixIn.class);
-        adapter = new MqttPublisherAdapter(mqttClient, objectMapper, "bld-1");
+        adapter = new MqttPublisherAdapter(mqttClient, objectMapper, "bld-1", deduplicationCache);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

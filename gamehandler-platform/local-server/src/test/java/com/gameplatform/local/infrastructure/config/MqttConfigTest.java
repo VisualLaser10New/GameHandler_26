@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 import com.gameplatform.local.infrastructure.adapters.in.mqtt.GameSessionListener;
 import com.gameplatform.local.infrastructure.adapters.in.mqtt.GameStateListener;
 import com.gameplatform.local.infrastructure.adapters.in.mqtt.HeartbeatListener;
+import com.gameplatform.local.infrastructure.adapters.out.mqtt.OutboundMessageDeduplicationCache;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
 import org.eclipse.paho.client.mqttv3.MqttClient;
@@ -25,7 +26,8 @@ class MqttConfigTest {
         GameSessionListener gameSessionListener = mock(GameSessionListener.class);
         HeartbeatListener heartbeatListener = mock(HeartbeatListener.class);
 
-        MqttConfig mqttConfig = new MqttConfig(mock(org.springframework.core.io.ResourceLoader.class));
+        MqttConfig mqttConfig = new MqttConfig(mock(org.springframework.core.io.ResourceLoader.class),
+                new OutboundMessageDeduplicationCache());
 
         // Inject private properties using reflection
         setField(mqttConfig, "brokerUrl", "tcp://localhost:1883");
