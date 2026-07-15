@@ -1,6 +1,6 @@
 # Problemi noti
 
-### 🟡 POF-3: Outbox Unbounded Growth — Disk Exhaustion
+### POF-3: Outbox Unbounded Growth — Disk Exhaustion
 **Stato:** **RISOLTO (lato Local Server); ANCORA PRESENTE (lato Central System)**
 **Analisi:** 
 Né `architettura_classi.md` né `architettura proposta.md` implementano o documentano un meccanismo di pulizia (cleanup), TTL (Time-to-Live) o archiviazione per la tabella `outbox_events`.
@@ -17,7 +17,7 @@ Né `architettura_classi.md` né `architettura proposta.md` implementano o docum
 
 ---
 
-### 🟢 POF-5: Concurrent Game State Corruption — Race Condition MQTT/REST
+### POF-5: Concurrent Game State Corruption — Race Condition MQTT/REST
 **Stato:** **RISOLTO**
 **Analisi:** 
 Non c'è traccia di meccanismi di concorrenza per prevenire la race condition tra chiamate REST e messaggi MQTT sulla stessa macchina da gioco.
@@ -28,7 +28,7 @@ Non c'è traccia di meccanismi di concorrenza per prevenire la race condition tr
 **Cosa è stato fatto:**
 - Aggiunta di `@Version` (colonna `version BIGINT NOT NULL DEFAULT 0`) su `GameJpaEntity` e `ReservationJpaEntity`.
 - Gli adapter out (`GameRepositoryAdapter`, `ReservationRepositoryAdapter`) usano `saveAndFlush` e traducono `OptimisticLockingFailureException` nella nuova eccezione di dominio `com.gameplatform.local.domain.exception.ConcurrentStateException` (catturata e rigenerata dentro l'adapter stesso).
-- Lato REST: il `GlobalExceptionHandler` mappa `ConcurrentStateException` → **409 Conflict**.
+- Lato REST: il `GlobalExceptionHandler` mappa `ConcurrentStateException` -> **409 Conflict**.
 - Lato MQTT: `GameSessionListener` e `GameStateListener` catturano `ConcurrentStateException`, loggano e fanno ack (drop senza retry) per evitare loops bloccanti sul broker.
 
 **Rischio residuo:**
@@ -36,7 +36,7 @@ Non c'è traccia di meccanismi di concorrenza per prevenire la race condition tr
 
 ---
 
-### 🟢 POF-7: Sync Starvation — Outbox Ordering Deadlock
+### POF-7: Sync Starvation — Outbox Ordering Deadlock
 **Stato:** **RISOLTO**
 **Analisi:** 
 Il `SyncSchedulerService` (Sez. 7.2) legge gli eventi `PENDING` e riprova per 10 volte. Tuttavia:
@@ -45,8 +45,8 @@ Il `SyncSchedulerService` (Sez. 7.2) legge gli eventi `PENDING` e riprova per 10
 
 **Cosa è stato fatto:**
 - Riscritura del `SyncSchedulerService` come ibrido Option-C: lettura limitata via `outboxEventRepository.findPendingLimit(batchSize)` con `app.outbox.batch-size` (default 50) al posto dell'illimitato `findPending()`.
-- In caso di **successo** del trasporto del batch → `markAsSentBatch` atomico (preserva il contratto del `BugL05`).
-- In caso di **fallimento** del trasporto → retry per-event con isolamento del poison: per-event `markAsSent(id)` / `incrementRetry(id)`, `try/catch` per singolo evento e `continue`, così un evento poison non blocca il resto del batch.
+- In caso di **successo** del trasporto del batch -> `markAsSentBatch` atomico (preserva il contratto del `BugL05`).
+- In caso di **fallimento** del trasporto -> retry per-event con isolamento del poison: per-event `markAsSent(id)` / `incrementRetry(id)`, `try/catch` per singolo evento e `continue`, così un evento poison non blocca il resto del batch.
 - Dopo 10 retry l'evento va in `FAILED` e viene promosso in `outbox_dead_letter` dal servizio esistente `OutboxDlqPromotionService`.
 - Aggiunte le nuove port methods `findPendingLimit(int)` e `markAsFailed(String)`, e un indice composito `idx_outbox_status_created_at (status, created_at)` su `outbox_events`.
 - Nuovi test: `BugL07_SyncStarvationPoisonIsolationTest`; `SyncSchedulerServiceTest` + `BugL05` aggiornati al nuovo contratto.

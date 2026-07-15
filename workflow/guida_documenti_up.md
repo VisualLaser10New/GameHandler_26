@@ -57,9 +57,9 @@ Questo documento traduce la visione in specifiche dettagliate, funzionali e non,
   * Fornire una tabella dettagliata dei requisiti derivati dalla Visione, includendo: ID, Nome Requisito, Descrizione e Criterio di Accettazione (fondamentale per i test).
 * **4. Requisiti Non Funzionali**
   * Tabellare le specifiche di qualità divise per Categoria (Prestazioni, Sicurezza, Usabilità, Manutenibilità) descrivendo il vincolo da rispettare.
-* **5. Diagramma dei Casi d’Uso**
+* **5. Diagramma dei Casi d'Uso**
   * Elencare gli Attori, i Casi d'Uso principali (dentro il confine del sistema) e includere il Diagramma UML relativo.
-* **6. Descrizione dei Casi d’Uso**
+* **6. Descrizione dei Casi d'Uso**
   * Per ogni caso d'uso principale, fornire una scheda dettagliata comprendente: Sviluppatore assegnato, ID, Attori Primari, Precondizioni, Descrizione, Sequenza degli Eventi Principale (passo-passo), Postcondizioni ed Eccezioni.
 * **7. Matrice di Mappatura dei Requisiti**
   * Creare una tabella di tracciabilità che incrocia i Requisiti Funzionali (righe) con i Casi d'Uso (colonne) per dimostrare che tutti i requisiti sono coperti.

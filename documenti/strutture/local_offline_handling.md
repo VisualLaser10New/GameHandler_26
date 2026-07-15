@@ -9,8 +9,8 @@ This document presents a comprehensive analysis of the system's ability to handl
 - **Offline Independence:** Yes, the local server is fully capable of running independently and handling clients when disconnected from the central server. Core actions such as user signup, user login, reservation creation/cancellation, game session management, and startup recovery run against the local database and local MQTT broker.
 - **Synchronization Model (Outbox Pattern):** The system uses an **outbox pattern** on both the local server and central server. Actions performed offline generate pending events in an outbox database table.
 - **Bi-Directional Reconciliation:**
-    - **Local ➔ Central:** Syncs locally created users, completed game sessions, and reservation histories to the central system to update central repositories and aggregated statistics.
-    - **Central ➔ Local:** Replicates central user updates down to all registered local servers.
+    - **Local -> Central:** Syncs locally created users, completed game sessions, and reservation histories to the central system to update central repositories and aggregated statistics.
+    - **Central -> Local:** Replicates central user updates down to all registered local servers.
 - **Resilience and Robustness:** Both local and central schedulers are designed to prevent queue blocks ("batch poisoning") from malformed events or network failures.
 
 ---
@@ -77,7 +77,7 @@ sequenceDiagram
     LocalSync->>LocalDB: Mark events as SENT
 ```
 
-### A. Local ➔ Central Synchronization (Pushing Local Data)
+### A. Local -> Central Synchronization (Pushing Local Data)
 
 1. **Scheduled Polling:** [SyncSchedulerService](file:///c:/Users/VLT14/Documents/UNI/PISSIR/Progetto/gamehandler-platform/local-server/src/main/java/com/gameplatform/local/application/service/SyncSchedulerService.java) runs periodically (configured at a rate of 5 minutes).
 2. **Connectivity Check:** It calls `syncCentralSystemPort.isReachable()`. In [CentralSystemRestAdapter](file:///c:/Users/VLT14/Documents/UNI/PISSIR/Progetto/gamehandler-platform/local-server/src/main/java/com/gameplatform/local/infrastructure/adapters/out/rest/CentralSystemRestAdapter.java), this pings `/internal/sync/receive` via a lightweight GET request. If the HTTP layer responds (even with `405 Method Not Allowed`), the server is determined to be reachable.
@@ -95,7 +95,7 @@ sequenceDiagram
     - **`RESERVATION_CREATED` / `RESERVATION_CANCELLED`:** Increments/decrements reservation counts in `AggregatedStatistics`.
 4. **Heartbeat:** Upon processing completion, the central system updates the local server's `lastSeenAt` timestamp, serving as a heartbeat indicator.
 
-### C. Central ➔ Local Synchronization (Replicating Central Users)
+### C. Central -> Local Synchronization (Replicating Central Users)
 
 1. **Scheduler:** [UserReplicationSchedulerService](file:///c:/Users/VLT14/Documents/UNI/PISSIR/Progetto/gamehandler-platform/central-system/src/main/java/com/gameplatform/central/application/service/UserReplicationSchedulerService.java) runs periodically (using `fixedDelay = 300_000` to prevent overlapping runs).
 2. **Target Selection:** It retrieves active local servers from the database.

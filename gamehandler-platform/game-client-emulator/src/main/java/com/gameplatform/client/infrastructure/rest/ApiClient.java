@@ -1,5 +1,9 @@
 package com.gameplatform.client.infrastructure.rest;
 
+import com.gameplatform.client.domain.exception.AuthenticationException;
+import com.gameplatform.client.domain.exception.AuthorizationException;
+import com.gameplatform.client.domain.exception.HttpClientResponseException;
+import com.gameplatform.client.domain.exception.ServerUnavailableException;
 import com.gameplatform.client.infrastructure.security.HttpClientHelper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

@@ -846,3 +846,179 @@ winnerId + winCondition), `SyncEventProcessor.java:765-794`
 | `C2TournamentPlayReturnsToCentralTest` | `e2e-tests/.../localcentral/C2TournamentPlayReturnsToCentralTest.java:55` | Flow cross-modulo: `create -> open -> register 4 -> schedule` (Central) -> replica `TOURNAMENT_MATCH_SCHEDULED` -> play di un match sulla Local via `GameSessionService.start/end` -> drain `GAME_SESSION_COMPLETED`+`TOURNAMENT_MATCH_COMPLETED` -> `advanceWinner` crea round-2 parent; assert bracket avanzato (`C2TournamentPlayReturnsToCentralTest.java:58-80` e note file:riga `34-53`). |
 | `TournamentFlowEndToEndIT` | `central-system/.../TournamentFlowEndToEndIT.java:69` | Lifecycle bracket H2 4-player CHESS: schedule -> 2 round-1 SCHEDULED -> `completeMatch` di entrambi -> round-2 parent popolato + 3 outbox `TOURNAMENT_MATCH_SCHEDULED` -> complete finale -> torneo `COMPLETED` + standings ranks `1,2,3,4` (`TournamentFlowEndToEndIT.java:157-203`). Secondo test: abbandono match `ABANDONED` con walkover winner -> avanzamento e ranking `1,2,3,4` (`TournamentFlowEndToEndIT.java:205-240`). |
 | `TournamentFlowWithPlayerStatisticsIT` | `central-system/.../TournamentFlowWithPlayerStatisticsIT.java:69` | Stesso lifecycle FASE 6 + proiezione statistiche: per ogni match completato emette il `GAME_SESSION_COMPLETED` arricchito; assertion su `aggregated_statistics.total_sessions == 3`, `player_statistics` campione `matchesPlayed=2, matchesWon=2`, runner-up `matchesPlayed=2, matchesWon=1`, semi-finalisti `matchesPlayed=1, matchesWon=0`, una riga `player_match_facts` per (session, participant) (`TournamentFlowWithPlayerStatisticsIT.java:53-59`). |
+
+## 9. Limiti noti e scope delle modalità di torneo
+
+> La libreria dei giochi gestisce 7 `GameType` (`GameType.java:3-10`: `CHESS`, `FOOSBALL`,
+> `DARTS`, `MONOPOLY`, `RISK`, `SLOT_MACHINE`, `ROULETTE`), ognuno con capienza e
+> semantica profondamente diversa. Il sottosistema tornei attuale implementa una
+> **semantica di torneo basilare e uniforme**, non specializzata per gioco, e non
+> riesce a coprire tutte le dinamiche che si creerebbero con dispositivi veri.
+
+### 9.1 Limiti noti
+
+I seguenti limiti sono **intenzionalmente noti** e non sono considerati bug:
+
+#### a. Single-player per dispositivo cross-building non supportati
+Tornei di `SLOT_MACHINE` (max_players=1, `game_definitions` seed in
+`infrastructure/mysql-central/init.sql:133`), e in generale qualsiasi
+`GameType` con `max_players==1`, non possono ospitare un bracket
+`SINGLE_ELIMINATION` a 2 partecipanti per match (`TournamentBracketService.schedule`
+genera sempre `participantA` + `participantB` non nulli,
+`TournamentBracketService.java:161-201`). La dynamic reale che dovrebbe
+essere:
+
+> i partecipanti, anche in edifici diversi, giocano one-after-the-other
+> (o su dispositivi paralleli) e si confrontano i punteggi (score comparison),
+
+richiede un concetto di "match-torneo come serie di `GameSession`
+separate, una per partecipante, con accumulo e confronto finale" che il
+modello attuale NON possiede: ogni match emette un singolo
+`TOURNAMENT_MATCH_COMPLETED` con `winnerId` determinato dalla `GameSession`
+che lo chiude (`GameSessionService.java:538-554`,
+`SyncEventProcessor.java:447-491`). Pertanto un torneo "slot-machine
+cross-building" non è realisticamente disputabile: uno dei due partecipanti
+non disputa alcuna `GameSession` e risulta "perdente per default".
+
+Conseguentemente, il primo partecipante che preme `Start selected match` su
+un match `SLOT_MACHINE` chiude il match, l'altro PLAYER non vede alcuna
+sessione giocabile e il bracket avanza solo il vincitore "tecnico".
+
+#### b. Match `SINGLE_ELIMINATION` senza `matchMode` personalizzato per `GameType`
+Il bracket (`TournamentBracketService.java:113-215`) è agganciato 2-partecipanti
+(sia individuali `teamSize==1` sia team `teamSize>=2`), con:
+- 1 `GameSession` sola per match,
+- 1 `winnerId` determinato al `GameSessionService.end`,
+- 2 `participants` legati alla sessione (`GameSessionService.java:343-358`).
+
+Outbox/output di completamento: `TOURNAMENT_MATCH_COMPLETED` con
+`winner` singolo (`TournamentMatchResultDto`, `GameSessionService.java:538-554`);
+NON c'è accumulo di `score` separati per partecipante né notion di
+"multi `GameSession` per match".
+
+Questo è agnostico alle vere dinamiche:
+- 2-player same-device with full-info turns (e.g., `CHESS`): i due player devono
+  condividere lo stesso tavolo/scacchiera e sincronizzare i mosse via MQTT
+  interserver. Questo **è parzialmente realizzato attualmente** tra 2 client
+  della stessa building, ma senza `join` pathway, il 2° player riceve `409` se
+  il match è già `IN_PROGRESS` (`PlayerTournamentController.java:128-131`)
+  → il secondo PLAYER non vede la `GamePlay view`
+  (`TournamentsView.startSelectedMatch`).
+- Team-physical-multiplayer (`FOOSBALL` 1v1 o 2v2 su stesso tavolo): il
+  "vs" del bracket viene interpretato come "2 persone alle due sponde dello
+  stesso foosball" SOLO se i 2 sono nella stessa building. Negli altri casi
+  (partecipanti tra edifici diversi) la situazione non è semanticamente
+  chiara. Dinamiche desiderabili (ma non implementate) sarebbero:
+  - "single-player run + confronto score" (utenti esercitano su
+    building diversi, si confrontano a punteggio), oppure
+  - "2v2 tra edifici con due foosball paralleli", oppure
+  - tornei "tra edifici" in cui le modalità non sono addressate
+    (1v1 vs 2v2 vs score-run).
+
+#### c. Cross-building routing non specializzato
+L'`UserReplicationSchedulerService.replicateTournamentMatchEvent`
+(cerca `central-system/.../UserReplicationSchedulerService.java` ~`replicateTournamentMatchEvent`)
+replica il `TournamentMatchLocal` **a una sola building** del match
+(assegnazione round-robin). Un PLAYER registrato in un'altra building
+non riceve il match in `GET /api/players/tournaments/me/matches`
+(perché la query su `tournament_matches_local` viene fatta sulla Local del
+player, `PlayerTournamentController.java:67-114`,
+`TournamentMatchLocalJpaRepository.java:20-29`, e il match non è stato
+replicato lì). Conseguentemente **ampi cross-building multi-player match
+non sono giocabili come previsto**.
+
+#### d. `game_catalog` per-device non universalmente seedato
+I tornei `MONOPOLY`/`RISK`/`ROULETTE` non hanno `game_catalog` entries in
+alcuna building (`infrastructure/mysql-local/init-building-*.sql:125-129`
+contiene solo `CHESS`, `FOOSBALL`, `DARTS`, `SLOT_MACHINE`). Un match di
+tali `GameType` non trovano una `game.md` disponibile al momento dello
+start (`PlayerTournamentController.java` fallback "No AVAILABLE game
+machine"). Singolarmente `SLOT_MACHINE` ha game machine ma è impedito
+dal punto (a); `CHESS`, `FOOSBALL`, `DARTS` funzionano same-building.
+
+### 9.2 Cosa è effettivamente possibile (scope attuale)
+
+Nonostante i limiti di cui al §9.1, il sottosistema supporta un **sottoinsieme
+basic ma utile**:
+
+1. **Tornei `OPEN_REGISTRATION` + bracket `SINGLE_ELIMINATION`** per
+   `GameType` con `max_players >= 2` (`CHESS`, `FOOSBALL`, `DARTS`)
+   — step create→open→register→schedule→play→end (`gestione_tornei.md:486-781`).
+2. **Avanzamento round + standings**: `advanceWinner` genera il parent
+   round successivo (`TournamentBracketService.java:287-365`);
+   `recomputeAfterCompletion` aggiorna `wins/losses/points`
+   (`TournamentStandingsService.java:198-237`); infine `assignFinalRanks`
+   ordina per `points desc, wins desc, participantId asc`
+   (`TournamentStandingsService.java:279-299`).
+3. **Rank finale display** via `GET /api/tournaments/{id}/standings`
+   (`PlayerTournamentSummaryController.java:73-78`): il client JavaFX
+   nella pagina Tournaments mostra `playerName + W + L + PTS + rank`
+   (`TournamentsView.java`).
+4. **Statistiche per player** (`player_match_facts`, `player_statistics`)
+   e aggregate `aggregated_statistics` per `(buildingId, gameType, period)`
+   aggiornate ad ogni `GAME_SESSION_COMPLETED`
+   (`SyncEventProcessor.java:305-328, 777-794, 836-881`). Cover in
+   `TournamentFlowWithPlayerStatisticsIT.java:53-59`.
+5. **Same-building 2-player multiplayer turn-based "shared"` come `CHESS`
+   nel building dove il match è assegnato, con `GameSessionService.start`
+   5-arg bninni i 2 `participantId`, MQTT `session/start` published
+   afterCommit (`GameSessionService.java:384-398`); il "2° player JOIN"
+   dello stesso match non è presented via GUI per un limit sul endpoint
+   start (`§9.1 c` parziale).
+6. **Admin requests PENDING → COMPLETED**: il flusso `*_REQUESTED` via
+   outbox e la return-emit di `TournamentSummary` avvengono, con
+   il chiusura della `admin_requests_local` via `originatingRequestId`
+   (`TournamentSummarySyncService.java:104-120`).
+7. **Idempotenza su retry di consegna di outbox_events**: `processed_events`
+   filter nel Central side processor (`SyncEventProcessor.java:257-284`)
+   garantisce no-duplicate trattamento dell'evento originale.
+
+### 9.3 Cosa è stato analizzato e sarà oggetto di possibili aggiornamenti futuri
+
+In sede di proof-of-concept e testing UX sono state **analizzate** le
+seguenti estensioni (riassunte nel piano di fix non implementato,
+"Opzione 2"):
+
+- **R1 — Rifiuto alla creazione** di tornei di giochi single-player-per-device
+  (`SLOT_MACHINE` e qualsiasi `max_players==1`) in `TournamentService.create`
+  (`TournamentService.java:91-134`), con `InvalidTournamentException`.
+- **`matchMode` (`SHARED` vs `SCORE_COMPARISON`)**: nuova colonna
+  `tournament_matches.match_mode` etichettata a `schedule` in base al
+  `GameType` e alla distribuzione delle building dei due partecipanti.
+  - `SHARED` per `CHESS`, `MONOPOLY`, `RISK`, `ROULETTE`, e per
+    `FOOSBALL`/`DARTS` same-building;
+  - `SCORE_COMPARISON` per `FOOSBALL`/`DARTS` cross-building
+    (single-player run + confronto score).
+- **Bracket routing multi-building**: `replicateTournamentMatchEvent`
+  pusha il match a tutte le building dei due partecipanti identificati
+  (invece di una sola round-robin), con `building_id` su
+  `tournament_participants` per risolvere le appartenenze.
+- **`joinTournamentMatch` path**: nuovo endpoint
+  `POST /api/players/tournaments/matches/{matchId}/join` e metodo
+  `GameSessionService.joinTournamentMatch`, che ritorna la session
+  IN_PROGRESS esistente senza alterarla (per `SHARED` 2-player, sessione
+  condivisa su tavolo/scacchiera unico).
+- **`GAME_SESSION_BOUND` outbox + `game_sessions_remote` mirror**:
+  replica cross-building dello stato della sessione tra due Local Server
+  diverse dove i 2 PLAYER sono registrati.
+- **`TournamentMatchResultDto` + `participantId` + `score`**:
+  estensione dell'outbox `TOURNAMENT_MATCH_COMPLETED` per portare il
+  `score` separato per partecipante nel caso `SCORE_COMPARISON`.
+- **`SyncEventProcessor.handleTournamentMatchCompleted`**: accumulo in
+  nuova tabella `tournament_match_scores(matchId, participantId, score)`
+  e `advanceWinner(matchId, maxScore)` solo quando entrambi i
+  partecipanti hanno sottoposto lo score.
+- **Seed `game_catalog`** per `MONOPOLY`/`RISK`/`ROULETTE` in
+  `init-building-*.sql` per renderli giocabili come `SHARED` 2-player.
+- **`building_id` su `tournament_team_members`** per routing team-based
+  cross-building (member può essere in building diversi; il match viene
+  pushato all'unione delle building dei membri).
+
+Queste estensioni sono **state analizzate e disegnate** ma **non
+implementate** in favore della manutenzione di un codice essenziale adatto
+al proof-of-concept. L'architettura outbox/sync/MQTT del repository
+permetterebbe di implementarle in fasi senza stravolgere il
+backbone (vedi §3 Outbox, §7 Event types), come sviluppo futuro.
+Fino ad allora, i tornei rimangono «giocabili» nelle dinamiche basic di
+SINGLE_ELIMINATION descritte al §9.2 per giochi multi-player per device,
+e vengono considerati **fuori scope per giochi single-player-per-device**.

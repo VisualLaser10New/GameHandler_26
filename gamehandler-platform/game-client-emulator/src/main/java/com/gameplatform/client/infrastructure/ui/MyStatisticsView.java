@@ -1,7 +1,8 @@
 package com.gameplatform.client.infrastructure.ui;
 
+import com.gameplatform.client.domain.exception.AuthenticationException;
 import com.gameplatform.client.infrastructure.rest.ApiClient;
-import com.gameplatform.client.infrastructure.rest.ServerUnavailableException;
+import com.gameplatform.client.domain.exception.ServerUnavailableException;
 import com.gameplatform.client.infrastructure.ui.components.LoadingIndicator;
 import com.gameplatform.client.infrastructure.ui.components.StalenessBadge;
 import com.gameplatform.shared.domain.model.GameType;
@@ -143,7 +144,7 @@ public class MyStatisticsView {
         loading.hide();
         String cause = rootCause(ex);
         if (ex.getCause() instanceof ServerUnavailableException
-                || ex.getCause() instanceof com.gameplatform.client.infrastructure.rest.AuthenticationException) {
+                || ex.getCause() instanceof AuthenticationException) {
             statusLabel.setText("Error: " + ex.getCause().getMessage());
         } else {
             statusLabel.setText("Error loading statistics: " + cause);

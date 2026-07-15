@@ -1,5 +1,6 @@
 package com.gameplatform.client.infrastructure.ui;
 
+import com.gameplatform.client.domain.exception.ServerUnavailableException;
 import com.gameplatform.client.infrastructure.mqtt.MqttClientAdapter;
 import com.gameplatform.client.infrastructure.mqtt.SessionPublisher;
 import com.gameplatform.client.infrastructure.mqtt.StateSubscriber;
@@ -9,7 +10,6 @@ import com.gameplatform.shared.dto.GameStateDto;
 import com.gameplatform.shared.mqtt.MqttPayloadSerializer;
 import com.gameplatform.shared.mqtt.payload.GameStatePayload;
 import com.gameplatform.shared.mqtt.payload.LobbyJoinPayload;
-import com.gameplatform.client.infrastructure.security.HttpClientHelper;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
@@ -18,7 +18,6 @@ import javafx.scene.layout.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
 
 /**
  * JavaFX lobby screen shown between game selection and active gameplay.
@@ -284,7 +283,7 @@ public class LobbyView {
                 .exceptionally(ex -> { Platform.runLater(() -> {
                     Throwable t = ex;
                     while (t.getCause() != null) t = t.getCause();
-                    if (t instanceof com.gameplatform.client.infrastructure.rest.ServerUnavailableException
+                    if (t instanceof ServerUnavailableException
                             || t instanceof RuntimeException
                                 && t.getMessage() != null && t.getMessage().contains("HTTP 404")) {
                         // No active lobby session — fall back to creator mode so the

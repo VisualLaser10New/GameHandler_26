@@ -36,7 +36,7 @@ Questa sezione spiega come avviare l'intero sistema dalla propria postazione di 
 ### 3.1 Prerequisiti
 
 Prima di iniziare verificare di avere (vedi §2 per dettagli):
-- **IntelliJ IDEA** (Community o Ultimate Edition) con **JDK 21** scaricato internamente: `File → Project Structure → SDK → Download JDK` → versione 21, vendor Eclipse Temurin (o Amazon Corretto).
+- **IntelliJ IDEA** (Community o Ultimate Edition) con **JDK 21** scaricato internamente: `File -> Project Structure -> SDK -> Download JDK` -> versione 21, vendor Eclipse Temurin (o Amazon Corretto).
 - **Docker Desktop** avviato e funzionante.
 - Repository `gamehandler-platform` clonato e caricato in IntelliJ (l'IDE indicizza automaticamente i `pom.xml`; attendere la fine dell'indicizzazione in basso a destra).
 
@@ -71,7 +71,7 @@ I file di configurazione `docker-compose.yml` definiscono l'infrastruttura. Avvi
    ```bash
    curl -k https://localhost:8180/actuator/health
    ```
-   → expected: `{"status":"UP"}`.
+   -> expected: `{"status":"UP"}`.
 
 Il Central System è la "Source of Truth" globale (utenti, tornei, statistiche aggregate) ed espone le API REST su `https://localhost:8180`.
 
@@ -90,11 +90,11 @@ Il Central System è la "Source of Truth" globale (utenti, tornei, statistiche a
    ```bash
    curl -k https://localhost:8181/actuator/health
    ```
-   → expected: `{"status":"UP"}`.
+   -> expected: `{"status":"UP"}`.
 
 Il Local Server gestisce le sessioni di gioco e comunica col game device via MQTT; espone le API REST su `https://localhost:8181`.
 
-> L'ordine di avvio è importante: avviare SEMPRE prima il Central System e poi il Local Server, così l'auto-registrazione ha successo. Se si avvia il Local Server per primo o il Central è temporaneamente offline, il Local Server ritenterà l'auto-registrazione ad ogni tick dello scheduler — in tal caso nel log del central compaiono WARN `Connection refused` attesi finché il local non si registra con successo.
+> L'ordine di avvio è importante: avviare SEMPRE prima il Central System e poi il Local Server, così l'auto-registrazione ha successo. Se si avvia il Local Server per primo o il Central è temporaneamente offline, il Local Server ritenterà l'auto-registrazione ad ogni tick dello scheduler - in tal caso nel log del central compaiono WARN `Connection refused` attesi finché il local non si registra con successo.
 
 ### 3.5 Avviare il Game Client Emulator (IntelliJ)
 
@@ -118,9 +118,9 @@ Uno script PowerShell (nella cartella `gamehandler-platform/`) crea automaticame
    - Registra 4 utenti sul Central System (tutti come `PLAYER` di default)
    - Attende la replica su `local_db.replicated_users` (polling ogni 10 s)
    - Assegna i ruoli corretti via SQL su entrambi i DB (chicken-egg workaround per il primo `PLATFORM_ADMIN`)
-   - Fa il binding `LOCAL_ADMIN↔building-1` via API REST + replica SQL immediata
+   - Fa il binding `LOCAL_ADMIN<->building-1` via API REST + replica SQL immediata
    - Stampa una tabella riepilogativa con username / password / ruolo / userId
-3. Output atteso — 4 utenti creati:
+3. Output atteso - 4 utenti creati:
 
    | Username | Password | Ruolo | Note |
    |---|---|---|---|
@@ -140,11 +140,11 @@ Nella schermata del Game Client Emulator inserire username e password di uno dei
 
 #### Come PLAYER (`player1`)
 - **Games**: elenco dei giochi disponibili nel building-1. Selezionare un gioco per avviarlo o prenotare una slot.
-- **Giocare una partita single-player**: selezionare SLOT_MACHINE o ROULETTE → avvia sessione → effettua "tiri"/round → termina partita → il risultato viene registrato.
-- **Giocare una partita multi-player**: creare/entrare in una lobby per CHESS, FOOSBALL, DARTS, MONOPOLY o RISK → attendere l'avversario → giocare → terminare con vincitore.
-- **My Stats**: consulta le proprie statistiche personali (partite giocate, vittorie, sconfitte) per ogni tipo di gioco — aggiornate dopo ogni partita conclusa.
+- **Giocare una partita single-player**: selezionare SLOT_MACHINE o ROULETTE -> avvia sessione -> effettua "tiri"/round -> termina partita -> il risultato viene registrato.
+- **Giocare una partita multi-player**: creare/entrare in una lobby per CHESS, FOOSBALL, DARTS, MONOPOLY o RISK -> attendere l'avversario -> giocare -> terminare con vincitore.
+- **My Stats**: consulta le proprie statistiche personali (partite giocate, vittorie, sconfitte) per ogni tipo di gioco - aggiornate dopo ogni partita conclusa.
 - **My Matches**: elenco dei match dei tornei a cui si è iscritti (status SCHEDULED / IN_PROGRESS / COMPLETED).
-- **Tournaments**: elenco dei tornei aperti → iscriversi → (dopo schedule del PLATFORM_ADMIN) giocare il proprio match.
+- **Tournaments**: elenco dei tornei aperti -> iscriversi -> (dopo schedule del PLATFORM_ADMIN) giocare il proprio match.
 
 #### Come LOCAL_ADMIN (`localadmin1`)
 - **Games**: elenco dei giochi del building.
@@ -156,18 +156,18 @@ Nella schermata del Game Client Emulator inserire username e password di uno dei
 
 #### Come PLATFORM_ADMIN (`platformadmin1`)
 -vede tutte le pagine del PLAYER + LOCAL_ADMIN + GAME_ADMIN + la pagina **Platform Admin**:
-  - **Platform Admin**: directory utenti con assegnazione ruoli; binding LOCAL_ADMIN↔building; lifecycle completo dei tornei (crea / open / schedule / cancel / update / delete); statistiche globali; monitor server registrati.
+  - **Platform Admin**: directory utenti con assegnazione ruoli; binding LOCAL_ADMIN<->building; lifecycle completo dei tornei (crea / open / schedule / cancel / update / delete); statistiche globali; monitor server registrati.
   - **Admin Requests**: stato delle admin-request async (PENDING / COMPLETED / FAILED) emesse dalle operazioni sopra, con polling ogni 8 secondi.
 
 #### Scenario completo: torneo end-to-end
 
 Per provare l'intera pipeline tornei come PLATFORM_ADMIN + PLAYER:
 
-1. Login come `platformadmin1` → Platform Admin → "Create tournament" (tipo CHESS, formato SINGLE_ELIMINATION).
-2. "Open registration" → il torneo passa a `OPEN_REGISTRATION`.
-3. Logout, login come `player1` → Tournaments → iscriviti. Ripetere con altri player (o iscrivere più utenti dall'API).
-4. Login come `platformadmin1` → "Schedule" → il bracket viene generato e i match replicati al local.
-5. Login come `player1` → My Matches → "Start match" → `GameSession` creata → giocare via GUI → "End match" con winner.
+1. Login come `platformadmin1` -> Platform Admin -> "Create tournament" (tipo CHESS, formato SINGLE_ELIMINATION).
+2. "Open registration" -> il torneo passa a `OPEN_REGISTRATION`.
+3. Logout, login come `player1` -> Tournaments -> iscriviti. Ripetere con altri player (o iscrivere più utenti dall'API).
+4. Login come `platformadmin1` -> "Schedule" -> il bracket viene generato e i match replicati al local.
+5. Login come `player1` -> My Matches -> "Start match" -> `GameSession` creata -> giocare via GUI -> "End match" con winner.
 6. Il Central System fa `advanceWinner`; al termine del bracket il torneo è `COMPLETED` e le `standings` mostrano i rank 1..N.
 7. Verificare My Stats: vittorie/sconfitte integrate per ogni partecipante.
 
@@ -229,9 +229,9 @@ Questa sezione documenta come accedere ai pannelli amministrativi del **Central 
 ### 6.1 Central System (`https://localhost:8180`)
 
 - **Endpoint API base**: `https://localhost:8180` (HTTPS, keystore `central-system-https.p12`).
-- **Porta**: `server.port` → `${PORT:8180}` in `central-system/src/main/resources/application.yml` (override via env `PORT`).
+- **Porta**: `server.port` -> `${PORT:8180}` in `central-system/src/main/resources/application.yml` (override via env `PORT`).
 - **Pannello amministrativo**: non esiste UI web dedicata. La gestione avviene via **API REST** (es. il Game Client Emulator in JavaFX con login come `PLATFORM_ADMIN`, oppure `curl`).
-- **Autenticazione** — `POST /api/auth/login` (`AuthController.java:31`) → JWT Bearer. Risposta `LoginResponseDto { token, userId, expiresAt }`; scadenza default 24 h (`jwt.expiration-ms`). Il token va inviato come `Authorization: Bearer <token>` sulle richieste protette:
+- **Autenticazione** - `POST /api/auth/login` (`AuthController.java:31`) -> JWT Bearer. Risposta `LoginResponseDto { token, userId, expiresAt }`; scadenza default 24 h (`jwt.expiration-ms`). Il token va inviato come `Authorization: Bearer <token>` sulle richieste protette:
   ```bash
   curl -k -X POST https://localhost:8180/api/auth/login \
     -H "Content-Type: application/json" \
@@ -239,7 +239,7 @@ Questa sezione documenta come accedere ai pannelli amministrativi del **Central 
   ```
 - **Endpoint pubblici** (`SecurityConfig.java:40-43`): `POST /api/auth/**`, `POST /api/users` (registrazione), `/internal/**` (filtro `InternalApiKeyFilter`), `/actuator/health`. Tutto il resto richiede JWT.
 - **Ruoli** (enum `Role` in `shared/shared-domain/.../security/Role.java`): `PLATFORM_ADMIN` (utenti/building/statistiche globali), `LOCAL_ADMIN` (giochi/device/sessioni di un building, con binding in `local_admin_buildings`), `GAME_ADMIN` (game definitions e regole di registrazione), `PLAYER` (partite, statistiche e tornei personali). Un utente può avere più ruoli (CSV in `users.roles`).
-- **Registrazione utente (public)** — `POST /api/users` (`UserController.java:32`) con `CreateUserRequestDto { username, password, email }` → crea **sempre** un `PLAYER` (ruolo hardcoded in `UserService.register`, `UserService.java:70`; password hashata con BCrypt, `UserService.java:68`). Vincoli: `username` 3–50 char, `password` ≥ 8 char, `email` valida:
+- **Registrazione utente (public)** - `POST /api/users` (`UserController.java:32`) con `CreateUserRequestDto { username, password, email }` -> crea **sempre** un `PLAYER` (ruolo hardcoded in `UserService.register`, `UserService.java:70`; password hashata con BCrypt, `UserService.java:68`). Vincoli: `username` 3-50 char, `password` >= 8 char, `email` valida:
   ```bash
   curl -k -X POST https://localhost:8180/api/users \
     -H "Content-Type: application/json" \
@@ -247,7 +247,7 @@ Questa sezione documenta come accedere ai pannelli amministrativi del **Central 
   ```
 
 #### Bootstrap manuale del primo `PLATFORM_ADMIN`
-Non esiste un endpoint pubblico di promozione ruolo: `POST /api/admin/users/{userId}/roles` (sul **Local Server**) richiede già `PLATFORM_ADMIN` (`@PreAuthorize` in `PlatformAdminUserController.java:29` — problema chicken-and-egg). La procedura automatica via `setup-users.ps1` (§3.6) bypassa l'ostacolo via SQL. Per la procedura manuale equivalente:
+Non esiste un endpoint pubblico di promozione ruolo: `POST /api/admin/users/{userId}/roles` (sul **Local Server**) richiede già `PLATFORM_ADMIN` (`@PreAuthorize` in `PlatformAdminUserController.java:29` - problema chicken-and-egg). La procedura automatica via `setup-users.ps1` (§3.6) bypassa l'ostacolo via SQL. Per la procedura manuale equivalente:
 1. Registra un utente sul Central come sopra (ottiene ruolo `PLAYER`).
 2. Promuovi a `PLATFORM_ADMIN` direttamente sul DB centrale:
    ```sql
@@ -259,23 +259,23 @@ Non esiste un endpoint pubblico di promozione ruolo: `POST /api/admin/users/{use
 ### 6.2 Local Server (`https://localhost:8181`)
 
 - **Endpoint API base**: `https://localhost:8181` (HTTPS, keystore `local-server-https.p12`).
-- **Porta**: `server.port` → `${PORT:8181}` in `local-server/src/main/resources/application.yml` (override via env `PORT`).
+- **Porta**: `server.port` -> `${PORT:8181}` in `local-server/src/main/resources/application.yml` (override via env `PORT`).
 - **Pannello amministrativo**: via **Game Client Emulator** (JavaFX) con login come `LOCAL_ADMIN` / `PLATFORM_ADMIN`, oppure via API REST.
-- **Autenticazione** — `POST /api/auth/login` (`AuthController.java:47`) → JWT Bearer (stesso formato del Central):
+- **Autenticazione** - `POST /api/auth/login` (`AuthController.java:47`) -> JWT Bearer (stesso formato del Central):
   ```bash
   curl -k -X POST https://localhost:8181/api/auth/login \
     -H "Content-Type: application/json" \
     -d '{"username":"admin","password":"password-scelta"}'
   ```
-- **Registrazione player (public)** — `POST /api/auth/signup` (`AuthController.java:53`) con `SignupRequestDto { username, password, email }` → registra un utente locale (ruolo `PLAYER` di default). Risposta `SignupResponseDto { userId, username, email }`:
+- **Registrazione player (public)** - `POST /api/auth/signup` (`AuthController.java:53`) con `SignupRequestDto { username, password, email }` -> registra un utente locale (ruolo `PLAYER` di default). Risposta `SignupResponseDto { userId, username, email }`:
   ```bash
   curl -k -X POST https://localhost:8181/api/auth/signup \
     -H "Content-Type: application/json" \
     -d '{"username":"player1","password":"password-scelta","email":"player1@example.com"}'
   ```
-- **Identità corrente** — `GET /api/auth/me` (`AuthController.java:76`, richiede JWT) → `UserInfoDto` con `userId`, `roles` e, per `LOCAL_ADMIN`, i `buildings` di competenza (da `local_admin_buildings_local`).
+- **Identità corrente** - `GET /api/auth/me` (`AuthController.java:76`, richiede JWT) -> `UserInfoDto` con `userId`, `roles` e, per `LOCAL_ADMIN`, i `buildings` di competenza (da `local_admin_buildings_local`).
 - **Endpoint pubblici** (`SecurityConfig.java:36-39`): `POST /api/auth/**`, `/internal/**` (filtro `InternalApiKeyFilter`), `/actuator/health`. Il resto richiede JWT; gli endpoint `/api/admin/**` richiedono inoltre `@PreAuthorize` per ruolo.
-- **Gestione ruoli (PLATFORM_ADMIN)** — `POST /api/admin/users/{userId}/roles` (`PlatformAdminUserController.java:44`) con body `["PLATFORM_ADMIN","LOCAL_ADMIN"]` → emette una admin-request async (outbox); il Central replica il cambio ruolo al Local (`replicated_users`).
+- **Gestione ruoli (PLATFORM_ADMIN)** - `POST /api/admin/users/{userId}/roles` (`PlatformAdminUserController.java:44`) con body `["PLATFORM_ADMIN","LOCAL_ADMIN"]` -> emette una admin-request async (outbox); il Central replica il cambio ruolo al Local (`replicated_users`).
 - **Replica utenti**: il Local Server mantiene la tabella `replicated_users` (push dal Central via outbox `USER_REGISTERED`/`USER_UPDATED`). Un utente registrato sul Central compare qui dopo un ciclo di replica (default 5 min, `app.sync-interval-ms`).
 
 ---
@@ -292,16 +292,16 @@ Tutte le porte dei servizi sono **config-driven**: niente porte hardcoded nei so
 | Local Server HTTPS | 8181 | HTTPS | `server.port` (`local-server/src/main/resources/application.yml`) | `PORT` |
 | MySQL central | 3306 | TCP | `docker-compose.yml` (`central-db`) + `spring.datasource.url` | `SPRING_DATASOURCE_URL` |
 | MySQL local (building-1) | 3307 | TCP | `docker-compose.yml` (`local-db-1`) + `spring.datasource.url` | `SPRING_DATASOURCE_URL` |
-| MySQL local (building-2) | 3308 | TCP | `docker-compose.multi.yml` (`local-db-2`) + `init-building-2.sql` | — |
-| MySQL local (building-3) | 3309 | TCP | `docker-compose.multi.yml` (`local-db-3`) + `init-building-3.sql` | — |
+| MySQL local (building-2) | 3308 | TCP | `docker-compose.multi.yml` (`local-db-2`) + `init-building-2.sql` | - |
+| MySQL local (building-3) | 3309 | TCP | `docker-compose.multi.yml` (`local-db-3`) + `init-building-3.sql` | - |
 | MQTT broker building-1 (TCP) | 1883 | TCP | `mosquitto.conf` `listener 1883` + `mqtt.broker-url` | `MQTT_BROKER_URL` |
 | MQTT broker building-1 (TLS) | 8883 | TCP/SSL | `mosquitto.conf` `listener 8883` + `mqtt.broker-url` (`ssl://...`) | `MQTT_BROKER_URL` |
 | MQTT broker building-2 | 8884 | TCP | `docker-compose.multi.yml` (`mqtt-broker-2`) | `MQTT_BROKER_URL` |
 | MQTT broker building-3 | 8885 | TCP | `docker-compose.multi.yml` (`mqtt-broker-3`) | `MQTT_BROKER_URL` |
-| MQTT broker WebSocket | — | — | non esposto (nessun `listener` WebSocket in `mosquitto.conf`) | — |
-| Internal API key | — | header `X-Internal-Api-Key` | `internal.api-key` (`application.yml` di central + local) | `INTERNAL_API_KEY` |
+| MQTT broker WebSocket | - | - | non esposto (nessun `listener` WebSocket in `mosquitto.conf`) | - |
+| Internal API key | - | header `X-Internal-Api-Key` | `internal.api-key` (`application.yml` di central + local) | `INTERNAL_API_KEY` |
 | CORS (client web) | 3000 | HTTP (default) | `cors.allowed-origins` (central) | `CORS_ALLOWED_ORIGINS` |
-| Actuator health | = server.port | HTTPS | `management.endpoints.web.exposure.include: health` | — |
+| Actuator health | = server.port | HTTPS | `management.endpoints.web.exposure.include: health` | - |
 
 ### 7.2 URL di avvio dei servizi
 
@@ -313,7 +313,7 @@ Tabella di riferimento per gli URL dei servizi; per la procedura di avvio con In
 | Local Server (building-1) | `https://localhost:8181` | `mvn spring-boot:run -pl local-server` o IntelliJ su `LocalServerApplication` (vedi §3.4) |
 | Local Server (building-2) | `https://localhost:8182` | `docker-compose -f docker-compose.yml -f docker-compose.multi.yml up local-server-2` |
 | Local Server (building-3) | `https://localhost:8183` | `docker-compose -f docker-compose.yml -f docker-compose.multi.yml up local-server-3` |
-| Game Client Emulator | — (app desktop JavaFX) | `mvn javafx:run -pl game-client-emulator` o IntelliJ su `GameClientEmulatorApplication` (vedi §3.5) |
+| Game Client Emulator | - (app desktop JavaFX) | `mvn javafx:run -pl game-client-emulator` o IntelliJ su `GameClientEmulatorApplication` (vedi §3.5) |
 | MQTT broker building-1 | `tcp://localhost:1883` / `ssl://localhost:8883` | `docker-compose up mqtt-broker-1` |
 | MySQL central | `jdbc:mysql://localhost:3306/central_db` | `docker-compose up central-db` |
 | MySQL local building-1 | `jdbc:mysql://localhost:3307/local_db` | `docker-compose up local-db-1` |
@@ -324,7 +324,7 @@ Tabella di riferimento per gli URL dei servizi; per la procedura di avvio con In
 |---|---|---|
 | `central-system/src/main/resources/application.yml` | `server.port` (8180), `server.ssl.*`, `spring.datasource.url`, `jwt.expiration-ms`, `jwt.secret`, `internal.api-key`, `cors.allowed-origins`, `spring.jpa.*`, `app.sync-interval-ms`, `app.server-stale-threshold-ms`, `app.reconciliation-interval-ms` | central-system |
 | `local-server/src/main/resources/application.yml` | `server.port` (8181), `server.ssl.*`, `spring.datasource.url`, `mqtt.broker-url`, `app.central-system-url`, `app.local-base-url`, `app.building-id`, `internal.api-key`, `spring.jpa.*`, `app.sync-interval-ms`, `app.server-stale-threshold-ms`, `app.admin.request.timeout-ms`, `app.admin.request.timeout-ms` | local-server |
-| `game-client-emulator/src/main/resources/application.yml` | `app.local-server-url` (`https://localhost:8181`), `mqtt.broker-url` (`tcp://localhost:1883`) — **solo documentativo**: il client JavaFX legge da env var | game-client-emulator |
+| `game-client-emulator/src/main/resources/application.yml` | `app.local-server-url` (`https://localhost:8181`), `mqtt.broker-url` (`tcp://localhost:1883`) - **solo documentativo**: il client JavaFX legge da env var | game-client-emulator |
 | `game-client-emulator/.../infrastructure/rest/ApiClient.java:49` | `DEFAULT_BASE_URL = "https://localhost:8181"` (costante canonica, override via env `LOCAL_SERVER_URL`) | game-client-emulator |
 | `game-client-emulator/.../infrastructure/security/HttpClientHelper.java` | caricamento truststore `local-truststore.p12`, log diagnostico URL+TLS all'avvio | game-client-emulator |
 | `game-client-emulator/.../config/MqttClientConfig.java:11` | `DEFAULT_BROKER_URL = "tcp://localhost:1883"` (costante canonica, override via env `MQTT_BROKER_URL`) | game-client-emulator |
@@ -345,29 +345,29 @@ Tabella di riferimento per gli URL dei servizi; per la procedura di avvio con In
 
 ### 7.5 Come cambiare le porte per evitare conflitti
 
-I default delle porte HTTP dei microservizi (Central System `8180`, Local Server `8181`/`8182`/`8183`) sono definiti nei `application.yml` con override via env var (`${VAR:default}`). Se un'altra applicazione occupa una di queste porte (es. Jenkins/Tomcat su `8080`, oppure un altro tool già su `8180`), applica la procedura **per servizio**. Le porte MySQL (`3306`–`3309`) e MQTT (`1883`/`8883`/`8884`/`8885`) sono **standard di protocollo e non vanno toccate**.
+I default delle porte HTTP dei microservizi (Central System `8180`, Local Server `8181`/`8182`/`8183`) sono definiti nei `application.yml` con override via env var (`${VAR:default}`). Se un'altra applicazione occupa una di queste porte (es. Jenkins/Tomcat su `8080`, oppure un altro tool già su `8180`), applica la procedura **per servizio**. Le porte MySQL (`3306`-`3309`) e MQTT (`1883`/`8883`/`8884`/`8885`) sono **standard di protocollo e non vanno toccate**.
 
-> **Cambio permanente vs temporaneo**: per un cambio **permanente**, modifica il default nel file `application.yml`; per un override **temporaneo** locale, esporta la env var (es. `PORT=9000`) senza toccare il file — la sintassi `${PORT:8180}` usa la env var se presente, altrimenti il default. La porta della mappatura Docker `HOST:CONTAINER` segue la stessa logica: **sinistra** = porta vista dall'host, **destra** = porta interna del container (che deve corrispondere a `${PORT:...}`/`PORT=`). L'`healthcheck` del compose gira **dentro** il container, quindi deve puntare alla porta interna (destra).
+> **Cambio permanente vs temporaneo**: per un cambio **permanente**, modifica il default nel file `application.yml`; per un override **temporaneo** locale, esporta la env var (es. `PORT=9000`) senza toccare il file - la sintassi `${PORT:8180}` usa la env var se presente, altrimenti il default. La porta della mappatura Docker `HOST:CONTAINER` segue la stessa logica: **sinistra** = porta vista dall'host, **destra** = porta interna del container (che deve corrispondere a `${PORT:...}`/`PORT=`). L'`healthcheck` del compose gira **dentro** il container, quindi deve puntare alla porta interna (destra).
 
 #### Central System (porta attuale `8180`)
-1. `central-system/src/main/resources/application.yml` → riga `server.port: ${PORT:8180}`: cambia `8180` con la nuova porta, **oppure** avvia con env var `PORT=<nuova>`.
-2. `local-server/src/main/resources/application.yml` → riga `app.central-system-url: ${CENTRAL_SYSTEM_URL:https://localhost:8180}`: cambia `8180` (il local-server deve sapere dove trovare il central; va cambiato **anche qui**, non solo lato central), oppure env var `CENTRAL_SYSTEM_URL=https://localhost:<nuova>`.
-3. `docker-compose.yml` → blocco `central-system`: riga `ports: "8180:8180"` (host:container) e `healthcheck` `curl ... https://localhost:8180/actuator/health`. Cambia entrambi i lati della mappatura **e** l'URL dell'healthcheck. In `environment:` puoi aggiungere `PORT=<nuova>` oppure affidarti al default del `application.yml` (il central non ha `PORT=` di default nel compose).
-4. `game-client-emulator` — il client parla **solo** col Local Server (vedi §7.3); in caso di un eventuale flusso cross-system, verificare `ApiClient.DEFAULT_BASE_URL` e `app.local-server-url` (di norma **non** punta al central: non modificare se non necessario).
-5. `infrastructure/tls/generate-certs.ps1` — **SKIP**: i certificati contengono solo SAN (hostname/IP), non porte. Cambiare la porta **non** invalida i certificati self-signed (la porta non compare nel SAN).
-6. Test e2e/integration che referenziano `https://localhost:8180` → allinea per coerenza (es. `application-test.yml` `central-system-url: https://central-test:8180`).
+1. `central-system/src/main/resources/application.yml` -> riga `server.port: ${PORT:8180}`: cambia `8180` con la nuova porta, **oppure** avvia con env var `PORT=<nuova>`.
+2. `local-server/src/main/resources/application.yml` -> riga `app.central-system-url: ${CENTRAL_SYSTEM_URL:https://localhost:8180}`: cambia `8180` (il local-server deve sapere dove trovare il central; va cambiato **anche qui**, non solo lato central), oppure env var `CENTRAL_SYSTEM_URL=https://localhost:<nuova>`.
+3. `docker-compose.yml` -> blocco `central-system`: riga `ports: "8180:8180"` (host:container) e `healthcheck` `curl ... https://localhost:8180/actuator/health`. Cambia entrambi i lati della mappatura **e** l'URL dell'healthcheck. In `environment:` puoi aggiungere `PORT=<nuova>` oppure affidarti al default del `application.yml` (il central non ha `PORT=` di default nel compose).
+4. `game-client-emulator` - il client parla **solo** col Local Server (vedi §7.3); in caso di un eventuale flusso cross-system, verificare `ApiClient.DEFAULT_BASE_URL` e `app.local-server-url` (di norma **non** punta al central: non modificare se non necessario).
+5. `infrastructure/tls/generate-certs.ps1` - **SKIP**: i certificati contengono solo SAN (hostname/IP), non porte. Cambiare la porta **non** invalida i certificati self-signed (la porta non compare nel SAN).
+6. Test e2e/integration che referenziano `https://localhost:8180` -> allinea per coerenza (es. `application-test.yml` `central-system-url: https://central-test:8180`).
 
-#### Local Server — building-1 (porta attuale `8181`)
-1. `local-server/src/main/resources/application.yml` → riga `server.port: ${PORT:8181}`: cambia `8181`, **oppure** env var `PORT=<nuova>`.
-2. `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/rest/ApiClient.java:49` → `DEFAULT_BASE_URL = "https://localhost:8181"`: cambia la costante (override via env `LOCAL_SERVER_URL`).
-3. `game-client-emulator/src/main/resources/application.yml` → riga `app.local-server-url: ${LOCAL_SERVER_URL:https://localhost:8181}`: cambia `8181`.
-4. `local-server/src/main/resources/application.yml` → riga `app.local-base-url: ${LOCAL_BASE_URL:https://local-server-1:8181}`: cambia `8181` (è l'URL che il local-server registra presso il central).
-5. `central-system` — il central **non** ha una property che punta all'URL del local: l'URL del local gli arriva a runtime via `POST /internal/servers/register` (auto-registrazione). **Niente da cambiare** lato central.
-6. `docker-compose.yml` → blocco `local-server-1`: riga `ports: "8181:8181"`, `environment: - PORT=8181`, `healthcheck` `https://localhost:8181/actuator/health`, e (per i game-client nello stesso compose) `LOCAL_SERVER_URL=https://local-server-1:8181`. Cambia tutte le occorrenze della porta.
+#### Local Server - building-1 (porta attuale `8181`)
+1. `local-server/src/main/resources/application.yml` -> riga `server.port: ${PORT:8181}`: cambia `8181`, **oppure** env var `PORT=<nuova>`.
+2. `game-client-emulator/src/main/java/com/gameplatform/client/infrastructure/rest/ApiClient.java:49` -> `DEFAULT_BASE_URL = "https://localhost:8181"`: cambia la costante (override via env `LOCAL_SERVER_URL`).
+3. `game-client-emulator/src/main/resources/application.yml` -> riga `app.local-server-url: ${LOCAL_SERVER_URL:https://localhost:8181}`: cambia `8181`.
+4. `local-server/src/main/resources/application.yml` -> riga `app.local-base-url: ${LOCAL_BASE_URL:https://local-server-1:8181}`: cambia `8181` (è l'URL che il local-server registra presso il central).
+5. `central-system` - il central **non** ha una property che punta all'URL del local: l'URL del local gli arriva a runtime via `POST /internal/servers/register` (auto-registrazione). **Niente da cambiare** lato central.
+6. `docker-compose.yml` -> blocco `local-server-1`: riga `ports: "8181:8181"`, `environment: - PORT=8181`, `healthcheck` `https://localhost:8181/actuator/health`, e (per i game-client nello stesso compose) `LOCAL_SERVER_URL=https://local-server-1:8181`. Cambia tutte le occorrenze della porta.
 
-#### Local Server — building-2 e building-3 (porte attuali `8182`/`8183`)
+#### Local Server - building-2 e building-3 (porte attuali `8182`/`8183`)
 Stessa procedura del building-1, ma la configurazione del container vive in `docker-compose.multi.yml`:
-- `ports: "8182:8181"` (`local-server-2`) / `"8183:8181"` (`local-server-3`) — la **sinistra** è la porta host (da cambiare se in conflitto), la **destra** è la porta interna del container (letta da `${PORT:...}`/`PORT=` env; per coerenza allinea anche quella);
+- `ports: "8182:8181"` (`local-server-2`) / `"8183:8181"` (`local-server-3`) - la **sinistra** è la porta host (da cambiare se in conflitto), la **destra** è la porta interna del container (letta da `${PORT:...}`/`PORT=` env; per coerenza allinea anche quella);
 - `environment: - PORT=8181`, `LOCAL_BASE_URL=https://local-server-2:8181`/`https://local-server-3:8181`, `healthcheck` `https://localhost:8181/...`;
 - `LOCAL_SERVER_URL=https://local-server-2:8181`/`https://local-server-3:8181` nei blocchi `game-client-3`/`game-client-4`.
 
@@ -379,7 +379,7 @@ I default in `local-server/src/main/resources/application.yml` (`server.port`, `
 
 ## 8. Smoke test (Docker)
 
-Procedura manuale per verificare il flusso end-to-end su Docker, intesa come osservazione avanzata deipattern outbox/replica e dei log di sistema. Per l'avvio del sistema dalla postazione di sviluppo (IntelliJ + Docker infrastruttura) vedere §3 "Avvio rapido del progetto"; qui si dà per scontato che i server siano già UP. La documentazione di riferimento è la FASE 4 step 5 (avvio reale) del piano `workflow/analisi/risoluzione_comunicazioni_local_central.md` — non eseguita in CI perché richiede Docker daemon attivo.
+Procedura manuale per verificare il flusso end-to-end su Docker, intesa come osservazione avanzata deipattern outbox/replica e dei log di sistema. Per l'avvio del sistema dalla postazione di sviluppo (IntelliJ + Docker infrastruttura) vedere §3 "Avvio rapido del progetto"; qui si dà per scontato che i server siano già UP. La documentazione di riferimento è la FASE 4 step 5 (avvio reale) del piano `workflow/analisi/risoluzione_comunicazioni_local_central.md` - non eseguita in CI perché richiede Docker daemon attivo.
 
 ### 8.1 Prerequisiti
 - Docker + Docker Compose
@@ -387,16 +387,16 @@ Procedura manuale per verificare il flusso end-to-end su Docker, intesa come oss
 - Server `central-system` e `local-server` avviati (vedi §3.3 e §3.4)
 
 ### 8.2 Verifica (10-15 min di osservazione)
-1. **Auto-registrazione**: nel log del local compare `Local server registered with central system`. Nel DB central: `SELECT * FROM central_db.local_servers;` → riga `building-1` con `is_active=1`, `base_url=https://local-server-1:8181`.
-2. **Replica utenti**: registra un utente sul local → entro 5 min l'utente appare in `central_db.users`. Il central scheduler replica verso il local → l'utente appare in `local_db.users`.
-3. **Outbox**: `SELECT status, COUNT(*) FROM local_db.outbox_events GROUP BY status;` → PENDING → 0, SENT cresce, FAILED → 0 (promosso a DLQ da `OutboxDlqPromotionService`).
-4. **Statistiche**: `SELECT * FROM central_db.aggregated_statistics;` → `total_sessions`, `total_aborted_sessions`, `total_reservations` popolati.
+1. **Auto-registrazione**: nel log del local compare `Local server registered with central system`. Nel DB central: `SELECT * FROM central_db.local_servers;` -> riga `building-1` con `is_active=1`, `base_url=https://local-server-1:8181`.
+2. **Replica utenti**: registra un utente sul local -> entro 5 min l'utente appare in `central_db.users`. Il central scheduler replica verso il local -> l'utente appare in `local_db.users`.
+3. **Outbox**: `SELECT status, COUNT(*) FROM local_db.outbox_events GROUP BY status;` -> PENDING -> 0, SENT cresce, FAILED -> 0 (promosso a DLQ da `OutboxDlqPromotionService`).
+4. **Statistiche**: `SELECT * FROM central_db.aggregated_statistics;` -> `total_sessions`, `total_aborted_sessions`, `total_reservations` popolati.
 5. **Log**: nessun `ERROR` o `WARN` inatteso.
 
 > **Avvio del solo central-system (senza local-server).** Avviando SOLO il `central-system` (es. `mvn spring-boot:run -pl central-system` con il `local-server` fermo), compaiono log `ERROR` del tipo `Connection refused: getsockopt ... https://local-server-1:8181/internal/servers/sync` se nel DB central è presente una riga `local_servers` registrata in un run precedente. Sono **attesi e non indicano un bug**:
-> - l'hostname `local-server-1` risolve solo nella rete Docker (DNS del compose network); in esecuzione nativa (`mvn`) non risolve → `ResourceAccessException` classificata come transiente.
-> - L'outbox retry 3 volte (`RetryTemplate` con backoff esponenziale 100 ms / 2.0× / 10 s, vedi `LocalLocalServerRegistryRestAdapter` e twin adapters), poi emette `ERROR` e l'evento è lasciato `PENDING` / marcato `FAILED` a seconda del path; il `LocalServerHealthMonitorService` disattiva l'entry (`is_active = 0`) non appena `lastSeenAt` supera `app.health.server-stale-threshold-ms` (default 15 min).
-> - Il `central-system` è progettato per rimanere operativo anche con uno o più local-server offline: gli eventi per quel building restano in coda e vengono recapitati al riavvio del local-server (re-registrazione → `is_active = 1` → catch-up R1). Per silenziare il rumore durante smoke run nativi, azzerare la tabella `central_db.local_servers` oppure avviare anche il `local-server`.
+> - l'hostname `local-server-1` risolve solo nella rete Docker (DNS del compose network); in esecuzione nativa (`mvn`) non risolve -> `ResourceAccessException` classificata come transiente.
+> - L'outbox retry 3 volte (`RetryTemplate` con backoff esponenziale 100 ms / 2.0x / 10 s, vedi `LocalLocalServerRegistryRestAdapter` e twin adapters), poi emette `ERROR` e l'evento è lasciato `PENDING` / marcato `FAILED` a seconda del path; il `LocalServerHealthMonitorService` disattiva l'entry (`is_active = 0`) non appena `lastSeenAt` supera `app.health.server-stale-threshold-ms` (default 15 min).
+> - Il `central-system` è progettato per rimanere operativo anche con uno o più local-server offline: gli eventi per quel building restano in coda e vengono recapitati al riavvio del local-server (re-registrazione -> `is_active = 1` -> catch-up R1). Per silenziare il rumore durante smoke run nativi, azzerare la tabella `central_db.local_servers` oppure avviare anche il `local-server`.
 
 ### 8.3 Comandi curl di verifica
 
@@ -411,33 +411,33 @@ curl -k https://localhost:8181/actuator/health
 
 > Nota: `curl` è installato anche dentro le immagini Docker (entry `RUN apt-get install -y curl` nei `Dockerfile`), così gli `healthcheck:` del compose possono usare `curl -kfsS https://localhost:818x/actuator/health`.
 
-### 8.4 Scenario — Tournament end-to-end
+### 8.4 Scenario - Tournament end-to-end
 
-Scenario smoke manuale che copre l'intero flusso torneo (FASE 4–7) dal punto di vista degli osservatori outbox/DB. Si aggiunge agli step della sezione "Verifica" qui sopra; i prerequisiti sono gli stessi (container `central-db`, `local-db-1`, `mqtt-broker-1` UP, `central-system` e `local-server` avviati). I test di riferimento automatici sono `central-system/src/test/java/com/gameplatform/central/application/service/TournamentFlowEndToEndIT.java` (flusso bracket Central su H2: schedule → `TOURNAMENT_MATCH_COMPLETED` → `advanceWinner` → standings) e `local-server/src/test/java/com/gameplatform/local/application/service/GameSessionServiceTournamentTest.java` (play lato Local: `start`/`end` bindato a `TournamentMatchLocal` → outbox `GAME_SESSION_COMPLETED` + `TOURNAMENT_MATCH_COMPLETED`).
+Scenario smoke manuale che copre l'intero flusso torneo (FASE 4-7) dal punto di vista degli osservatori outbox/DB. Si aggiunge agli step della sezione "Verifica" qui sopra; i prerequisiti sono gli stessi (container `central-db`, `local-db-1`, `mqtt-broker-1` UP, `central-system` e `local-server` avviati). I test di riferimento automatici sono `central-system/src/test/java/com/gameplatform/central/application/service/TournamentFlowEndToEndIT.java` (flusso bracket Central su H2: schedule -> `TOURNAMENT_MATCH_COMPLETED` -> `advanceWinner` -> standings) e `local-server/src/test/java/com/gameplatform/local/application/service/GameSessionServiceTournamentTest.java` (play lato Local: `start`/`end` bindato a `TournamentMatchLocal` -> outbox `GAME_SESSION_COMPLETED` + `TOURNAMENT_MATCH_COMPLETED`).
 
-1. **PLATFORM_ADMIN crea torneo** — `POST /api/admin/tournaments` sul local → outbox `TOURNAMENT_CREATE_REQUESTED` (admin-request async). Il Central `SyncEventProcessor` smista il `TOURNAMENT_CREATE_REQUESTED` sul `CreateTournamentUseCase`, poi il `TournamentService.create` emette `TOURNAMENT_SUMMARY_UPSERTED` nello outbox Central. Il replication scheduler propaga il summary al local (`tournaments_summary_local`):
+1. **PLATFORM_ADMIN crea torneo** - `POST /api/admin/tournaments` sul local -> outbox `TOURNAMENT_CREATE_REQUESTED` (admin-request async). Il Central `SyncEventProcessor` smista il `TOURNAMENT_CREATE_REQUESTED` sul `CreateTournamentUseCase`, poi il `TournamentService.create` emette `TOURNAMENT_SUMMARY_UPSERTED` nello outbox Central. Il replication scheduler propaga il summary al local (`tournaments_summary_local`):
    ```sql
    SELECT event_type, status FROM central_db.outbox_events WHERE event_type IN ('TOURNAMENT_CREATE_REQUESTED','TOURNAMENT_SUMMARY_UPSERTED');
    SELECT * FROM local_db.tournaments_summary_local;
    ```
-2. **PLATFORM_ADMIN schedule** — `POST /api/admin/tournaments/{id}/schedule` → outbox `TOURNAMENT_SCHEDULE_REQUESTED`. Il Central `ScheduleTournamentMatchesUseCase` genera il bracket single-elimination round-1 e, per ogni match, emette `TOURNAMENT_MATCH_SCHEDULED` (replicato al local della building coinvolta → `tournament_matches_local`):
+2. **PLATFORM_ADMIN schedule** - `POST /api/admin/tournaments/{id}/schedule` -> outbox `TOURNAMENT_SCHEDULE_REQUESTED`. Il Central `ScheduleTournamentMatchesUseCase` genera il bracket single-elimination round-1 e, per ogni match, emette `TOURNAMENT_MATCH_SCHEDULED` (replicato al local della building coinvolta -> `tournament_matches_local`):
    ```sql
    SELECT * FROM central_db.tournament_matches WHERE round=1;
    SELECT * FROM local_db.tournament_matches_local WHERE status='SCHEDULED';
    ```
-3. **PLAYER iscrizione** — `POST /api/tournaments/{id}/participants` → outbox `PARTICIPANT_REGISTER_REQUESTED` (admin-request async con role pre-check `PLAYER`). Il Central `RegisterTournamentParticipantUseCase` registra il partecipante e emette `TOURNAMENT_PARTICIPANTS_UPSERTED` (replicato al local → `tournament_participants_local`). Per i tornei team-based il Central emette anche `TEAM_MEMBERS_UPSERTED` (replicato → `team_members_local`):
+3. **PLAYER iscrizione** - `POST /api/tournaments/{id}/participants` -> outbox `PARTICIPANT_REGISTER_REQUESTED` (admin-request async con role pre-check `PLAYER`). Il Central `RegisterTournamentParticipantUseCase` registra il partecipante e emette `TOURNAMENT_PARTICIPANTS_UPSERTED` (replicato al local -> `tournament_participants_local`). Per i tornei team-based il Central emette anche `TEAM_MEMBERS_UPSERTED` (replicato -> `team_members_local`):
    ```sql
    SELECT * FROM local_db.tournament_participants_local;
    SELECT * FROM local_db.team_members_local;
    ```
-4. **PLAYER `startMatch`** — `POST /api/tournaments/{id}/matches/{matchId}/start` (o comando client MQTT) → `GameSessionService.start(...tournamentMatchId)` valida lo stato `SCHEDULED`, flip del `tournament_matches_local` a `IN_PROGRESS`, crea la `GameSession` e pubblica l'evento di inizio sul topic MQTT `building/{buildingId}/game/{gameId}/session/start` (segnale `GAME_SESSION_STARTED`):
+4. **PLAYER `startMatch`** - `POST /api/tournaments/{id}/matches/{matchId}/start` (o comando client MQTT) -> `GameSessionService.start(...tournamentMatchId)` valida lo stato `SCHEDULED`, flip del `tournament_matches_local` a `IN_PROGRESS`, crea la `GameSession` e pubblica l'evento di inizio sul topic MQTT `building/{buildingId}/game/{gameId}/session/start` (segnale `GAME_SESSION_STARTED`):
    ```bash
    mosquitto_sub -h localhost -p 1883 -t 'building/building-1/game/+/session/start' -u <user> -P <pw>
    ```
    ```sql
    SELECT status, tournament_match_id FROM local_db.game_sessions WHERE tournament_match_id IS NOT NULL;
    ```
-5. **PLAYER `endMatch` (winner dichiarato)** — `endMatch` completa la `GameSession` (winner non nullo per i match torneo) ed emette atomicamente nello outbox Local **due** righe: `GAME_SESSION_COMPLETED` (statistiche aggregate) e `TOURNAMENT_MATCH_COMPLETED` (payload `TournamentMatchResultDto`); il `tournament_matches_local` passa a `COMPLETED`. Per tornei team-based la `GameSessionService.end` costruisce un `TeamResult` (winner = TeamId), serializzato come subtype `"TEAM"` nel payload MQTT. Il Central `SyncEventProcessor.handleTournamentMatchCompleted` invoca `TournamentBracketService.advanceWinner` che popola il parent di round successivo (emettendo un nuovo `TOURNAMENT_MATCH_SCHEDULED`) o, all'ultima round, porta il `Tournament` a `COMPLETED` e assegna i rank via `TournamentStandingsService`:
+5. **PLAYER `endMatch` (winner dichiarato)** - `endMatch` completa la `GameSession` (winner non nullo per i match torneo) ed emette atomicamente nello outbox Local **due** righe: `GAME_SESSION_COMPLETED` (statistiche aggregate) e `TOURNAMENT_MATCH_COMPLETED` (payload `TournamentMatchResultDto`); il `tournament_matches_local` passa a `COMPLETED`. Per tornei team-based la `GameSessionService.end` costruisce un `TeamResult` (winner = TeamId), serializzato come subtype `"TEAM"` nel payload MQTT. Il Central `SyncEventProcessor.handleTournamentMatchCompleted` invoca `TournamentBracketService.advanceWinner` che popola il parent di round successivo (emettendo un nuovo `TOURNAMENT_MATCH_SCHEDULED`) o, all'ultima round, porta il `Tournament` a `COMPLETED` e assegna i rank via `TournamentStandingsService`:
    ```sql
    SELECT event_type, status FROM local_db.outbox_events WHERE event_type IN ('GAME_SESSION_COMPLETED','TOURNAMENT_MATCH_COMPLETED');
    SELECT * FROM central_db.tournament_matches WHERE status='SCHEDULED' AND round>1;
@@ -455,16 +455,16 @@ docker compose -f docker-compose.yml -f docker-compose.multi.yml up
 ```
 
 Override di ambiente raccomandati per uno smoke run di 15 minuti (evita flapping del health-monitor e rumore di re-push di reconciliation):
-- `SERVER_STALE_THRESHOLD_MS=3600000` (1 ora — impedisce al `LocalServerHealthMonitorService` di disattivare i building durante lo smoke)
+- `SERVER_STALE_THRESHOLD_MS=3600000` (1 ora - impedisce al `LocalServerHealthMonitorService` di disattivare i building durante lo smoke)
 - `RECONCILIATION_INTERVAL_MS` lasciato al default di 1 ora OPPURE impostato alto per silenziare i log INFO di `UserReplicationReconciliationService`
 
-La composizione provisiona `local-db-2`/`local-db-3` (porte host 3308/3309) con `init-building-2.sql`/`init-building-3.sql`, `mqtt-broker-2`/`mqtt-broker-3` (porte host 8884/8885 — broker separati per isolamento di namespace perché la `mosquitto.conf` di base non ha ACL), e `local-server-2`/`local-server-3` con `BUILDING_ID=building-2`/`building-3`.
+La composizione provisiona `local-db-2`/`local-db-3` (porte host 3308/3309) con `init-building-2.sql`/`init-building-3.sql`, `mqtt-broker-2`/`mqtt-broker-3` (porte host 8884/8885 - broker separati per isolamento di namespace perché la `mosquitto.conf` di base non ha ACL), e `local-server-2`/`local-server-3` con `BUILDING_ID=building-2`/`building-3`.
 
 #### Scenari smoke (coperti anche da `MultiBuildingEndToEndIT`)
-1. building-2 + building-3 self-register → entrambe le righe in `local_servers`.
-2. `USER_REGISTERED` su building-2 → replicato verso building-1 E building-3 (due righe in `replication_progress`; event SENT).
-3. `GAME_SESSION_COMPLETED` per building-2/CHESS e building-3/FOOSBALL → due righe distinte in `aggregated_statistics`, nessuna contaminazione cross-building.
-4. re-invio dello stesso `USER_REGISTERED` da building-2 → nessun secondo push (dedup via `processed_events`).
+1. building-2 + building-3 self-register -> entrambe le righe in `local_servers`.
+2. `USER_REGISTERED` su building-2 -> replicato verso building-1 E building-3 (due righe in `replication_progress`; event SENT).
+3. `GAME_SESSION_COMPLETED` per building-2/CHESS e building-3/FOOSBALL -> due righe distinte in `aggregated_statistics`, nessuna contaminazione cross-building.
+4. re-invio dello stesso `USER_REGISTERED` da building-2 -> nessun secondo push (dedup via `processed_events`).
 
 #### Note operative
 - **TLS SAN**: `infrastructure/tls/generate-certs.ps1` attualmente include nella SAN solo `local-server-1`/`localhost`/`127.0.0.1` (vedi `local-server-https.ext`). Lo smoke multi-building richiede pertanto di estendere lo script per aggiungere `local-server-2`/`local-server-3` alla SAN; SAN mancanti causano failure di handshake TLS tra central e i nuovi local server.

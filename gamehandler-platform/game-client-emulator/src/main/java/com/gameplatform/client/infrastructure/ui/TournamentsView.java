@@ -1,18 +1,16 @@
 package com.gameplatform.client.infrastructure.ui;
 
 import com.gameplatform.client.application.service.PlayerTournamentFlow;
-import com.gameplatform.client.infrastructure.rest.ApiClient;
-import com.gameplatform.client.infrastructure.rest.AuthenticationException;
-import com.gameplatform.client.infrastructure.rest.AuthorizationException;
-import com.gameplatform.client.infrastructure.rest.HttpClientResponseException;
-import com.gameplatform.client.infrastructure.rest.ServerUnavailableException;
+import com.gameplatform.client.domain.exception.AuthenticationException;
+import com.gameplatform.client.domain.exception.AuthorizationException;
+import com.gameplatform.client.domain.exception.HttpClientResponseException;
+import com.gameplatform.client.domain.exception.ServerUnavailableException;
 import com.gameplatform.client.infrastructure.security.HttpClientHelper;
 import com.gameplatform.client.infrastructure.ui.components.ErrorPane;
 import com.gameplatform.client.infrastructure.ui.components.LoadingIndicator;
 import com.gameplatform.client.infrastructure.ui.components.StalenessBadge;
 import com.gameplatform.shared.domain.model.GameMachineStatus;
 import com.gameplatform.shared.domain.model.TournamentStatus;
-import com.gameplatform.shared.dto.AdminRequestDto;
 import com.gameplatform.shared.dto.GameSessionDto;
 import com.gameplatform.shared.dto.GameStateDto;
 import com.gameplatform.shared.dto.TournamentDetailDto;

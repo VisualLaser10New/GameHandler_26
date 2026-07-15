@@ -210,14 +210,14 @@ In un vero contesto Spring/JPA, `catch (DataIntegrityViolationException)` dentro
 **Fix applicato**: `registerFromSync` ora usa `@Transactional(propagation = Propagation.REQUIRES_NEW)` → l'esecuzione avviene in una transazione separata. Se `DataIntegrityViolationException` occorre e viene catturata, solo la transazione interna è marcata rollback-only; il batch di sync esterno resta intatto. Non riproducibile con unit test puri (richiede Spring + DB reale), ma il cambiamento architetturale elimina il rischio.
 
 ### Casi verificati come corretti (simulazioni virtuali)
-- ✅ **Outbox atomicity**: outbox save fallito → `RuntimeException` → rollback utente (`shouldPropagateWhenOutboxSaveFails`).
-- ✅ **Password hash randomica**: stessi plaintext → hash diversi, `checkpw` corretto (`shouldProduceDifferentHashesForSamePassword`).
-- ✅ **Nessun plaintext nell'outbox**: l'evento contiene solo `hashedPassword` (`shouldSerializeHashedPasswordAndUserIdInOutbox`).
-- ✅ **Dedup idempotente centrale**: `findById → findByUsername → findByEmail` con skip silenzioso (`shouldCheckFindByIdFirst`, `shouldShortCircuitAtUsername`).
-- ✅ **Resilienza batch**: evento `USER_REGISTERED` malformato o con `registerFromSync` che lancia → evento isolato e marcato processed (`malformedPayloadIsMarkedProcessed`, `registerFromSyncFailureIsCaught`).
-- ✅ **Dedup intra-batch**: secondo evento duplicato nello stesso batch saltato (`duplicateWithinBatchSkipped`).
-- ✅ **Mappature HTTP**: 400 per input invalido, 409 per conflitto, 500 per errore generico (`AuthControllerSignupEdgeCaseTest`).
-- ✅ **Mapping adapter dual-source**: `existsByUsername` rileva utente replicato (`existsByUsernameDetectsReplicatedUser`).
+- **Outbox atomicity**: outbox save fallito → `RuntimeException` → rollback utente (`shouldPropagateWhenOutboxSaveFails`).
+- **Password hash randomica**: stessi plaintext → hash diversi, `checkpw` corretto (`shouldProduceDifferentHashesForSamePassword`).
+- **Nessun plaintext nell'outbox**: l'evento contiene solo `hashedPassword` (`shouldSerializeHashedPasswordAndUserIdInOutbox`).
+- **Dedup idempotente centrale**: `findById → findByUsername → findByEmail` con skip silenzioso (`shouldCheckFindByIdFirst`, `shouldShortCircuitAtUsername`).
+- **Resilienza batch**: evento `USER_REGISTERED` malformato o con `registerFromSync` che lancia → evento isolato e marcato processed (`malformedPayloadIsMarkedProcessed`, `registerFromSyncFailureIsCaught`).
+- **Dedup intra-batch**: secondo evento duplicato nello stesso batch saltato (`duplicateWithinBatchSkipped`).
+- **Mappature HTTP**: 400 per input invalido, 409 per conflitto, 500 per errore generico (`AuthControllerSignupEdgeCaseTest`).
+- **Mapping adapter dual-source**: `existsByUsername` rileva utente replicato (`existsByUsernameDetectsReplicatedUser`).
 
 ---
 
@@ -283,7 +283,7 @@ Tutti i bug identificati nell'analisi sono stati corretti tramite 3 subagent par
 | File | Modifica |
 |------|----------|
 | `UserAlreadyExistsException.java` | Aggiunto costruttore `(String, Throwable)` |
-| `LocalSignupService.java` | `strip()` su username/email (EDGE-L5); validazione lunghezza ≤100/≤255 (EDGE-L7); validazione formato email con `EMAIL_PATTERN` (EDGE-L6); `try/catch(DataIntegrityViolationException)` su `save` → `UserAlreadyExistsException` (BUG-L1) |
+| `LocalSignupService.java` | `strip()` su username/email (EDGE-L5); validazione lunghezza <=100/<=255 (EDGE-L7); validazione formato email con `EMAIL_PATTERN` (EDGE-L6); `try/catch(DataIntegrityViolationException)` su `save` → `UserAlreadyExistsException` (BUG-L1) |
 | `LocalSignupServiceEdgeCaseTest.java` | 4 test aggiornati: `shouldCatch...` (BUG-L1), `shouldTrimUsername` (EDGE-L5), `shouldRejectInvalidEmailFormat` (EDGE-L6), `shouldRejectOverlyLongUsername` (EDGE-L7) |
 
 ### 10.2 Subagent 2 — Mapper (BUG-L3, INCONSISTENCY-L4)

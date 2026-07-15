@@ -1,5 +1,7 @@
 package com.gameplatform.client.infrastructure.ui;
 
+import com.gameplatform.client.domain.exception.AuthenticationException;
+import com.gameplatform.client.domain.exception.ServerUnavailableException;
 import com.gameplatform.client.infrastructure.rest.ApiClient;
 import com.gameplatform.client.infrastructure.security.HttpClientHelper;
 import com.gameplatform.shared.dto.LoginRequestDto;
@@ -127,9 +129,9 @@ public class LoginView {
                     errorLabel.setStyle("-fx-text-fill: #e74c3c;");
                     Throwable cause = ex;
                     while (cause.getCause() != null) cause = cause.getCause();
-                    if (cause instanceof com.gameplatform.client.infrastructure.rest.AuthenticationException) {
+                    if (cause instanceof AuthenticationException) {
                         errorLabel.setText("Invalid credentials");
-                    } else if (cause instanceof com.gameplatform.client.infrastructure.rest.ServerUnavailableException) {
+                    } else if (cause instanceof ServerUnavailableException) {
                         errorLabel.setText("Server unreachable: " + cause.getMessage());
                     } else {
                         errorLabel.setText("Login error: " + cause.getMessage());

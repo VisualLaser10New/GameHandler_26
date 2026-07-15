@@ -454,7 +454,7 @@ class AuthControllerTest {
 
 ### 6.1 Avvio in modalità debug in IntelliJ
 
-1. Cliccare sul pulsante **Debug** (🐛) invece di **Run** (▶) sulla classe main.
+1. Cliccare sul pulsante **Debug** invece di **Run** (▶) sulla classe main.
 2. IntelliJ si collega automaticamente alla JVM con il debugger JDWP.
 3. Impostare breakpoint con `F9` sulle righe di interesse.
 
@@ -1027,12 +1027,12 @@ volumes:
 
 ### 13.5 Test di contratto architetturale (FASE 7 S6)
 
-- `EventTypeContractTest` (Central): pinna ogni literal Local-emitted (15 al totale, 8 nuovi FASE 7 §7.A.7/S3 + 6 W use case + PLAYER_PARTICIPANT) ad un branch esplicito in `SyncEventProcessor.processEvent`. Verificato双向: ogni literal è gestito Central-side ed emesso Local-side.
+- `EventTypeContractTest` (Central): pinna ogni literal Local-emitted (15 al totale, 8 nuovi FASE 7 §7.A.7/S3 + 6 W use case + PLAYER_PARTICIPANT) ad un branch esplicito in `SyncEventProcessor.processEvent`. Verificato in entrambe le direzioni: ogni literal è gestito Central-side ed emesso Local-side.
 - `ReplicationEventTypeContractTest` (Central, nuovo S6 gap S1 §16.7 A5): pinna ogni literal Central-emitted drained da `UserReplicationSchedulerService.isReplicationEvent` (10: USER_REGISTERED, USER_UPDATED, LOCAL_ADMIN_BUILDING_ASSIGNED/REVOKED, GAME_DEFINITION_UPSERTED, TOURNAMENT_MATCH_SCHEDULED, TOURNAMENT_SUMMARY_UPSERTED, TOURNAMENT_STANDINGS_UPSERTED, TOURNAMENT_PARTICIPANTS_UPSERTED, LOCAL_SERVER_REGISTRY_UPSERTED) ad (a) una dichiarazione come literal in `UserReplicationSchedulerService.java` AND (b) un emission come literal in uno degli 8 producer Central (`UserService`/`LocalAdminBuildingService`/`GameDefinitionService`/`TournamentService`/`TournamentStandingsService`/`TournamentRegistrationService`/`TournamentMatchOutboxAdapter`/`LocalServerRepositoryAdapter`).
 
 ### 13.6 Stato moduli post-FASE 7
 
-Central: 345 test ✅ (343 baseline + 2 `ReplicationEventTypeContractTest`). Local: 798 test ✅. Shared-domain/dto/mqtt: build verde. e2e-tests: 5 failure pre-esistenti (legacy role "USER"→"PLAYER", double replication_progress) — out-of-scope §7.D; follow-up FASE 8.
+Central: 345 test OK (343 baseline + 2 `ReplicationEventTypeContractTest`). Local: 798 test OK. Shared-domain/dto/mqtt: build verde. e2e-tests: 5 failure pre-esistenti (legacy role "USER"→"PLAYER", double replication_progress) — out-of-scope §7.D; follow-up FASE 8.
 
 ---
 

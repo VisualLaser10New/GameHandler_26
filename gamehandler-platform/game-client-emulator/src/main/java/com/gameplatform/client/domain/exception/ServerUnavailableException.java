@@ -1,4 +1,6 @@
-package com.gameplatform.client.infrastructure.rest;
+package com.gameplatform.client.domain.exception;
+
+import com.gameplatform.client.infrastructure.rest.ApiClient;
 
 /**
  * Raised by {@link ApiClient} when the Local Server is unreachable
