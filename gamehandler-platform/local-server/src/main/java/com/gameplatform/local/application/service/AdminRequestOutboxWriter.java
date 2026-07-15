@@ -1,7 +1,9 @@
 package com.gameplatform.local.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.gameplatform.local.domain.model.AdminRequestLocal;
 import com.gameplatform.local.domain.model.AdminRequestStatus;
 import com.gameplatform.local.domain.model.OutboxEvent;
@@ -65,7 +67,7 @@ public class AdminRequestOutboxWriter {
                                                 Object payload) {
         String requestId = UUID.randomUUID().toString();
         Instant now = Instant.now(clock);
-        String payloadJson = serialize(eventType, payload);
+        String payloadJson = serialize(eventType, payload, requestId);
         AdminRequestLocal adminReq = new AdminRequestLocal(
                 requestId, eventType, actingUserId, actingRole, buildingId,
                 payloadJson, AdminRequestStatus.PENDING.name(), null, now, null, requestId);
@@ -104,8 +106,22 @@ public class AdminRequestOutboxWriter {
     }
 
     private String serialize(String eventType, Object payload) {
+        return serialize(eventType, payload, null);
+    }
+
+    private String serialize(String eventType, Object payload, String requestId) {
         try {
-            return objectMapper.writeValueAsString(payload);
+            JsonNode tree = objectMapper.valueToTree(payload);
+            if (requestId != null && tree != null && tree.isObject()) {
+                ObjectNode obj = (ObjectNode) tree;
+                if (obj.has("eventId") && obj.get("eventId").isNull()) {
+                    obj.put("eventId", requestId);
+                }
+                if (obj.has("requestId") && obj.get("requestId").isNull()) {
+                    obj.put("requestId", requestId);
+                }
+            }
+            return objectMapper.writeValueAsString(tree);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException(
                     "Failed to serialize outbox payload for event " + eventType, e);

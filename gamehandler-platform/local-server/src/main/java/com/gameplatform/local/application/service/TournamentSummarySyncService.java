@@ -97,17 +97,17 @@ public class TournamentSummarySyncService {
                 log.info("Tournament-summary event [{}] upserted for tournament {} (status={}, participants={})",
                         event.eventId(), tournamentId.value(), summary.getStatus(), summary.getParticipantsCount());
             }
-            markCompletedIfRequested(event.eventId(), event.originatingRequestId(), tombstone);
+            markCompletedIfRequested(event.eventId(), event.originatingRequestId(), tombstone, event.tournamentId());
         }
     }
 
-    private void markCompletedIfRequested(String eventId, String originatingRequestId, boolean tombstone) {
+    private void markCompletedIfRequested(String eventId, String originatingRequestId, boolean tombstone,
+                                          String tournamentId) {
         if (originatingRequestId == null || originatingRequestId.isBlank()) {
             return;
         }
-        String resultData = tombstone
-                ? "{\"deleted\":true}"
-                : "{\"deleted\":false,\"applied\":true}";
+        String resultData = (tombstone ? "{\"deleted\":true" : "{\"deleted\":false,\"applied\":true")
+                + ",\"tournamentId\":\"" + tournamentId + "\"}";
         int mutated = adminRequestRepository.markCompleted(
                 originatingRequestId, resultData, java.time.Instant.now());
         if (mutated > 0) {

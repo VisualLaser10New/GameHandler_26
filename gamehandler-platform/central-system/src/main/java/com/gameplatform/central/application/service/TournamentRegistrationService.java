@@ -13,6 +13,7 @@ import com.gameplatform.central.domain.model.Team;
 import com.gameplatform.central.domain.model.Tournament;
 import com.gameplatform.central.domain.model.TournamentParticipant;
 import com.gameplatform.central.domain.model.User;
+import com.gameplatform.central.domain.ports.in.EmitTournamentSummaryUseCase;
 import com.gameplatform.central.domain.ports.in.ListTournamentParticipantsUseCase;
 import com.gameplatform.central.domain.ports.in.RegisterTournamentParticipantUseCase;
 import com.gameplatform.central.domain.ports.in.UnregisterTournamentParticipantUseCase;
@@ -54,6 +55,13 @@ import java.util.stream.Collectors;
  * direct REST path and non-null on the SyncEventProcessor
  * {@code PARTICIPANT_REGISTER_REQUESTED} branch §7.A.7. The repository save and
  * the outbox save commit atomically inside the class-level transaction.</p>
+ *
+ * <p>BUG-PARTICIPANT-COUNT: {@code register} additionally delegates to
+ * {@link EmitTournamentSummaryUseCase#emitSummary} so the replicated
+ * {@code TOURNAMENT_SUMMARY_UPSERTED} projection refreshes
+ * {@code participants_count} in lock-step with the just-upserted participant
+ * snapshot (otherwise the Local {@code tournaments_summary_local.participants_count}
+ * would stay stale, diverging from {@code tournament_participants_local}).</p>
  */
 @Service
 @Transactional
@@ -70,6 +78,7 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
     private final Clock clock;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final EmitTournamentSummaryUseCase emitTournamentSummaryUseCase;
 
     @org.springframework.beans.factory.annotation.Autowired
     public TournamentRegistrationService(TournamentRepository tournamentRepository,
@@ -78,7 +87,8 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
                                          UserRepository userRepository,
                                          Clock clock,
                                          OutboxEventRepository outboxEventRepository,
-                                         ObjectMapper objectMapper) {
+                                         ObjectMapper objectMapper,
+                                         EmitTournamentSummaryUseCase emitTournamentSummaryUseCase) {
         this.tournamentRepository = tournamentRepository;
         this.tournamentTeamRepository = tournamentTeamRepository;
         this.tournamentParticipantRepository = tournamentParticipantRepository;
@@ -86,14 +96,17 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
         this.clock = clock;
         this.outboxEventRepository = outboxEventRepository;
         this.objectMapper = objectMapper;
+        this.emitTournamentSummaryUseCase = emitTournamentSummaryUseCase;
     }
 
     /**
      * Backward-compat legacy ctor (pattern {@code SyncEventProcessor:91-146}):
-     * 5-arg delegating to the 7-arg production ctor with {@code null} for the
-     * FASE 7-A3 outbox deps. When {@code null}, the
-     * {@code TOURNAMENT_PARTICIPANTS_UPSERTED} emit is skipped (no-op),
-     * preserving the historical FASE 4 behaviour for existing unit tests.
+     * 5-arg delegating to the 8-arg production ctor with {@code null} for the
+     * FASE 7-A3 outbox deps and the summary-emit use case. When {@code null}, the
+     * {@code TOURNAMENT_PARTICIPANTS_UPSERTED} emit and the
+     * {@code TOURNAMENT_SUMMARY_UPSERTED} summary refresh are both skipped
+     * (no-op), preserving the historical FASE 4 behaviour for existing unit
+     * tests.
      */
     public TournamentRegistrationService(TournamentRepository tournamentRepository,
                                          TournamentTeamRepository tournamentTeamRepository,
@@ -101,7 +114,7 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
                                          UserRepository userRepository,
                                          Clock clock) {
         this(tournamentRepository, tournamentTeamRepository, tournamentParticipantRepository,
-                userRepository, clock, null, null);
+                userRepository, clock, null, null, null);
     }
 
     @Override
@@ -124,7 +137,25 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
             result = registerTeam(t, tournamentId, captainId, teamName, teamMemberIds);
         }
         writeParticipantsOutbox(tournamentId, originatingRequestId);
+        emitSummaryAfterRegistration(tournamentId, originatingRequestId);
         return result;
+    }
+
+    /**
+     * BUG-PARTICIPANT-COUNT: refreshes the {@code TOURNAMENT_SUMMARY_UPSERTED}
+     * projection so {@code tournaments_summary_local.participants_count} stays
+     * consistent with the just-upserted {@code tournament_participants_local}
+     * snapshot. Reuses {@link EmitTournamentSummaryUseCase#emitSummary} (the
+     * SCHEDULE branch's pattern — BUG-SCHEDULE-REQUEST-ID): the same
+     * {@code originatingRequestId} closes the {@code admin_requests_local} row
+     * idempotently and the {@code participantsCount} is recomputed live. No-op
+     * when the use case is {@code null} (legacy test ctor).
+     */
+    private void emitSummaryAfterRegistration(TournamentId tournamentId, String originatingRequestId) {
+        if (emitTournamentSummaryUseCase == null) {
+            return;
+        }
+        emitTournamentSummaryUseCase.emitSummary(tournamentId, originatingRequestId);
     }
 
     private TournamentParticipantDto registerIndividual(Tournament t, TournamentId tournamentId, UserId captainId) {

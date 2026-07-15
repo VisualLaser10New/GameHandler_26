@@ -11,6 +11,8 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.*;
 import javafx.util.Duration;
 
@@ -139,8 +141,14 @@ public class AdminRequestsView {
                 + " -fx-border-color: #444; -fx-background-radius: 4;");
         card.setPrefWidth(Region.USE_COMPUTED_SIZE);
 
-        Label header = new Label(r.eventType() + "  ·  " + r.requestId());
+        Label header = new Label(r.eventType());
         header.setStyle("-fx-text-fill: #3498db; -fx-font-weight: bold;");
+
+        Label reqIdCaption = new Label("reqId:");
+        reqIdCaption.setStyle("-fx-text-fill: #888; -fx-font-size: 11;");
+        TextField requestIdField = selectableField(r.requestId());
+        HBox requestRow = new HBox(6, reqIdCaption, requestIdField);
+        requestRow.setAlignment(Pos.CENTER_LEFT);
 
         Label meta = new Label("role=" + r.actingRole()
                 + "  ·  building=" + r.buildingId()
@@ -179,8 +187,74 @@ public class AdminRequestsView {
             }
         }
 
-        card.getChildren().addAll(header, meta, statusRow);
+        card.getChildren().addAll(header, requestRow, meta, statusRow);
+
+        String tournamentId = extractTournamentId(r);
+        if (tournamentId != null) {
+            Label tourCaption = new Label("Tournament id:");
+            tourCaption.setStyle("-fx-text-fill: #2ecc71; -fx-font-weight: bold;");
+            TextField tournamentIdField = selectableField(tournamentId);
+            HBox.setHgrow(tournamentIdField, Priority.ALWAYS);
+            Button copyBtn = new Button("Copy");
+            copyBtn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 4 10;");
+            copyBtn.setOnAction(e -> copyToClipboard(tournamentId, copyBtn));
+            HBox tourRow = new HBox(6, tourCaption, tournamentIdField, copyBtn);
+            tourRow.setAlignment(Pos.CENTER_LEFT);
+            card.getChildren().add(tourRow);
+        }
+
         return card;
+    }
+
+    /** Read-only, focusable-but-traversable-off TextField so the text is selectable + copyable. */
+    private static TextField selectableField(String value) {
+        TextField tf = new TextField(value == null ? "" : value);
+        tf.setEditable(false);
+        tf.setFocusTraversable(false);
+        tf.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-padding: 4 6; -fx-background-radius: 4;");
+        return tf;
+    }
+
+    private static void copyToClipboard(String text, Button source) {
+        ClipboardContent cc = new ClipboardContent();
+        cc.putString(text);
+        Clipboard.getSystemClipboard().setContent(cc);
+        String original = source.getText();
+        source.setText("Copied");
+        source.setStyle("-fx-background-color: #2ecc71; -fx-text-fill: white; -fx-padding: 4 10;");
+        javafx.animation.Timeline back = new javafx.animation.Timeline(
+                new javafx.animation.KeyFrame(javafx.util.Duration.seconds(1.2),
+                        e -> { source.setText(original);
+                               source.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 4 10;"); }));
+        back.play();
+    }
+
+    /**
+     * Extracts the tournament id carried by an admin request: prefers the
+     * {@code resultData} JSON (written by the Local {@code *SyncService} when
+     * the Central return-event closes the request, so it is available once
+     * COMPLETED — including for {@code TOURNAMENT_CREATE_REQUESTED}, whose
+     * payload does NOT carry the tournament id), and falls back to the
+     * {@code payload} JSON for the lifecycle/registration events that DO
+     * embed {@code tournamentId} up front (so PENDING OPEN/CANCEL/SCHEDULE/
+     * UPDATE/DELETE/PARTICIPANT_REGISTER cards still surface it).
+     */
+    static String extractTournamentId(AdminRequestDto r) {
+        String tid = readJsonField(r.resultData(), "tournamentId");
+        if (tid != null && !tid.isBlank()) return tid;
+        return readJsonField(r.payload(), "tournamentId");
+    }
+
+    private static String readJsonField(String json, String field) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper m = new com.fasterxml.jackson.databind.ObjectMapper();
+            var node = m.readTree(json);
+            if (node != null && node.has(field) && !node.get(field).isNull()) {
+                return node.get(field).asText();
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     /** Extracts a human-readable message from {@code resultData}. */

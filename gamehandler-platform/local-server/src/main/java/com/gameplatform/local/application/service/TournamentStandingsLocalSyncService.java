@@ -99,7 +99,8 @@ public class TournamentStandingsLocalSyncService {
             return;
         }
         String resultData = "{\"applied\":true,\"entries\":"
-                + (event.entries() != null ? event.entries().size() : 0) + "}";
+                + (event.entries() != null ? event.entries().size() : 0)
+                + ",\"tournamentId\":\"" + event.tournamentId() + "\"}";
         int mutated = adminRequestRepository.markCompleted(
                 originatingRequestId, resultData, Instant.now(clock));
         if (mutated > 0) {

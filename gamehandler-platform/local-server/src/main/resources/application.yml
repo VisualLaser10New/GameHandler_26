@@ -25,7 +25,7 @@ app:
   building-id: ${BUILDING_ID:building-1}
   local-base-url: ${LOCAL_BASE_URL:https://local-server-1:8181}
   central-system-url: ${CENTRAL_SYSTEM_URL:https://localhost:8180}
-  sync-interval-ms: ${SYNC_INTERVAL_MS:300000}
+  sync-interval-ms: ${SYNC_INTERVAL_MS:5000}
   healthcheck-interval-ms: ${HEALTHCHECK_INTERVAL_MS:300000}
   dlq-promotion-interval-ms: ${DLQ_PROMOTION_INTERVAL_MS:600000}
   outbox-purge-retention-days: ${OUTBOX_PURGE_RETENTION_DAYS:7}

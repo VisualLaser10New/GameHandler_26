@@ -262,7 +262,7 @@ public class TournamentsView {
         var s = detail.summary();
         detailHeader.setText("Detail: " + s.name() + " [" + s.gameType() + "] " + s.status()
                 + "  (" + s.participantsCount() + " registered)"
-                + "  starts " + s.startsAt());
+                + "\nStarts at " + s.startsAt());
         standingsList.setItems(FXCollections.observableArrayList(detail.standings() == null ? List.of() : detail.standings()));
         matchesList.setItems(FXCollections.observableArrayList(detail.matches() == null ? List.of() : detail.matches()));
         participantsList.setItems(FXCollections.observableArrayList(detail.participants() == null ? List.of() : detail.participants()));

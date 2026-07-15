@@ -99,7 +99,8 @@ public class TournamentParticipantsLocalSyncService {
             return;
         }
         String resultData = "{\"applied\":true,\"participants\":"
-                + (event.participants() != null ? event.participants().size() : 0) + "}";
+                + (event.participants() != null ? event.participants().size() : 0)
+                + ",\"tournamentId\":\"" + event.tournamentId() + "\"}";
         int mutated = adminRequestRepository.markCompleted(
                 originatingRequestId, resultData, Instant.now(clock));
         if (mutated > 0) {

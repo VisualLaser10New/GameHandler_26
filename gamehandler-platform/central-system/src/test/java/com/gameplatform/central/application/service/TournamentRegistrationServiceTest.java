@@ -6,6 +6,7 @@ import com.gameplatform.central.domain.model.Team;
 import com.gameplatform.central.domain.model.Tournament;
 import com.gameplatform.central.domain.model.TournamentParticipant;
 import com.gameplatform.central.domain.model.User;
+import com.gameplatform.central.domain.ports.in.EmitTournamentSummaryUseCase;
 import com.gameplatform.central.domain.ports.out.TournamentParticipantRepository;
 import com.gameplatform.central.domain.ports.out.TournamentRepository;
 import com.gameplatform.central.domain.ports.out.TournamentTeamRepository;
@@ -32,6 +33,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -155,6 +157,35 @@ class TournamentRegistrationServiceTest {
         assertThatThrownBy(() -> service.register(tid, captain, "MyTeam", List.of("m1", "m2")))
                 .isInstanceOf(InvalidTournamentException.class)
                 .hasMessageContaining("Captain must be a team member");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // register() — BUG-PARTICIPANT-COUNT summary refresh
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void register_individual_emitsSummaryRefreshWithOriginatingRequestId_bugParticipantCount() {
+        TournamentId tid = new TournamentId("t-1");
+        UserId captain = new UserId("u-1");
+        Tournament open = new Tournament(
+                tid, "Test Cup", GameType.CHESS, false, 1,
+                TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.OPEN_REGISTRATION,
+                FIXED_NOW, null, new UserId("admin"), FIXED_NOW);
+        User alice = new User(captain, "alice", "hash", "alice@example.com", List.of("PLAYER"), FIXED_NOW);
+        when(tournamentRepository.findById(tid)).thenReturn(Optional.of(open));
+        when(userRepository.findById(captain)).thenReturn(Optional.of(alice));
+        when(tournamentParticipantRepository.existsByTournamentAndParticipantId(tid, "u-1")).thenReturn(false);
+        when(tournamentParticipantRepository.save(any(TournamentParticipant.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EmitTournamentSummaryUseCase emit = mock(EmitTournamentSummaryUseCase.class);
+        TournamentRegistrationService full = new TournamentRegistrationService(
+                tournamentRepository, tournamentTeamRepository,
+                tournamentParticipantRepository, userRepository, clock,
+                null, null, emit);
+
+        full.register(tid, captain, null, null, "req-id-1");
+
+        verify(emit).emitSummary(tid, "req-id-1");
     }
 
     // ──────────────────────────────────────────────────────────────────────────

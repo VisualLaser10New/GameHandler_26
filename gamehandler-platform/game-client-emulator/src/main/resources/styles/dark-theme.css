@@ -164,3 +164,55 @@
 .table-view .table-row-cell .table-cell:hover {
     -fx-background-color: #444;
 }
+
+/* ── ListView dark theme ────────────────────────────────────────
+   Mirrors the TableView palette so the master/detail ListViews of
+   the Tournaments view (summary list, standings, matches,
+   participants, my-matches) share the same dark surface as the
+   TableViews used elsewhere in the app. The ComboBox popup keeps
+   its own higher-specificity `.combo-box-popup .list-view` rules
+   defined above, so it is unaffected by this generic rule. */
+
+.list-view {
+    -fx-background-color: #333;
+    -fx-background-radius: 4;
+    -fx-border-color: #444;
+}
+
+.list-view .list-cell {
+    -fx-background-color: #333;
+    -fx-text-fill: #eee;
+}
+
+.list-view .list-cell:odd {
+    -fx-background-color: #383838;
+}
+
+.list-view .list-cell:filled:selected {
+    -fx-background-color: #555;
+    -fx-text-fill: #eee;
+}
+
+.list-view .list-cell:filled:hover {
+    -fx-background-color: #444;
+}
+
+.list-view .list-cell:empty {
+    -fx-background-color: #333;
+}
+
+.list-view:focused {
+    -fx-background-color: #333;
+}
+
+.list-view .scroll-bar .track {
+    -fx-background-color: #2b2b2b;
+}
+
+.list-view .scroll-bar .thumb {
+    -fx-background-color: #555;
+}
+
+.list-view .scroll-bar .thumb:hover {
+    -fx-background-color: #666;
+}
