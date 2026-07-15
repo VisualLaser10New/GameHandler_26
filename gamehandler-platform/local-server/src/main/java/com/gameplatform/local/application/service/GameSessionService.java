@@ -305,23 +305,30 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
 
         // FASE 2: validate participants against the replicated game_definitions_local,
         // falling back to in-memory GameFactory for offline-first resilience.
-        Optional<GameDefinitionLocal> localDef = gameDefinitionLocalRepository.findByGameType(gameType);
-        int min;
-        int max;
-        if (localDef.isPresent()) {
-            GameDefinitionLocal def = localDef.get();
-            min = def.getMinPlayers();
-            max = def.getMaxPlayers();
-            // team_allowed: enforced at the tournament/registration context (FASE 6).
-        } else {
-            GameLifecycle gameLogic = GameFactory.createGame(gameType, null);
-            min = gameLogic.getMinPlayers();
-            max = gameLogic.getMaxPlayers();
-        }
-        if (activeParticipants.size() < min || activeParticipants.size() > max) {
-            throw new IllegalArgumentException(
-                    "Number of players for " + gameType + " must be between " + min + " and " + max
-                    + " (got " + activeParticipants.size() + ")");
+        // Tournament matches already enforce participant count + identity in the
+        // tournament-specific block above (size==2 + each participant in A/B), so
+        // the per-game min/max would otherwise reject single-player gameTypes
+        // (e.g. SLOT_MACHINE max=1) hosted as 2-player tournament matches even
+        // when the bracket dictates two contestants. Skip the per-game min/max
+        // check for tournament-bound sessions.
+        if (tournamentMatchId == null) {
+            Optional<GameDefinitionLocal> localDef = gameDefinitionLocalRepository.findByGameType(gameType);
+            int min;
+            int max;
+            if (localDef.isPresent()) {
+                GameDefinitionLocal def = localDef.get();
+                min = def.getMinPlayers();
+                max = def.getMaxPlayers();
+            } else {
+                GameLifecycle gameLogic = GameFactory.createGame(gameType, null);
+                min = gameLogic.getMinPlayers();
+                max = gameLogic.getMaxPlayers();
+            }
+            if (activeParticipants.size() < min || activeParticipants.size() > max) {
+                throw new IllegalArgumentException(
+                        "Number of players for " + gameType + " must be between " + min + " and " + max
+                        + " (got " + activeParticipants.size() + ")");
+            }
         }
 
         // Change machine state to IN_USE

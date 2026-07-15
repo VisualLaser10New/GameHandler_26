@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.gameplatform.central.domain.model.User;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.UserRepository;
@@ -39,7 +40,8 @@ class UserServiceFromSyncEdgeCaseTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, outboxEventRepository, new ObjectMapper(), java.time.Clock.systemUTC());
+        userService = new UserService(userRepository, outboxEventRepository,
+                new ObjectMapper().registerModule(new JavaTimeModule()), java.time.Clock.systemUTC());
     }
 
     private UserRegisteredEventDto dto(String userId, String username, String email, String hash, List<String> roles) {
@@ -104,8 +106,8 @@ class UserServiceFromSyncEdgeCaseTest {
     }
 
     @Test
-    @DisplayName("registerFromSync does not emit an outbox event (unlike direct register())")
-    void shouldNotEmitOutboxEvent() {
+    @DisplayName("registerFromSync emits a USER_REGISTERED return outbox event (mirrors direct register())")
+    void shouldEmitOutboxEvent() {
         when(userRepository.findById(any())).thenReturn(Optional.empty());
         when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
         when(userRepository.findByEmail(any())).thenReturn(Optional.empty());
@@ -113,7 +115,7 @@ class UserServiceFromSyncEdgeCaseTest {
 
         userService.registerFromSync(dto("u-1", "alice", "a@e.com", "h", List.of("USER")));
 
-        verify(outboxEventRepository, never()).save(any());
+        verify(outboxEventRepository).save(any());
     }
 
     @Test

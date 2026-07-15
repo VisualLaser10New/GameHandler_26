@@ -10,11 +10,14 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.gameplatform.central.domain.model.OutboxEvent;
 import com.gameplatform.central.domain.model.User;
 import com.gameplatform.central.domain.ports.out.OutboxEventRepository;
 import com.gameplatform.central.domain.ports.out.UserRepository;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.dto.UserRegisteredEventDto;
+import com.gameplatform.shared.dto.UserSyncDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,15 +41,17 @@ class UserServiceFromSyncTest {
     @Mock
     private OutboxEventRepository outboxEventRepository;
 
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+
     private UserService userService;
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, outboxEventRepository, new ObjectMapper(), Clock.systemUTC());
+        userService = new UserService(userRepository, outboxEventRepository, objectMapper, Clock.systemUTC());
     }
 
     @Test
-    void registerFromSync_shouldCreateUser_whenNoConflicts() {
+    void registerFromSync_shouldCreateUser_whenNoConflicts() throws Exception {
         UserRegisteredEventDto dto = new UserRegisteredEventDto(
                 "user-123", "alice", "alice@example.com", "hashed_pw", List.of("USER"), Instant.now()
         );
@@ -54,6 +59,7 @@ class UserServiceFromSyncTest {
         when(userRepository.findByUsername("alice")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.empty());
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(outboxEventRepository.save(any(OutboxEvent.class))).thenAnswer(inv -> inv.getArgument(0));
 
         userService.registerFromSync(dto);
 
@@ -66,7 +72,17 @@ class UserServiceFromSyncTest {
         assertThat(saved.getPasswordHash()).isEqualTo("hashed_pw");
         assertThat(saved.getRoles()).containsExactly("USER");
 
-        verify(outboxEventRepository, never()).save(any());
+        ArgumentCaptor<OutboxEvent> eventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxEventRepository).save(eventCaptor.capture());
+        OutboxEvent returnEvent = eventCaptor.getValue();
+        assertThat(returnEvent.getEventType()).isEqualTo("USER_REGISTERED");
+        UserSyncDto returnDto = objectMapper.readValue(returnEvent.getPayload(), UserSyncDto.class);
+        assertThat(returnDto.userId()).isEqualTo("user-123");
+        assertThat(returnDto.username()).isEqualTo("alice");
+        assertThat(returnDto.email()).isEqualTo("alice@example.com");
+        assertThat(returnDto.hashedPassword()).isEqualTo("hashed_pw");
+        assertThat(returnDto.roles()).containsExactly("USER");
+        assertThat(returnDto.originatingRequestId()).isNull();
     }
 
     @Test

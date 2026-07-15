@@ -32,7 +32,8 @@ import java.util.concurrent.CompletionException;
  *   <li>serialises the request body via the shared {@link ObjectMapper} configured with {@code JavaTimeModule};</li>
  *   <li>maps 401 → {@link AuthenticationException}, 403 →
  *       {@link AuthorizationException}, 5xx/timeout/unreachable →
- *       {@link ServerUnavailableException};</li>
+ *       {@link ServerUnavailableException}, other 4xx →
+ *       {@link HttpClientResponseException} (carrying the status code);</li>
  *   <li>deserialises the response body into the requested {@code Class<T>}.</li>
  * </ul>
  * <p>
@@ -211,14 +212,16 @@ public class ApiClient {
                     if (code == 403) {
                         throw new AuthorizationException("Access denied (403)");
                     }
-                    if (code == 204 || response.body() == null || response.body().isBlank()) {
-                        return null;
-                    }
                     if (code >= 500) {
-                        throw new ServerUnavailableException("Server error " + code + " — body=" + truncate(response.body(), 200));
+                        String body = response.body() == null ? "" : truncate(response.body(), 200);
+                        throw new ServerUnavailableException("Server error " + code + " — body=" + body);
                     }
                     if (code >= 400) {
-                        throw new RuntimeException("HTTP " + code + " — body=" + truncate(response.body(), 200));
+                        String body = response.body() == null ? "" : truncate(response.body(), 200);
+                        throw new HttpClientResponseException(code, body);
+                    }
+                    if (code == 204 || response.body() == null || response.body().isBlank()) {
+                        return null;
                     }
                     return deserialize(response.body(), singleType, listType);
                 }));

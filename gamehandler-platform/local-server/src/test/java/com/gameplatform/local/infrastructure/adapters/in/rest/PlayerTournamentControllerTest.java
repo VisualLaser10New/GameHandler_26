@@ -7,8 +7,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.application.service.GameSessionService;
+import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.model.GameSession;
 import com.gameplatform.local.domain.model.TournamentMatchLocal;
+import com.gameplatform.local.domain.ports.out.GameRepository;
 import com.gameplatform.local.domain.ports.out.TournamentMatchLocalRepository;
 import com.gameplatform.local.infrastructure.security.CurrentUserService;
 import com.gameplatform.shared.domain.model.*;
@@ -41,13 +43,15 @@ class PlayerTournamentControllerTest {
     @Mock TournamentMatchLocalRepository tournamentMatchLocalRepository;
     @Mock CurrentUserService currentUserService;
     @Mock GameSessionService gameSessionService;
+    @Mock GameRepository gameRepository;
     private MockMvc mvc;
 
     @BeforeEach
     void setup() {
         mvc = MockMvcBuilders.standaloneSetup(
                         new PlayerTournamentController(tournamentMatchLocalRepository,
-                                currentUserService, gameSessionService, objectMapper))
+                                currentUserService, gameSessionService, objectMapper,
+                                gameRepository, "building-1"))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -124,6 +128,9 @@ class PlayerTournamentControllerTest {
     void startMatch_200_delegatesToGameSessionService() throws Exception {
         when(tournamentMatchLocalRepository.findById(eq(new TournamentMatchId("m-1"))))
                 .thenReturn(Optional.of(scheduledMatch("m-1", "u1", "u2", "game-1")));
+        when(gameRepository.findById(eq(new GameId("game-1"))))
+                .thenReturn(Optional.of(new Game(new GameId("game-1"), GameType.CHESS, "Chess 1",
+                        new BuildingId("building-1"), GameMachineStatus.AVAILABLE)));
         GameSession started = new GameSession(new GameSessionId("s-1"), new GameId("game-1"),
                 GameType.CHESS, new BuildingId("building-1"), GameStatus.IN_PROGRESS,
                 Instant.parse("2026-07-12T10:00:00Z"), null, null, null, null, null,
@@ -138,5 +145,52 @@ class PlayerTournamentControllerTest {
 
         verify(gameSessionService).start(any(GameId.class), any(GameType.class), any(), isNull(),
                 eq(new TournamentMatchId("m-1")));
+    }
+
+    @Test
+    void startMatch_200_resolvesAvailableGameMachineWhenGameIdUnknown() throws Exception {
+        // Simulate a central-drain-assigned random UUID that does NOT correspond
+        // to a real game machine in the local game_catalog: the controller must
+        // fall back to the first AVAILABLE machine matching the tournament's
+        // gameType in this building.
+        when(tournamentMatchLocalRepository.findById(eq(new TournamentMatchId("m-1"))))
+                .thenReturn(Optional.of(scheduledMatch("m-1", "u1", "u2", "random-uuid-from-central")));
+        when(gameRepository.findById(eq(new GameId("random-uuid-from-central"))))
+                .thenReturn(Optional.empty());
+        when(gameRepository.findAll()).thenReturn(List.of(
+                new Game(new GameId("game-chess-1"), GameType.CHESS, "Chess Table 1",
+                        new BuildingId("building-1"), GameMachineStatus.AVAILABLE),
+                new Game(new GameId("game-foosball-1"), GameType.FOOSBALL, "Foosball Table 1",
+                        new BuildingId("building-1"), GameMachineStatus.AVAILABLE)));
+        GameSession started = new GameSession(new GameSessionId("s-1"), new GameId("game-chess-1"),
+                GameType.CHESS, new BuildingId("building-1"), GameStatus.IN_PROGRESS,
+                Instant.parse("2026-07-12T10:00:00Z"), null, null, null, null, null,
+                List.of(new UserId("u1"), new UserId("u2")));
+        when(gameSessionService.start(any(GameId.class), any(GameType.class), any(), any(), any()))
+                .thenReturn(started);
+
+        mvc.perform(post("/api/players/tournaments/matches/m-1/start"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value("s-1"))
+                .andExpect(jsonPath("$.gameId").value("game-chess-1"));
+
+        verify(gameSessionService).start(eq(new GameId("game-chess-1")), any(GameType.class), any(), isNull(),
+                eq(new TournamentMatchId("m-1")));
+    }
+
+    @Test
+    void startMatch_400_whenNoAvailableGameMachineForGameType() throws Exception {
+        when(tournamentMatchLocalRepository.findById(eq(new TournamentMatchId("m-1"))))
+                .thenReturn(Optional.of(scheduledMatch("m-1", "u1", "u2", "random-uuid-from-central")));
+        when(gameRepository.findById(eq(new GameId("random-uuid-from-central"))))
+                .thenReturn(Optional.empty());
+        when(gameRepository.findAll()).thenReturn(List.of(
+                new Game(new GameId("game-darts-1"), GameType.DARTS, "Darts Board 1",
+                        new BuildingId("building-1"), GameMachineStatus.AVAILABLE)));
+
+        mvc.perform(post("/api/players/tournaments/matches/m-1/start"))
+                .andExpect(status().isBadRequest());
+
+        verify(gameSessionService, never()).start(any(GameId.class), any(GameType.class), any(), any(), any());
     }
 }

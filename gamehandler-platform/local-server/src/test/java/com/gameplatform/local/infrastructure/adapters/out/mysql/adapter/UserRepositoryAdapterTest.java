@@ -86,6 +86,23 @@ class UserRepositoryAdapterTest {
     }
 
     @Test
+    void findByIdPrefersReplicatedUserOverLocalUser() {
+        UserJpaEntity replicated = new UserJpaEntity();
+        User replicatedDomain = sample();
+        when(jpaRepository.findById("u-1")).thenReturn(Optional.of(replicated));
+        when(mapper.toDomain(replicated)).thenReturn(replicatedDomain);
+        assertThat(adapter.findById(new UserId("u-1"))).isPresent().hasValue(replicatedDomain);
+        verifyNoInteractions(localUserJpaRepository);
+    }
+
+    @Test
+    void findByIdReturnsEmptyWhenNotFoundInReplicated() {
+        when(jpaRepository.findById("missing")).thenReturn(Optional.empty());
+        assertThat(adapter.findById(new UserId("missing"))).isEmpty();
+        verifyNoInteractions(localUserJpaRepository);
+    }
+
+    @Test
     void saveAllNullReturnsEarly() {
         adapter.saveAll(null);
         verifyNoInteractions(jpaRepository);

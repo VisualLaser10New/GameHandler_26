@@ -96,7 +96,7 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
 
         User user = new User(userId, dto.username(), dto.hashedPassword(), dto.email(), dto.roles(), dto.createdAt());
         try {
-            userRepository.save(user);
+            saveUserOnDB(user, "USER_REGISTERED");
             log.info("Created central user from sync: {}", dto.userId());
         } catch (DataIntegrityViolationException e) {
             log.warn("Central user already exists for userId={}; username={}; buildingId={}; keeping existing password; the losing building is still locally consistent",

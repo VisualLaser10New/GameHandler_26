@@ -4,16 +4,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gameplatform.local.application.service.GameSessionService;
 import com.gameplatform.local.domain.exception.TournamentMatchNotFoundException;
 import com.gameplatform.local.domain.exception.TournamentMatchNotScheduledException;
+import com.gameplatform.local.domain.model.Game;
 import com.gameplatform.local.domain.model.TournamentMatchLocal;
+import com.gameplatform.local.domain.ports.out.GameRepository;
 import com.gameplatform.local.domain.ports.out.TournamentMatchLocalRepository;
 import com.gameplatform.local.infrastructure.security.CurrentUserService;
 import com.gameplatform.shared.domain.model.GameId;
+import com.gameplatform.shared.domain.model.GameMachineStatus;
 import com.gameplatform.shared.domain.model.GameType;
 import com.gameplatform.shared.domain.model.TournamentMatchId;
 import com.gameplatform.shared.domain.model.TournamentMatchStatus;
 import com.gameplatform.shared.domain.model.UserId;
 import com.gameplatform.shared.dto.GameSessionDto;
 import com.gameplatform.shared.dto.TournamentMatchDto;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -36,15 +40,21 @@ public class PlayerTournamentController {
     private final CurrentUserService currentUserService;
     private final GameSessionService gameSessionService;
     private final ObjectMapper objectMapper;
+    private final GameRepository gameRepository;
+    private final String buildingId;
 
     public PlayerTournamentController(TournamentMatchLocalRepository tournamentMatchLocalRepository,
                                       CurrentUserService currentUserService,
                                       GameSessionService gameSessionService,
-                                      ObjectMapper objectMapper) {
+                                      ObjectMapper objectMapper,
+                                      GameRepository gameRepository,
+                                      @Value("${app.building-id}") String buildingId) {
         this.tournamentMatchLocalRepository = tournamentMatchLocalRepository;
         this.currentUserService = currentUserService;
         this.gameSessionService = gameSessionService;
         this.objectMapper = objectMapper;
+        this.gameRepository = gameRepository;
+        this.buildingId = buildingId;
     }
 
     /**
@@ -130,15 +140,28 @@ public class PlayerTournamentController {
                     "Tournament match " + matchId + " is not SCHEDULED (current: " + local.getStatus() + ")");
         }
 
-        // Resolve GameId: prefer the local match's gameId (set by the central drain
-        // branch before pushing); fall back to the optional @RequestParam gameId.
-        String resolvedGameId = local.getGameId() != null && !local.getGameId().isBlank()
-                ? local.getGameId()
-                : gameId;
-        if (resolvedGameId == null || resolvedGameId.isBlank()) {
-            throw new IllegalArgumentException(
-                    "Cannot resolve gameId for tournament match " + matchId
-                    + " (local gameId is null and no gameId request param supplied)");
+        // Resolve GameId: prefer the local match's gameId (a fresh UUID assigned by
+        // the central drain). The central drain assigns a fresh UUID per match —
+        // this DOES NOT correspond to a real game machine in this building's
+        // `game_catalog`; the local controller resolves the actual machine to use
+        // at startMatch time: if the resolved gameId matches a real local game
+        // machine, use it as-is; otherwise pick the first AVAILABLE machine whose
+        // gameType matches the tournament's gameType in this building.
+        String resolvedGameId = local.getGameId() != null ? local.getGameId() : gameId;
+        if (resolvedGameId == null || resolvedGameId.isBlank()
+                || gameRepository.findById(new GameId(resolvedGameId)).isEmpty()) {
+            GameType gtype = local.getGameType();
+            Game machine = gameRepository.findAll().stream()
+                    .filter(g -> g.getGameType() == gtype)
+                    .filter(g -> g.getStatus() == GameMachineStatus.AVAILABLE)
+                    .findFirst()
+                    .orElse(null);
+            if (machine == null) {
+                throw new IllegalArgumentException(
+                        "No AVAILABLE game machine for " + gtype + " in building " + buildingId
+                                + " to start tournament match " + matchId);
+            }
+            resolvedGameId = machine.getId().id();
         }
         GameId gameIdObj = new GameId(resolvedGameId);
 

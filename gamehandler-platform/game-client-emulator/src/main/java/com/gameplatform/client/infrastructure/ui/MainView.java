@@ -226,6 +226,18 @@ public class MainView extends Application {
         // Tournaments → Admin Requests redirection when registering.
         tournamentsView.setOnNavigate(viewName -> navigateTo(viewName));
 
+        // Tournament match started → swap to the GamePlay view (mirrors the
+        // lobby path LobbyView.setOnLobbyStarted → gamePlayView.setFromLobby
+        // + navigateTo(VIEW_GAME_PLAY)) so the user can play the freshly
+        // created session and end it with a winner for the bracket to advance.
+        // The tournament match start happens synchronously via REST and skips
+        // the lobby hop, so setFromTournamentMatch is used (vs setFromLobby)
+        // for the appropriate status label.
+        tournamentsView.setOnMatchStarted((state, sessionId, participants) -> {
+            gamePlayView.setFromTournamentMatch(state, sessionId, participants);
+            navigateTo(NavbarController.VIEW_GAME_PLAY);
+        });
+
         gameAdminDashboard.setOnNavigateToRequests(() -> navigateTo(NavbarController.VIEW_ADMIN_REQUESTS));
         platformAdminDashboard.setOnNavigateToRequests(() -> navigateTo(NavbarController.VIEW_ADMIN_REQUESTS));
     }

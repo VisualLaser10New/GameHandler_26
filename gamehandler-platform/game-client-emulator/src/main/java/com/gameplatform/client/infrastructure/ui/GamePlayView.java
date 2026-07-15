@@ -200,12 +200,33 @@ public class GamePlayView {
      * @param participants the confirmed participant list
      */
     public void setFromLobby(GameStateDto state, String sessionId, List<String> participants) {
+        configureActiveSession(state, sessionId, participants, "Lobby started — match in progress");
+    }
+
+    /**
+     * Configures the view when entering from a tournament match that is
+     * already started by the server (tournament flow — the match start
+     * happens synchronously via REST and does NOT go through the lobby,
+     * see {@link TournamentsView}). Same internal setup as
+     * {@link #setFromLobby} but with a tournament-appropriate status message.
+     *
+     * @param state        the game state DTO synthesised from the session
+     * @param sessionId    the session ID assigned by the server
+     * @param participants the confirmed participant list (usually participantA
+     *                     and participantB of the tournament match)
+     */
+    public void setFromTournamentMatch(GameStateDto state, String sessionId, List<String> participants) {
+        configureActiveSession(state, sessionId, participants, "Tournament match in progress");
+    }
+
+    private void configureActiveSession(GameStateDto state, String sessionId,
+                                       List<String> participants, String statusMessage) {
         this.currentGameState = state;
         this.lobbySessionId = sessionId;
         this.lobbyParticipants = participants;
         this.gameEnded = false;
         gameInfoLabel.setText(state.name() + "  [" + state.gameType() + "]");
-        statusLabel.setText("Lobby started — match in progress");
+        statusLabel.setText(statusMessage);
         buildGamePanel();
         timer.startTimer();
         setGameRunningState();

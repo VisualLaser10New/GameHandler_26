@@ -168,6 +168,37 @@ class GameSessionServiceTournamentTest {
         verify(gameSessionRepository, never()).save(any());
     }
 
+    @Test
+    void start_individualTournament_singlePlayerGameType_twoParticipants_bypassesMinMax() {
+        // SLOT_MACHINE has max_players=1 in game_definitions_local, but a single-
+        // elimination individual tournament always pairs two contestants per match
+        // (participantA vs participantB). The pre-game min/max check would reject
+        // the 2-participant slot-machine tournament match; the tournament-aware
+        // path must skip the per-game min/max validation (the count + identity
+        // checks are already performed in the tournament-specific block above).
+        TournamentMatchLocal slotMatch = new TournamentMatchLocal(new TournamentMatchId("m-1"),
+                new TournamentId("t-1"), 1, 1, "u1", "u2", GameType.SLOT_MACHINE, "game-slot-1",
+                TournamentMatchStatus.SCHEDULED, NOW);
+        when(tournamentMatchLocalRepository.findById(eq(new TournamentMatchId("m-1"))))
+                .thenReturn(Optional.of(slotMatch));
+        GameDefinitionLocal singleDef = new GameDefinitionLocal(GameType.SLOT_MACHINE, "Slot Machine", 1, 1, false, null, NOW);
+        when(gameDefinitionLocalRepository.findByGameType(any())).thenReturn(Optional.of(singleDef));
+        when(gameSessionRepository.findActiveByGameId(any())).thenReturn(Optional.empty());
+        Game slotGame = new Game(new GameId("game-slot-1"), GameType.SLOT_MACHINE, "Slot Machine 1",
+                new BuildingId(BUILDING_ID), GameMachineStatus.AVAILABLE);
+        when(gameRepository.findByIdForUpdate(any())).thenReturn(Optional.of(slotGame));
+        when(gameSessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        GameSession s = service.start(new GameId("game-slot-1"), GameType.SLOT_MACHINE,
+                List.of(new UserId("u1"), new UserId("u2")), null, new TournamentMatchId("m-1"));
+
+        ArgumentCaptor<TournamentMatchLocal> matchCaptor = ArgumentCaptor.forClass(TournamentMatchLocal.class);
+        verify(tournamentMatchLocalRepository).save(matchCaptor.capture());
+        assertEquals(TournamentMatchStatus.IN_PROGRESS, matchCaptor.getValue().getStatus());
+        assertEquals(new TournamentMatchId("m-1"), s.getTournamentMatchId());
+        assertEquals(GameType.SLOT_MACHINE, s.getGameType());
+    }
+
     // ── end(...) tournament branch ──
 
     private GameSession tournamentSession() {
