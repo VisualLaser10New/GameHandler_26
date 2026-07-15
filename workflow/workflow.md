@@ -919,7 +919,7 @@
 
 ### 9.2 Passi finali
 - [x] test dei tornei
-- [ ] icona al client emulator
+- [ ] evitiamo l'icona al client emulator
 - [ ] test di tutti i sistemi @Tizzycek, @Caste00
 - [ ] scrivere 4 documenti in /documenti/. (non quelli in strutture, perché sono già aggiornati), basarsi su guida_documenti_up.md
 - [ ] presentazione power point seguendo il suo modello
