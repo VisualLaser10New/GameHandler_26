@@ -17,6 +17,17 @@ import java.util.List;
  * where it carries the id of the originating outbox event for idempotency
  * tracking.</p>
  *
+ * <p>{@code errorMessage} is non-null when the Central use case that handled a
+ * {@code *_REQUESTED} event rejected the request (e.g. a tournament-lifecycle
+ * transition refused because the current {@code TournamentStatus} does not admit
+ * it, or the tournament was not found). In that case the local
+ * {@code TournamentSummarySyncService} closes the matching
+ * {@code admin_requests_local} row as {@code FAILED} with the readable reason
+ * in {@code result_data}, instead of {@code COMPLETED} — closing the loop
+ * immediately rather than letting the
+ * {@code admin.request.timeout-ms} deadline fire 30 minutes later and surface
+ * as a vague "TIMEOUT" to the platform admin (BUG-CANCEL-PENDING).</p>
+ *
  * @param eventId             outbox event id (UUID)
  * @param eventType           always {@code TOURNAMENT_SUMMARY_UPSERTED}
  * @param tournamentId        the tournament id
@@ -32,6 +43,9 @@ import java.util.List;
  * @param updatedAt           last mutation instant
  * @param deleted             {@code true} for a tombstone event
  * @param originatingRequestId id of the originating request/event (nullable)
+ * @param errorMessage        readable rejection reason (nullable; non-null ⇒
+ *                            the local must mark the matching admin-request
+ *                            {@code FAILED} instead of {@code COMPLETED})
  */
 public record TournamentSummaryEventDto(
         String eventId,
@@ -48,13 +62,32 @@ public record TournamentSummaryEventDto(
         int participantsCount,
         Instant updatedAt,
         boolean deleted,
-        String originatingRequestId
+        String originatingRequestId,
+        String errorMessage
 ) {
+    /**
+     * Backward-compat secondary ctor (no failure indication): delegates to the
+     * canonical 16-arg ctor with {@code errorMessage = null}. Existing call
+     * sites (FASE 7.A create/open/update/delete flow, admin-request success
+     * branches and tests) keep the previous 15-arg arity undisturbed.
+     */
+    public TournamentSummaryEventDto(String eventId, String eventType, String tournamentId, String name,
+                                     GameType gameType, boolean teamBased, int teamSize, TournamentStatus status,
+                                     Instant startsAt, Instant endsAt, List<String> buildingIds,
+                                     int participantsCount, Instant updatedAt, boolean deleted,
+                                     String originatingRequestId) {
+        this(eventId, eventType, tournamentId, name, gameType, teamBased, teamSize, status, startsAt, endsAt,
+                buildingIds, participantsCount, updatedAt, deleted, originatingRequestId, null);
+    }
+
+    /**
+     * Backward-compat secondary ctor (legacy 14-arg, no tombstone/originatingRequestId/errorMessage).
+     */
     public TournamentSummaryEventDto(String eventId, String eventType, String tournamentId, String name,
                                      GameType gameType, boolean teamBased, int teamSize, TournamentStatus status,
                                      Instant startsAt, Instant endsAt, List<String> buildingIds,
                                      int participantsCount, Instant updatedAt) {
         this(eventId, eventType, tournamentId, name, gameType, teamBased, teamSize, status, startsAt, endsAt,
-                buildingIds, participantsCount, updatedAt, false, null);
+                buildingIds, participantsCount, updatedAt, false, null, null);
     }
 }

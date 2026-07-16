@@ -200,6 +200,80 @@ class PlatformAdminFlowsIT {
         assertThat(cpayload.get("status").asText()).isEqualTo("CANCELLED");
     }
 
+    /**
+     * End-to-end regression for BUG-CANCEL-PENDING: a platform admin pressing
+     * Cancel on a tournament whose status is {@code COMPLETED} (or any status
+     * that {@code Tournament.cancel()} does not admit) used to throw
+     * {@link com.gameplatform.central.domain.exception.InvalidTournamentStateException}
+     * inside {@code TournamentService.cancel()}; the exception propagated up
+     * through {@code SyncEventProcessor.processOne} to
+     * {@code SyncReceiverService.receiveSyncPayload}'s poison-isolation catch,
+     * which marked the incoming event id as processed WITHOUT emitting any
+     * return outbox event → {@code admin_requests_local} stayed PENDING for
+     * 30 min → FAILED with {@code "reason":"TIMEOUT"} on the AdminRequestsView
+     * card (reproduced live on 2026-07-16 against tournament
+     * {@code 9ce4e69f-c07d-487a-95b1-753483691c8f}).
+     *
+     * <p>After the fix the cancel use case catches the rejection and emits a
+     * single {@code TOURNAMENT_SUMMARY_UPSERTED} return outbox event carrying
+     * {@code originatingRequestId} + the readable reason in
+     * {@code errorMessage}, so the Local {@code TournamentSummarySyncService}
+     * pipes the rejection to {@code adminRequestRepository.markFailed} within
+     * a few seconds and the admin's polling card flips to FAILED with the
+     * ACTUAL rejection reason.</p>
+     */
+    @Test
+    void tournamentLifecycle_cancelRejectedByAlreadyCompleted_emitsFailedReturnEventAndDoesNotThrow() throws Exception {
+        Instant now = clock.instant();
+        TournamentId tId = new TournamentId("t-completed-cancel");
+        Tournament draft = new Tournament(tId, "Completed Cup", GameType.CHESS, false, 1,
+                TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.DRAFT, now, null,
+                new UserId("admin-la"), now);
+        tournamentService.create(draft, List.of("b1", "b2"));
+        tournamentService.open(tId);
+        assertThat(tournamentService.getById(tId).orElseThrow().status()).isEqualTo(TournamentStatus.OPEN_REGISTRATION);
+
+        // Advance the tournament to COMPLETED without driving the full
+        // match-completion path — the cancellation-guard response does not
+        // depend on the route taken to reach a non-admissible status.
+        jdbcTemplate.update("UPDATE tournaments SET status=?, ends_at=? WHERE id=?",
+                TournamentStatus.COMPLETED.name(), now.toString(), tId.value());
+        assertThat(tournamentService.getById(tId).orElseThrow().status()).isEqualTo(TournamentStatus.COMPLETED);
+
+        String originatingRequestId = "request-cancel-completed-1";
+
+        // The cancel call MUST NOT throw — the use case catches the rejection
+        // and emits a FAILED return event instead.
+        TournamentDto result = tournamentService.cancel(tId, originatingRequestId);
+
+        assertThat(result).isNull();
+        // The tournament status is unchanged on the central side.
+        assertThat(tournamentService.getById(tId).orElseThrow().status()).isEqualTo(TournamentStatus.COMPLETED);
+
+        // At least one TOURNAMENT_SUMMARY_UPSERTED row carries our
+        // originatingRequestId AND a non-null errorMessage — this is the
+        // return-event that lets the Local mark the admin-request FAILED
+        // immediately (instead of waiting for the 30-min timeout).
+        OutboxEvent failedEvent = outboxEventRepository.findPending().stream()
+                .filter(e -> "TOURNAMENT_SUMMARY_UPSERTED".equals(e.getEventType()))
+                .filter(e -> {
+                    try {
+                        var p = objectMapper.readTree(e.getPayload());
+                        return originatingRequestId.equals(p.has("originatingRequestId") ? p.get("originatingRequestId").asText() : null)
+                                && p.has("errorMessage") && !p.get("errorMessage").isNull();
+                    } catch (Exception ex) {
+                        return false;
+                    }
+                })
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(
+                        "Expected a TOURNAMENT_SUMMARY_UPSERTED return outbox row carrying originatingRequestId="
+                                + originatingRequestId + " and a non-null errorMessage"));
+        var payload = objectMapper.readTree(failedEvent.getPayload());
+        assertThat(payload.get("tournamentId").asText()).isEqualTo(tId.value());
+        assertThat(payload.get("errorMessage").asText()).isEqualTo("Cannot cancel from status COMPLETED");
+    }
+
     @Test
     void getStatistics_realAggregationService_readsSeededRow() {
         LocalDate periodStart = LocalDate.of(2026, 7, 1);

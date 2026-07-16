@@ -204,4 +204,64 @@ class TournamentSummarySyncServiceTest {
         // The non-null originatingRequestId triggers the admin-request closure (markCompleted).
         verify(adminRequestRepository).markCompleted(eq("request-uuid-123"), anyString(), any());
     }
+
+    @Test
+    void applyEvents_originatingRequestIdWithError_triggersMarkFailed_withReadableReason() {
+        // BUG-CANCEL-PENDING closure (Local side): a non-null errorMessage on a
+        // TOURNAMENT_SUMMARY_UPSERTED return event signals Central-rejected
+        // admin-request (e.g. cancel refused because the tournament is COMPLETED).
+        // The matching admin_requests_local row MUST be transitioned to FAILED
+        // (with result_data={"reason":"…","applied":false,"tournamentId":"…"}) so
+        // the AdminRequestsView card surfaces "reason: Cannot cancel from
+        // status COMPLETED" within seconds, not a 30-min TIMEOUT.
+        TournamentSummaryEventDto dto = new TournamentSummaryEventDto(
+                "evt-fail", "TOURNAMENT_SUMMARY_UPSERTED", "t-completed", "Active Cup", GameType.CHESS, false, 1,
+                TournamentStatus.COMPLETED, STARTS_AT, null, List.of("b-1"), 3, UPDATED_AT, false,
+                "request-fail-1", "Cannot cancel from status COMPLETED");
+
+        service.applyEvents(List.of(dto));
+
+        // The projection upsert still runs (the snapshot reflects the unchanged Central state).
+        ArgumentCaptor<TournamentSummaryLocal> captor = ArgumentCaptor.forClass(TournamentSummaryLocal.class);
+        verify(tournamentSummaryLocalRepository).save(captor.capture());
+        assertEquals(new TournamentId("t-completed"), captor.getValue().getTournamentId());
+        assertEquals(TournamentStatus.COMPLETED, captor.getValue().getStatus());
+
+        // The markFailed hook must fire WITH the readable reason in result_data.
+        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
+        verify(adminRequestRepository).markFailed(eq("request-fail-1"), reasonCaptor.capture(), any());
+        String resultData = reasonCaptor.getValue();
+        assertTrue(resultData.contains("\"reason\":\"Cannot cancel from status COMPLETED\""),
+                "result_data MUST embed the readable reason: " + resultData);
+        assertTrue(resultData.contains("\"applied\":false"), "result_data MUST flip applied=false: " + resultData);
+        assertTrue(resultData.contains("\"tournamentId\":\"t-completed\""),
+                "result_data MUST echo the tournamentId: " + resultData);
+        // markCompleted must NOT be called on the failed branch.
+        verify(adminRequestRepository, never()).markCompleted(anyString(), anyString(), any());
+    }
+
+    @Test
+    void applyEvents_originatingRequestIdWithErrorAndTombstone_triggersMarkFailed_noProjectionDeleteOnly() {
+        // Tournament-not-found variant: the Central emits a tombstone
+        // (deleted=true) + errorMessage so the Local deletes any stale projection
+        // row (no-op when absent) AND closes the admin-request as FAILED.
+        TournamentSummaryEventDto dto = new TournamentSummaryEventDto(
+                "evt-tomb-fail", "TOURNAMENT_SUMMARY_UPSERTED", "t-missing", "(not-found)", null, false, 1,
+                TournamentStatus.DRAFT, STARTS_AT, null, List.of(), 0, UPDATED_AT, true,
+                "request-fail-404", "Tournament not found: t-missing");
+
+        service.applyEvents(List.of(dto));
+
+        // deleteById is invoked on the tombstone branch (idempotent on missing PK).
+        verify(tournamentSummaryLocalRepository).deleteById(new TournamentId("t-missing"));
+        verify(tournamentSummaryLocalRepository, never()).save(any());
+
+        // markFailed is still invoked with the readable "Tournament not found" reason.
+        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
+        verify(adminRequestRepository).markFailed(eq("request-fail-404"), reasonCaptor.capture(), any());
+        String resultData = reasonCaptor.getValue();
+        assertTrue(resultData.contains("\"reason\":\"Tournament not found: t-missing\""),
+                "result_data MUST embed the not-found reason: " + resultData);
+        verify(adminRequestRepository, never()).markCompleted(anyString(), anyString(), any());
+    }
 }

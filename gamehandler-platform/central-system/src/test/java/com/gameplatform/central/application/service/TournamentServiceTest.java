@@ -244,6 +244,116 @@ class TournamentServiceTest {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // cancel() — BUG-CANCEL-PENDING regression: rejected cancel MUST emit a FAILED
+    // return event so the Local admin_requests_local row transitions to FAILED
+    // immediately (with the readable reason) instead of waiting 30 min for the
+    // AdminRequestTimeoutService to surface a vague "TIMEOUT" card.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Regression for BUG-CANCEL-PENDING (root cause B): cancelling a tournament
+     * in a status that {@link Tournament#cancel()} does not admit (anything
+     * other than DRAFT/OPEN_REGISTRATION) used to throw
+     * {@link InvalidTournamentStateException} which propagated all the way out
+     * of {@code SyncEventProcessor.processOne} and was swallowed by the poison-
+     * isolation catch in {@code SyncReceiverService.receiveSyncPayload} → NO
+     * return outbox event → Local admin_requests_local stayed PENDING for 30
+     * min → FAILED with {@code "reason":"TIMEOUT"}.
+     *
+     * <p>After the fix the use case catches the rejection and emits a single
+     * {@code TOURNAMENT_SUMMARY_UPSERTED} return outbox event carrying a
+     * non-null {@code errorMessage} so the Local
+     * {@code TournamentSummarySyncService} closes the admin-request as FAILED
+     * with the ACTUAL reason. The repository is NOT mutated, and the method
+     * returns {@code null} instead of throwing.</p>
+     */
+    @Test
+    void cancel_emitsFailedReturnEventAndDoesNotThrow_whenStatusIsCompleted() throws Exception {
+        TournamentId tid = new TournamentId("t-completed");
+        Tournament completed = new Tournament(
+                tid, "Test Cup", GameType.CHESS, false, 1,
+                TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.COMPLETED,
+                FIXED_NOW, FIXED_NOW, new UserId("admin"), FIXED_NOW);
+        when(tournamentRepository.findById(tid)).thenReturn(Optional.of(completed));
+        when(tournamentBuildingRepository.findByTournament(tid)).thenReturn(List.of("b-1", "b-2"));
+        when(tournamentParticipantRepository.countByTournament(tid)).thenReturn(2L);
+
+        TournamentDto result = service.cancel(tid, "request-id-completed");
+
+        // NO exception thrown, NO tournament mutation, return null DTO.
+        assertThat(result).isNull();
+        verify(tournamentRepository, never()).save(any(Tournament.class));
+
+        // Exactly one outbox event saved — the FAILED return event.
+        ArgumentCaptor<OutboxEvent> eventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxEventRepository).save(eventCaptor.capture());
+        OutboxEvent event = eventCaptor.getValue();
+        assertThat(event.getEventType()).isEqualTo("TOURNAMENT_SUMMARY_UPSERTED");
+        TournamentSummaryEventDto payload = objectMapper.readValue(event.getPayload(),
+                TournamentSummaryEventDto.class);
+        assertThat(payload.originatingRequestId()).isEqualTo("request-id-completed");
+        assertThat(payload.tournamentId()).isEqualTo("t-completed");
+        // Unchanged snapshot — the tournament was NOT mutated.
+        assertThat(payload.status()).isEqualTo(TournamentStatus.COMPLETED);
+        assertThat(payload.deleted()).isFalse();
+        // The readable rejection reason is carried back to the Local.
+        assertThat(payload.errorMessage()).isEqualTo("Cannot cancel from status COMPLETED");
+    }
+
+    @Test
+    void cancel_emitsFailedReturnEventAndDoesNotThrow_whenStatusIsInProgress() throws Exception {
+        TournamentId tid = new TournamentId("t-in-progress");
+        Tournament inProgress = new Tournament(
+                tid, "Active Cup", GameType.CHESS, false, 1,
+                TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.IN_PROGRESS,
+                FIXED_NOW, null, new UserId("admin"), FIXED_NOW);
+        when(tournamentRepository.findById(tid)).thenReturn(Optional.of(inProgress));
+        when(tournamentBuildingRepository.findByTournament(tid)).thenReturn(List.of("b-1"));
+        when(tournamentParticipantRepository.countByTournament(tid)).thenReturn(4L);
+
+        TournamentDto result = service.cancel(tid, "request-id-in-progress");
+
+        assertThat(result).isNull();
+        verify(tournamentRepository, never()).save(any(Tournament.class));
+
+        ArgumentCaptor<OutboxEvent> eventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxEventRepository).save(eventCaptor.capture());
+        OutboxEvent event = eventCaptor.getValue();
+        assertThat(event.getEventType()).isEqualTo("TOURNAMENT_SUMMARY_UPSERTED");
+        TournamentSummaryEventDto payload = objectMapper.readValue(event.getPayload(),
+                TournamentSummaryEventDto.class);
+        assertThat(payload.originatingRequestId()).isEqualTo("request-id-in-progress");
+        assertThat(payload.tournamentId()).isEqualTo("t-in-progress");
+        assertThat(payload.status()).isEqualTo(TournamentStatus.IN_PROGRESS); // snapshot unchanged
+        assertThat(payload.errorMessage()).isEqualTo("Cannot cancel from status IN_PROGRESS");
+    }
+
+    @Test
+    void cancel_emitsTombstoneFailedReturnEventAndDoesNotThrow_whenTournamentNotFound() throws Exception {
+        TournamentId tid = new TournamentId("t-missing");
+        when(tournamentRepository.findById(tid)).thenReturn(Optional.empty());
+
+        TournamentDto result = service.cancel(tid, "request-id-404");
+
+        assertThat(result).isNull();
+        verify(tournamentRepository, never()).save(any(Tournament.class));
+
+        ArgumentCaptor<OutboxEvent> eventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxEventRepository).save(eventCaptor.capture());
+        OutboxEvent event = eventCaptor.getValue();
+        assertThat(event.getEventType()).isEqualTo("TOURNAMENT_SUMMARY_UPSERTED");
+        TournamentSummaryEventDto payload = objectMapper.readValue(event.getPayload(),
+                TournamentSummaryEventDto.class);
+        assertThat(payload.originatingRequestId()).isEqualTo("request-id-404");
+        assertThat(payload.tournamentId()).isEqualTo("t-missing");
+        // Tournament missing → emit a tombstone (deleteById is a no-op when the
+        // local projection row does not exist; the markFailed hook still closes
+        // the admin-request).
+        assertThat(payload.deleted()).isTrue();
+        assertThat(payload.errorMessage()).isEqualTo("Tournament not found: t-missing");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // getById()
     // ──────────────────────────────────────────────────────────────────────────
 

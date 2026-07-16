@@ -27,6 +27,8 @@ import com.gameplatform.shared.domain.model.TournamentId;
 import com.gameplatform.shared.domain.model.TournamentStatus;
 import com.gameplatform.shared.dto.TournamentDto;
 import com.gameplatform.shared.dto.TournamentSummaryEventDto;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,6 +53,8 @@ import java.util.UUID;
 public class TournamentService implements CreateTournamentUseCase, OpenTournamentRegistrationUseCase,
         CancelTournamentUseCase, GetTournamentUseCase, ListTournamentsUseCase,
         UpdateTournamentUseCase, DeleteTournamentUseCase, EmitTournamentSummaryUseCase {
+
+    private static final Logger log = LoggerFactory.getLogger(TournamentService.class);
 
     private static final String SUMMARY_EVENT_TYPE = "TOURNAMENT_SUMMARY_UPSERTED";
 
@@ -129,7 +133,7 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
                 Instant.now(clock));
         Tournament saved = tournamentRepository.save(draft);
         tournamentBuildingRepository.saveAll(saved.getTournamentId(), buildingIds);
-        writeOutboxEvent(saved, buildingIds, 0L, false, originatingRequestId);
+        writeOutboxEvent(saved, buildingIds, 0L, false, originatingRequestId, null);
         return toDto(saved, buildingIds, 0L);
     }
 
@@ -141,20 +145,73 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
         tournamentRepository.save(opened);
         List<String> openedBuildings = tournamentBuildingRepository.findByTournament(tournamentId);
         long openedParticipants = tournamentParticipantRepository.countByTournament(tournamentId);
-        writeOutboxEvent(opened, openedBuildings, openedParticipants, false, originatingRequestId);
+        writeOutboxEvent(opened, openedBuildings, openedParticipants, false, originatingRequestId, null);
         return toDto(opened, openedBuildings, openedParticipants);
     }
 
     @Override
     public TournamentDto cancel(TournamentId tournamentId, String originatingRequestId) {
-        Tournament t = tournamentRepository.findById(tournamentId)
-                .orElseThrow(() -> new TournamentNotFoundException("Tournament not found: " + tournamentId.value()));
-        Tournament cancelled = t.cancel();
-        tournamentRepository.save(cancelled);
-        List<String> cancelledBuildings = tournamentBuildingRepository.findByTournament(tournamentId);
-        long cancelledParticipants = tournamentParticipantRepository.countByTournament(tournamentId);
-        writeOutboxEvent(cancelled, cancelledBuildings, cancelledParticipants, false, originatingRequestId);
-        return toDto(cancelled, cancelledBuildings, cancelledParticipants);
+        // BUG-CANCEL-PENDING (root cause B): if the Central use case refuses the
+        // cancel — because the tournament is in a {@code TournamentStatus} that
+        // {@link Tournament#cancel()} does not admit (anything other than
+        // DRAFT/OPEN_REGISTRATION, e.g. IN_PROGRESS/COMPLETED/CANCELLED), or
+        // because the tournament does not exist — the {@link
+        // InvalidTournamentStateException} / {@link TournamentNotFoundException}
+        // would previously propagate up through {@code SyncEventProcessor#processOne}
+        // to {@code SyncReceiverService#receiveSyncPayload}, where the poison-
+        // isolation catch would mark the incoming event id as processed WITHOUT
+        // emitting any return outbox event. The Local {@code admin_requests_local}
+        // row would then stay PENDING — the only thing closing it was the
+        // {@code AdminRequestTimeoutService} 30 min later, surfacing to the
+        // platform admin as a vague "Operation not confirmed within timeout —
+        // (reason: TIMEOUT)" card on AdminRequestsView. To close the loop
+        // immediately (a few seconds via the standard summary-replication drainer)
+        // and to surface the ACTUAL rejection reason ("Cannot cancel from
+        // status COMPLETED" / "Tournament not found: …"), we catch the
+        // rejection here, emit a {@code TOURNAMENT_SUMMARY_UPSERTED} return
+        // event carrying {@code originatingRequestId} + {@code errorMessage},
+        // and return {@code null}. The matching return event reaches the Local
+        // {@link com.gameplatform.local.application.service.TournamentSummarySyncService},
+        // which now treats a non-null {@code errorMessage} as a FAILURE marker
+        // and calls {@code adminRequestRepository.markFailed(requestId, reason…)}.
+        // The exception is NOT re-thrown so the surrounding @Transactional(REQUIRES_NEW)
+        // tx commits the outbox row (poison isolation is preserved by the
+        // LoopExclusive sync code — we just choose to bind a return event to the
+        // originating request id instead of swallowing the failure).
+        Tournament current = tournamentRepository.findById(tournamentId).orElse(null);
+        if (current == null) {
+            String reason = "Tournament not found: " + tournamentId.value();
+            // Emit a tombstone (deleted=true) return event: the Local delete-by-PK
+            // is a no-op when the projection row is missing, but the
+            // markFailedIfRequested hook still fires and closes the admin-request.
+            writeOutboxTombstoneEvent(tournamentId, originatingRequestId, reason);
+            log.warn("TOURNAMENT_CANCEL_REQUESTED rejected by tournament state machine — "
+                            + "tournament not found; emitted FAILED return event "
+                            + "(originatingRequestId={}, tournamentId={}, reason='{}')",
+                    originatingRequestId, tournamentId.value(), reason);
+            return null;
+        }
+        try {
+            Tournament cancelled = current.cancel();
+            tournamentRepository.save(cancelled);
+            List<String> cancelledBuildings = tournamentBuildingRepository.findByTournament(tournamentId);
+            long cancelledParticipants = tournamentParticipantRepository.countByTournament(tournamentId);
+            writeOutboxEvent(cancelled, cancelledBuildings, cancelledParticipants, false, originatingRequestId, null);
+            return toDto(cancelled, cancelledBuildings, cancelledParticipants);
+        } catch (InvalidTournamentStateException ex) {
+            String reason = ex.getMessage();
+            List<String> buildings = tournamentBuildingRepository.findByTournament(tournamentId);
+            long participantsCount = tournamentParticipantRepository.countByTournament(tournamentId);
+            // Emit the UNCHANGED tournament snapshot carrying the rejection reason
+            // (errorMessage != null) so the Local markFailedIfRequested hook
+            // closes the matching admin_requests_local row as FAILED.
+            writeOutboxEvent(current, buildings, participantsCount, false, originatingRequestId, reason);
+            log.warn("TOURNAMENT_CANCEL_REQUESTED rejected by tournament state machine — "
+                            + "emitted FAILED return event "
+                            + "(originatingRequestId={}, tournamentId={}, currentStatus={}, reason='{}')",
+                    originatingRequestId, tournamentId.value(), current.getStatus(), reason);
+            return null;
+        }
     }
 
     @Override
@@ -167,7 +224,7 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
         tournamentRepository.save(updated);
         tournamentBuildingRepository.deleteByTournament(tournamentId);
         tournamentBuildingRepository.saveAll(tournamentId, buildingIds);
-        writeOutboxEvent(updated, buildingIds, 0L, false, originatingRequestId);
+        writeOutboxEvent(updated, buildingIds, 0L, false, originatingRequestId, null);
         return toDto(updated, buildingIds, 0);
     }
 
@@ -182,7 +239,7 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
         List<String> buildings = tournamentBuildingRepository.findByTournament(tournamentId);
         tournamentBuildingRepository.deleteByTournament(tournamentId);
         tournamentRepository.deleteById(tournamentId);
-        writeOutboxEvent(existing, buildings, 0L, true, originatingRequestId);
+        writeOutboxEvent(existing, buildings, 0L, true, originatingRequestId, null);
     }
 
     @Override
@@ -235,7 +292,7 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
     }
 
     private void writeOutboxEvent(Tournament t, List<String> buildings, long participantsCount,
-                                  boolean deleted, String originatingRequestId) {
+                                  boolean deleted, String originatingRequestId, String errorMessage) {
         if (outboxEventRepository == null || objectMapper == null) {
             return;
         }
@@ -255,7 +312,58 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
                 (int) participantsCount,
                 Instant.now(clock),
                 deleted,
-                originatingRequestId);
+                originatingRequestId,
+                errorMessage);
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(dto);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize TournamentSummaryEventDto", e);
+        }
+        OutboxEvent event = new OutboxEvent(
+                eventId, SUMMARY_EVENT_TYPE, payload, OutboxEventStatus.PENDING, Instant.now(clock), null);
+        outboxEventRepository.save(event);
+    }
+
+    /**
+     * Emits a {@code TOURNAMENT_SUMMARY_UPSERTED} tombstone return event
+     * ({@code deleted=true}) carrying the rejection {@code reason} in
+     * {@code errorMessage} so a {@code *_REQUESTED} admin action refused
+     * because the tournament was not found still drives the Local
+     * {@code admin_requests_local} row to {@code FAILED} with the readable
+     * reason. The Local {@code TournamentSummarySyncService} upsert path is a
+     * physical {@code deleteById (tournamentId)} no-op when the projection row
+     * does not exist (idempotent), while the markFailedIfRequested hook runs
+     * unconditionally for {@code originatingRequestId != null}.
+     *
+     * <p>Local-only fields not retrievable from a missing entity
+     * ({@code name}/{@code gameType}/{@code startsAt}/…) are filled with safe
+     * placeholders; they are NOT consumed by the tombstone branch on the Local
+     * side, which only reads {@code tournamentId}, {@code originatingRequestId}
+     * and {@code errorMessage}.</p>
+     */
+    private void writeOutboxTombstoneEvent(TournamentId tournamentId, String originatingRequestId, String reason) {
+        if (outboxEventRepository == null || objectMapper == null) {
+            return;
+        }
+        String eventId = UUID.randomUUID().toString();
+        TournamentSummaryEventDto dto = new TournamentSummaryEventDto(
+                eventId,
+                SUMMARY_EVENT_TYPE,
+                tournamentId.value(),
+                "(not-found)",
+                null,
+                false,
+                1,
+                TournamentStatus.DRAFT,
+                Instant.now(clock),
+                null,
+                List.<String>of(),
+                0,
+                Instant.now(clock),
+                true,
+                originatingRequestId,
+                reason);
         String payload;
         try {
             payload = objectMapper.writeValueAsString(dto);
@@ -297,6 +405,6 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
                 .orElseThrow(() -> new TournamentNotFoundException("Tournament not found: " + tournamentId.value()));
         List<String> buildings = tournamentBuildingRepository.findByTournament(tournamentId);
         long participantsCount = tournamentParticipantRepository.countByTournament(tournamentId);
-        writeOutboxEvent(t, buildings, participantsCount, false, originatingRequestId);
+        writeOutboxEvent(t, buildings, participantsCount, false, originatingRequestId, null);
     }
 }
