@@ -218,28 +218,135 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
     @Transactional
     public TournamentDto update(TournamentId tournamentId, String name, Instant startsAt,
                                 List<String> buildingIds, String originatingRequestId) {
-        Tournament existing = tournamentRepository.findById(tournamentId)
-                .orElseThrow(() -> new TournamentNotFoundException("Tournament not found: " + tournamentId.value()));
-        Tournament updated = existing.update(name, startsAt);
-        tournamentRepository.save(updated);
-        tournamentBuildingRepository.deleteByTournament(tournamentId);
-        tournamentBuildingRepository.saveAll(tournamentId, buildingIds);
-        writeOutboxEvent(updated, buildingIds, 0L, false, originatingRequestId, null);
-        return toDto(updated, buildingIds, 0);
+        // BUG-UPDATE-PENDING (mirror of BUG-CANCEL-PENDING, root cause B): if
+        // the Central update use case refuses the mutation — because the
+        // tournament is in a {@code TournamentStatus} that {@link
+        // Tournament#update(String, Instant)} does not admit (anything other
+        // than DRAFT), or because the tournament does not exist — the
+        // {@link InvalidTournamentStateException} / not-found case would
+        // previously propagate up through {@code SyncEventProcessor#processOne}
+        // to {@code SyncReceiverService#receiveSyncPayload}, where the poison-
+        // isolation catch marked the incoming event id as processed WITHOUT
+        // emitting any return outbox event. The Local {@code
+        // admin_requests_local} row would then stay PENDING — the only thing
+        // closing it was the {@code AdminRequestTimeoutService} 30 min later,
+        // surfacing as a vague "Operation not confirmed within timeout —
+        // (reason: TIMEOUT)" card. We catch the rejection here, emit a
+        // {@code TOURNAMENT_SUMMARY_UPSERTED} return event carrying {@code
+        // originatingRequestId} + {@code errorMessage}, and return {@code null}
+        // (same pattern as {@link #cancel}). The matching return event reaches
+        // the Local {@link com.gameplatform.local.application.service.TournamentSummarySyncService},
+        // which treats a non-null {@code errorMessage} as a FAILURE marker and
+        // calls {@code adminRequestRepository.markFailed}. The exception is NOT
+        // re-thrown so the surrounding {@code @Transactional(REQUIRES_NEW)} tx
+        // commits the outbox row.
+        Tournament existing = tournamentRepository.findById(tournamentId).orElse(null);
+        if (existing == null) {
+            String reason = "Tournament not found: " + tournamentId.value();
+            // Emit a tombstone (deleted=true) return event: the Local
+            // delete-by-PK is a no-op when the projection row is missing, but
+            // the markFailedIfRequested hook still fires and closes the
+            // admin-request.
+            writeOutboxTombstoneEvent(tournamentId, originatingRequestId, reason);
+            log.warn("TOURNAMENT_UPDATE_REQUESTED rejected by tournament state machine — "
+                            + "tournament not found; emitted FAILED return event "
+                            + "(originatingRequestId={}, tournamentId={}, reason='{}')",
+                    originatingRequestId, tournamentId.value(), reason);
+            return null;
+        }
+        try {
+            Tournament updated = existing.update(name, startsAt);
+            tournamentRepository.save(updated);
+            tournamentBuildingRepository.deleteByTournament(tournamentId);
+            tournamentBuildingRepository.saveAll(tournamentId, buildingIds);
+            writeOutboxEvent(updated, buildingIds, 0L, false, originatingRequestId, null);
+            return toDto(updated, buildingIds, 0);
+        } catch (InvalidTournamentStateException ex) {
+            String reason = ex.getMessage();
+            List<String> buildings = tournamentBuildingRepository.findByTournament(tournamentId);
+            long participantsCount = tournamentParticipantRepository.countByTournament(tournamentId);
+            // Emit the UNCHANGED tournament snapshot (existing, NOT updated)
+            // carrying the rejection reason (errorMessage != null) — note the
+            // buildingIds argument is intentionally NOT used here: it holds the
+            // PROPOSED new buildings, but the tournament was not mutated, so
+            // the snapshot must reflect the current persisted buildings. The
+            // Local markFailedIfRequested hook closes the matching
+            // admin_requests_local row as FAILED.
+            writeOutboxEvent(existing, buildings, participantsCount, false, originatingRequestId, reason);
+            log.warn("TOURNAMENT_UPDATE_REQUESTED rejected by tournament state machine — "
+                            + "emitted FAILED return event "
+                            + "(originatingRequestId={}, tournamentId={}, currentStatus={}, reason='{}')",
+                    originatingRequestId, tournamentId.value(), existing.getStatus(), reason);
+            return null;
+        }
     }
 
     @Override
     @Transactional
     public void delete(TournamentId tournamentId, String originatingRequestId) {
-        Tournament existing = tournamentRepository.findById(tournamentId)
-                .orElseThrow(() -> new TournamentNotFoundException("Tournament not found: " + tournamentId.value()));
-        if (existing.getStatus() != TournamentStatus.DRAFT) {
-            throw new InvalidTournamentStateException("Cannot delete tournament not in DRAFT: " + existing.getStatus());
+        // BUG-DELETE-PENDING (mirror of BUG-CANCEL-PENDING, root cause B): if
+        // the Central delete use case refuses the deletion — because the
+        // tournament is NOT in {@code TournamentStatus#DRAFT} (the inline
+        // guard below), or because the tournament does not exist — the
+        // {@link InvalidTournamentStateException} / not-found case would
+        // previously propagate up through {@code SyncEventProcessor#processOne}
+        // to {@code SyncReceiverService#receiveSyncPayload}, where the poison-
+        // isolation catch marked the incoming event id as processed WITHOUT
+        // emitting any return outbox event. The Local {@code
+        // admin_requests_local} row would then stay PENDING — the only thing
+        // closing it was the {@code AdminRequestTimeoutService} 30 min later,
+        // surfacing as a vague "Operation not confirmed within timeout —
+        // (reason: TIMEOUT)" card. We catch the rejection here, emit a
+        // {@code TOURNAMENT_SUMMARY_UPSERTED} return event carrying {@code
+        // originatingRequestId} + {@code errorMessage}, and return (same
+        // pattern as {@link #cancel}). The matching return event reaches the
+        // Local {@link com.gameplatform.local.application.service.TournamentSummarySyncService},
+        // which treats a non-null {@code errorMessage} as a FAILURE marker and
+        // calls {@code adminRequestRepository.markFailed}. The exception is NOT
+        // re-thrown so the surrounding {@code @Transactional(REQUIRES_NEW)} tx
+        // commits the outbox row. NOTE: the {@code Tournament} domain model has
+        // no {@code delete()} transition method, so the DRAFT guard is enforced
+        // inline here (the throw is intentionally wrapped in the try so the
+        // adjacent catch contains it, mirroring {@link #cancel}'s try-catch
+        // around {@link Tournament#cancel()}).
+        Tournament existing = tournamentRepository.findById(tournamentId).orElse(null);
+        if (existing == null) {
+            String reason = "Tournament not found: " + tournamentId.value();
+            // Emit a tombstone (deleted=true) return event: the Local
+            // delete-by-PK is a no-op when the projection row is missing, but
+            // the markFailedIfRequested hook still fires and closes the
+            // admin-request.
+            writeOutboxTombstoneEvent(tournamentId, originatingRequestId, reason);
+            log.warn("TOURNAMENT_DELETE_REQUESTED rejected by tournament state machine — "
+                            + "tournament not found; emitted FAILED return event "
+                            + "(originatingRequestId={}, tournamentId={}, reason='{}')",
+                    originatingRequestId, tournamentId.value(), reason);
+            return;
         }
-        List<String> buildings = tournamentBuildingRepository.findByTournament(tournamentId);
-        tournamentBuildingRepository.deleteByTournament(tournamentId);
-        tournamentRepository.deleteById(tournamentId);
-        writeOutboxEvent(existing, buildings, 0L, true, originatingRequestId, null);
+        try {
+            if (existing.getStatus() != TournamentStatus.DRAFT) {
+                throw new InvalidTournamentStateException("Cannot delete tournament not in DRAFT: " + existing.getStatus());
+            }
+            List<String> buildings = tournamentBuildingRepository.findByTournament(tournamentId);
+            tournamentBuildingRepository.deleteByTournament(tournamentId);
+            tournamentRepository.deleteById(tournamentId);
+            writeOutboxEvent(existing, buildings, 0L, true, originatingRequestId, null);
+        } catch (InvalidTournamentStateException ex) {
+            String reason = ex.getMessage();
+            List<String> buildings = tournamentBuildingRepository.findByTournament(tournamentId);
+            long participantsCount = tournamentParticipantRepository.countByTournament(tournamentId);
+            // Emit the UNCHANGED tournament snapshot (deleted=false: the
+            // tournament was NOT deleted because the guard refused it, so the
+            // Local projection must be UPSERTED with the unchanged snapshot,
+            // NOT tombstoned) carrying the rejection reason (errorMessage != null)
+            // so the Local markFailedIfRequested hook closes the matching
+            // admin_requests_local row as FAILED.
+            writeOutboxEvent(existing, buildings, participantsCount, false, originatingRequestId, reason);
+            log.warn("TOURNAMENT_DELETE_REQUESTED rejected by tournament state machine — "
+                            + "emitted FAILED return event "
+                            + "(originatingRequestId={}, tournamentId={}, currentStatus={}, reason='{}')",
+                    originatingRequestId, tournamentId.value(), existing.getStatus(), reason);
+        }
     }
 
     @Override

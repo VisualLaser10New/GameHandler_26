@@ -13,6 +13,8 @@ import com.gameplatform.shared.dto.GameStateDto;
 import com.gameplatform.shared.mqtt.MqttPayloadSerializer;
 import com.gameplatform.shared.mqtt.payload.MovePayload;
 import com.gameplatform.shared.mqtt.payload.ScorePayload;
+import com.gameplatform.shared.mqtt.payload.SessionPausePayload;
+import com.gameplatform.shared.mqtt.payload.SessionResumePayload;
 import com.gameplatform.shared.mqtt.payload.TurnPayload;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
@@ -70,6 +72,14 @@ public class GamePlayView {
     // or via a remote end event), stopGame() and onRemoteGameEnded()
     // become no-ops so we don't re-publish session/end or double-clear.
     private boolean gameEnded;
+
+    // Idempotency guard for multiplayer pause/resume sync: flipped together
+    // with the button state in setGameRunningState()/setGamePausedState() and
+    // checked in applyLocalPause()/applyLocalResume() so repeated MQTT echoes
+    // or QoS-1 redeliveries (including the server echo that carries
+    // pausedBy=null) do not re-trigger the transition or overwrite a richer
+    // "Match paused by X" status.
+    private boolean localPaused;
 
     // Lobby-provided participants (set when coming from LobbyView)
     private List<String> lobbyParticipants;
@@ -316,9 +326,7 @@ public class GamePlayView {
         if (orchestrationService != null && orchestrationService.isGameInProgress()) {
             orchestrationService.pauseGame();
         }
-        timer.stopTimer();
-        setGamePausedState();
-        setStatus("Match paused");
+        applyLocalPause(currentUsername);
     }
 
     private void resumeGame() {
@@ -334,6 +342,35 @@ public class GamePlayView {
         if (orchestrationService != null && orchestrationService.isGameInProgress()) {
             orchestrationService.resumeGame();
         }
+        applyLocalResume();
+    }
+
+    /**
+     * Applies the pause effect locally (timer + button state + status) only,
+     * without publishing and without contacting the orchestration service.
+     * Called both by {@link #pauseGame()} (after it has published the pause
+     * event) and by the MQTT {@code session/pause} handler when a remote
+     * peer (or the server echo) pauses the session. Idempotent: the first
+     * invocation flips {@code localPaused} to true and subsequent echoes or
+     * QoS-1 redeliveries are skipped, so the originating "Match paused by X"
+     * status is preserved even if a later server echo arrives with a null
+     * pausedBy.
+     */
+    private void applyLocalPause(String pausedBy) {
+        if (localPaused) return;
+        timer.stopTimer();
+        setGamePausedState();
+        setStatus("Match paused" + (pausedBy != null && !pausedBy.isBlank() ? " by " + pausedBy : ""));
+    }
+
+    /**
+     * Applies the resume effect locally, symmetric to {@link #applyLocalPause}.
+     * Called by {@link #resumeGame()} (after publishing) and by the MQTT
+     * {@code session/resume} handler. Idempotent: a no-op when the match is
+     * not currently paused locally, so repeated echoes/redeliveries do nothing.
+     */
+    private void applyLocalResume() {
+        if (!localPaused) return;
         timer.resumeTimer();
         setGameRunningState();
         setStatus("Match in progress");
@@ -580,6 +617,22 @@ public class GamePlayView {
                             com.gameplatform.shared.mqtt.payload.SessionEndPayload endPayload =
                                     MqttPayloadSerializer.deserialize(payload, com.gameplatform.shared.mqtt.payload.SessionEndPayload.class);
                             Platform.runLater(() -> onRemoteGameEnded(endPayload));
+                        } else if ("pause".equals(action)) {
+                            // A remote peer (or the server echo) paused the
+                            // session. Apply locally without re-publishing so
+                            // every emulator's timer stops; applyLocalPause is
+                            // idempotent so echoes/redeliveries are skipped.
+                            SessionPausePayload pauseMsg =
+                                    MqttPayloadSerializer.deserialize(payload, SessionPausePayload.class);
+                            Platform.runLater(() -> applyLocalPause(pauseMsg.pausedBy()));
+                        } else if ("resume".equals(action)) {
+                            // A remote peer (or the server echo) resumed the
+                            // session. Apply locally without re-publishing so
+                            // every emulator's timer resumes; applyLocalResume is
+                            // idempotent.
+                            SessionResumePayload resumeMsg =
+                                    MqttPayloadSerializer.deserialize(payload, SessionResumePayload.class);
+                            Platform.runLater(() -> applyLocalResume());
                         }
                     } catch (Exception e) {
                         // Ignore malformed payloads
@@ -625,6 +678,7 @@ public class GamePlayView {
         resumeButton.setDisable(true);
         backToHomeButton.setDisable(true);
         backToHomeButton.setVisible(false);
+        this.localPaused = false;
     }
 
     private void setGamePausedState() {
@@ -634,6 +688,7 @@ public class GamePlayView {
         resumeButton.setDisable(false);
         backToHomeButton.setDisable(true);
         backToHomeButton.setVisible(false);
+        this.localPaused = true;
     }
 
     /** State shown after the match ends: only the "back to home" button is enabled. */

@@ -274,6 +274,153 @@ class PlatformAdminFlowsIT {
         assertThat(payload.get("errorMessage").asText()).isEqualTo("Cannot cancel from status COMPLETED");
     }
 
+    /**
+     * End-to-end regression for BUG-UPDATE-PENDING (mirror of
+     * BUG-CANCEL-PENDING): a platform admin pressing Update on a tournament
+     * whose status is not {@code DRAFT} (here {@code OPEN_REGISTRATION}) used
+     * to throw {@link com.gameplatform.central.domain.exception.InvalidTournamentStateException}
+     * inside {@code TournamentService.update()}; the exception propagated up
+     * through {@code SyncEventProcessor.processOne} to {@code SyncReceiverService}'s
+     * poison-isolation catch, which marked the incoming event id as processed
+     * WITHOUT emitting any return outbox event → {@code admin_requests_local}
+     * stayed PENDING for 30 min → FAILED with {@code "reason":"TIMEOUT"}.
+     *
+     * <p>After the fix the update use case catches the rejection and emits a
+     * single {@code TOURNAMENT_SUMMARY_UPSERTED} return outbox event carrying
+     * {@code originatingRequestId} + the readable reason in {@code errorMessage},
+     * so the Local {@code TournamentSummarySyncService} pipes the rejection to
+     * {@code adminRequestRepository.markFailed} within a few seconds and the
+     * admin's polling card flips to FAILED with the ACTUAL rejection reason.</p>
+     */
+    @Test
+    void tournamentLifecycle_updateRejectedByInvalidStatus_emitsFailedReturnEventAndDoesNotThrow() throws Exception {
+        Instant now = clock.instant();
+        TournamentId tId = new TournamentId("t-update-rejected");
+        Tournament draft = new Tournament(tId, "Update Cup", GameType.CHESS, false, 1,
+                TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.DRAFT, now, null,
+                new UserId("admin-la"), now);
+        tournamentService.create(draft, List.of("b1", "b2"));
+        // Advance to OPEN_REGISTRATION — update admits ONLY DRAFT, so this
+        // status forces the rejection path (no SQL status-hack needed, unlike
+        // the cancel mirror which must reach a status cancel does not admit).
+        tournamentService.open(tId);
+        assertThat(tournamentService.getById(tId).orElseThrow().status()).isEqualTo(TournamentStatus.OPEN_REGISTRATION);
+
+        String originatingRequestId = "request-update-rejected-1";
+
+        // The update call MUST NOT throw — the use case catches the rejection
+        // and emits a FAILED return event instead.
+        TournamentDto result = tournamentService.update(tId, "New Name", now,
+                List.of("b1", "b2", "b3"), originatingRequestId);
+
+        assertThat(result).isNull();
+        // The tournament status/name are unchanged on the central side.
+        assertThat(tournamentService.getById(tId).orElseThrow().status()).isEqualTo(TournamentStatus.OPEN_REGISTRATION);
+        assertThat(tournamentService.getById(tId).orElseThrow().name()).isEqualTo("Update Cup");
+
+        // At least one TOURNAMENT_SUMMARY_UPSERTED row carries our
+        // originatingRequestId AND a non-null errorMessage — this is the
+        // return-event that lets the Local mark the admin-request FAILED
+        // immediately (instead of waiting for the 30-min timeout).
+        OutboxEvent failedEvent = outboxEventRepository.findPending().stream()
+                .filter(e -> "TOURNAMENT_SUMMARY_UPSERTED".equals(e.getEventType()))
+                .filter(e -> {
+                    try {
+                        var p = objectMapper.readTree(e.getPayload());
+                        return originatingRequestId.equals(p.has("originatingRequestId") ? p.get("originatingRequestId").asText() : null)
+                                && p.has("errorMessage") && !p.get("errorMessage").isNull();
+                    } catch (Exception ex) {
+                        return false;
+                    }
+                })
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(
+                        "Expected a TOURNAMENT_SUMMARY_UPSERTED return outbox row carrying originatingRequestId="
+                                + originatingRequestId + " and a non-null errorMessage"));
+        var payload = objectMapper.readTree(failedEvent.getPayload());
+        assertThat(payload.get("tournamentId").asText()).isEqualTo(tId.value());
+        assertThat(payload.get("errorMessage").asText()).isEqualTo("Cannot update from status OPEN_REGISTRATION");
+        // The rejected mutation did NOT leak: the unchanged snapshot carries
+        // the original name (not the proposed "New Name") and is an UPSERT
+        // (deleted=false), NOT a tombstone.
+        assertThat(payload.get("name").asText()).isEqualTo("Update Cup");
+        assertThat(payload.get("deleted").asBoolean()).isFalse();
+        assertThat(payload.get("status").asText()).isEqualTo("OPEN_REGISTRATION");
+    }
+
+    /**
+     * End-to-end regression for BUG-DELETE-PENDING (mirror of
+     * BUG-CANCEL-PENDING): a platform admin pressing Delete on a tournament
+     * whose status is not {@code DRAFT} (here {@code OPEN_REGISTRATION}) used
+     * to throw {@link com.gameplatform.central.domain.exception.InvalidTournamentStateException}
+     * inside {@code TournamentService.delete()} (the inline DRAFT guard); the
+     * exception propagated up through {@code SyncEventProcessor.processOne} to
+     * {@code SyncReceiverService}'s poison-isolation catch, which marked the
+     * incoming event id as processed WITHOUT emitting any return outbox event →
+     * {@code admin_requests_local} stayed PENDING for 30 min → FAILED with
+     * {@code "reason":"TIMEOUT"}.
+     *
+     * <p>After the fix the delete use case catches the rejection and emits a
+     * single {@code TOURNAMENT_SUMMARY_UPSERTED} return outbox event
+     * ({@code deleted=false}: the tournament was NOT deleted, so the Local
+     * projection is UPSERTED with the unchanged snapshot) carrying
+     * {@code originatingRequestId} + the readable reason in {@code errorMessage},
+     * so the Local {@code TournamentSummarySyncService} pipes the rejection to
+     * {@code adminRequestRepository.markFailed} within a few seconds.</p>
+     */
+    @Test
+    void tournamentLifecycle_deleteRejectedByInvalidStatus_emitsFailedReturnEventAndDoesNotThrow() throws Exception {
+        Instant now = clock.instant();
+        TournamentId tId = new TournamentId("t-delete-rejected");
+        Tournament draft = new Tournament(tId, "Delete Cup", GameType.CHESS, false, 1,
+                TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.DRAFT, now, null,
+                new UserId("admin-la"), now);
+        tournamentService.create(draft, List.of("b1", "b2"));
+        // Advance to OPEN_REGISTRATION — delete admits ONLY DRAFT, so this
+        // status forces the rejection path.
+        tournamentService.open(tId);
+        assertThat(tournamentService.getById(tId).orElseThrow().status()).isEqualTo(TournamentStatus.OPEN_REGISTRATION);
+
+        String originatingRequestId = "request-delete-rejected-1";
+
+        // The delete call MUST NOT throw — the use case catches the rejection
+        // and emits a FAILED return event instead. Delete returns void, so we
+        // only assert side-effects below.
+        tournamentService.delete(tId, originatingRequestId);
+
+        // The tournament still exists on the central side (NOT deleted).
+        assertThat(tournamentService.getById(tId).orElseThrow().status()).isEqualTo(TournamentStatus.OPEN_REGISTRATION);
+
+        // At least one TOURNAMENT_SUMMARY_UPSERTED row carries our
+        // originatingRequestId AND a non-null errorMessage — this is the
+        // return-event that lets the Local mark the admin-request FAILED
+        // immediately (instead of waiting for the 30-min timeout).
+        OutboxEvent failedEvent = outboxEventRepository.findPending().stream()
+                .filter(e -> "TOURNAMENT_SUMMARY_UPSERTED".equals(e.getEventType()))
+                .filter(e -> {
+                    try {
+                        var p = objectMapper.readTree(e.getPayload());
+                        return originatingRequestId.equals(p.has("originatingRequestId") ? p.get("originatingRequestId").asText() : null)
+                                && p.has("errorMessage") && !p.get("errorMessage").isNull();
+                    } catch (Exception ex) {
+                        return false;
+                    }
+                })
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(
+                        "Expected a TOURNAMENT_SUMMARY_UPSERTED return outbox row carrying originatingRequestId="
+                                + originatingRequestId + " and a non-null errorMessage"));
+        var payload = objectMapper.readTree(failedEvent.getPayload());
+        assertThat(payload.get("tournamentId").asText()).isEqualTo(tId.value());
+        assertThat(payload.get("errorMessage").asText()).isEqualTo("Cannot delete tournament not in DRAFT: OPEN_REGISTRATION");
+        // The tournament was NOT deleted: the snapshot is an UPSERT
+        // (deleted=false), NOT a tombstone; the unchanged status/name are
+        // carried back so the Local projection stays consistent.
+        assertThat(payload.get("deleted").asBoolean()).isFalse();
+        assertThat(payload.get("status").asText()).isEqualTo("OPEN_REGISTRATION");
+        assertThat(payload.get("name").asText()).isEqualTo("Delete Cup");
+    }
+
     @Test
     void getStatistics_realAggregationService_readsSeededRow() {
         LocalDate periodStart = LocalDate.of(2026, 7, 1);

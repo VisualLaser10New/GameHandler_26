@@ -435,21 +435,97 @@ class TournamentServiceTest {
         assertThat(dto.buildings()).containsExactly("b1", "b2", "b3");
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // update() — BUG-UPDATE-PENDING regression: rejected update MUST emit a FAILED
+    // return event so the Local admin_requests_local row transitions to FAILED
+    // immediately (with the readable reason) instead of waiting 30 min for the
+    // AdminRequestTimeoutService to surface a vague "TIMEOUT" card.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Regression for BUG-UPDATE-PENDING (mirror of BUG-CANCEL-PENDING root
+     * cause B): updating a tournament in a status that {@link Tournament#update}
+     * does not admit (anything other than DRAFT) used to throw {@link
+     * InvalidTournamentStateException} which propagated out of {@code
+     * SyncEventProcessor.processOne} and was swallowed by the poison-isolation
+     * catch in {@code SyncReceiverService.receiveSyncPayload} → NO return
+     * outbox event → Local admin_requests_local stayed PENDING for 30 min →
+     * FAILED with {@code "reason":"TIMEOUT"}.
+     *
+     * <p>After the fix the use case catches the rejection and emits a single
+     * {@code TOURNAMENT_SUMMARY_UPSERTED} return outbox event carrying a
+     * non-null {@code errorMessage} so the Local
+     * {@code TournamentSummarySyncService} closes the admin-request as FAILED
+     * with the ACTUAL reason. The repository is NOT mutated, and the method
+     * returns {@code null} instead of throwing.</p>
+     */
     @Test
-    void update_throwsInvalidTournamentStateException_whenStatusIsOpenRegistration() {
+    void update_emitsFailedReturnEventAndDoesNotThrow_whenStatusIsNotDraft() throws Exception {
         TournamentId tid = new TournamentId("t1");
         Tournament open = new Tournament(
                 tid, "Old Name", GameType.CHESS, false, 1,
                 TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.OPEN_REGISTRATION,
                 FIXED_NOW, null, new UserId("admin"), FIXED_NOW);
         when(tournamentRepository.findById(tid)).thenReturn(Optional.of(open));
+        // Existing buildings/participants — the snapshot emitted on rejection
+        // must reflect the CURRENT persisted state, NOT the PROPOSED new values.
+        when(tournamentBuildingRepository.findByTournament(tid)).thenReturn(List.of("b-old-1", "b-old-2"));
+        when(tournamentParticipantRepository.countByTournament(tid)).thenReturn(2L);
 
-        assertThatThrownBy(() -> service.update(tid, "New Name", FIXED_NOW, List.of("b1", "b2"), null))
-                .isInstanceOf(InvalidTournamentStateException.class);
+        TournamentDto result = service.update(tid, "New Name", FIXED_NOW,
+                List.of("b-new-1", "b-new-2"), "request-id-update-open");
 
-        verify(outboxEventRepository, never()).save(any());
+        // NO exception thrown, NO tournament mutation, return null DTO.
+        assertThat(result).isNull();
         verify(tournamentRepository, never()).save(any(Tournament.class));
         verify(tournamentBuildingRepository, never()).deleteByTournament(any());
+
+        // Exactly one outbox event saved — the FAILED return event.
+        ArgumentCaptor<OutboxEvent> eventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxEventRepository).save(eventCaptor.capture());
+        OutboxEvent event = eventCaptor.getValue();
+        assertThat(event.getEventType()).isEqualTo("TOURNAMENT_SUMMARY_UPSERTED");
+        TournamentSummaryEventDto payload = objectMapper.readValue(event.getPayload(),
+                TournamentSummaryEventDto.class);
+        assertThat(payload.originatingRequestId()).isEqualTo("request-id-update-open");
+        assertThat(payload.tournamentId()).isEqualTo("t1");
+        // Unchanged snapshot — the tournament was NOT mutated.
+        assertThat(payload.status()).isEqualTo(TournamentStatus.OPEN_REGISTRATION);
+        assertThat(payload.name()).isEqualTo("Old Name");
+        assertThat(payload.deleted()).isFalse();
+        assertThat(payload.participantsCount()).isEqualTo(2);
+        // The CURRENT persisted buildings are carried — NOT the proposed new
+        // buildings (which would otherwise leak the rejected mutation).
+        assertThat(payload.buildingIds()).containsExactly("b-old-1", "b-old-2");
+        // The readable rejection reason is carried back to the Local.
+        assertThat(payload.errorMessage()).isEqualTo("Cannot update from status OPEN_REGISTRATION");
+    }
+
+    @Test
+    void update_emitsTombstoneFailedReturnEventAndDoesNotThrow_whenTournamentNotFound() throws Exception {
+        TournamentId tid = new TournamentId("t-missing-update");
+        when(tournamentRepository.findById(tid)).thenReturn(Optional.empty());
+
+        TournamentDto result = service.update(tid, "New Name", FIXED_NOW,
+                List.of("b1", "b2"), "request-id-update-404");
+
+        assertThat(result).isNull();
+        verify(tournamentRepository, never()).save(any(Tournament.class));
+        verify(tournamentBuildingRepository, never()).deleteByTournament(any());
+
+        ArgumentCaptor<OutboxEvent> eventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxEventRepository).save(eventCaptor.capture());
+        OutboxEvent event = eventCaptor.getValue();
+        assertThat(event.getEventType()).isEqualTo("TOURNAMENT_SUMMARY_UPSERTED");
+        TournamentSummaryEventDto payload = objectMapper.readValue(event.getPayload(),
+                TournamentSummaryEventDto.class);
+        assertThat(payload.originatingRequestId()).isEqualTo("request-id-update-404");
+        assertThat(payload.tournamentId()).isEqualTo("t-missing-update");
+        // Tournament missing → emit a tombstone (deleteById is a no-op when
+        // the local projection row does not exist; the markFailed hook still
+        // closes the admin-request).
+        assertThat(payload.deleted()).isTrue();
+        assertThat(payload.errorMessage()).isEqualTo("Tournament not found: t-missing-update");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -483,20 +559,92 @@ class TournamentServiceTest {
         assertThat(payload.buildingIds()).containsExactly("b1", "b2");
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // delete() — BUG-DELETE-PENDING regression: rejected delete MUST emit a
+    // FAILED return event so the Local admin_requests_local row transitions to
+    // FAILED immediately (with the readable reason) instead of waiting 30 min
+    // for the AdminRequestTimeoutService to surface a vague "TIMEOUT" card.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Regression for BUG-DELETE-PENDING (mirror of BUG-CANCEL-PENDING root
+     * cause B): deleting a tournament NOT in {@code DRAFT} used to throw
+     * {@link InvalidTournamentStateException} (the inline DRAFT guard in
+     * {@code TournamentService.delete}) which propagated out of {@code
+     * SyncEventProcessor.processOne} and was swallowed by the poison-isolation
+     * catch in {@code SyncReceiverService.receiveSyncPayload} → NO return
+     * outbox event → Local admin_requests_local stayed PENDING for 30 min →
+     * FAILED with {@code "reason":"TIMEOUT"}.
+     *
+     * <p>After the fix the use case catches the rejection and emits a single
+     * {@code TOURNAMENT_SUMMARY_UPSERTED} return outbox event ({@code
+     * deleted=false} — the tournament was NOT deleted, so the Local projection
+     * is UPSERTED with the unchanged snapshot) carrying a non-null {@code
+     * errorMessage} so the Local {@code TournamentSummarySyncService} closes
+     * the admin-request as FAILED with the ACTUAL reason. The repository is
+     * NOT mutated, and the method returns normally instead of throwing.</p>
+     */
     @Test
-    void delete_throwsInvalidTournamentStateException_whenStatusIsInProgress() {
+    void delete_emitsFailedReturnEventAndDoesNotThrow_whenStatusIsNotDraft() throws Exception {
         TournamentId tid = new TournamentId("t1");
         Tournament inProgress = new Tournament(
-                tid, "Old Name", GameType.CHESS, false, 1,
+                tid, "Active Cup", GameType.CHESS, false, 1,
                 TournamentFormat.SINGLE_ELIMINATION, TournamentStatus.IN_PROGRESS,
                 FIXED_NOW, null, new UserId("admin"), FIXED_NOW);
         when(tournamentRepository.findById(tid)).thenReturn(Optional.of(inProgress));
+        when(tournamentBuildingRepository.findByTournament(tid)).thenReturn(List.of("b-1", "b-2"));
+        when(tournamentParticipantRepository.countByTournament(tid)).thenReturn(4L);
 
-        assertThatThrownBy(() -> service.delete(tid, null))
-                .isInstanceOf(InvalidTournamentStateException.class);
+        service.delete(tid, "request-id-delete-in-progress");
 
-        verify(outboxEventRepository, never()).save(any());
+        // NO exception thrown, NO tournament/buildings deletion performed.
         verify(tournamentRepository, never()).deleteById(any());
         verify(tournamentBuildingRepository, never()).deleteByTournament(any());
+        // The in-progress tournament is left untouched (no save either).
+        verify(tournamentRepository, never()).save(any(Tournament.class));
+
+        // Exactly one outbox event saved — the FAILED return event.
+        ArgumentCaptor<OutboxEvent> eventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxEventRepository).save(eventCaptor.capture());
+        OutboxEvent event = eventCaptor.getValue();
+        assertThat(event.getEventType()).isEqualTo("TOURNAMENT_SUMMARY_UPSERTED");
+        TournamentSummaryEventDto payload = objectMapper.readValue(event.getPayload(),
+                TournamentSummaryEventDto.class);
+        assertThat(payload.originatingRequestId()).isEqualTo("request-id-delete-in-progress");
+        assertThat(payload.tournamentId()).isEqualTo("t1");
+        // Unchanged snapshot — the tournament was NOT deleted, so the
+        // projection must be UPSERTED (deleted=false), NOT tombstoned.
+        assertThat(payload.status()).isEqualTo(TournamentStatus.IN_PROGRESS);
+        assertThat(payload.name()).isEqualTo("Active Cup");
+        assertThat(payload.deleted()).isFalse();
+        assertThat(payload.participantsCount()).isEqualTo(4);
+        assertThat(payload.buildingIds()).containsExactly("b-1", "b-2");
+        // The readable rejection reason is carried back to the Local.
+        assertThat(payload.errorMessage()).isEqualTo("Cannot delete tournament not in DRAFT: IN_PROGRESS");
+    }
+
+    @Test
+    void delete_emitsTombstoneFailedReturnEventAndDoesNotThrow_whenTournamentNotFound() throws Exception {
+        TournamentId tid = new TournamentId("t-missing-delete");
+        when(tournamentRepository.findById(tid)).thenReturn(Optional.empty());
+
+        service.delete(tid, "request-id-delete-404");
+
+        verify(tournamentRepository, never()).deleteById(any());
+        verify(tournamentBuildingRepository, never()).deleteByTournament(any());
+
+        ArgumentCaptor<OutboxEvent> eventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxEventRepository).save(eventCaptor.capture());
+        OutboxEvent event = eventCaptor.getValue();
+        assertThat(event.getEventType()).isEqualTo("TOURNAMENT_SUMMARY_UPSERTED");
+        TournamentSummaryEventDto payload = objectMapper.readValue(event.getPayload(),
+                TournamentSummaryEventDto.class);
+        assertThat(payload.originatingRequestId()).isEqualTo("request-id-delete-404");
+        assertThat(payload.tournamentId()).isEqualTo("t-missing-delete");
+        // Tournament missing → emit a tombstone (deleteById is a no-op when
+        // the local projection row does not exist; the markFailed hook still
+        // closes the admin-request).
+        assertThat(payload.deleted()).isTrue();
+        assertThat(payload.errorMessage()).isEqualTo("Tournament not found: t-missing-delete");
     }
 }
