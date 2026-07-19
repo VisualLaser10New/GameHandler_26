@@ -31,6 +31,11 @@ public class MqttClientAdapter {
     private MqttCallbackExtended callback;
     private boolean connected;
 
+    // Optional listeners notified on every (re)connect so subscribers can
+    // re-establish their topic subscriptions (Paho does not restore them).
+    private final java.util.List<java.util.function.Consumer<Boolean>> connectionListeners =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+
     /**
      * Creates a new adapter for the given configuration.
      *
@@ -110,6 +115,9 @@ public class MqttClientAdapter {
                 log.info("MQTT connected (reconnect: {}, server: {})", reconnect, serverURI);
                 if (callback != null) {
                     callback.connectComplete(reconnect, serverURI);
+                }
+                for (java.util.function.Consumer<Boolean> l : connectionListeners) {
+                    try { l.accept(reconnect); } catch (Exception ex) { log.warn("connection listener error", ex); }
                 }
             }
 
@@ -229,6 +237,23 @@ public class MqttClientAdapter {
      */
     public void setCallback(MqttCallbackExtended callback) {
         this.callback = callback;
+    }
+
+    /**
+     * Registers a listener invoked on every successful (re)connection to the
+     * broker. Useful for re-establishing subscriptions that Paho drops on
+     * reconnect (clean sessions do not persist them).
+     *
+     * @param listener a consumer receiving {@code reconnect} (true if this was
+     *                 a reconnect rather than the initial connection)
+     */
+    public void addConnectionListener(java.util.function.Consumer<Boolean> listener) {
+        connectionListeners.add(listener);
+        // If already connected at registration time, fire immediately so the
+        // listener can subscribe without waiting for the next (re)connect.
+        if (isConnected()) {
+            try { listener.accept(false); } catch (Exception ex) { log.warn("connection listener error", ex); }
+        }
     }
 
     /**

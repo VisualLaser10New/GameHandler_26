@@ -11,6 +11,8 @@ import com.gameplatform.shared.mqtt.MqttPayloadSerializer;
 import com.gameplatform.shared.mqtt.payload.GameStatePayload;
 import com.gameplatform.shared.mqtt.payload.LobbyJoinPayload;
 import com.gameplatform.shared.mqtt.payload.LobbyLeavePayload;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
@@ -80,6 +82,12 @@ public class LobbyView {
     private String lobbyTopicFilter;
     private String stateTopicFilter;
     private boolean subscribed;
+    // Tracks the most recent GameStateDto passed to configure() so we can
+    // (re)subscribe when MQTT (re)connects.  Subscriptions are ephemeral
+    // with cleanSession=true, so a reconnect wipes them; if we don't
+    // re-subscribe the creator never receives the lobby/join echo and the
+    // second player appears to "never join".
+    private GameStateDto configuredState;
 
     private Runnable onCancel;
     /** Called when the lobby session has started — passes (GameStateDto, sessionId, participants). */
@@ -95,6 +103,20 @@ public class LobbyView {
         this.sessionPublisher = sessionPublisher;
         this.mqttAdapter = mqttAdapter;
         this.buildingId = buildingId;
+
+        // Whenever MQTT (re)connects, re-subscribe to the lobby/state topics
+        // for the currently configured game.  Paho's automatic reconnect does
+        // NOT restore subscriptions, so without this the creator would stop
+        // receiving lobby/join echoes after any transient disconnect.
+        if (mqttAdapter != null) {
+            mqttAdapter.addConnectionListener(reconnect -> {
+                if (configuredState != null && mqttAdapter.isConnected()) {
+                    System.out.println("[LobbyView] MQTT (re)connected (reconnect=" + reconnect
+                            + ") — re-subscribing lobby topics");
+                    subscribeToLobbyTopics();
+                }
+            });
+        }
 
         root = new VBox(16);
         root.setAlignment(Pos.CENTER);
@@ -176,6 +198,7 @@ public class LobbyView {
      */
     public void configure(GameStateDto state) {
         this.currentGame = state;
+        this.configuredState = state;
         this.participants.clear();
         this.lobbySessionId = null;
         this.creatorMode = state.status() == GameMachineStatus.AVAILABLE;
@@ -219,36 +242,55 @@ public class LobbyView {
         // Subscribe to lobby MQTT events for real-time participant updates.
         // Use the buildingId from the server's GameStateDto (not the local default)
         // to ensure the subscription topic matches the server's publish topic.
-        if (mqttAdapter != null && mqttAdapter.isConnected()) {
-            // Clean up any subscription from a previous visit before
-            // creating new ones, otherwise old topics for a different
-            // game machine would keep delivering messages.
-            cleanupSubscriptions();
-
-            String mqttBuildingId = state.buildingId() != null ? state.buildingId() : buildingId;
-            // Track the exact topic filters so cleanupSubscriptions()
-            // can unsubscribe later.
-            lobbyTopicFilter = "building/" + mqttBuildingId + "/game/" + state.gameId() + "/session/lobby/+";
-            stateTopicFilter = "building/" + mqttBuildingId + "/game/" + state.gameId() + "/state";
-
-            StateSubscriber subscriber = new StateSubscriber(mqttAdapter, mqttBuildingId,
-                    (topic, payload) -> Platform.runLater(() -> handleLobbyMqttMessage(topic, payload)));
-            subscriber.subscribeToLobbyEvents(state.gameId());
-
-            // Also subscribe to the game-machine state topic so we detect
-            // another player creating a lobby on the same machine while we
-            // are still in creator mode (game was AVAILABLE when we opened
-            // this view but has since transitioned to LOBBY).  Without this,
-            // a second client that opened the lobby view before the first
-            // created the lobby would still show "Crea Lobby" and could
-            // attempt a redundant create that the server would reject.
-            StateSubscriber stateSubscriber = new StateSubscriber(mqttAdapter, mqttBuildingId,
-                    (topic, payload) -> Platform.runLater(() -> handleStateMqttMessage(topic, payload)));
-            stateSubscriber.subscribeToStates(state.gameId());
-            subscribed = true;
-        }
+        // If MQTT is not yet connected, subscribeToLobbyTopics() will be invoked
+        // automatically when the connection completes (see constructor).
+        subscribeToLobbyTopics();
 
         refreshParticipantsBox();
+    }
+
+    /**
+     * (Re)subscribes to the lobby and game-state MQTT topics for the game
+     * configured via {@link #configure(GameStateDto)}. Safe to call repeatedly;
+     * it no-ops if there is no configured game or MQTT is not connected.
+     * <p>
+     * This is invoked both from {@code configure()} (when already connected)
+     * and from the MQTT (re)connect listener, so a transient disconnect does
+     * not permanently silence lobby/join events on the creator's screen.
+     */
+    private void subscribeToLobbyTopics() {
+        if (configuredState == null || mqttAdapter == null || !mqttAdapter.isConnected()) {
+            return;
+        }
+        GameStateDto state = configuredState;
+        // Clean up any subscription from a previous visit before
+        // creating new ones, otherwise old topics for a different
+        // game machine would keep delivering messages.
+        cleanupSubscriptions();
+
+        String mqttBuildingId = state.buildingId() != null ? state.buildingId() : buildingId;
+        // Track the exact topic filters so cleanupSubscriptions()
+        // can unsubscribe later.
+        lobbyTopicFilter = "building/" + mqttBuildingId + "/game/" + state.gameId() + "/session/lobby/+";
+        stateTopicFilter = "building/" + mqttBuildingId + "/game/" + state.gameId() + "/state";
+        System.out.println("[LobbyView] Subscribing: lobbyFilter=" + lobbyTopicFilter
+                + " stateFilter=" + stateTopicFilter + " connected=" + mqttAdapter.isConnected());
+
+        StateSubscriber subscriber = new StateSubscriber(mqttAdapter, mqttBuildingId,
+                (topic, payload) -> Platform.runLater(() -> handleLobbyMqttMessage(topic, payload)));
+        subscriber.subscribeToLobbyEvents(state.gameId());
+
+        // Also subscribe to the game-machine state topic so we detect
+        // another player creating a lobby on the same machine while we
+        // are still in creator mode (game was AVAILABLE when we opened
+        // this view but has since transitioned to LOBBY).  Without this,
+        // a second client that opened the lobby view before the first
+        // created the lobby would still show "Crea Lobby" and could
+        // attempt a redundant create that the server would reject.
+        StateSubscriber stateSubscriber = new StateSubscriber(mqttAdapter, mqttBuildingId,
+                (topic, payload) -> Platform.runLater(() -> handleStateMqttMessage(topic, payload)));
+        stateSubscriber.subscribeToStates(state.gameId());
+        subscribed = true;
     }
 
     // ─────────────────────────── Active lobby lookup ──────────────────────────
@@ -624,8 +666,11 @@ public class LobbyView {
         refreshParticipantsBox();
     }
 
+    private static final Logger log = LoggerFactory.getLogger(LobbyView.class);
+
     private void handleLobbyMqttMessage(String topic, byte[] payload) {
         try {
+            System.out.println("[LobbyView] MQTT recv topic=" + topic + " payload=" + new String(payload, java.nio.charset.StandardCharsets.UTF_8));
             String[] tokens = topic.split("/");
             if (tokens.length < 7) return;
             String lobbyAction = tokens[6]; // lobby/create, lobby/join, lobby/start
@@ -656,6 +701,9 @@ public class LobbyView {
                 case "join" -> {
                     // A new player joined — extract sessionId (if not already set) and userId
                     LobbyJoinPayload joinPayload = MqttPayloadSerializer.deserialize(payload, LobbyJoinPayload.class);
+                    System.out.println("[LobbyView] JOIN received: sessionId=" + joinPayload.sessionId()
+                            + " userId=" + joinPayload.userId() + " currentLobbySessionId=" + lobbySessionId
+                            + " creatorMode=" + creatorMode);
                     if (lobbySessionId == null && joinPayload.sessionId() != null) {
                         lobbySessionId = joinPayload.sessionId();
                     }
