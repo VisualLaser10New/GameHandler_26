@@ -67,28 +67,28 @@ I tornei possono essere organizzati dagli utenti PLATFORM_ADMIN e sono ad elimin
 * **Individuale** -> usa l'userId del giocatore
 * **A squadre** -> viene registrato un team con un teamId e la lista dei giocatori del team
 
-![schermata creazione torneo](/schermate%20client/creazione_torneo.jpeg)
-![schermata di torneo](/schermate%20client/tornei.jpeg)
+![creazione_torneo.jpeg](schermate%20client/creazione_torneo.jpeg)
+![tornei.jpeg](schermate%20client/tornei.jpeg)
 
 Maggiori informazioni sui tornei qui [gestione_tornei](strutture/gestione_tornei.md)
 
 Le statististiche che vengono mostrate dipendono da l'utente che ha fatto l'accesso:
 * Il player ha accesso hai dati sui giochi che ha giocato lui:
 
-![my_game](/schermate%20client/my_match.jpeg)
-![my_stat](/schermate%20client/my_stat.jpeg)
+![my_match.jpeg](schermate%20client/my_match.jpeg)
+![my_stat.jpeg](schermate%20client/my_stat.jpeg)
 
 * Il local admin ha accesso a tutti i giochi nel suo locale, con indicato se sono disponibili e i punteggi delle partite.
 
-![local_admin](/schermate%20client/local_admin_dashboard.jpeg)
+![local_admin_dashboard.jpeg](schermate%20client/local_admin_dashboard.jpeg)
 
 * Il Game Admin ha accesso a tuttti i giochi creati, la sua dashboard è un editor che permette di definire nuovi giochi.
 
-![game_admin](/schermate%20client/game_admin_dashboard.jpeg)
+![game_admin_dashboard.jpeg](schermate%20client/game_admin_dashboard.jpeg)
 
 * Il Platform Admin ha accesso a tutte le statistiche.
 
-![platform_admin](/schermate%20client/platform_admin_dashboard.jpeg)
+![platform_admin_dashboard.jpeg](schermate%20client/platform_admin_dashboard.jpeg)
 
 ### Componenti accessori
 Come già accennato è necessario autenticarsi, è inoltre presente un sistema di prenotazione.
