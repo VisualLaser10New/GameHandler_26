@@ -113,9 +113,44 @@ Come già detto l'applicazione è una piattaforma software per la gestione di sa
 
 8) __Acquisizione eventi dai sensori di gioco__ i sensori posizionati su ciascun gioco fisico (gestiti ad esempio da una board ESP32) rilevano gli eventi significativi della partita e li inviano al Local Server tramite chiamate HTTP e MQTT.
 
+__TODO__
+* Diagrammi UML dei casi d'uso (i principali)
+* Diagramma UML delle classi del dominio
+
+
 ### 5.2 Progettazione
-Diagramma dei package, 
-diagramma delle classi di implementazione
-diagramma di sequenza
-definizione api rest
-definizione topim MQTT
+Vengono usati pattern diversi:
+
+* Sul piano della distribuzione usiamo Hub-and-Spoke unito a quello Pub/Sub. Qui il Central System è l'hub e gli spoke i Local Server, quello Pub/Sub è attuato tramite MQTT tra server locale e Game Client.
+* Sul piano dei microservizi il sistema è composto da tre microservizi Spring Boot indipendenti (Central System, Local Server, Game Client Emulator),  organizzati come monorepo Maven multi-modulo con moduli condivisi (shared-domain, shared-dto, shared-mqtt) che non dipendono da nessun framework, per evitare duplicazione di codice tra i tre servizi.
+* Sul piano del codice interno a ciascun microservizio, viene applicata la Clean Architecture / architettura esagonale (Ports and Adapters): il dominio (le entità e la logica di business) è Java puro, senza dipendenze da Spring o JPA, mentre l'accesso a database, MQTT e REST avviene tramite adapter separati. Questo rispetta il Dependency Inversion Principle e rende il dominio testabile senza framework.
+
+In sintesi, l'architettura si può riassumere così: microservizi distribuiti in pattern hub-and-spoke con comunicazione ibrida REST/MQTT, ciascun servizio internamente strutturato secondo architettura esagonale, con sincronizzazione asincrona basata su outbox pattern per garantire resilienza offline.
+
+__TODO__
+* Diagramma dei package, 
+* diagramma delle classi di implementazione
+* diagramma di sequenza
+* definizione api rest
+
+#### TOPIC MQTT
+Tutti i topic seguono lo schema gerarchico `building/{buildingId}/game/{gameId}/{action}`, ad eccezione di `alerts` che è a livello di edificio (`building/{buildingId}/alerts`, senza `gameId`).
+
+| Topic | Publisher | Subscriber | QoS / Retained | Descrizione |
+|---|---|---|---|---|
+| `building/{buildingId}/game/{gameId}/state` | Local Server | Game Client (wildcard `+`) | QoS 1, Retained | Stato della macchina di gioco: AVAILABLE, RESERVED, LOBBY, IN_USE |
+| `building/{buildingId}/game/{gameId}/session/start` | Game Client | Local Server | QoS 1 | Avvio sessione di gioco (walk-in, con `reservationId` opzionale) |
+| `building/{buildingId}/game/{gameId}/session/pause` | Game Client | Local Server | QoS 1 | Pausa della sessione in corso |
+| `building/{buildingId}/game/{gameId}/session/resume` | Game Client | Local Server | QoS 1 | Ripresa della sessione |
+| `building/{buildingId}/game/{gameId}/session/end` | Game Client | Local Server | QoS 1 | Chiusura sessione con `result_data` (vincitore, punteggio, esito) |
+| `building/{buildingId}/game/{gameId}/session/lobby/create` | Game Client (creator) | Local Server | QoS 1 | Creazione di una lobby su un gioco |
+| `building/{buildingId}/game/{gameId}/session/lobby/join` | Game Client (joiner) | Local Server | QoS 1 | Ingresso di un giocatore in una lobby esistente |
+| `building/{buildingId}/game/{gameId}/session/lobby/start` | Game Client (creator) | Local Server | QoS 1 | Avvio della partita dalla lobby |
+| `building/{buildingId}/game/{gameId}/session/lobby/cancel` | Game Client (creator) | Local Server | QoS 1 | Annullamento della lobby prima dell'avvio |
+| `building/{buildingId}/game/{gameId}/heartbeat` | Game Client / Local Server | Local Server / Game Client | QoS 0 | Battito periodico del client, oppure PING del server ogni 5 minuti |
+| `building/{buildingId}/game/{gameId}/heartbeat/ack` | Local Server / Game Client | Game Client / Local Server | QoS 0 | Risposta (ACK/PONG) al battito ricevuto |
+| `building/{buildingId}/game/{gameId}/session/move` | Game Client / tavolo fisico | Local Server | QoS non specificato | Evento di mossa durante la partita (generico, da standardizzare per tipo di gioco) |
+| `building/{buildingId}/game/{gameId}/session/score` | Game Client / tavolo fisico | Local Server | QoS non specificato | Evento di punteggio (es. goal a calciobalilla, generico) |
+| `building/{buildingId}/game/{gameId}/session/turn` | Game Client / tavolo fisico | Local Server | QoS non specificato | Cambio turno (generico) |
+| `building/{buildingId}/alerts` | Local Server | Central System / dashboard | QoS non specificato | Allarmi: client irraggiungibile dopo 3 heartbeat mancati (15 min), prenotazione non valida, ecc. |
+
