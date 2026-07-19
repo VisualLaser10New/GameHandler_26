@@ -131,7 +131,13 @@ __TODO__
 * Diagramma dei package, 
 * diagramma delle classi di implementazione
 * diagramma di sequenza
-* definizione api rest
+
+#### DEFINIZIONE API REST
+La piattaforma espone API REST da due microservizi distinti: il Central System (porta 8180) e il Local Server (porta 8181, uno per edificio), entrambi su HTTPS/TLS 1.3.
+
+L'accesso a ogni endpoint è protetto da autenticazione JWT (firmata con chiavi RSA proprie di ciascun nodo, non intercambiabili tra Central e Local) e regolato tramite RBAC sui quattro ruoli PLAYER, LOCAL_ADMIN, GAME_ADMIN, PLATFORM_ADMIN, con controlli aggiuntivi di self-check sull'utente e di binding sull'edificio dove previsto. Gli endpoint /internal/**, usati solo per la sincronizzazione server-to-server tra Local e Central, sono invece protetti da una API Key condivisa e non richiedono JWT.
+
+La documentaione completa di ogni endpoint è consultabile nel documento [report_api_rest.md](strutture/report_api_rest.md)
 
 #### TOPIC MQTT
 Tutti i topic seguono lo schema gerarchico `building/{buildingId}/game/{gameId}/{action}`, ad eccezione di `alerts` che è a livello di edificio (`building/{buildingId}/alerts`, senza `gameId`).
