@@ -919,6 +919,5 @@
 
 ### 9.2 Passi finali
 - [x] test dei tornei
-- [ ] test di tutti i sistemi @Tizzycek, @Caste00
-- [ ] scrivere 4 documenti in /documenti/. (non quelli in strutture, perché sono già aggiornati), basarsi su guida_documenti_up.md
-- [ ] presentazione power point seguendo il suo modello
+- [x] test di tutti i sistemi @Tizzycek, @Caste00
+- [ ] scrivere il documento relazione
