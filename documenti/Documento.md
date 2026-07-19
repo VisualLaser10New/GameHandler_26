@@ -1,4 +1,4 @@
-# GAME_HANDLER
+# GAME HANDLER
 
 ## 1. DESCRIZIONE DEL PROGETTO
 ### Obbiettivo
@@ -17,21 +17,21 @@ Ci sono quattro tipi di utenti:
 
 La tabella descrive le funzionalità di ogni utente
 
-| Permesso | PLAYER | LOCAL_ADMIN | GAME_ADMIN | PLATFORM_ADMIN |
-|---|:---:|:---:|:---:|:---:|
-| Partecipa alle partite | ✓ | | | ✓ |
-| Consulta proprie statistiche | ✓ | | | ✓ |
-| Visualizza i giochi disponibili nei locali | ✓ | ✓ | | ✓ |
-| Partecipa ai tornei | ✓ | | | ✓ |
-| Gestisce i giochi presenti nel proprio locale | | ✓ | | ✓ |
-| Configura i dispositivi e monitora le partite | | ✓ | | ✓ |
-| Visualizza statistiche relative al locale | | ✓ | | ✓ |
-| Definisce nuove tipologie di giochi | | | ✓ | ✓ |
-| Configura le regole di registrazione delle partite | | | ✓ | ✓ |
-| Gestisce utenti e locali | | | | ✓ |
-| Monitora il funzionamento dell'intero sistema | | | | ✓ |
-| Accede a statistiche globali | | | | ✓ |
-| Crazione dei tornei | | | | ✓ |
+| Permesso                                           | PLAYER | LOCAL_ADMIN | GAME_ADMIN | PLATFORM_ADMIN |
+|----------------------------------------------------|:------:|:-----------:|:----------:|:--------------:|
+| Partecipa alle partite                             |   ✓    |             |            |       ✓        |
+| Consulta proprie statistiche                       |   ✓    |             |            |       ✓        |
+| Visualizza i giochi disponibili nei locali         |   ✓    |      ✓      |            |       ✓        |
+| Partecipa ai tornei                                |   ✓    |             |            |       ✓        |
+| Gestisce i giochi presenti nel proprio locale      |        |      ✓      |            |       ✓        |
+| Configura i dispositivi e monitora le partite      |        |      ✓      |            |       ✓        |
+| Visualizza statistiche relative al locale          |        |      ✓      |            |       ✓        |
+| Definisce nuove tipologie di giochi                |        |             |     ✓      |       ✓        |
+| Configura le regole di registrazione delle partite |        |             |     ✓      |       ✓        |
+| Gestisce utenti e locali                           |        |             |            |       ✓        |
+| Monitora il funzionamento dell'intero sistema      |        |             |            |       ✓        |
+| Accede a statistiche globali                       |        |             |            |       ✓        |
+| Crazione dei tornei                                |        |             |            |       ✓        |
 
 Maggiori informazioni in [ruoli_utenti](strutture/ruoli_utenti.md)
 
