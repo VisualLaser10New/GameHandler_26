@@ -1,0 +1,2167 @@
+openapi: 3.0.3
+info:
+  title: Piattaforma Giochi da Tavolo e da Bar — API REST
+  version: "1.0.0"
+  description: >
+    Specifica OpenAPI completa dei servizi REST esposti dalla piattaforma distribuita
+    per la gestione di giochi da tavolo e da bar. La piattaforma è composta da due
+    microservizi: il **Central System** (Hub/Source-of-Truth globale) e il **Local Server**
+    (Edge Node installato in ogni edificio). Tutte le chiamate `/api/**` sono protette da
+    JWT (RSA-256, firmato dal nodo emittente) e veicolato su HTTPS (TLS 1.3). Gli endpoint
+    `/internal/**` sono protetti da API Key (`X-Internal-Api-Key`) e sono esclusi dal filtro JWT.
+  contact:
+    name: Development Team
+    url: https://github.com/anomalyco/opencode
+servers:
+  - url: https://central-system:8180
+    description: Central System (Hub)
+  - url: https://local-server-1:8181
+    description: Local Server (Edge Node — Edificio 1)
+security:
+  - bearerAuth: []
+  - internalApiKey: []
+tags:
+  - name: Central — Auth & Users
+    description: Registrazione utenti, login e gestione identità sul Central System.
+  - name: Central — Admin Buildings
+    description: Binding LOCAL_ADMIN ↔ building (gestione piattaforma).
+  - name: Central — Game Definitions
+    description: Definizione tipologie di gioco (GAME_ADMIN).
+  - name: Central — Statistics
+    description: Statistiche globali aggregate e del giocatore.
+  - name: Central — Tournaments
+    description: CRUD e lifecycle tornei (PLATFORM_ADMIN) + letture authenticated.
+  - name: Local — Auth
+    description: Login e signup offline sul Local Server.
+  - name: Local — Reservations
+    description: Prenotazioni macchine di gioco.
+  - name: Local — Games & Sessions
+    description: Catalogo giochi e ciclo di vita delle sessioni di gioco.
+  - name: Local — Statistics
+    description: Statistiche locali (building) e del giocatore.
+  - name: Local — Devices
+    description: Registrazione dispositivo (CSR) e health.
+  - name: Local — Admin Local
+    description: Dashboard LOCAL_ADMIN (giochi, dispositivi, sessioni, statistiche edificio).
+  - name: Local — Admin Games
+    description: Gestione catalogo locale (GAME_ADMIN).
+  - name: Local — Admin Platform
+    description: Superfici PLATFORM_ADMIN lato Local (utenti, server, tornei, request).
+  - name: Local — Tournaments
+    description: Tornei lato Local (replica + async lifecycle + gameplay).
+  - name: Internal — Sync
+    description: Endpoint server-to-server (API Key).
+paths:
+
+  # ============================================================
+  # CENTRAL SYSTEM — AUTH & USERS
+  # ============================================================
+  /api/users:
+    post:
+      tags: [Central — Auth & Users]
+      summary: Registrazione utente (pubblico)
+      description: >
+        Crea un nuovo utente nel Central System con ruolo di default `PLAYER`. Genera un
+        `OutboxEvent: USER_REGISTERED` e, tramite il `UserReplicationSchedulerService`,
+        replica l'utente su tutti i Local Server registrati (tabella `replicated_users`)
+        per abilitare il login offline. Nessun body di ruolo: l'assegnazione dei ruoli
+        avviene tramite flusso async outbox lato Local.
+      operationId: centralRegisterUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterUserRequest'
+      responses:
+        '201':
+          description: Utente creato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+        '400':
+          description: Dati non validi (username duplicato, campi mancanti)
+
+  /api/auth/login:
+    post:
+      tags: [Central — Auth & Users]
+      summary: Login (pubblico)
+      description: >
+        Autentica l'utente presso il Central System, verifica l'hash BCrypt e firma un JWT
+        con la chiave privata del Central (RSA-256). Il JWT è valido solo sul Central System.
+      operationId: centralLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: JWT emesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JwtResponse'
+        '401':
+          description: Credenziali non valide
+
+  # ============================================================
+  # CENTRAL SYSTEM — ADMIN BUILDINGS (binding LOCAL_ADMIN)
+  # ============================================================
+  /api/admin/local/buildings:
+    post:
+      tags: [Central — Admin Buildings]
+      summary: Assegna binding LOCAL_ADMIN ↔ building
+      description: >
+        Associa un `LOCAL_ADMIN` a uno o più edifici. Persiste in `local_admin_buildings`
+        (Source-of-Truth) e replica via outbox `LOCAL_ADMIN_BUILDING_ASSIGNED` sui Local Server
+        (tabella `local_admin_buildings_local`).
+      operationId: centralAssignLocalAdminBuildings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignLocalAdminBuildingsDto'
+      responses:
+        '200':
+          description: Binding creato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocalAdminBuildingsDto'
+        '403':
+          description: Ruolo non autorizzato
+    delete:
+      tags: [Central — Admin Buildings]
+      summary: Revoca binding LOCAL_ADMIN ↔ building
+      description: >
+        Rimuove il binding LOCAL_ADMIN↔building e replica `LOCAL_ADMIN_BUILDING_REVOKED`
+        sui Local Server.
+      operationId: centralRevokeLocalAdminBuildings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignLocalAdminBuildingsDto'
+      responses:
+        '200':
+          description: Binding revocato
+        '403':
+          description: Ruolo non autorizzato
+    get:
+      tags: [Central — Admin Buildings]
+      summary: Lista binding LOCAL_ADMIN ↔ building
+      operationId: centralListLocalAdminBuildings
+      responses:
+        '200':
+          description: Elenco binding
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LocalAdminBuildingsDto'
+
+  # ============================================================
+  # CENTRAL SYSTEM — GAME DEFINITIONS (GAME_ADMIN)
+  # ============================================================
+  /api/admin/games/definitions:
+    post:
+      tags: [Central — Game Definitions]
+      summary: Crea/Upsert definizione di gioco
+      description: >
+        Definisce una nuova tipologia di gioco e le relative regole (min/max players,
+        team_allowed, registration_rules). Persiste in `game_definitions` e replica
+        `GAME_DEFINITION_UPSERTED` sui Local (`game_definitions_local`).
+      operationId: centralUpsertGameDefinition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertGameDefinitionRequestDto'
+      responses:
+        '200':
+          description: Definizione creata/aggiornata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameDefinitionDto'
+        '403':
+          description: Ruolo non autorizzato
+    get:
+      tags: [Central — Game Definitions]
+      summary: Lista definizioni di gioco
+      description: Accessibile a qualsiasi utente autenticato.
+      operationId: centralListGameDefinitions
+      responses:
+        '200':
+          description: Elenco definizioni
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GameDefinitionDto'
+
+  /api/admin/games/definitions/{gameType}:
+    put:
+      tags: [Central — Game Definitions]
+      summary: Aggiorna definizione di gioco
+      operationId: centralUpdateGameDefinition
+      parameters:
+        - $ref: '#/components/parameters/gameType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertGameDefinitionRequestDto'
+      responses:
+        '200':
+          description: Definizione aggiornata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameDefinitionDto'
+        '404':
+          description: Definizione non trovata
+
+  # ============================================================
+  # CENTRAL SYSTEM — STATISTICS
+  # ============================================================
+  /api/statistics:
+    get:
+      tags: [Central — Statistics]
+      summary: Statistiche globali aggregate
+      description: >
+        Restituisce le `aggregated_statistics` globali (per building/gameType/periodo).
+        Accessibile solo a `PLATFORM_ADMIN`.
+      operationId: centralGlobalStatistics
+      responses:
+        '200':
+          description: Statistiche aggregate
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AggregatedStatisticsDto'
+        '403':
+          description: Ruolo non autorizzato
+
+  /api/players/me/statistics:
+    get:
+      tags: [Central — Statistics]
+      summary: Statistiche del giocatore corrente
+      description: >
+        Read-model `player_statistics` del giocatore autenticato; supporta filtro opzionale
+        `?gameType=`. Accessibile a `PLAYER` (o `PLATFORM_ADMIN`).
+      operationId: centralMyPlayerStatistics
+      parameters:
+        - name: gameType
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/GameType'
+      responses:
+        '200':
+          description: Statistiche giocatore
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlayerStatisticsDto'
+
+  /api/players/{userId}/statistics:
+    get:
+      tags: [Central — Statistics]
+      summary: Statistiche di un giocatore arbitrario
+      description: >
+        Self-check (`userId == principal`) o `PLATFORM_ADMIN`. Altrimenti 403
+        `PlayerStatisticsAccessDeniedException`.
+      operationId: centralUserPlayerStatistics
+      parameters:
+        - $ref: '#/components/parameters/userId'
+        - name: gameType
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/GameType'
+      responses:
+        '200':
+          description: Statistiche giocatore
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlayerStatisticsDto'
+        '403':
+          description: Accesso negato
+
+  # ============================================================
+  # CENTRAL SYSTEM — TOURNAMENTS
+  # ============================================================
+  /api/tournaments:
+    post:
+      tags: [Central — Tournaments]
+      summary: Crea torneo (DRAFT) — branch diretto
+      description: >
+        Crea un torneo in stato DRAFT. Richiede `buildingIds` (size >= 2), `gameType` presente
+        in `game_definitions`, coerenza `teamBased`/`teamSize`. Forza `SINGLE_ELIMINATION`.
+      operationId: centralCreateTournament
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTournamentRequestDto'
+      responses:
+        '201':
+          description: Torneo creato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentDto'
+        '400':
+          description: Validazione fallita
+        '403':
+          description: Ruolo non autorizzato
+    get:
+      tags: [Central — Tournaments]
+      summary: Elenco tornei (filter by status)
+      operationId: centralListTournaments
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TournamentStatus'
+      responses:
+        '200':
+          description: Elenco tornei
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TournamentDto'
+
+  /api/tournaments/{id}:
+    get:
+      tags: [Central — Tournaments]
+      summary: Dettaglio torneo
+      operationId: centralGetTournament
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '200':
+          description: Dettaglio torneo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentDto'
+        '404':
+          description: Torneo non trovato
+    put:
+      tags: [Central — Tournaments]
+      summary: Aggiorna torneo (DRAFT only)
+      operationId: centralUpdateTournament
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTournamentRequestDto'
+      responses:
+        '200':
+          description: Torneo aggiornato
+        '400':
+          description: Stato non DRAFT
+        '403':
+          description: Ruolo non autorizzato
+    delete:
+      tags: [Central — Tournaments]
+      summary: Elimina torneo (DRAFT only)
+      operationId: centralDeleteTournament
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '204':
+          description: Torneo eliminato
+        '400':
+          description: Stato non DRAFT
+
+  /api/tournaments/{id}/open:
+    post:
+      tags: [Central — Tournaments]
+      summary: Apertura iscrizioni (DRAFT → OPEN_REGISTRATION)
+      operationId: centralOpenTournament
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '200':
+          description: Iscrizioni aperte
+        '403':
+          description: Ruolo non autorizzato
+
+  /api/tournaments/{id}/cancel:
+    post:
+      tags: [Central — Tournaments]
+      summary: Cancellazione (DRAFT/OPEN → CANCELLED)
+      operationId: centralCancelTournament
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '200':
+          description: Torneo cancellato
+        '403':
+          description: Ruolo non autorizzato
+
+  /api/tournaments/{id}/schedule:
+    post:
+      tags: [Central — Tournaments]
+      summary: Generazione bracket (OPEN_REGISTRATION → IN_PROGRESS)
+      description: >
+        Invoca `TournamentBracketService.schedule`: genera il bracket SINGLE_ELIMINATION,
+        emette `TOURNAMENT_MATCH_SCHEDULED` per i match di round 1 e seed delle standings.
+      operationId: centralScheduleTournament
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '200':
+          description: Bracket generato
+        '403':
+          description: Ruolo non autorizzato
+
+  /api/tournaments/{id}/standings:
+    get:
+      tags: [Central — Tournaments]
+      summary: Classifica (standings) torneo
+      operationId: centralTournamentStandings
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '200':
+          description: Snapshot standings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TournamentStandingDto'
+
+  /api/tournaments/{id}/matches:
+    get:
+      tags: [Central — Tournaments]
+      summary: Elenco match del bracket
+      operationId: centralTournamentMatches
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '200':
+          description: Match del torneo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TournamentMatchDto'
+
+  /api/tournaments/{id}/participants:
+    post:
+      tags: [Central — Tournaments]
+      summary: Iscrizione partecipante (branch diretto)
+      description: >
+        `PLAYER` o `PLATFORM_ADMIN`. Supporta registrazione individuale (body vuoto) o a
+        squadre (`RegisterTournamentParticipantDto`).
+      operationId: centralRegisterParticipant
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterTournamentParticipantDto'
+      responses:
+        '201':
+          description: Iscrizione creata
+        '409':
+          description: Già iscritto / torneo chiuso
+    get:
+      tags: [Central — Tournaments]
+      summary: Elenco partecipanti
+      operationId: centralListParticipants
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '200':
+          description: Partecipanti
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TournamentParticipantDto'
+    delete:
+      tags: [Central — Tournaments]
+      summary: Cancella iscrizione utente corrente
+      operationId: centralUnregisterParticipant
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '204':
+          description: Iscrizione cancellata
+
+  # ============================================================
+  # LOCAL SERVER — AUTH
+  # ============================================================
+  /api/auth/login:
+    post:
+      tags: [Local — Auth]
+      summary: Login locale
+      description: >
+        Autentica l'utente sul Local Server (BCrypt su `replicated_users` o `LocalUserJpaEntity`),
+        funziona anche offline. Firma un JWT con la chiave privata locale (RSA-256).
+      operationId: localLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: JWT locale emesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JwtResponse'
+        '401':
+          description: Credenziali non valide
+
+  /api/auth/signup:
+    post:
+      tags: [Local — Auth]
+      summary: Registrazione locale (offline)
+      description: >
+        Registra un utente direttamente sul Local Server (default `PLAYER`), genera outbox
+        `USER_REGISTERED`. Verifica unicità username vs utenti locali e replicati.
+      operationId: localSignup
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterUserRequest'
+      responses:
+        '201':
+          description: Utente locale creato
+        '409':
+          description: Username duplicato
+
+  /api/auth/me:
+    get:
+      tags: [Local — Auth]
+      summary: Info utente corrente (arricchito)
+      description: >
+        Restituisce il profilo dell'utente autenticato, risolto da `CurrentUserService`
+        via `Authentication.getName()`.
+      operationId: localAuthMe
+      responses:
+        '200':
+          description: Profilo utente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+
+  # ============================================================
+  # LOCAL SERVER — RESERVATIONS
+  # ============================================================
+  /api/reservations:
+    post:
+      tags: [Local — Reservations]
+      summary: Crea prenotazione
+      description: >
+        Crea una prenotazione per una macchina di gioco. Self-check `userId == principal`.
+        Transizione macchina a `RESERVED` e outbox `RESERVATION_CREATED`.
+      operationId: localCreateReservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReservationRequestDto'
+      responses:
+        '201':
+          description: Prenotazione creata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationDto'
+        '403':
+          description: Self-check fallito
+
+  /api/reservations/{id}:
+    delete:
+      tags: [Local — Reservations]
+      summary: Cancella prenotazione
+      description: >
+        Cancella una prenotazione (self-check). Rilascia la macchina a `AVAILABLE` e
+        genera outbox `RESERVATION_CANCELLED`.
+      operationId: localDeleteReservation
+      parameters:
+        - $ref: '#/components/parameters/reservationId'
+      responses:
+        '204':
+          description: Prenotazione cancellata
+        '403':
+          description: Self-check fallito
+
+  /api/reservations:
+    get:
+      tags: [Local — Reservations]
+      summary: Lista prenotazioni per utente
+      description: Query `?userId=`. Self-check `userId == principal`.
+      operationId: localListReservations
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Elenco prenotazioni
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReservationDto'
+
+  # ============================================================
+  # LOCAL SERVER — GAMES & SESSIONS
+  # ============================================================
+  /api/games:
+    get:
+      tags: [Local — Games & Sessions]
+      summary: Catalogo giochi
+      description: Accessibile a `PLAYER, GAME_ADMIN, PLATFORM_ADMIN, LOCAL_ADMIN`.
+      operationId: localListGames
+      responses:
+        '200':
+          description: Catalogo giochi
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GameDto'
+
+  /api/games/available:
+    get:
+      tags: [Local — Games & Sessions]
+      summary: Giochi disponibili (AVAILABLE)
+      operationId: localListAvailableGames
+      responses:
+        '200':
+          description: Giochi disponibili
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GameDto'
+
+  /api/sessions/start:
+    post:
+      tags: [Local — Games & Sessions]
+      summary: Avvia sessione di gioco
+      description: >
+        Avvia una `GameSession` (IN_PROGRESS) associata a una macchina. Valida la prenotazione
+        opzionale e la `GameDefinitionLocal`. MQTT publish `session/start` + `state` IN_USE.
+      operationId: localStartSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionStartRequestDto'
+      responses:
+        '201':
+          description: Sessione avviata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameSessionDto'
+        '403':
+          description: Ruolo non autorizzato
+
+  /api/sessions/{id}/end:
+    post:
+      tags: [Local — Games & Sessions]
+      summary: Termina sessione di gioco
+      description: >
+        Completa una sessione (COMPLETED) con `GameResult` polimorfico. Rilascia la macchina
+        a `AVAILABLE` e genera outbox `GAME_SESSION_COMPLETED` (+ `TOURNAMENT_MATCH_COMPLETED`
+        se torneo). Supporta late-arrival da ABORTED.
+      operationId: localEndSession
+      parameters:
+        - $ref: '#/components/parameters/sessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionEndRequestDto'
+      responses:
+        '200':
+          description: Sessione terminata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameSessionDto'
+
+  /api/sessions/{id}/pause:
+    post:
+      tags: [Local — Games & Sessions]
+      summary: Pausa sessione
+      operationId: localPauseSession
+      parameters:
+        - $ref: '#/components/parameters/sessionId'
+      responses:
+        '200':
+          description: Sessione in pausa
+
+  /api/sessions/{id}/resume:
+    post:
+      tags: [Local — Games & Sessions]
+      summary: Riprendi sessione
+      operationId: localResumeSession
+      parameters:
+        - $ref: '#/components/parameters/sessionId'
+      responses:
+        '200':
+          description: Sessione ripresa
+
+  /api/sessions/lobby:
+    post:
+      tags: [Local — Games & Sessions]
+      summary: Crea lobby
+      operationId: localCreateLobby
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LobbyRequestDto'
+      responses:
+        '201':
+          description: Lobby creata
+
+  /api/sessions/{id}/join:
+    post:
+      tags: [Local — Games & Sessions]
+      summary: Join lobby
+      operationId: localJoinLobby
+      parameters:
+        - $ref: '#/components/parameters/sessionId'
+      responses:
+        '200':
+          description: Unitosi alla lobby
+
+  /api/sessions/{id}/start-lobby:
+    post:
+      tags: [Local — Games & Sessions]
+      summary: Avvia da lobby
+      operationId: localStartLobby
+      parameters:
+        - $ref: '#/components/parameters/sessionId'
+      responses:
+        '200':
+          description: Lobby avviata
+
+  /api/sessions/{id}/cancel-lobby:
+    post:
+      tags: [Local — Games & Sessions]
+      summary: Cancella lobby
+      operationId: localCancelLobby
+      parameters:
+        - $ref: '#/components/parameters/sessionId'
+      responses:
+        '200':
+          description: Lobby cancellata
+
+  /api/sessions/active:
+    get:
+      tags: [Local — Games & Sessions]
+      summary: Sessioni attive del building
+      description: Accessibile a `PLAYER` (o `PLATFORM_ADMIN`).
+      operationId: localActiveSessions
+      responses:
+        '200':
+          description: Sessioni attive
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GameSessionDto'
+
+  # ============================================================
+  # LOCAL SERVER — STATISTICS
+  # ============================================================
+  /api/statistics:
+    get:
+      tags: [Local — Statistics]
+      summary: Statistiche aggregate del building
+      description: Accessibile a `LOCAL_ADMIN` (o `PLATFORM_ADMIN`), con building-binding check.
+      operationId: localBuildingStatistics
+      responses:
+        '200':
+          description: Statistiche edificio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AggregatedStatisticsDto'
+        '403':
+          description: Binding non valido
+
+  /api/players/me/statistics:
+    get:
+      tags: [Local — Statistics]
+      summary: Statistiche personali (replica locale)
+      description: >
+        Calcolate on-demand da `game_sessions`+`session_participants` (nessuna nuova tabella
+        locale). Filtro opzionale `?gameType=`.
+      operationId: localMyPlayerStatistics
+      parameters:
+        - name: gameType
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/GameType'
+      responses:
+        '200':
+          description: Statistiche giocatore
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlayerStatisticsDto'
+
+  /api/players/me/matches/history:
+    get:
+      tags: [Local — Statistics]
+      summary: Storico partite personale
+      operationId: localMyMatchHistory
+      parameters:
+        - name: gameType
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/GameType'
+      responses:
+        '200':
+          description: Storico partite
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlayerMatchFactDto'
+
+  # ============================================================
+  # LOCAL SERVER — DEVICES
+  # ============================================================
+  /api/devices/register:
+    post:
+      tags: [Local — Devices]
+      summary: Registrazione dispositivo (CSR)
+      description: >
+        Il Game Client invia una CSR (CN = gameId). Il Local Server firma il certificato
+        con la Local CA e restituisce certificato client + CA (bootstrap mTLS). Richiede
+        `LOCAL_ADMIN` (o `PLATFORM_ADMIN`) con building-binding check.
+      operationId: localDeviceRegister
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CsrRequestDto'
+      responses:
+        '200':
+          description: Certificato emesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceCertificateDto'
+        '403':
+          description: Ruolo/binding non autorizzato
+
+  # ============================================================
+  # LOCAL SERVER — ADMIN LOCAL (LOCAL_ADMIN)
+  # ============================================================
+  /api/admin/local/devices:
+    get:
+      tags: [Local — Admin Local]
+      summary: Dispositivi del building
+      operationId: localAdminDevices
+      responses:
+        '200':
+          description: Elenco dispositivi
+        '403':
+          description: Binding non valido
+
+  /api/admin/local/sessions/active:
+    get:
+      tags: [Local — Admin Local]
+      summary: Sessioni attive (dashboard LOCAL_ADMIN)
+      operationId: localAdminActiveSessions
+      responses:
+        '200':
+          description: Sessioni attive
+        '403':
+          description: Binding non valido
+
+  /api/admin/local/statistics:
+    get:
+      tags: [Local — Admin Local]
+      summary: Statistiche building (dashboard LOCAL_ADMIN)
+      operationId: localAdminStatistics
+      responses:
+        '200':
+          description: Statistiche
+        '403':
+          description: Binding non valido
+
+  /api/admin/local/games:
+    post:
+      tags: [Local — Admin Local]
+      summary: Crea gioco nel catalogo locale
+      description: >
+        Valida contro `game_definitions_local` (esistente). Transizione dominio via `rename`
+        + state machine.
+      operationId: localAdminCreateGame
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGameRequestDto'
+      responses:
+        '201':
+          description: Gioco creato
+        '400':
+          description: Definizione non disponibile localmente
+        '403':
+          description: Binding non valido
+
+  /api/admin/local/games/{gameId}:
+    put:
+      tags: [Local — Admin Local]
+      summary: Aggiorna gioco (rename / stato)
+      parameters:
+        - $ref: '#/components/parameters/gameId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGameRequestDto'
+      responses:
+        '200':
+          description: Gioco aggiornato
+        '403':
+          description: Binding non valido
+    delete:
+      tags: [Local — Admin Local]
+      summary: Elimina gioco dal catalogo
+      parameters:
+        - $ref: '#/components/parameters/gameId'
+      responses:
+        '204':
+          description: Gioco eliminato
+        '403':
+          description: Binding non valido
+
+  # ============================================================
+  # LOCAL SERVER — ADMIN GAMES (GAME_ADMIN)
+  # ============================================================
+  /api/admin/games/definitions:
+    get:
+      tags: [Local — Admin Games]
+      summary: Lista definizioni (replica locale)
+      operationId: localAdminListGameDefinitions
+      responses:
+        '200':
+          description: Definizioni locali
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GameDefinitionDto'
+
+  # ============================================================
+  # LOCAL SERVER — ADMIN PLATFORM (PLATFORM_ADMIN)
+  # ============================================================
+  /api/admin/users:
+    get:
+      tags: [Local — Admin Platform]
+      summary: Gestione utenti (superficie locale PLATFORM_ADMIN)
+      operationId: localAdminUsers
+      responses:
+        '200':
+          description: Elenco utenti locali
+
+  /api/admin/users/{userId}/roles:
+    post:
+      tags: [Local — Admin Platform]
+      summary: Assegna ruolo (async outbox)
+      description: >
+        `PLATFORM_ADMIN`. Genera outbox `ROLE_ASSIGNMENT_REQUESTED` verso il Central per
+        la mutation asincrona dei ruoli.
+      operationId: localAdminAssignRole
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignRoleRequestDto'
+      responses:
+        '202':
+          description: Richiesta accodata
+
+  /api/admin/servers/health:
+    get:
+      tags: [Local — Admin Platform]
+      summary: Health dei Local Server (superficie PLATFORM_ADMIN)
+      operationId: localAdminServersHealth
+      responses:
+        '200':
+          description: Stato server
+
+  /api/admin/tournaments:
+    get:
+      tags: [Local — Admin Platform]
+      summary: Tornei (superficie PLATFORM_ADMIN locale)
+      operationId: localAdminTournaments
+      responses:
+        '200':
+          description: Elenco tornei
+
+  /api/admin/requests:
+    get:
+      tags: [Local — Admin Platform]
+      summary: Polling admin_requests (filtra per actingUserId)
+      description: Accessibile a `PLAYER`/`PLATFORM_ADMIN`. Usato dalla AdminRequestsView (polling 8s).
+      operationId: localAdminRequests
+      responses:
+        '200':
+          description: Admin requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminRequestDto'
+
+  # ============================================================
+  # LOCAL SERVER — TOURNAMENTS
+  # ============================================================
+  /api/admin/tournaments:
+    post:
+      tags: [Local — Tournaments]
+      summary: Crea torneo (async via outbox)
+      description: >
+        `PLATFORM_ADMIN`. Scrive `admin_requests_local` PENDING + outbox
+        `TOURNAMENT_CREATE_REQUESTED`. Risponde 202 `AdminRequestDto`.
+      operationId: localAdminCreateTournament
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTournamentRequestDto'
+      responses:
+        '202':
+          description: Richiesta PENDING
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRequestDto'
+
+  /api/admin/tournaments/{id}/{action}:
+    post:
+      tags: [Local — Tournaments]
+      summary: Lifecycle torneo async (open | cancel | schedule)
+      description: >
+        `PLATFORM_ADMIN`. Mappa action → outbox `TOURNAMENT_{OPEN,CANCEL,SCHEDULE}_REQUESTED`.
+        Risponde 202 `AdminRequestDto`.
+      operationId: localAdminTournamentLifecycle
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+        - name: action
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [open, cancel, schedule]
+      responses:
+        '202':
+          description: Richiesta PENDING
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRequestDto'
+
+  /api/admin/tournaments/{id}:
+    put:
+      tags: [Local — Tournaments]
+      summary: Aggiorna torneo (async, DRAFT only lato Central)
+      operationId: localAdminUpdateTournament
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTournamentRequestDto'
+      responses:
+        '202':
+          description: Richiesta PENDING
+    delete:
+      tags: [Local — Tournaments]
+      summary: Elimina torneo (async, DRAFT only)
+      operationId: localAdminDeleteTournament
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '202':
+          description: Richiesta PENDING
+
+  /api/tournaments/{id}/participants:
+    post:
+      tags: [Local — Tournaments]
+      summary: Iscrizione torneo (async outbox)
+      description: >
+        `PLAYER`/`PLATFORM_ADMIN`. Genera `PARTICIPANT_REGISTER_REQUESTED`. Risponde 202.
+      operationId: localRegisterTournamentParticipant
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterTournamentParticipantDto'
+      responses:
+        '202':
+          description: Richiesta PENDING
+
+  /api/tournaments:
+    get:
+      tags: [Local — Tournaments]
+      summary: Lista tornei (replica locale)
+      description: Legge `tournaments_summary_local`. Accessibile a `authenticated`.
+      operationId: localListTournaments
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TournamentStatus'
+      responses:
+        '200':
+          description: Elenco tornei
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TournamentSummaryLocalDto'
+
+  /api/tournaments/{id}:
+    get:
+      tags: [Local — Tournaments]
+      summary: Dettaglio aggregato torneo (summary + standings + matches + participants)
+      operationId: localGetTournament
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '200':
+          description: Dettaglio torneo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentDetailLocalDto'
+
+  /api/tournaments/{id}/standings:
+    get:
+      tags: [Local — Tournaments]
+      summary: Standings locale
+      operationId: localTournamentStandings
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '200':
+          description: Standings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TournamentStandingLocalDto'
+
+  /api/tournaments/{id}/matches:
+    get:
+      tags: [Local — Tournaments]
+      summary: Matches locale (bracket)
+      operationId: localTournamentMatches
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '200':
+          description: Match locali
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TournamentMatchLocalDto'
+
+  /api/tournaments/{id}/participants:
+    get:
+      tags: [Local — Tournaments]
+      summary: Partecipanti locali
+      operationId: localTournamentParticipants
+      parameters:
+        - $ref: '#/components/parameters/tournamentId'
+      responses:
+        '200':
+          description: Partecipanti
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TournamentParticipantLocalDto'
+
+  /api/players/tournaments/me/matches:
+    get:
+      tags: [Local — Tournaments]
+      summary: Match SCHEDULED riferiti all'utente
+      description: >
+        `PLAYER`/`PLATFORM_ADMIN`. Risolve appartenenza team via EXISTS su `team_members_local`.
+      operationId: localMyTournamentMatches
+      responses:
+        '200':
+          description: I miei match
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TournamentMatchLocalDto'
+
+  /api/players/tournaments/matches/{matchId}/start:
+    post:
+      tags: [Local — Tournaments]
+      summary: Avvia GameSession torneo (bind tournamentMatchId)
+      description: >
+        `PLAYER`/`PLATFORM_ADMIN`. Valida `status == SCHEDULED`, risolve partecipanti da
+        `participantA`/`participantB`, invoca `GameSessionService.start(..., tournamentMatchId)`.
+        Risponde 201 `GameSessionDto`.
+      operationId: localStartTournamentMatch
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: gameId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Sessione torneo avviata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameSessionDto'
+        '404':
+          description: Match non trovato
+        '409':
+          description: Match non SCHEDULED
+
+  # ============================================================
+  # INTERNAL — SYNC (API Key)
+  # ============================================================
+  /internal/sync/receive:
+    post:
+      tags: [Internal — Sync]
+      summary: Ricezione eventi Outbox dal Local Server
+      description: >
+        Il Local Server invia `SyncPayloadDto` (eventi PENDING). Il Central li elabora in
+        modo idempotente (`processed_events`), aggiorna `aggregated_statistics` (lock
+        pessimistico) e replica utenti. Aggiorna `lastSeenAt` (heartbeat).
+      operationId: internalSyncReceive
+      security:
+        - internalApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncPayloadDto'
+      responses:
+        '200':
+          description: Eventi processati
+
+  /internal/servers/register:
+    post:
+      tags: [Internal — Sync]
+      summary: Self-registration Local Server
+      description: Il Local Server si registra al boot (buildingId, baseUrl) su `local_servers`.
+      operationId: internalServerRegister
+      security:
+        - internalApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServerRegisterDto'
+      responses:
+        '200':
+          description: Registrato
+
+  /internal/users/sync:
+    put:
+      tags: [Internal — Sync]
+      summary: Replica utenti Central → Local
+      description: Push `List<UserSyncDto>` (username, hashedPassword, roles) su `replicated_users`.
+      operationId: internalUsersSync
+      security:
+        - internalApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/UserSyncDto'
+      responses:
+        '200':
+          description: Utenti persistiti
+
+  /internal/metadata/sync:
+    put:
+      tags: [Internal — Sync]
+      summary: Replica metadata (binding LOCAL_ADMIN↔building)
+      operationId: internalMetadataSync
+      security:
+        - internalApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/LocalAdminBuildingEventDto'
+      responses:
+        '200':
+          description: Metadata sincronizzato
+
+  /internal/metadata/game-definitions/sync:
+    put:
+      tags: [Internal — Sync]
+      summary: Replica game definitions
+      operationId: internalGameDefinitionsSync
+      security:
+        - internalApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/GameDefinitionEventDto'
+      responses:
+        '200':
+          description: Definizioni sincronizzate
+
+  /internal/tournaments/matches/sync:
+    put:
+      tags: [Internal — Sync]
+      summary: Replica tournament matches
+      operationId: internalTournamentMatchesSync
+      security:
+        - internalApiKey: []
+      responses:
+        '200':
+          description: Match sincronizzati
+
+  /internal/tournaments/standings/sync:
+    put:
+      tags: [Internal — Sync]
+      summary: Replica tournament standings
+      operationId: internalTournamentStandingsSync
+      security:
+        - internalApiKey: []
+      responses:
+        '200':
+          description: Standings sincronizzate
+
+  /internal/tournaments/participants/sync:
+    put:
+      tags: [Internal — Sync]
+      summary: Replica tournament participants
+      operationId: internalTournamentParticipantsSync
+      security:
+        - internalApiKey: []
+      responses:
+        '200':
+          description: Partecipanti sincronizzati
+
+  /internal/tournaments/summaries/sync:
+    put:
+      tags: [Internal — Sync]
+      summary: Replica tournament summaries
+      operationId: internalTournamentSummariesSync
+      security:
+        - internalApiKey: []
+      responses:
+        '200':
+          description: Summaries sincronizzate
+
+  /internal/servers/sync:
+    put:
+      tags: [Internal — Sync]
+      summary: Replica registry server
+      operationId: internalServersSync
+      security:
+        - internalApiKey: []
+      responses:
+        '200':
+          description: Registry sincronizzato
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    internalApiKey:
+      type: apiKey
+      in: header
+      name: X-Internal-Api-Key
+  parameters:
+    userId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+    gameId:
+      name: gameId
+      in: path
+      required: true
+      schema:
+        type: string
+    tournamentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    sessionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    reservationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    gameType:
+      name: gameType
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/GameType'
+  schemas:
+
+    # ----- Enums -----
+    GameType:
+      type: string
+      enum: [CHESS, FOOSBALL, DARTS, MONOPOLY, RISK, SLOT_MACHINE, ROULETTE]
+    TournamentStatus:
+      type: string
+      enum: [DRAFT, OPEN_REGISTRATION, IN_PROGRESS, COMPLETED, CANCELLED]
+    TournamentMatchStatus:
+      type: string
+      enum: [SCHEDULED, IN_PROGRESS, COMPLETED, ABANDONED, BYE]
+    TournamentFormat:
+      type: string
+      enum: [SINGLE_ELIMINATION, ROUND_ROBIN]
+    GameStatus:
+      type: string
+      enum: [WAITING, IN_PROGRESS, PAUSED, COMPLETED, ABORTED]
+    MachineStatus:
+      type: string
+      enum: [AVAILABLE, RESERVED, IN_USE, LOBBY, MAINTENANCE]
+    ReservationStatus:
+      type: string
+      enum: [PENDING, CONFIRMED, CANCELLED, EXPIRED]
+    WinCondition:
+      type: string
+      enum: [WIN, DRAW, ABANDONED, TIMEOUT, TEAM_VICTORY]
+
+    # ----- Auth -----
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    RegisterUserRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        email:
+          type: string
+    JwtResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+    UserDto:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+
+    # ----- Buildings -----
+    AssignLocalAdminBuildingsDto:
+      type: object
+      required: [userId, buildingIds]
+      properties:
+        userId:
+          type: string
+        buildingIds:
+          type: array
+          items:
+            type: string
+    LocalAdminBuildingsDto:
+      type: object
+      properties:
+        userId:
+          type: string
+        buildings:
+          type: array
+          items:
+            type: string
+
+    # ----- Game Definitions -----
+    UpsertGameDefinitionRequestDto:
+      type: object
+      required: [gameType, name, minPlayers, maxPlayers, teamAllowed]
+      properties:
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        name:
+          type: string
+        minPlayers:
+          type: integer
+        maxPlayers:
+          type: integer
+        teamAllowed:
+          type: boolean
+        registrationRules:
+          type: object
+          additionalProperties: true
+    GameDefinitionDto:
+      type: object
+      properties:
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        name:
+          type: string
+        minPlayers:
+          type: integer
+        maxPlayers:
+          type: integer
+        teamAllowed:
+          type: boolean
+        registrationRules:
+          type: object
+          additionalProperties: true
+    GameDefinitionEventDto:
+      type: object
+      properties:
+        eventId:
+          type: string
+        eventType:
+          type: string
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        name:
+          type: string
+        minPlayers:
+          type: integer
+        maxPlayers:
+          type: integer
+        teamAllowed:
+          type: boolean
+        registrationRules:
+          type: object
+          additionalProperties: true
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ----- Games -----
+    GameDto:
+      type: object
+      properties:
+        id:
+          type: string
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        name:
+          type: string
+        buildingId:
+          type: string
+        status:
+          $ref: '#/components/schemas/MachineStatus'
+    CreateGameRequestDto:
+      type: object
+      required: [gameType, name]
+      properties:
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        name:
+          type: string
+    UpdateGameRequestDto:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/MachineStatus'
+
+    # ----- Reservations -----
+    CreateReservationRequestDto:
+      type: object
+      required: [gameId, userId, startTime]
+      properties:
+        gameId:
+          type: string
+        userId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+    ReservationDto:
+      type: object
+      properties:
+        id:
+          type: string
+        gameId:
+          type: string
+        userId:
+          type: string
+        status:
+          $ref: '#/components/schemas/ReservationStatus'
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+
+    # ----- Sessions -----
+    SessionStartRequestDto:
+      type: object
+      required: [gameId, gameType, participants]
+      properties:
+        gameId:
+          type: string
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        participants:
+          type: array
+          items:
+            type: string
+        reservationId:
+          type: string
+    SessionEndRequestDto:
+      type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/components/schemas/GameResult'
+    LobbyRequestDto:
+      type: object
+      properties:
+        gameId:
+          type: string
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        participants:
+          type: array
+          items:
+            type: string
+    GameSessionDto:
+      type: object
+      properties:
+        id:
+          type: string
+        gameId:
+          type: string
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        buildingId:
+          type: string
+        status:
+          $ref: '#/components/schemas/GameStatus'
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+        durationSeconds:
+          type: integer
+        winnerId:
+          type: string
+        winCondition:
+          $ref: '#/components/schemas/WinCondition'
+        resultData:
+          type: object
+          additionalProperties: true
+    GameResult:
+      type: object
+      description: Polimorfico (@JsonTypeInfo property=type). Sottotipi FOOSBALL/CHESS/DARTS/MONOPOLY/RISK.
+      required: [type]
+      properties:
+        type:
+          type: string
+        winnerId:
+          type: string
+        winnerIds:
+          type: array
+          items:
+            type: string
+        winCondition:
+          $ref: '#/components/schemas/WinCondition'
+
+    # ----- Statistics -----
+    AggregatedStatisticsDto:
+      type: object
+      properties:
+        buildingId:
+          type: string
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+        totalSessions:
+          type: integer
+        avgDurationSeconds:
+          type: integer
+        totalAbortedSessions:
+          type: integer
+        totalReservations:
+          type: integer
+        data:
+          type: object
+          additionalProperties: true
+    PlayerStatisticsDto:
+      type: object
+      properties:
+        userId:
+          type: string
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        matchesPlayed:
+          type: integer
+        matchesWon:
+          type: integer
+        lastPlayedAt:
+          type: string
+          format: date-time
+    PlayerMatchFactDto:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        userId:
+          type: string
+        buildingId:
+          type: string
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        tournamentId:
+          type: string
+        won:
+          type: boolean
+        winCondition:
+          $ref: '#/components/schemas/WinCondition'
+        endedAt:
+          type: string
+          format: date-time
+
+    # ----- Devices -----
+    CsrRequestDto:
+      type: object
+      required: [gameId, csrPem]
+      properties:
+        gameId:
+          type: string
+        csrPem:
+          type: string
+    DeviceCertificateDto:
+      type: object
+      properties:
+        clientCertificatePem:
+          type: string
+        caCertificatePem:
+          type: string
+
+    # ----- Admin Local / Platform -----
+    AssignRoleRequestDto:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+    AdminRequestDto:
+      type: object
+      properties:
+        requestId:
+          type: string
+        status:
+          type: string
+        eventType:
+          type: string
+    LocalAdminBuildingEventDto:
+      type: object
+      properties:
+        eventId:
+          type: string
+        eventType:
+          type: string
+        userId:
+          type: string
+        buildingId:
+          type: string
+        assignedAt:
+          type: string
+          format: date-time
+
+    # ----- Tournaments -----
+    CreateTournamentRequestDto:
+      type: object
+      required: [name, gameType, teamSize, startsAt, buildingIds]
+      properties:
+        name:
+          type: string
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        teamBased:
+          type: boolean
+        teamSize:
+          type: integer
+        format:
+          $ref: '#/components/schemas/TournamentFormat'
+        startsAt:
+          type: string
+          format: date-time
+        buildingIds:
+          type: array
+          items:
+            type: string
+          minItems: 2
+    RegisterTournamentParticipantDto:
+      type: object
+      properties:
+        teamName:
+          type: string
+        teamMembers:
+          type: array
+          items:
+            type: string
+    TournamentDto:
+      type: object
+      properties:
+        tournamentId:
+          type: string
+        name:
+          type: string
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        teamBased:
+          type: boolean
+        teamSize:
+          type: integer
+        format:
+          $ref: '#/components/schemas/TournamentFormat'
+        status:
+          $ref: '#/components/schemas/TournamentStatus'
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        buildingIds:
+          type: array
+          items:
+            type: string
+    TournamentMatchDto:
+      type: object
+      properties:
+        matchId:
+          type: string
+        tournamentId:
+          type: string
+        round:
+          type: integer
+        bracketPosition:
+          type: integer
+        participantA:
+          type: string
+        participantB:
+          type: string
+        buildingId:
+          type: string
+        gameId:
+          type: string
+        status:
+          $ref: '#/components/schemas/TournamentMatchStatus'
+        scheduledAt:
+          type: string
+          format: date-time
+    TournamentStandingDto:
+      type: object
+      properties:
+        tournamentId:
+          type: string
+        participantId:
+          type: string
+        wins:
+          type: integer
+        losses:
+          type: integer
+        points:
+          type: integer
+        rank:
+          type: integer
+    TournamentParticipantDto:
+      type: object
+      properties:
+        tournamentId:
+          type: string
+        participantId:
+          type: string
+        isTeam:
+          type: boolean
+        displayName:
+          type: string
+        registeredAt:
+          type: string
+          format: date-time
+
+    # ----- Tournaments (Local replicas) -----
+    TournamentSummaryLocalDto:
+      type: object
+      properties:
+        tournamentId:
+          type: string
+        name:
+          type: string
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        teamBased:
+          type: boolean
+        teamSize:
+          type: integer
+        status:
+          $ref: '#/components/schemas/TournamentStatus'
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        buildingIds:
+          type: array
+          items:
+            type: string
+        participantsCount:
+          type: integer
+        deleted:
+          type: boolean
+    TournamentDetailLocalDto:
+      type: object
+      properties:
+        summary:
+          $ref: '#/components/schemas/TournamentSummaryLocalDto'
+        standings:
+          type: array
+          items:
+            $ref: '#/components/schemas/TournamentStandingLocalDto'
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/TournamentMatchLocalDto'
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/TournamentParticipantLocalDto'
+    TournamentMatchLocalDto:
+      type: object
+      properties:
+        id:
+          type: string
+        tournamentId:
+          type: string
+        round:
+          type: integer
+        bracketPosition:
+          type: integer
+        participantA:
+          type: string
+        participantB:
+          type: string
+        gameType:
+          $ref: '#/components/schemas/GameType'
+        gameId:
+          type: string
+        status:
+          $ref: '#/components/schemas/TournamentMatchStatus'
+        scheduledAt:
+          type: string
+          format: date-time
+    TournamentStandingLocalDto:
+      type: object
+      properties:
+        tournamentId:
+          type: string
+        participantId:
+          type: string
+        wins:
+          type: integer
+        losses:
+          type: integer
+        points:
+          type: integer
+        rank:
+          type: integer
+    TournamentParticipantLocalDto:
+      type: object
+      properties:
+        tournamentId:
+          type: string
+        participantId:
+          type: string
+        isTeam:
+          type: boolean
+        displayName:
+          type: string
+        registeredAt:
+          type: string
+          format: date-time
+
+    # ----- Internal Sync -----
+    UserSyncDto:
+      type: object
+      properties:
+        userId:
+          type: string
+        username:
+          type: string
+        passwordHash:
+          type: string
+        roles:
+          type: string
+    ServerRegisterDto:
+      type: object
+      properties:
+        buildingId:
+          type: string
+        baseUrl:
+          type: string
+    SyncPayloadDto:
+      type: object
+      required: [buildingId, events]
+      properties:
+        buildingId:
+          type: string
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              eventId:
+                type: string
+              eventType:
+                type: string
+              payload:
+                type: object
+                additionalProperties: true
