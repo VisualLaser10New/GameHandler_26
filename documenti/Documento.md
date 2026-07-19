@@ -95,7 +95,24 @@ Come già accennato è necessario autenticarsi, è inoltre presente un sistema d
 
 ## 5. FASI DI LAVORO
 ### 5.1 Specifica 
-dominio applicativo e casi d'uso principali con diagrammi UML  dei casi d'uso, delle classi di dominio, descrizione testuale dei casi d'uso
+Come già detto l'applicazione è una piattaforma software per la gestione di sale giochi da tavolo/bar disposte in più edifici fisici.
+### Casi d'uso
+1) __Prenotazione e gioco__ un giocatore autenticato prenota una postazione di gioco libera nel proprio edificio; se la prenotazione non viene utilizzata entro l'orario previsto la macchina viene rilasciata automaticamente. Il giocatore avvia poi la sessione dal client, può metterla in pausa e riprenderla, e alla fine invia il risultato della partita (vincitore, punteggio, esito).
+
+2) __Login e registrazione offline__ un utente si autentica o crea un nuovo account anche quando il Local Server del proprio edificio è isolato dal Central System, grazie alla replica locale delle credenziali e alla firma dei token JWT con una chiave del Local Server stesso.
+
+3) __Monitoraggio degli endpoint e recupero da crash__ il Local Server verifica periodicamente che le postazioni di gioco connesse siano raggiungibili; se una postazione non risponde per più cicli consecutivi, o se il server si riavvia dopo un crash con sessioni rimaste appese, la partita in corso viene chiusa automaticamente e la macchina torna disponibile.
+
+4) __Creazione e gestione di un torneo__ un Platform Admin crea un torneo (individuale o a squadre) su almeno due edifici per uno stesso gioco; i giocatori si iscrivono in autonomia durante la fase di registrazione aperta, viene generato un bracket ad eliminazione diretta e i risultati dei singoli match aggiornano automaticamente il bracket e la classifica.
+
+5) __Sincronizzazione locale-centrale__ tutti gli eventi generati mentre il Local Server è offline (prenotazioni, sessioni di gioco, iscrizioni) vengono accumulati in una coda locale e inviati in blocco al Central System non appena la connettività torna disponibile.
+
+6) __Consultazione statistiche per ruolo__ ogni tipologia di utente visualizza dati differenti: il player le proprie partite e statistiche personali, il local admin lo stato dei giochi e le statistiche del proprio locale, il game admin l'anagrafica dei giochi definiti, il platform admin le statistiche aggregate dell'intera piattaforma.
+
+7) __Definizione di nuove tipologie di gioco__ un Game Admin definisce nuovi tipi di gioco e le relative regole di registrazione delle partite, incluse eventuali varianti a giocatore singolo basate su esito casuale (es. slot machine, roulette).
+
+8) __Acquisizione eventi dai sensori di gioco__ i sensori posizionati su ciascun gioco fisico (gestiti ad esempio da una board ESP32) rilevano gli eventi significativi della partita e li inviano al Local Server tramite chiamate HTTP e MQTT.
+
 ### 5.2 Progettazione
 Diagramma dei package, 
 diagramma delle classi di implementazione
