@@ -43,9 +43,22 @@ public class TournamentParticipantLocalJpaEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /**
+     * Costruttore predefinito richiesto da JPA.
+     */
     public TournamentParticipantLocalJpaEntity() {
     }
 
+    /**
+     * Costruisce un nuovo partecipante torneo locale.
+     *
+     * @param tournamentId  identificativo del torneo
+     * @param participantId identificativo del partecipante
+     * @param isTeam        indica se il partecipante è una squadra
+     * @param displayName   nome visualizzato del partecipante
+     * @param registeredAt  istante di registrazione
+     * @param updatedAt     istante dell'ultimo aggiornamento
+     */
     public TournamentParticipantLocalJpaEntity(String tournamentId, String participantId, Boolean isTeam,
                                                String displayName, Instant registeredAt, Instant updatedAt) {
         this.tournamentId = tournamentId;
@@ -56,50 +69,110 @@ public class TournamentParticipantLocalJpaEntity {
         this.updatedAt = updatedAt;
     }
 
+    /**
+     * Restituisce l'identificativo del torneo.
+     *
+     * @return tournamentId
+     */
     public String getTournamentId() {
         return tournamentId;
     }
 
+    /**
+     * Imposta l'identificativo del torneo.
+     *
+     * @param tournamentId nuovo identificativo torneo
+     */
     public void setTournamentId(String tournamentId) {
         this.tournamentId = tournamentId;
     }
 
+    /**
+     * Restituisce l'identificativo del partecipante.
+     *
+     * @return participantId
+     */
     public String getParticipantId() {
         return participantId;
     }
 
+    /**
+     * Imposta l'identificativo del partecipante.
+     *
+     * @param participantId nuovo identificativo partecipante
+     */
     public void setParticipantId(String participantId) {
         this.participantId = participantId;
     }
 
+    /**
+     * Indica se il partecipante è una squadra.
+     *
+     * @return {@code true} se è una squadra
+     */
     public Boolean getIsTeam() {
         return isTeam;
     }
 
+    /**
+     * Imposta se il partecipante è una squadra.
+     *
+     * @param isTeam {@code true} per indicare una squadra
+     */
     public void setIsTeam(Boolean isTeam) {
         this.isTeam = isTeam;
     }
 
+    /**
+     * Restituisce il nome visualizzato del partecipante.
+     *
+     * @return displayName
+     */
     public String getDisplayName() {
         return displayName;
     }
 
+    /**
+     * Imposta il nome visualizzato del partecipante.
+     *
+     * @param displayName nuovo nome visualizzato
+     */
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
     }
 
+    /**
+     * Restituisce l'istante di registrazione del partecipante.
+     *
+     * @return registeredAt
+     */
     public Instant getRegisteredAt() {
         return registeredAt;
     }
 
+    /**
+     * Imposta l'istante di registrazione.
+     *
+     * @param registeredAt nuovo istante di registrazione
+     */
     public void setRegisteredAt(Instant registeredAt) {
         this.registeredAt = registeredAt;
     }
 
+    /**
+     * Restituisce l'istante dell'ultimo aggiornamento.
+     *
+     * @return updatedAt
+     */
     public Instant getUpdatedAt() {
         return updatedAt;
     }
 
+    /**
+     * Imposta l'istante dell'ultimo aggiornamento.
+     *
+     * @param updatedAt nuovo istante di aggiornamento
+     */
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
     }

@@ -30,8 +30,14 @@ public class SyncController {
     private final ReceiveSyncDataUseCase receiveSyncDataUseCase;
     private final LocalServerRegistryPort localServerRegistryPort;
 
+    /**
+     * Costruisce il controller iniettando i port di dominio necessari.
+     *
+     * @param receiveSyncDataUseCase caso d'uso per l'elaborazione dei dati di sincronizzazione, non {@code null}
+     * @param localServerRegistryPort port di uscita per la registrazione dei server locali, non {@code null}
+     */
     public SyncController(ReceiveSyncDataUseCase receiveSyncDataUseCase,
-                          LocalServerRegistryPort localServerRegistryPort) {
+                           LocalServerRegistryPort localServerRegistryPort) {
         this.receiveSyncDataUseCase = receiveSyncDataUseCase;
         this.localServerRegistryPort = localServerRegistryPort;
     }
@@ -41,8 +47,13 @@ public class SyncController {
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Receives a batch of outbox events from a local server.
-     * As a side-effect the server's {@code lastSeenAt} is updated (heartbeat).
+     * Riceve un batch di eventi outbox provenienti da un server locale.
+     *
+     * <p>Come effetto collaterale aggiorna l'istante dell'ultimo heartbeat
+     * ({@code lastSeenAt}) del server che ha inviato i dati.</p>
+     *
+     * @param payload dto contenente il batch di eventi da sincronizzare, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e corpo vuoto
      */
     @PostMapping("/internal/sync/receive")
     public ResponseEntity<Void> receiveSync(@RequestBody SyncPayloadDto payload) {
@@ -55,12 +66,16 @@ public class SyncController {
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Registers or updates the local server identified by the given building.
-     * If the server already exists in the registry its {@code baseUrl} and
-     * {@code lastSeenAt} are refreshed; otherwise a new entry is created.
+     * Registra o aggiorna il server locale identificato dall'edificio indicato.
      *
-     * @param request body containing {@code buildingId} and {@code baseUrl}
-     * @return 200 OK on success
+     * <p>Se il server è già presente nel registro ne aggiorna l'URL di base e
+     * l'istante dell'ultimo heartbeat; in caso contrario ne crea una nuova entry
+     * marcandolo come attivo.</p>
+     *
+     * @param request corpo della richiesta contenente {@code buildingId} e {@code baseUrl},
+     *                validato tramite {@code @Valid}; non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e corpo vuoto
+     * @throws jakarta.validation.ValidationException se il body non supera i vincoli di validazione (mappato a {@code 400})
      */
     @PostMapping("/internal/servers/register")
     public ResponseEntity<Void> registerServer(@Valid @RequestBody RegisterServerRequest request) {
@@ -80,7 +95,10 @@ public class SyncController {
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Request body for the server-registration endpoint.
+     * Corpo di richiesta per l'endpoint di registrazione di un server locale.
+     *
+     * @param buildingId identificativo dell'edificio associato al server, non vuoto
+     * @param baseUrl    URL di base del server locale, non vuoto
      */
     public record RegisterServerRequest(
             @NotBlank(message = "buildingId must not be blank")

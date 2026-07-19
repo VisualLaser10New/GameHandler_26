@@ -6,26 +6,33 @@ import com.gameplatform.shared.dto.TournamentMatchScheduledDto;
 import java.util.List;
 
 /**
- * Outbound port for pushing a batch of {@code TOURNAMENT_MATCH_SCHEDULED}
- * events to a single Local Server's {@code PUT /internal/tournaments/matches/sync}
- * endpoint. Structural twin of {@link PushGameDefinitionToLocalServersPort}.
+ * Porta di uscita per l'invio di un batch di eventi
+ * {@code TOURNAMENT_MATCH_SCHEDULED} all'endpoint
+ * {@code PUT /internal/tournaments/matches/sync} di un singolo server locale.
+ * Gemello strutturale di {@link PushGameDefinitionToLocalServersPort}.
  *
- * <p>No ack / poison-isolation: the local upsert is idempotent by PK
- * ({@code matchId}), so a transient transport failure just retries via the
- * outbox on the next scheduler tick.</p>
+ * <p>Non è previsto alcun contratto di ack o di isolamento dei messaggi
+ * avvelenati: l'upsert locale è idempotente per chiave primaria
+ * {@code (matchId)}, pertanto un fallimento transitorio di trasporto viene
+ * semplicemente ritentato tramite l'outbox al ciclo successivo dello
+ * scheduler.</p>
  *
  * @throws com.gameplatform.central.domain.exception.TransientPushException
- *         on transient transport failure (caller retries via the outbox)
+ *         in caso di fallimento transitorio di trasporto (il chiamante ritenta tramite l'outbox)
+ * @see PushGameDefinitionToLocalServersPort
+ * @see TournamentMatchScheduledDto
  */
 public interface PushTournamentMatchToLocalServersPort {
 
     /**
-     * Pushes a batch of tournament-match scheduled events to a single local
-     * server.
+     * Invia un batch di eventi di partite di torneo programmate al server locale indicato.
      *
-     * @param events the scheduled-match DTO batch to push (one per involved
-     *               match routed to this building)
-     * @param server the single target active local server
+     * @param events il batch di DTO delle partite programmate da inviare, uno per ogni partita interessata
+     *               instradata verso l'edificio; non deve essere {@code null}
+     * @param server il singolo server locale attivo di destinazione; non deve essere {@code null}
+     * @throws IllegalArgumentException in caso di parametri {@code null}
+     * @throws com.gameplatform.central.domain.exception.TransientPushException
+     *         in caso di fallimento transitorio di trasporto
      */
     void pushTournamentMatch(List<TournamentMatchScheduledDto> events, RegisteredLocalServer server);
 }

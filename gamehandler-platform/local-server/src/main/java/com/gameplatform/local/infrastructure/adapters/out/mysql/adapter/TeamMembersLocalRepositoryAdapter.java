@@ -8,25 +8,38 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * JPA adapter for the {@link TeamMembersLocalRepository} port (BUG-TEAM-3).
- * {@code save} is an upsert by the composite PK
- * ({@code tournamentId}, {@code teamId}, {@code userId});
- * {@code deleteByTournament} removes the full per-tournament team→user
- * membership snapshot in one bulk delete — used by the sync service's
- * full-snapshot replace (delete+insert idempotency). The entity is a pure
- * 3-field join table, so the adapter writes the entity directly without a
- * domain-model + mapper layer (simpler than
- * {@code TournamentParticipantLocalRepositoryAdapter}).
+ * Adapter JPA per il port {@link TeamMembersLocalRepository}.
+ * Gestisce la persistenza delle appartenenze dei membri ai team
+ * nei tornei, utilizzando una tabella di join a tre campi
+ * (tournamentId, teamId, userId) senza modello di dominio intermedio.
+ * Le operazioni di salvataggio sono upsert per chiave composta e
+ * l'eliminazione per torneo rimuove l'intero snapshot in un'unica
+ * operazione bulk.
+ *
+ * @see TeamMembersLocalRepository
+ * @see TeamMemberLocalJpaRepository
  */
 @Component
 public class TeamMembersLocalRepositoryAdapter implements TeamMembersLocalRepository {
 
     private final TeamMemberLocalJpaRepository jpaRepository;
 
+    /**
+     * Costruisce un nuovo adapter con il repository JPA necessario.
+     *
+     * @param jpaRepository repository JPA per i membri del team
+     */
     public TeamMembersLocalRepositoryAdapter(TeamMemberLocalJpaRepository jpaRepository) {
         this.jpaRepository = jpaRepository;
     }
 
+    /**
+     * Salva un'appartenenza di un membro a un team per un torneo.
+     *
+     * @param tournamentId l'identificativo del torneo
+     * @param teamId       l'identificativo del team
+     * @param userId       l'identificativo dell'utente; se uno dei parametri è nullo o vuoto l'operazione non viene eseguita
+     */
     @Override
     @Transactional
     public void save(String tournamentId, String teamId, String userId) {
@@ -38,6 +51,11 @@ public class TeamMembersLocalRepositoryAdapter implements TeamMembersLocalReposi
         jpaRepository.save(new TeamMemberLocalJpaEntity(tournamentId, teamId, userId));
     }
 
+    /**
+     * Elimina tutte le appartenenze ai team per un dato torneo in un'unica operazione bulk.
+     *
+     * @param tournamentId l'identificativo del torneo; se {@code null} l'operazione non viene eseguita
+     */
     @Override
     @Transactional
     public void deleteByTournament(TournamentId tournamentId) {

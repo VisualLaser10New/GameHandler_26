@@ -33,9 +33,21 @@ public class RegisteredLocalServerLocalJpaEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /**
+     * Costruttore predefinito richiesto da JPA.
+     */
     public RegisteredLocalServerLocalJpaEntity() {
     }
 
+    /**
+     * Costruisce una nuova istanza di server locale registrato.
+     *
+     * @param buildingId identificativo dell'edificio (PK)
+     * @param baseUrl    URL di base del server locale
+     * @param lastSeenAt istante dell'ultimo contatto (può essere {@code null})
+     * @param active     indica se il server è attivo
+     * @param updatedAt  istante dell'ultimo aggiornamento
+     */
     public RegisteredLocalServerLocalJpaEntity(String buildingId, String baseUrl, Instant lastSeenAt,
                                                Boolean active, Instant updatedAt) {
         this.buildingId = buildingId;
@@ -45,42 +57,92 @@ public class RegisteredLocalServerLocalJpaEntity {
         this.updatedAt = updatedAt;
     }
 
+    /**
+     * Restituisce l'identificativo dell'edificio.
+     *
+     * @return buildingId
+     */
     public String getBuildingId() {
         return buildingId;
     }
 
+    /**
+     * Imposta l'identificativo dell'edificio.
+     *
+     * @param buildingId nuovo identificativo edificio
+     */
     public void setBuildingId(String buildingId) {
         this.buildingId = buildingId;
     }
 
+    /**
+     * Restituisce l'URL di base del server locale.
+     *
+     * @return baseUrl
+     */
     public String getBaseUrl() {
         return baseUrl;
     }
 
+    /**
+     * Imposta l'URL di base del server locale.
+     *
+     * @param baseUrl nuovo URL di base
+     */
     public void setBaseUrl(String baseUrl) {
         this.baseUrl = baseUrl;
     }
 
+    /**
+     * Restituisce l'istante dell'ultimo contatto con il server.
+     *
+     * @return lastSeenAt (può essere {@code null})
+     */
     public Instant getLastSeenAt() {
         return lastSeenAt;
     }
 
+    /**
+     * Imposta l'istante dell'ultimo contatto.
+     *
+     * @param lastSeenAt nuovo istante ultimo contatto
+     */
     public void setLastSeenAt(Instant lastSeenAt) {
         this.lastSeenAt = lastSeenAt;
     }
 
+    /**
+     * Indica se il server locale è attivo.
+     *
+     * @return {@code true} se attivo
+     */
     public Boolean getActive() {
         return active;
     }
 
+    /**
+     * Imposta lo stato di attività del server.
+     *
+     * @param active {@code true} per attivare
+     */
     public void setActive(Boolean active) {
         this.active = active;
     }
 
+    /**
+     * Restituisce l'istante dell'ultimo aggiornamento.
+     *
+     * @return updatedAt
+     */
     public Instant getUpdatedAt() {
         return updatedAt;
     }
 
+    /**
+     * Imposta l'istante dell'ultimo aggiornamento.
+     *
+     * @param updatedAt nuovo istante di aggiornamento
+     */
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
     }

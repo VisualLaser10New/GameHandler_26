@@ -28,11 +28,24 @@ public class TournamentRepositoryAdapter implements TournamentRepository {
     private final TournamentJpaRepository jpaRepo;
     private final TournamentMapper mapper;
 
+    /**
+     * Costruisce l'adapter iniettando il repository JPA e il mapper dei tornei.
+     *
+     * @param jpaRepo repository JPA per la gestione delle entit&agrave; di torneo
+     * @param mapper  mapper che converte tra il modello di dominio e l'entit&agrave; JPA
+     */
     public TournamentRepositoryAdapter(TournamentJpaRepository jpaRepo, TournamentMapper mapper) {
         this.jpaRepo = jpaRepo;
         this.mapper = mapper;
     }
 
+    /**
+     * Salva (o aggiorna) un torneo e restituisce l'entit&agrave; persistita.
+     *
+     * @param tournament il torneo da persistere; non deve essere {@code null}
+     * @return il torneo salvato, con eventuali valorizzazioni gestite dal database
+     * @see TournamentJpaRepository#save
+     */
     @Override
     @Transactional
     public Tournament save(Tournament tournament) {
@@ -40,6 +53,13 @@ public class TournamentRepositoryAdapter implements TournamentRepository {
         return mapper.toDomain(savedEntity);
     }
 
+    /**
+     * Restituisce il torneo identificato dal relativo identificativo.
+     *
+     * @param id l'identificativo del torneo; se {@code null} restituisce {@link Optional#empty()}
+     * @return l'{@link Optional} contenente il torneo trovato, o vuoto se assente o se {@code id} &egrave; {@code null}
+     * @see TournamentJpaRepository#findById
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<Tournament> findById(TournamentId id) {
@@ -49,6 +69,12 @@ public class TournamentRepositoryAdapter implements TournamentRepository {
         return jpaRepo.findById(id.value()).map(mapper::toDomain);
     }
 
+    /**
+     * Restituisce l'elenco di tutti i tornei ordinati per data di creazione decrescente.
+     *
+     * @return la lista di tutti i tornei; lista vuota se non ve ne sono
+     * @see TournamentJpaRepository#findAllByOrderByCreatedAtDesc
+     */
     @Override
     @Transactional(readOnly = true)
     public List<Tournament> findAll() {
@@ -59,6 +85,13 @@ public class TournamentRepositoryAdapter implements TournamentRepository {
         return entities.stream().map(mapper::toDomain).toList();
     }
 
+    /**
+     * Restituisce l'elenco dei tornei che si trovano nello stato indicato.
+     *
+     * @param status lo stato dei tornei da cercare; se {@code null} restituisce una lista vuota
+     * @return la lista dei tornei nello stato indicato; lista vuota se non ve ne sono o se {@code status} &egrave; {@code null}
+     * @see TournamentJpaRepository#findByStatus
+     */
     @Override
     @Transactional(readOnly = true)
     public List<Tournament> findByStatus(TournamentStatus status) {
@@ -72,6 +105,13 @@ public class TournamentRepositoryAdapter implements TournamentRepository {
         return entities.stream().map(mapper::toDomain).toList();
     }
 
+    /**
+     * Verifica l'esistenza di un torneo identificato dal relativo identificativo.
+     *
+     * @param id l'identificativo del torneo; se {@code null} restituisce {@code false}
+     * @return {@code true} se il torneo esiste, {@code false} altrimenti
+     * @see TournamentJpaRepository#existsById
+     */
     @Override
     @Transactional(readOnly = true)
     public boolean existsById(TournamentId id) {
@@ -81,6 +121,12 @@ public class TournamentRepositoryAdapter implements TournamentRepository {
         return jpaRepo.existsById(id.value());
     }
 
+    /**
+     * Elimina il torneo identificato dal relativo identificativo.
+     *
+     * @param id l'identificativo del torneo da eliminare; se {@code null} il metodo non effettua alcuna operazione
+     * @see TournamentJpaRepository#deleteById
+     */
     @Override
     @Transactional
     public void deleteById(TournamentId id) {
@@ -90,6 +136,13 @@ public class TournamentRepositoryAdapter implements TournamentRepository {
         jpaRepo.deleteById(id.value());
     }
 
+    /**
+     * Restituisce il torneo identificato acquisendone il lock pessimistico in scrittura.
+     *
+     * @param id l'identificativo del torneo; se {@code null} restituisce {@link Optional#empty()}
+     * @return l'{@link Optional} contenente il torneo trovato (bloccato), o vuoto se assente o se {@code id} &egrave; {@code null}
+     * @see TournamentJpaRepository#findByIdForUpdate
+     */
     @Override
     @Transactional
     public Optional<Tournament> findByIdForUpdate(TournamentId id) {

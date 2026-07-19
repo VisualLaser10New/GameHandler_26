@@ -117,6 +117,26 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
                 userRepository, clock, null, null, null);
     }
 
+    /**
+     * Registra un giocatore o una squadra a un torneo in apertura registrazioni.
+     *
+     * <p>Smista fra registrazione individuale e a squadra in base alla presenza
+     * di {@code teamName}/{@code teamMemberIds}, quindi emette l'evento outbox
+     * {@code TOURNAMENT_PARTICIPANTS_UPSERTED} e aggiorna il riepilogo
+     * {@code TOURNAMENT_SUMMARY_UPSERTED} con il nuovo conteggio partecipanti.</p>
+     *
+     * @param tournamentId l'id del torneo (non deve essere {@code null})
+     * @param captainId l'id dell'utente richiedente (capitano), non deve essere {@code null}
+     * @param teamName il nome della squadra, o {@code null} per registrazione individuale
+     * @param teamMemberIds gli id dei membri della squadra, o {@code null}/vuoto
+     * @param originatingRequestId l'id della richiesta originaria, o {@code null}
+     * @return il DTO del partecipante registrato
+     * @throws TournamentNotFoundException se il torneo non esiste
+     * @throws TournamentRegistrationClosedException se le registrazioni non sono aperte
+     * @throws InvalidTournamentException se i vincoli (team, dimensione, capitano) non sono soddisfatti
+     * @throws DuplicateTournamentParticipantException se il partecipante è già registrato
+     * @throws UserNotFoundException se l'utente capitano non esiste
+     */
     @Override
     public TournamentParticipantDto register(TournamentId tournamentId, UserId captainId, String teamName,
                                               List<String> teamMemberIds, String originatingRequestId) {
@@ -158,6 +178,17 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
         emitTournamentSummaryUseCase.emitSummary(tournamentId, originatingRequestId);
     }
 
+    /**
+     * Registra un singolo giocatore a un torneo individuale.
+     *
+     * @param t il torneo target (non deve essere {@code null})
+     * @param tournamentId l'id del torneo (non deve essere {@code null})
+     * @param captainId l'id dell'utente da registrare (non deve essere {@code null})
+     * @return il DTO del partecipante individuale creato
+     * @throws InvalidTournamentException se il torneo richiede registrazione a squadre
+     * @throws UserNotFoundException se l'utente non esiste
+     * @throws DuplicateTournamentParticipantException se l'utente è già registrato
+     */
     private TournamentParticipantDto registerIndividual(Tournament t, TournamentId tournamentId, UserId captainId) {
         if (t.isTeamBased()) {
             throw new InvalidTournamentException("Tournament requires team registration");
@@ -174,6 +205,17 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
         return new TournamentParticipantDto(participantId, false, u.getUsername());
     }
 
+    /**
+     * Registra una squadra a un torneo a squadre, creando team e partecipante.
+     *
+     * @param t il torneo target (non deve essere {@code null})
+     * @param tournamentId l'id del torneo (non deve essere {@code null})
+     * @param captainId l'id del capitano (deve essere fra i membri)
+     * @param teamName il nome della squadra (non vuoto e non già in uso)
+     * @param teamMemberIds gli id dei membri (dimensione pari a {@code teamSize})
+     * @return il DTO del partecipante squadra creato
+     * @throws InvalidTournamentException se i vincoli squadra non sono soddisfatti
+     */
     private TournamentParticipantDto registerTeam(Tournament t, TournamentId tournamentId, UserId captainId,
                                                    String teamName, List<String> teamMemberIds) {
         if (!t.isTeamBased()) {
@@ -203,6 +245,18 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
         return new TournamentParticipantDto(participantId, true, teamName);
     }
 
+    /**
+     * Annulla la registrazione di un utente (individuale o capitano squadra) a
+     * un torneo in apertura registrazioni.
+     *
+     * <p>Rimuove il partecipante e, per le squadre, anche il team; in entrambi
+     * i casi emette l'evento outbox partecipanti e aggiorna il riepilogo.</p>
+     *
+     * @param tournamentId l'id del torneo (non deve essere {@code null})
+     * @param currentUserId l'id dell'utente che richiede la rimozione
+     * @throws TournamentNotFoundException se il torneo non esiste
+     * @throws TournamentRegistrationClosedException se le registrazioni non sono aperte
+     */
     @Override
     public void unregister(TournamentId tournamentId, UserId currentUserId) {
         Tournament t = tournamentRepository.findById(tournamentId)
@@ -228,6 +282,13 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
         }
     }
 
+    /**
+     * Restituisce l'elenco dei partecipanti di un torneo.
+     *
+     * @param tournamentId l'id del torneo (può essere {@code null})
+     * @return la lista dei DTO dei partecipanti; lista vuota (mai {@code null})
+     *         se l'id è {@code null} o non vi sono partecipanti
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TournamentParticipantDto> listParticipants(TournamentId tournamentId) {
@@ -245,6 +306,12 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
      * Mirrors {@code TournamentService.writeOutboxEvent}: a single UUID is
      * shared by the outbox event id and the DTO {@code eventId}. No-op when the
      * outbox deps are {@code null} (legacy test ctor).
+     */
+    /**
+     * Serializza lo snapshot completo dei partecipanti e lo scrive nell'outbox.
+     *
+     * @param tournamentId l'id del torneo di cui emettere lo snapshot (non deve essere {@code null})
+     * @param originatingRequestId l'id della richiesta originaria, o {@code null}
      */
     private void writeParticipantsOutbox(TournamentId tournamentId, String originatingRequestId) {
         if (outboxEventRepository == null || objectMapper == null) {
@@ -287,6 +354,12 @@ public class TournamentRegistrationService implements RegisterTournamentParticip
      * return event, so this event never drives an {@code admin_requests_local}
      * state transition on the Local side. No-op when the outbox deps are
      * {@code null} (legacy test ctor).
+     */
+    /**
+     * Serializza lo snapshot delle appartenenze team→utente e lo scrive
+     * nell'outbox con {@code originatingRequestId} sempre {@code null}.
+     *
+     * @param tournamentId l'id del torneo di cui emettere lo snapshot (non deve essere {@code null})
      */
     private void writeTeamMembersOutbox(TournamentId tournamentId) {
         if (outboxEventRepository == null || objectMapper == null) {

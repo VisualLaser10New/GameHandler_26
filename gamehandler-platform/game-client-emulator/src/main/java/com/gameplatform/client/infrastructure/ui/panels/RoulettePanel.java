@@ -8,11 +8,12 @@ import javafx.scene.layout.*;
 import java.util.*;
 
 /**
- * Emulation panel for Roulette.
+ * Pannello di emulazione per la Roulette.
  * <p>
- * Each player selects a number (0–36) and an amount to bet, then presses
- * "Piazza Puntata". When all players have bet, the host presses "Gira Ruota"
- * which picks a random number and resolves all bets (win = ×35, lose = 0).
+ * Ogni giocatore seleziona un numero (0&ndash;36) e un importo da puntare,
+ * quindi preme "Piazza Puntata". Quando tutti i giocatori hanno puntato,
+ * l'host preme "Gira Ruota" che estrae un numero casuale e risolve tutte
+ * le puntate (vincita = &times;35, perdita = 0).
  */
 public class RoulettePanel implements GamePanel {
 
@@ -32,6 +33,10 @@ public class RoulettePanel implements GamePanel {
     private final Map<String, Map<String, Integer>> bets = new LinkedHashMap<>();
     private String lastResultText = "";
 
+    /**
+     * Costruisce il pannello della roulette inizializzando l'indicatore di stato,
+     * i controlli delle puntate, il pulsante di lancio e la visualizzazione dei risultati.
+     */
     public RoulettePanel() {
         root = new VBox(14);
         root.setAlignment(Pos.CENTER);
@@ -90,6 +95,14 @@ public class RoulettePanel implements GamePanel {
     @Override
     public Parent getView() { return root; }
 
+    /**
+     * Avvia la partita inizializzando la lista dei partecipanti con un saldo
+     * iniziale di 1000 unit&agrave; ciascuno e abilitando tutti i controlli
+     * di puntata e lancio.
+     *
+     * @param participants lista dei nomi utente dei partecipanti; deve contenere
+     *                     almeno un giocatore per abilitare le puntate
+     */
     @Override
     public void onGameStarted(List<String> participants) {
         this.players = new ArrayList<>(participants);
@@ -113,6 +126,10 @@ public class RoulettePanel implements GamePanel {
         refreshBetsBox();
     }
 
+    /**
+     * Arresta la partita disabilitando tutti i controlli e aggiornando
+     * l'etichetta di stato con il messaggio di fine sessione.
+     */
     @Override
     public void onGameStopped() {
         playerCombo.setDisable(true);
@@ -123,18 +140,41 @@ public class RoulettePanel implements GamePanel {
         statusLabel.setText("Session ended");
     }
 
+    /**
+     * Restituisce l'identificativo del vincitore della partita.
+     * Il vincitore &egrave; il giocatore con il saldo pi&ugrave; alto.
+     *
+     * @return il nome utente del giocatore con il saldo massimo, oppure {@code null}
+     *         se non ci sono giocatori
+     * @see #getResultData()
+     */
     public String getWinnerId() {
         return balances.entrySet().stream()
                 .max(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey).orElse(null);
     }
 
+    /**
+     * Restituisce i dati di risultato della partita nel formato
+     * "giocatore1:saldo1,giocatore2:saldo2".
+     *
+     * @return stringa con coppie "giocatore:saldo" separate da virgola;
+     *         restituisce stringa vuota se non ci sono partecipanti
+     * @see #getWinnerId()
+     */
     public String getResultData() {
         StringBuilder sb = new StringBuilder();
         balances.forEach((p, b) -> { if (sb.length() > 0) sb.append(','); sb.append(p).append(':').append(b); });
         return sb.toString();
     }
 
+    /**
+     * Piazza una puntata per il giocatore selezionato sul numero specificato.
+     * L'importo viene detratto dal saldo del giocatore. Se il saldo &egrave;
+     * insufficiente, la puntata viene rifiutata e viene mostrato un messaggio
+     * di errore. Se nessun giocatore &egrave; selezionato, non esegue alcuna
+     * operazione.
+     */
     private void placeBet() {
         String player = playerCombo.getValue();
         if (player == null) return;
@@ -151,6 +191,12 @@ public class RoulettePanel implements GamePanel {
         refreshBetsBox();
     }
 
+    /**
+     * Simula il lancio della ruota estraendo un numero casuale tra 0 e 36.
+     * Risolve tutte le puntate: ogni giocatore che ha puntato sul numero
+     * estratto vince 35 volte l'importo puntato. Le puntate vengono quindi
+     * azzerate per il prossimo giro.
+     */
     private void spinWheel() {
         int drawn = new Random().nextInt(37);
         StringBuilder result = new StringBuilder("Number drawn: " + drawn + "\n");
@@ -170,6 +216,10 @@ public class RoulettePanel implements GamePanel {
         refreshBetsBox();
     }
 
+    /**
+     * Aggiorna la visualizzazione delle puntate correnti mostrando per ogni
+     * giocatore il saldo residuo e le puntate attive.
+     */
     private void refreshBetsBox() {
         betsBox.getChildren().clear();
         balances.forEach((p, b) -> {

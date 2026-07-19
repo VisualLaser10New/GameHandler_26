@@ -30,6 +30,21 @@ public class TournamentMatchLocal {
     private final TournamentMatchStatus status;
     private final Instant scheduledAt;    // nullable
 
+    /**
+     * Costruisce una nuova replica locale di un match di torneo.
+     *
+     * @param id              identificatore del match (non null)
+     * @param tournamentId    identificatore del torneo (non null)
+     * @param round           numero del round
+     * @param bracketPosition posizione nel bracket
+     * @param participantA    identificatore del primo partecipante (non blank)
+     * @param participantB    identificatore del secondo partecipante (può essere null per BYE)
+     * @param gameType        tipo di gioco (non null)
+     * @param gameId          identificatore della postazione di gioco assegnata (può essere null)
+     * @param status          stato del match (non null)
+     * @param scheduledAt     istante programmato (può essere null)
+     * @throws IllegalArgumentException se id, tournamentId, participantA, gameType o status sono null/blank
+     */
     public TournamentMatchLocal(TournamentMatchId id, TournamentId tournamentId, int round, int bracketPosition,
                                 String participantA, String participantB, GameType gameType,
                                 String gameId, TournamentMatchStatus status, Instant scheduledAt) {
@@ -60,47 +75,104 @@ public class TournamentMatchLocal {
         this.scheduledAt = scheduledAt;
     }
 
+    /**
+     * Restituisce l'identificatore del match.
+     *
+     * @return id
+     */
     public TournamentMatchId getId() {
         return id;
     }
 
+    /**
+     * Restituisce l'identificatore del torneo.
+     *
+     * @return tournamentId
+     */
     public TournamentId getTournamentId() {
         return tournamentId;
     }
 
+    /**
+     * Restituisce il numero del round.
+     *
+     * @return round
+     */
     public int getRound() {
         return round;
     }
 
+    /**
+     * Restituisce la posizione nel bracket.
+     *
+     * @return bracketPosition
+     */
     public int getBracketPosition() {
         return bracketPosition;
     }
 
+    /**
+     * Restituisce l'identificatore del primo partecipante.
+     *
+     * @return participantA
+     */
     public String getParticipantA() {
         return participantA;
     }
 
+    /**
+     * Restituisce l'identificatore del secondo partecipante.
+     *
+     * @return participantB, o null se non presente (BYE)
+     */
     public String getParticipantB() {
         return participantB;
     }
 
+    /**
+     * Restituisce il tipo di gioco del match.
+     *
+     * @return gameType
+     */
     public GameType getGameType() {
         return gameType;
     }
 
+    /**
+     * Restituisce l'identificatore della postazione di gioco assegnata.
+     *
+     * @return gameId, o null se non ancora assegnata
+     */
     public String getGameId() {
         return gameId;
     }
 
+    /**
+     * Restituisce lo stato corrente del match.
+     *
+     * @return status
+     */
     public TournamentMatchStatus getStatus() {
         return status;
     }
 
+    /**
+     * Restituisce l'istante programmato per il match.
+     *
+     * @return scheduledAt, o null se non specificato
+     */
     public Instant getScheduledAt() {
         return scheduledAt;
     }
 
-    /** New immutable copy with updated status (used by start/end/abort flows). */
+    /**
+     * Crea una nuova copia immutabile del match con lo stato aggiornato.
+     * Utilizzato dai flussi di inizio, completamento e aborto del match.
+     *
+     * @param newStatus nuovo stato del match (non null)
+     * @return nuova istanza di TournamentMatchLocal con lo stato aggiornato
+     * @throws IllegalArgumentException se newStatus è null
+     */
     public TournamentMatchLocal withStatus(TournamentMatchStatus newStatus) {
         if (newStatus == null) {
             throw new IllegalArgumentException("TournamentMatchStatus cannot be null");
@@ -119,6 +191,12 @@ public class TournamentMatchLocal {
         );
     }
 
+    /**
+     * Confronta questo match con un altro oggetto per uguaglianza basata su id.
+     *
+     * @param o l'oggetto da confrontare
+     * @return true se gli oggetti sono uguali
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -127,6 +205,11 @@ public class TournamentMatchLocal {
         return Objects.equals(id, that.id);
     }
 
+    /**
+     * Restituisce l'hash code basato su id.
+     *
+     * @return hash code
+     */
     @Override
     public int hashCode() {
         return Objects.hash(id);

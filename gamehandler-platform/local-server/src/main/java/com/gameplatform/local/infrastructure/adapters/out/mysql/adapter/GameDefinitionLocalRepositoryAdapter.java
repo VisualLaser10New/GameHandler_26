@@ -14,12 +14,14 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * JPA adapter for the {@link GameDefinitionLocalRepository} port. Matches the
- * LOCAL FASE 1 {@code LocalAdminBuildingLocalRepositoryAdapter} shape: constructor-
- * injects the JPA repository + mapper; {@code save} is an upsert by PK
- * {@code game_type} (the underlying {@link GameDefinitionLocalJpaRepository#save}
- * merges an existing row if the {@code game_type} PK is already present -
- * idempotent on re-application of the same game-definition snapshot).
+ * Adapter JPA per il port {@link GameDefinitionLocalRepository}.
+ * Gestisce la persistenza delle definizioni dei giochi locali,
+ * con operazioni di upsert per chiave primaria {@code game_type}
+ * che garantiscono idempotenza in caso di riapplicazione dello
+ * stesso snapshot di definizione del gioco.
+ *
+ * @see GameDefinitionLocalRepository
+ * @see GameDefinitionLocalJpaRepository
  */
 @Component
 public class GameDefinitionLocalRepositoryAdapter implements GameDefinitionLocalRepository {
@@ -27,12 +29,24 @@ public class GameDefinitionLocalRepositoryAdapter implements GameDefinitionLocal
     private final GameDefinitionLocalJpaRepository jpaRepository;
     private final GameDefinitionLocalMapper mapper;
 
+    /**
+     * Costruisce un nuovo adapter con le dipendenze necessarie.
+     *
+     * @param jpaRepository repository JPA per le definizioni dei giochi
+     * @param mapper        mapper per la conversione tra entity e dominio
+     */
     public GameDefinitionLocalRepositoryAdapter(GameDefinitionLocalJpaRepository jpaRepository,
                                                  GameDefinitionLocalMapper mapper) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
     }
 
+    /**
+     * Salva una definizione di gioco nel database (upsert per chiave primaria).
+     *
+     * @param gameDefinitionLocal la definizione di gioco da salvare
+     * @return la definizione di gioco persistita
+     */
     @Override
     @Transactional
     public GameDefinitionLocal save(GameDefinitionLocal gameDefinitionLocal) {
@@ -41,6 +55,12 @@ public class GameDefinitionLocalRepositoryAdapter implements GameDefinitionLocal
         return mapper.toDomain(savedEntity);
     }
 
+    /**
+     * Recupera una definizione di gioco tramite il tipo di gioco.
+     *
+     * @param gameType il tipo di gioco da cercare
+     * @return un {@code Optional} contenente la definizione di gioco, vuoto se non trovata o se il tipo è {@code null}
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<GameDefinitionLocal> findByGameType(GameType gameType) {
@@ -50,6 +70,11 @@ public class GameDefinitionLocalRepositoryAdapter implements GameDefinitionLocal
         return jpaRepository.findByGameType(gameType.name()).map(mapper::toDomain);
     }
 
+    /**
+     * Recupera tutte le definizioni di gioco ordinate per tipo in ordine crescente.
+     *
+     * @return una lista di tutte le definizioni di gioco
+     */
     @Override
     @Transactional(readOnly = true)
     public List<GameDefinitionLocal> findAll() {
@@ -58,6 +83,12 @@ public class GameDefinitionLocalRepositoryAdapter implements GameDefinitionLocal
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Verifica se esiste una definizione di gioco per il tipo specificato.
+     *
+     * @param gameType il tipo di gioco da verificare
+     * @return {@code true} se la definizione esiste, {@code false} altrimenti o se il tipo è {@code null}
+     */
     @Override
     @Transactional(readOnly = true)
     public boolean existsByGameType(GameType gameType) {
@@ -67,6 +98,11 @@ public class GameDefinitionLocalRepositoryAdapter implements GameDefinitionLocal
         return jpaRepository.existsByGameType(gameType.name());
     }
 
+    /**
+     * Elimina una definizione di gioco per il tipo specificato.
+     *
+     * @param gameType il tipo di gioco da eliminare; se {@code null} l'operazione non viene eseguita
+     */
     @Override
     @Transactional
     public void deleteByGameType(GameType gameType) {

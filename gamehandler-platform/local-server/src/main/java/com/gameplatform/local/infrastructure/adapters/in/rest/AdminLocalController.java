@@ -65,6 +65,20 @@ public class AdminLocalController {
     private final String buildingId;
     private final GameDefinitionLocalRepository gameDefinitionLocalRepository;
 
+    /**
+     * Costruisce il controller con i casi d'uso necessari per la gestione del
+     * catalogo giochi, la consultazione delle sessioni e delle statistiche
+     * relative all'edificio.
+     *
+     * @param manageGameCatalogUseCase caso d'uso per la gestione del catalogo giochi
+     * @param listBuildingGamesUseCase caso d'uso per la lista dei giochi dell'edificio
+     * @param listBuildingActiveSessionsUseCase caso d'uso per le sessioni attive dell'edificio
+     * @param getBuildingStatisticsUseCase caso d'uso per le statistiche dell'edificio
+     * @param objectMapper mapper JSON per la serializzazione
+     * @param authorizationManager gestore delle autorizzazioni per l'admin locale
+     * @param buildingId identificativo dell'edificio
+     * @param gameDefinitionLocalRepository repository locale delle definizioni di gioco
+     */
     public AdminLocalController(ManageGameCatalogUseCase manageGameCatalogUseCase,
                                 ListBuildingGamesUseCase listBuildingGamesUseCase,
                                 ListBuildingActiveSessionsUseCase listBuildingActiveSessionsUseCase,
@@ -83,6 +97,14 @@ public class AdminLocalController {
         this.gameDefinitionLocalRepository = gameDefinitionLocalRepository;
     }
 
+    /**
+     * Restituisce l'elenco dei dispositivi (giochi) associati all'edificio
+     * dell'amministratore locale autenticato.
+     *
+     * @return una {@link ResponseEntity} contenente la lista di {@link GameStateDto}
+     * @throws BuildingNotRegisteredToAdminException se l'admin non è autorizzato per l'edificio
+     * @see #ensureAuthorized()
+     */
     @GetMapping("/devices")
     public ResponseEntity<List<GameStateDto>> getDevices() {
         ensureAuthorized();
@@ -93,6 +115,13 @@ public class AdminLocalController {
         return ResponseEntity.ok(dtos);
     }
 
+    /**
+     * Restituisce le sessioni di gioco attive per l'edificio dell'amministratore
+     * locale autenticato.
+     *
+     * @return una {@link ResponseEntity} contenente la lista di {@link GameSessionDto}
+     * @throws BuildingNotRegisteredToAdminException se l'admin non è autorizzato per l'edificio
+     */
     @GetMapping("/sessions/active")
     public ResponseEntity<List<GameSessionDto>> getActiveSessions() {
         ensureAuthorized();
@@ -104,6 +133,15 @@ public class AdminLocalController {
         return ResponseEntity.ok(dtos);
     }
 
+    /**
+     * Restituisce le statistiche per un determinato tipo di gioco relative
+     * all'edificio dell'amministratore locale autenticato.
+     *
+     * @param gameTypeStr il tipo di gioco come stringa (obbligatorio)
+     * @return una {@link ResponseEntity} contenente le {@link LocalStatistics}
+     * @throws IllegalArgumentException se il parametro gameType è nullo, vuoto o non valido
+     * @throws BuildingNotRegisteredToAdminException se l'admin non è autorizzato per l'edificio
+     */
     @GetMapping("/statistics")
     public ResponseEntity<LocalStatistics> getStatistics(@RequestParam(value = "gameType", required = false) String gameTypeStr) {
         ensureAuthorized();
@@ -116,6 +154,14 @@ public class AdminLocalController {
         return ResponseEntity.ok(statistics);
     }
 
+    /**
+     * Crea un nuovo gioco nel catalogo dell'edificio.
+     *
+     * @param req i dati della richiesta di creazione del gioco
+     * @return una {@link ResponseEntity} con status 201 e il {@link GameStateDto} del gioco creato
+     * @throws GameDefinitionNotAvailableLocallyException se la definizione del gioco non è disponibile localmente
+     * @throws BuildingNotRegisteredToAdminException se l'admin non è autorizzato per l'edificio
+     */
     @PostMapping("/games")
     public ResponseEntity<GameStateDto> createGame(@RequestBody @Valid CreateGameRequestDto req) {
         ensureAuthorized();
@@ -128,6 +174,14 @@ public class AdminLocalController {
         return ResponseEntity.status(HttpStatus.CREATED).body(toDto(created));
     }
 
+    /**
+     * Aggiorna un gioco esistente nel catalogo dell'edificio.
+     *
+     * @param gameId l'identificativo del gioco da aggiornare
+     * @param req i dati della richiesta di aggiornamento
+     * @return una {@link ResponseEntity} contenente il {@link GameStateDto} aggiornato
+     * @throws BuildingNotRegisteredToAdminException se l'admin non è autorizzato per l'edificio
+     */
     @PutMapping("/games/{gameId}")
     public ResponseEntity<GameStateDto> updateGame(@PathVariable String gameId,
                                                    @RequestBody @Valid UpdateGameRequestDto req) {
@@ -140,6 +194,13 @@ public class AdminLocalController {
         return ResponseEntity.ok(toDto(updated));
     }
 
+    /**
+     * Elimina un gioco dal catalogo dell'edificio.
+     *
+     * @param gameId l'identificativo del gioco da eliminare
+     * @return una {@link ResponseEntity} con status 204 (nessun contenuto)
+     * @throws BuildingNotRegisteredToAdminException se l'admin non è autorizzato per l'edificio
+     */
     @DeleteMapping("/games/{gameId}")
     public ResponseEntity<Void> deleteGame(@PathVariable String gameId) {
         ensureAuthorized();
@@ -147,6 +208,12 @@ public class AdminLocalController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Verifica che l'amministratore autenticato sia autorizzato a gestire
+     * l'edificio corrente. Solleva un'eccezione in caso contrario.
+     *
+     * @throws BuildingNotRegisteredToAdminException se l'admin non è associato all'edificio
+     */
     private void ensureAuthorized() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!authorizationManager.canManageBuilding(authentication)) {
@@ -155,6 +222,13 @@ public class AdminLocalController {
         }
     }
 
+    /**
+     * Converte una stringa nel corrispondente enum {@link GameType}.
+     *
+     * @param gameType la stringa rappresentante il tipo di gioco
+     * @return il {@link GameType} corrispondente
+     * @throws IllegalArgumentException se la stringa non corrisponde a un valore valido
+     */
     private static GameType parseGameType(String gameType) {
         try {
             return GameType.valueOf(gameType.toUpperCase());
@@ -165,6 +239,13 @@ public class AdminLocalController {
         }
     }
 
+    /**
+     * Converte una stringa nel corrispondente enum {@link GameMachineStatus}.
+     *
+     * @param status la stringa rappresentante lo stato della macchina
+     * @return il {@link GameMachineStatus} corrispondente
+     * @throws IllegalArgumentException se la stringa non corrisponde a un valore valido
+     */
     private static GameMachineStatus parseStatus(String status) {
         try {
             return GameMachineStatus.valueOf(status.toUpperCase());
@@ -175,6 +256,14 @@ public class AdminLocalController {
         }
     }
 
+    /**
+     * Proietta un'istanza di {@link Game} in un {@link GameStateDto},
+     * risolvendo il numero minimo e massimo di giocatori dalla definizione
+     * locale o, in assenza, dai valori predefiniti del ciclo di vita del gioco.
+     *
+     * @param game il gioco da convertire
+     * @return il {@link GameStateDto} corrispondente
+     */
     private GameStateDto toDto(Game game) {
         com.gameplatform.local.domain.model.GameDefinitionLocal def =
                 gameDefinitionLocalRepository.findByGameType(game.getGameType()).orElse(null);

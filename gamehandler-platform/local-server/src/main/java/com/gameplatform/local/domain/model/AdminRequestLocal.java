@@ -39,6 +39,22 @@ public class AdminRequestLocal {
     private final Instant completedAt;
     private final String outboxEventId;
 
+    /**
+     * Costruisce una nuova richiesta amministrativa locale.
+     *
+     * @param requestId      identificatore univoco della richiesta (non blank)
+     * @param eventType      tipo di evento associato (non blank)
+     * @param actingUserId   identificatore dell'utente che ha effettuato la richiesta (non blank)
+     * @param actingRole     ruolo dell'utente richiedente
+     * @param buildingId     identificatore dell'edificio coinvolto
+     * @param payloadJson    payload JSON della richiesta
+     * @param status         stato corrente della richiesta (non blank)
+     * @param resultDataJson dati JSON del risultato (può essere null)
+     * @param createdAt      istante di creazione (non null)
+     * @param completedAt    istante di completamento (può essere null)
+     * @param outboxEventId  identificatore dell'evento outbox associato
+     * @throws IllegalArgumentException se requestId, eventType, actingUserId o status sono blank, o createdAt è null
+     */
     public AdminRequestLocal(String requestId, String eventType, String actingUserId, String actingRole,
                              String buildingId, String payloadJson, String status, String resultDataJson,
                              Instant createdAt, Instant completedAt, String outboxEventId) {
@@ -70,50 +86,111 @@ public class AdminRequestLocal {
         this.outboxEventId = outboxEventId;
     }
 
+    /**
+     * Restituisce l'identificatore univoco della richiesta.
+     *
+     * @return requestId
+     */
     public String getRequestId() {
         return requestId;
     }
 
+    /**
+     * Restituisce il tipo di evento associato.
+     *
+     * @return eventType
+     */
     public String getEventType() {
         return eventType;
     }
 
+    /**
+     * Restituisce l'identificatore dell'utente richiedente.
+     *
+     * @return actingUserId
+     */
     public String getActingUserId() {
         return actingUserId;
     }
 
+    /**
+     * Restituisce il ruolo dell'utente richiedente.
+     *
+     * @return actingRole
+     */
     public String getActingRole() {
         return actingRole;
     }
 
+    /**
+     * Restituisce l'identificatore dell'edificio coinvolto.
+     *
+     * @return buildingId
+     */
     public String getBuildingId() {
         return buildingId;
     }
 
+    /**
+     * Restituisce il payload JSON della richiesta.
+     *
+     * @return payloadJson
+     */
     public String getPayloadJson() {
         return payloadJson;
     }
 
+    /**
+     * Restituisce lo stato corrente della richiesta.
+     *
+     * @return status
+     */
     public String getStatus() {
         return status;
     }
 
+    /**
+     * Restituisce i dati JSON del risultato.
+     *
+     * @return resultDataJson, o null se non ancora completata
+     */
     public String getResultDataJson() {
         return resultDataJson;
     }
 
+    /**
+     * Restituisce l'istante di creazione della richiesta.
+     *
+     * @return createdAt
+     */
     public Instant getCreatedAt() {
         return createdAt;
     }
 
+    /**
+     * Restituisce l'istante di completamento della richiesta.
+     *
+     * @return completedAt, o null se non ancora completata
+     */
     public Instant getCompletedAt() {
         return completedAt;
     }
 
+    /**
+     * Restituisce l'identificatore dell'evento outbox associato.
+     *
+     * @return outboxEventId
+     */
     public String getOutboxEventId() {
         return outboxEventId;
     }
 
+    /**
+     * Confronta questa richiesta con un altro oggetto per uguaglianza basata su requestId.
+     *
+     * @param o l'oggetto da confrontare
+     * @return true se gli oggetti sono uguali
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -122,6 +199,11 @@ public class AdminRequestLocal {
         return Objects.equals(requestId, that.requestId);
     }
 
+    /**
+     * Restituisce l'hash code basato su requestId.
+     *
+     * @return hash code
+     */
     @Override
     public int hashCode() {
         return Objects.hash(requestId);

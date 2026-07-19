@@ -29,10 +29,23 @@ public class InternalMetadataController {
 
     private final LocalAdminBuildingSyncService localAdminBuildingSyncService;
 
+    /**
+     * Costruisce il controller con il servizio di sincronizzazione delle
+     * associazioni admin-edificio.
+     *
+     * @param localAdminBuildingSyncService servizio per l'applicazione degli eventi
+     */
     public InternalMetadataController(LocalAdminBuildingSyncService localAdminBuildingSyncService) {
         this.localAdminBuildingSyncService = localAdminBuildingSyncService;
     }
 
+    /**
+     * Riceve un batch di eventi di associazione admin-edificio replicati
+     * dal sistema centrale e li applica al database locale.
+     *
+     * @param events la lista degli eventi di associazione admin-edificio
+     * @return una {@link ResponseEntity} con status 200
+     */
     @PutMapping("/sync")
     public ResponseEntity<Void> syncMetadata(@RequestBody List<LocalAdminBuildingEventDto> events) {
         localAdminBuildingSyncService.applyEvents(events);

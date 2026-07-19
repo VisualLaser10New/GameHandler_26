@@ -35,6 +35,14 @@ public class PlayerTournamentRegistrationController {
     private final CurrentUserService currentUserService;
     private final String buildingId;
 
+    /**
+     * Costruisce il controller con il caso d'uso per la registrazione ai
+     * tornei e il servizio per l'utente corrente.
+     *
+     * @param registerUseCase caso d'uso per la registrazione partecipante
+     * @param currentUserService servizio per la risoluzione dell'utente autenticato
+     * @param buildingId identificativo dell'edificio
+     */
     public PlayerTournamentRegistrationController(RegisterTournamentParticipantRequestedUseCase registerUseCase,
                                                    CurrentUserService currentUserService,
                                                    @Value("${app.building-id}") String buildingId) {
@@ -43,6 +51,15 @@ public class PlayerTournamentRegistrationController {
         this.buildingId = buildingId;
     }
 
+    /**
+     * Registra l'utente autenticato come partecipante a un torneo,
+     * opzionalmente come team. La richiesta viene processata in modo
+     * asincrono tramite outbox.
+     *
+     * @param id l'identificativo del torneo
+     * @param body i dati di registrazione (opzionale, per registrazione di team)
+     * @return una {@link ResponseEntity} con status 202 e il {@link AdminRequestDto}
+     */
     @PostMapping("/{id}/participants")
     public ResponseEntity<AdminRequestDto> register(@PathVariable String id,
                                                      @RequestBody(required = false) RegisterTournamentParticipantDto body) {

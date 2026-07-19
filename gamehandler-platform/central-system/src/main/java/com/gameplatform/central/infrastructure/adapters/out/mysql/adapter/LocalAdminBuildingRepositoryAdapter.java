@@ -26,12 +26,25 @@ public class LocalAdminBuildingRepositoryAdapter implements LocalAdminBuildingRe
     private final LocalAdminBuildingJpaRepository jpaRepository;
     private final LocalAdminBuildingMapper mapper;
 
+    /**
+     * Costruisce l'adapter iniettando il repository JPA e il mapper dei legami tra amministratore locale e edificio.
+     *
+     * @param jpaRepository repository JPA per la gestione delle entit&agrave; di legame
+     * @param mapper        mapper che converte tra il modello di dominio e l'entit&agrave; JPA
+     */
     public LocalAdminBuildingRepositoryAdapter(LocalAdminBuildingJpaRepository jpaRepository,
                                               LocalAdminBuildingMapper mapper) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
     }
 
+    /**
+     * Salva (o aggiorna) un legame tra amministratore locale ed edificio e restituisce l'entit&agrave; persistita.
+     *
+     * @param binding il legame da persistere; non deve essere {@code null}
+     * @return il legame salvato, con eventuali valorizzazioni gestite dal database
+     * @see LocalAdminBuildingJpaRepository#save
+     */
     @Override
     @Transactional
     public LocalAdminBuilding save(LocalAdminBuilding binding) {
@@ -40,6 +53,14 @@ public class LocalAdminBuildingRepositoryAdapter implements LocalAdminBuildingRe
         return mapper.toDomain(savedEntity);
     }
 
+    /**
+     * Verifica l'esistenza di un legame tra un utente e un edificio.
+     *
+     * @param userId     l'identificativo dell'utente; se {@code null} restituisce {@code false}
+     * @param buildingId l'identificativo dell'edificio; se {@code null} restituisce {@code false}
+     * @return {@code true} se esiste il legame, {@code false} altrimenti
+     * @see LocalAdminBuildingJpaRepository#existsByUserIdAndBuildingId
+     */
     @Override
     @Transactional(readOnly = true)
     public boolean existsByUserIdAndBuildingId(UserId userId, BuildingId buildingId) {
@@ -49,6 +70,13 @@ public class LocalAdminBuildingRepositoryAdapter implements LocalAdminBuildingRe
         return jpaRepository.existsByUserIdAndBuildingId(userId.value(), buildingId.id());
     }
 
+    /**
+     * Elimina il legame tra un utente e un edificio.
+     *
+     * @param userId     l'identificativo dell'utente; se {@code null} il metodo non effettua alcuna operazione
+     * @param buildingId l'identificativo dell'edificio; se {@code null} il metodo non effettua alcuna operazione
+     * @see LocalAdminBuildingJpaRepository#deleteByUserIdAndBuildingId
+     */
     @Override
     @Transactional
     public void deleteByUserIdAndBuildingId(UserId userId, BuildingId buildingId) {
@@ -58,6 +86,13 @@ public class LocalAdminBuildingRepositoryAdapter implements LocalAdminBuildingRe
         jpaRepository.deleteByUserIdAndBuildingId(userId.value(), buildingId.id());
     }
 
+    /**
+     * Restituisce l'elenco dei legami associati a un utente.
+     *
+     * @param userId l'identificativo dell'utente; se {@code null} restituisce una lista vuota
+     * @return la lista dei legami dell'utente; lista vuota se non ve ne sono o se {@code userId} &egrave; {@code null}
+     * @see LocalAdminBuildingJpaRepository#findByUserId
+     */
     @Override
     @Transactional(readOnly = true)
     public List<LocalAdminBuilding> findByUserId(UserId userId) {

@@ -9,24 +9,40 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+/**
+ * Repository JPA per l'accesso ai dati dei server locali registrati.
+ * <p>
+ * Fornisce metodi per interrogare i server attivi, ottenere l'elenco completo
+ * ordinato per ultima connessione e disattivare atomicamente un server
+ * associato a un edificio.
+ * </p>
+ *
+ * @see RegisteredLocalServerJpaEntity
+ */
 @Repository
 public interface LocalServerJpaRepository extends JpaRepository<RegisteredLocalServerJpaEntity, String> {
+    /**
+     * Restituisce tutti i server locali attualmente attivi.
+     *
+     * @return una lista di server locali con stato attivo, vuota se nessun server &egrave; attivo
+     */
     List<RegisteredLocalServerJpaEntity> findByIsActiveTrue();
 
     /**
-     * M12 — returns ALL registered servers, newest {@code lastSeenAt} first.
-     * Used by the admin {@code /internal/servers} health endpoint.
+     * Restituisce tutti i server locali registrati, ordinati dalla data dell'ultima
+     * connessione decrescente (dal pi&ugrave; recente al pi&ugrave; vecchio).
+     *
+     * @return una lista di tutti i server locali ordinati per {@code lastSeenAt} decrescente,
+     *         vuota se non ci sono server registrati
      */
     List<RegisteredLocalServerJpaEntity> findAllByOrderByLastSeenAtDesc();
 
     /**
-     * M13 — atomically flips {@code is_active} to {@code false} for the given
-     * building. The entity field is named {@code isActive} (field access), so
-     * the JPQL attribute path is {@code s.isActive}.
+     * Disattiva atomicamente il server locale associato all'edificio specificato,
+     * impostando il flag {@code isActive} a {@code false}.
      *
-     * @param buildingId the building id whose server must be deactivated
-     * @return the number of rows updated (0 if the building was not registered
-     *         or was already inactive)
+     * @param buildingId l'identificativo dell'edificio il cui server deve essere disattivato (non null)
+     * @return il numero di righe aggiornate (0 se l'edificio non era registrato o era gi&agrave; inattivo)
      */
     @Modifying
     @Query("update RegisteredLocalServerJpaEntity s set s.isActive = false where s.buildingId = :buildingId")

@@ -8,9 +8,21 @@ import com.gameplatform.shared.domain.model.TournamentMatchId;
 import com.gameplatform.shared.domain.model.TournamentMatchStatus;
 import org.springframework.stereotype.Component;
 
+/**
+ * Mapper null-safe tra il modello di dominio {@link TournamentMatchLocal} e
+ * l'entità di persistenza {@link TournamentMatchLocalJpaEntity}. Fornisce la
+ * conversione bidirezionale per gli incontri di un torneo.
+ */
 @Component
 public class TournamentMatchLocalMapper {
 
+    /**
+     * Converte un'entità JPA {@link TournamentMatchLocalJpaEntity} nel
+     * corrispondente modello di dominio {@link TournamentMatchLocal}.
+     *
+     * @param entity l'entità JPA da convertire, può essere {@code null}
+     * @return il modello di dominio, oppure {@code null} se l'input è {@code null}
+     */
     public TournamentMatchLocal toDomain(TournamentMatchLocalJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -29,6 +41,13 @@ public class TournamentMatchLocalMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link TournamentMatchLocal} nella
+     * corrispondente entità JPA {@link TournamentMatchLocalJpaEntity}.
+     *
+     * @param domain il modello di dominio da convertire, può essere {@code null}
+     * @return l'entità JPA, oppure {@code null} se l'input è {@code null}
+     */
     public TournamentMatchLocalJpaEntity toEntity(TournamentMatchLocal domain) {
         if (domain == null) {
             return null;

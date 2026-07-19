@@ -16,25 +16,17 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 /**
- * Role-aware JavaFX navbar (PIANO §7.C line 732-733).
+ * Barra di navigazione JavaFX sensibile al ruolo dell'utente.
  * <p>
- * Rebuilds the visible buttons every time the user authenticates:
+ * Ricostruisce i pulsanti visibili ogni volta che l'utente si autentica:
  * <ul>
  *   <li><b>PLAYER</b> — Games · My Stats · My Matches · Tournaments</li>
  *   <li><b>LOCAL_ADMIN</b> — Games · Aggregated Stats · Local Dashboard</li>
- *   <li><b>GAME_ADMIN</b> — Game Admin (definizioni giochi + regole
- *       registrazione partite)</li>
- *   <li><b>PLATFORM_ADMIN</b> — tutte le voci (superuser): Games,
- *       My Stats, My Matches, Tournaments, Aggregated Stats, Local
- *       Dashboard, Game Admin, Platform Admin, Admin Requests</li>
+ *   <li><b>GAME_ADMIN</b> — Game Admin</li>
+ *   <li><b>PLATFORM_ADMIN</b> — tutte le voci (superuser)</li>
  * </ul>
- * Multi-role users see the union of the entries with de-duplication: an
- * identical target view appears as a single button bound to the same
- * handler (the underlying dashboard itself decides which buttons to show
- * based on the role, so a PLATFORM_ADMIN visiting the LocalAdmin
- * Dashboard gets read-only mode).
- * <p>
- * The bar also exposes a Logout button on the right edge.
+ * Gli utenti con più ruoli vedono l'unione delle voci con deduplicazione.
+ * La barra espone anche un pulsante Logout sul lato destro.
  */
 public class NavbarController {
 
@@ -60,30 +52,49 @@ public class NavbarController {
     private Consumer<String> navigateHandler;
     private Runnable onLogout;
 
+    /**
+     * Costruisce la barra di navigazione.
+     * <p>
+     * Imposta lo stile scuro della barra e l'allineamento a sinistra.
+     */
     public NavbarController() {
         bar.setStyle("-fx-padding: 8 12; -fx-background-color: #151515;"
                 + " -fx-border-color: #333; -fx-border-width: 0 0 1 0;");
         bar.setAlignment(Pos.CENTER_LEFT);
     }
 
+    /**
+     * Restituisce il nodo JavaFX della barra di navigazione.
+     *
+     * @return il nodo {@link javafx.scene.Node} della barra
+     */
     public javafx.scene.Node getNode() {
         return bar;
     }
 
-    /** Registers the navigation callback invoked when the user clicks a button. */
+    /**
+     * Registra il callback di navigazione invocato quando l'utente clicca un pulsante.
+     *
+     * @param navigateHandler l'azione da eseguire con il nome della vista di destinazione; può essere null
+     */
     public void setOnNavigate(Consumer<String> navigateHandler) {
         this.navigateHandler = navigateHandler;
     }
 
-    /** Registers the logout callback (clears session + navigates to login). */
+    /**
+     * Registra il callback di logout (cancella la sessione e naviga al login).
+     *
+     * @param callback l'azione da eseguire per il logout; può essere null
+     */
     public void setOnLogout(Runnable callback) {
         this.onLogout = callback;
     }
 
     /**
-     * Rebuilds the bar from the current {@link HttpClientHelper#getRoles()};
-     * safe to call on any thread — wraps the scene-graph mutation in
-     * {@code Platform.runLater}.
+     * Ricostruisce la barra in base ai ruoli correnti dell'utente.
+     * <p>
+     * Sicuro da chiamare da qualsiasi thread: le mutazioni del grafo
+     * della scena sono avvolte in {@code Platform.runLater}.
      */
     public void rebuild() {
         if (!Platform.isFxApplicationThread()) {
@@ -124,6 +135,16 @@ public class NavbarController {
         renderBar();
     }
 
+    /**
+     * Aggiunge un pulsante alla barra di navigazione, con deduplicazione.
+     * <p>
+     * Se esiste già un pulsante per la stessa vista di destinazione,
+     * la nuova aggiunta viene ignorata (LinkedHashMap mantiene l'ordine
+     * di prima inserzione).
+     *
+     * @param label      il testo del pulsante; non null
+     * @param targetView la costante VIEW_* di destinazione; non null
+     */
     private void addButton(String label, String targetView) {
         // De-duplicate when the same target would otherwise appear twice
         // (e.g. PLAYER + GAME_ADMIN both want "Games"): LinkedHashMap keeps
@@ -136,6 +157,12 @@ public class NavbarController {
         buttons.put(targetView, btn);
     }
 
+    /**
+     * Renderizza la barra con i pulsanti correnti e il pulsante Logout.
+     * <p>
+     * Aggiunge tutti i pulsanti delle voci alla barra, inserisce uno
+     * spacer elastico a destra e infine il pulsante Logout.
+     */
     private void renderBar() {
         bar.getChildren().clear();
         for (Button b : new ArrayList<>(buttons.values())) {
@@ -154,6 +181,11 @@ public class NavbarController {
         bar.getChildren().add(logout);
     }
 
+    /**
+     * Esegue la navigazione verso la vista specificata.
+     *
+     * @param viewName il nome della vista di destinazione; non null
+     */
     private void navigate(String viewName) {
         if (navigateHandler != null) navigateHandler.accept(viewName);
     }

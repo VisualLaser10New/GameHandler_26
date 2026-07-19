@@ -8,18 +8,35 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 /**
- * Spring Data JPA repository for {@link TeamMemberLocalJpaEntity}
- * (BUG-TEAM-3). Composite PK is {@link TeamMemberLocalId}; the default
- * {@code save} is an upsert by the composite PK
- * ({@code tournamentId}, {@code teamId}, {@code userId}). The sync service
- * uses {@link #deleteByTournamentId} for the full-snapshot replace
- * (delete+insert idempotency by {@code tournamentId}).
+ * Interfaccia Spring Data JPA per l'entità {@link TeamMemberLocalJpaEntity}.
+ * La chiave primaria composita è {@link TeamMemberLocalId}; il metodo
+ * {@code save} predefinito esegue un upsert basato sulla chiave composita
+ * ({@code tournamentId}, {@code teamId}, {@code userId}). Il servizio di
+ * sincronizzazione utilizza {@link #deleteByTournamentId} per la
+ * sostituzione completa dello snapshot (delete+insert con idempotenza per
+ * {@code tournamentId}).
+ *
+ * @see TeamMemberLocalJpaEntity
+ * @see TeamMemberLocalId
  */
 @Repository
 public interface TeamMemberLocalJpaRepository
         extends JpaRepository<TeamMemberLocalJpaEntity, TeamMemberLocalId> {
 
+    /**
+     * Recupera tutti i membri delle squadre associati a un determinato torneo.
+     *
+     * @param tournamentId l'ID del torneo
+     * @return una lista di entità {@link TeamMemberLocalJpaEntity} per il torneo indicato
+     */
     List<TeamMemberLocalJpaEntity> findByTournamentId(String tournamentId);
 
+    /**
+     * Elimina tutti i membri delle squadre associati al torneo specificato.
+     * Utilizzato dal servizio di sincronizzazione per la sostituzione
+     * completa dello snapshot.
+     *
+     * @param tournamentId l'ID del torneo di cui rimuovere i membri
+     */
     void deleteByTournamentId(String tournamentId);
 }

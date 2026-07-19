@@ -11,15 +11,54 @@ import org.springframework.stereotype.Repository;
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * Interfaccia Spring Data JPA per l'entità {@link OutboxEventJpaEntity}.
+ * Gestisce il pattern outbox per gli eventi di dominio, fornendo operazioni
+ * di ricerca, aggiornamento bulk dello stato, gestione dei tentativi e
+ * pulizia degli eventi già inviati. Le operazioni di modifica bulk sono
+ * condizionali sullo stato {@code PENDING} per garantire idempotenza.
+ *
+ * @see OutboxEventJpaEntity
+ */
 @Repository
 public interface OutboxEventJpaRepository extends JpaRepository<OutboxEventJpaEntity, String> {
+    /**
+     * Recupera tutti gli eventi outbox con lo stato specificato, ordinati
+     * per data di creazione ascendente.
+     *
+     * @param status lo stato degli eventi da cercare (es. PENDING, SENT, FAILED)
+     * @return una lista di entità {@link OutboxEventJpaEntity} ordinate per createdAt
+     */
     List<OutboxEventJpaEntity> findByStatusOrderByCreatedAtAsc(String status);
+
+    /**
+     * Recupera tutti gli eventi outbox con lo stato specificato, ordinati
+     * per data di creazione ascendente, con supporto alla paginazione.
+     *
+     * @param status   lo stato degli eventi da cercare
+     * @param pageable le informazioni di paginazione e ordinamento
+     * @return una lista paginata di entità {@link OutboxEventJpaEntity}
+     */
     List<OutboxEventJpaEntity> findByStatusOrderByCreatedAtAsc(String status, Pageable pageable);
+
+    /**
+     * Recupera tutti gli eventi outbox per tipo di evento e stato specificati.
+     *
+     * @param eventType il tipo di evento
+     * @param status    lo stato dell'evento
+     * @return una lista di entità {@link OutboxEventJpaEntity} per tipo e stato
+     */
     List<OutboxEventJpaEntity> findByEventTypeAndStatus(String eventType, String status);
 
     /**
-     * Bulk mark-as-sent UPDATE. Sets status=SENT and sentAt=:now for every id
-     * currently in PENDING, in a single SQL statement.
+     * Aggiornamento bulk dello stato a {@code SENT} per tutti gli eventi
+     * outbox con ID specificati e stato corrente {@code PENDING}. Imposta
+     * anche il timestamp di invio. Operazione eseguita in una singola
+     * istruzione SQL.
+     *
+     * @param ids la lista degli ID degli eventi da marcare come inviati
+     * @param now l'istante di invio
+     * @return il numero di righe aggiornate
      */
     @Modifying
     @Query("UPDATE OutboxEventJpaEntity e " +
@@ -28,10 +67,14 @@ public interface OutboxEventJpaRepository extends JpaRepository<OutboxEventJpaEn
     int markAsSentBatch(@Param("ids") List<String> ids, @Param("now") Instant now);
 
     /**
-     * Bulk increment-retry UPDATE. Bumps retryCount by 1 for each id currently
-     * PENDING; a separate statement flips to FAILED those that reached the threshold.
-     * Both statements must run in the same transaction (see
-     * {@link com.gameplatform.local.infrastructure.adapters.out.mysql.adapter.OutboxEventRepositoryAdapter#incrementRetryBatch}).
+     * Incremento bulk del contatore di tentativi per tutti gli eventi outbox
+     * con ID specificati e stato corrente {@code PENDING}. Un'istruzione
+     * separata porta a {@code FAILED} quelli che hanno raggiunto la soglia.
+     * Entrambe le istruzioni devono essere eseguite nella stessa transazione.
+     *
+     * @param ids la lista degli ID degli eventi da incrementare
+     * @return il numero di righe aggiornate
+     * @see com.gameplatform.local.infrastructure.adapters.out.mysql.adapter.OutboxEventRepositoryAdapter#incrementRetryBatch
      */
     @Modifying
     @Query("UPDATE OutboxEventJpaEntity e " +
@@ -39,6 +82,15 @@ public interface OutboxEventJpaRepository extends JpaRepository<OutboxEventJpaEn
            "WHERE e.id IN :ids AND e.status = 'PENDING'")
     int incrementRetryBatch(@Param("ids") List<String> ids);
 
+    /**
+     * Aggiornamento bulk dello stato a {@code FAILED} per tutti gli eventi
+     * outbox con ID specificati, stato {@code PENDING} e contatore tentativi
+     * uguale o superiore alla soglia indicata.
+     *
+     * @param ids       la lista degli ID degli eventi da marcare come falliti
+     * @param threshold il numero massimo di tentativi consentiti
+     * @return il numero di righe aggiornate
+     */
     @Modifying
     @Query("UPDATE OutboxEventJpaEntity e " +
            "SET e.status = 'FAILED' " +
@@ -46,7 +98,14 @@ public interface OutboxEventJpaRepository extends JpaRepository<OutboxEventJpaEn
     int markAsFailedAboveThreshold(@Param("ids") List<String> ids, @Param("threshold") int threshold);
 
     /**
-     * Bulk delete SENT outbox rows older than the given cutoff. Single SQL statement.
+     * Eliminazione bulk delle righe outbox con stato {@code SENT} e data
+     * di invio antecedente alla soglia specificata. Operazione eseguita in
+     * una singola istruzione SQL per la pulizia periodica degli eventi
+     * processati.
+     *
+     * @param cutoff l'istante di taglio temporale; le righe con sentAt
+     *               antecedente vengono eliminate
+     * @return il numero di righe eliminate
      */
     @Modifying
     @Query("DELETE FROM OutboxEventJpaEntity e WHERE e.status = 'SENT' AND e.sentAt < :cutoff")

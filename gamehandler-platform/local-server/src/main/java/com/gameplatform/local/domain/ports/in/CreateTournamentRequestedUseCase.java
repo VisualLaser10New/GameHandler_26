@@ -7,14 +7,30 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Use case W12a (PIANO §7.B): a PLATFORM_ADMIN creates a new
- * tournament. Pre-controls the {@code PLATFORM_ADMIN} role on
- * {@code replicated_users}, then atomically writes a
- * {@code admin_requests_local} PENDING row and the matching outbox
- * {@code TOURNAMENT_CREATE_REQUESTED} event.
+ * Use case per la richiesta di creazione di un nuovo torneo da parte
+ * di un amministratore di piattaforma. Effettua il pre-controllo del
+ * ruolo {@code PLATFORM_ADMIN} sugli utenti replicati, quindi scrive
+ * in modo atomico una riga {@code PENDING} su {@code admin_requests_local}
+ * e l'evento di outbox corrispondente.
+ *
+ * @see com.gameplatform.shared.dto.AdminRequestDto
  */
 public interface CreateTournamentRequestedUseCase {
 
+    /**
+     * Avanza la richiesta di creazione di un torneo con i parametri specificati.
+     *
+     * @param name         nome del torneo
+     * @param gameType     tipo di gioco del torneo
+     * @param teamBased    indica se il torneo &egrave; a squadre
+     * @param teamSize     dimensione di ciascuna squadra
+     * @param startsAt     data e ora di inizio del torneo
+     * @param buildingIds  elenco delle strutture coinvolte
+     * @param actingUserId identificativo dell'amministratore richiedente
+     * @param actingRole   ruolo con cui l'amministratore agisce
+     * @param buildingId   identificativo della struttura di appartenenza
+     * @return il DTO della richiesta amministrativa persistita con stato {@code PENDING}
+     */
     AdminRequestDto create(String name,
                             GameType gameType,
                             boolean teamBased,

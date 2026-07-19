@@ -17,6 +17,16 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Servizio di recupero sessioni all'avvio dell'applicazione. Implementa
+ * {@link SmartLifecycle} per eseguire il recupero dopo l'inizializzazione
+ * del contesto Spring e del client MQTT. Invia heartbeat PING a tutte le
+ * macchine con sessioni attive (IN_PROGRESS/PAUSED) e, dopo 30 secondi
+ * di attesa, abortisce le sessioni che non hanno risposto.
+ *
+ * @see SessionRecoveryHelper
+ * @see GameSessionRepository
+ */
 @Service
 @DependsOn("mqttClient")
 public class SessionRecoveryService implements SmartLifecycle {
@@ -31,6 +41,14 @@ public class SessionRecoveryService implements SmartLifecycle {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private Thread recoveryThread;
 
+    /**
+     * Costruisce il servizio di recupero sessioni con le dipendenze
+     * necessarie per l'invio degli heartbeat e la gestione delle risposte.
+     *
+     * @param gameSessionRepository  il repository delle sessioni di gioco
+     * @param publishGameStatePort   il port per la pubblicazione dello stato di gioco
+     * @param sessionRecoveryHelper  l'helper per l'aborto delle sessioni non rispondenti
+     */
     public SessionRecoveryService(
             GameSessionRepository gameSessionRepository,
             PublishGameStatePort publishGameStatePort,
@@ -40,6 +58,10 @@ public class SessionRecoveryService implements SmartLifecycle {
         this.sessionRecoveryHelper = sessionRecoveryHelper;
     }
 
+    /**
+     * Avvia il recupero sessioni in un thread asincrono per non bloccare
+     * l'avvio principale dell'applicazione.
+     */
     @Override
     public void start() {
         if (!running.compareAndSet(false, true)) {
@@ -51,6 +73,13 @@ public class SessionRecoveryService implements SmartLifecycle {
         recoveryThread.start();
     }
 
+    /**
+     * Recupera le sessioni attive (IN_PROGRESS e PAUSED) all'avvio
+     * dell'applicazione. Invia un heartbeat PING a ogni macchina da
+     * gioco con sessione attiva e, dopo 30 secondi di attesa, abortisce
+     * le sessioni che non hanno risposto. Il metodo viene eseguito in un
+     * thread asincrono separato.
+     */
     private void recoverSessions() {
         try {
             List<GameSession> activeSessions = new ArrayList<>();
@@ -91,6 +120,9 @@ public class SessionRecoveryService implements SmartLifecycle {
         }
     }
 
+    /**
+     * Interrompe il thread di recupero e ferma il servizio.
+     */
     @Override
     public void stop() {
         running.set(false);
@@ -99,22 +131,44 @@ public class SessionRecoveryService implements SmartLifecycle {
         }
     }
 
+    /**
+     * Verifica se il servizio di recupero e' attualmente in esecuzione.
+     *
+     * @return true se il thread di recupero e' attivo, false altrimenti
+     */
     @Override
     public boolean isRunning() {
         return running.get();
     }
 
+    /**
+     * Restituisce la fase di avvio del servizio. Il valore massimo
+     * garantisce che il recupero venga eseguito dopo l'inizializzazione
+     * di tutti gli altri componenti, incluso il client MQTT.
+     *
+     * @return Integer.MAX_VALUE per un avvio in fase tardiva
+     */
     @Override
     public int getPhase() {
-        // Start late in the startup phase (ensuring everything else is up)
         return Integer.MAX_VALUE;
     }
 
+    /**
+     * Verifica se il servizio deve essere avviato automaticamente.
+     *
+     * @return true (avvio automatico)
+     */
     @Override
     public boolean isAutoStartup() {
         return true;
     }
 
+    /**
+     * Registra un acknowledgement di heartbeat per una macchina da gioco
+     * durante la fase di recupero, impedendone l'abort.
+     *
+     * @param gameId l'identificativo della macchina che ha risposto
+     */
     public void registerHeartbeatAck(GameId gameId) {
         if (pendingAcks.containsKey(gameId)) {
             pendingAcks.put(gameId, true);

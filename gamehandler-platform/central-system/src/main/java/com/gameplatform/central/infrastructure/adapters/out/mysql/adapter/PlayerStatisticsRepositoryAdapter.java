@@ -62,11 +62,24 @@ public class PlayerStatisticsRepositoryAdapter implements PlayerStatisticsReposi
     @PersistenceContext
     private EntityManager entityManager;
 
+    /**
+     * Costruisce l'adapter iniettando il repository JPA, il mapper e l'{@link EntityManager}.
+     *
+     * @param jpaRepository repository JPA per la gestione delle entit&agrave; di statistiche giocatore
+     * @param mapper        mapper che converte tra il modello di dominio e l'entit&agrave; JPA
+     */
     public PlayerStatisticsRepositoryAdapter(PlayerStatisticsJpaRepository jpaRepository, PlayerStatisticsMapper mapper) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
     }
 
+    /**
+     * Restituisce l'elenco delle statistiche di gioco associate a un utente.
+     *
+     * @param userId l'identificativo dell'utente; se {@code null} restituisce una lista vuota
+     * @return la lista delle statistiche dell'utente; lista vuota se non ve ne sono o se {@code userId} &egrave; {@code null}
+     * @see PlayerStatisticsJpaRepository#findByUserId
+     */
     @Override
     public List<PlayerStatistics> findByUserId(UserId userId) {
         if (userId == null) {
@@ -77,6 +90,14 @@ public class PlayerStatisticsRepositoryAdapter implements PlayerStatisticsReposi
                 .toList();
     }
 
+    /**
+     * Restituisce le statistiche di un utente per uno specifico tipo di gioco.
+     *
+     * @param userId   l'identificativo dell'utente; se {@code null} restituisce {@link Optional#empty()}
+     * @param gameType il tipo di gioco; se {@code null} restituisce {@link Optional#empty()}
+     * @return l'{@link Optional} contenente le statistiche trovate, o vuoto se assenti o se un argomento &egrave; {@code null}
+     * @see PlayerStatisticsJpaRepository#findByUserIdAndGameType
+     */
     @Override
     public Optional<PlayerStatistics> findByUserIdAndGameType(UserId userId, GameType gameType) {
         if (userId == null || gameType == null) {
@@ -86,6 +107,15 @@ public class PlayerStatisticsRepositoryAdapter implements PlayerStatisticsReposi
                 .map(mapper::toDomain);
     }
 
+    /**
+     * Incrementa i contatori di statistiche di un utente per un tipo di gioco, creando la riga se assente.
+     *
+     * @param userId   l'identificativo dell'utente da aggiornare; non deve essere {@code null}
+     * @param gameType il tipo di gioco di riferimento; non deve essere {@code null}
+     * @param won      {@code true} se la partita &egrave; stata vinta, {@code false} altrimenti
+     * @param endedAt  il timestamp di fine partita; non deve essere {@code null}
+     * @throws IllegalArgumentException se {@code userId}, {@code gameType} o {@code endedAt} sono {@code null}
+     */
     @Override
     public void increment(UserId userId, GameType gameType, boolean won, Instant endedAt) {
         if (userId == null || gameType == null || endedAt == null) {

@@ -9,12 +9,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 
 /**
- * Feature 3 — write use case backing the
- * {@code PATCH /api/admin/servers/{buildingId}/active} PLATFORM_ADMIN endpoint.
- * Updates the locally replicated {@code registered_local_servers_local} row's
- * {@code active} flag (see PIANO §7.B). The projection is a Central→Local
- * replica, so a manual toggle here is observed locally until the next registry
- * sync cycle resynchronises it from the central {@code local_servers} table.
+ * Feature 3 — caso d'uso in scrittura per l'endpoint
+ * {@code PATCH /api/admin/servers/{buildingId}/active} (PLATFORM_ADMIN).
+ * Aggiorna il flag {@code active} sulla riga replicata localmente
+ * {@code registered_local_servers_local}. La proiezione e' una replica
+ * Central→Local, quindi un toggle manuale e' osservato localmente fino
+ * al prossimo ciclo di sincronizzazione del registro.
+ *
+ * @see ToggleLocalServerActiveUseCase
+ * @see RegisteredLocalServerLocalRepository
  */
 @Service
 @Transactional
@@ -22,10 +25,23 @@ public class ToggleLocalServerActiveService implements ToggleLocalServerActiveUs
 
     private final RegisteredLocalServerLocalRepository registeredLocalServerLocalRepository;
 
+    /**
+     * Costruisce il servizio con il repository dei server locali registrati.
+     *
+     * @param registeredLocalServerLocalRepository il repository per l'accesso
+     *                                             ai server locali (non null)
+     */
     public ToggleLocalServerActiveService(RegisteredLocalServerLocalRepository registeredLocalServerLocalRepository) {
         this.registeredLocalServerLocalRepository = registeredLocalServerLocalRepository;
     }
 
+    /**
+     * Imposta il flag active per un server locale registrato.
+     *
+     * @param buildingId l'identificativo del building del server (non blank)
+     * @param active     il nuovo valore del flag active
+     * @return un Optional contenente il server aggiornato, o vuoto se buildingId e' blank
+     */
     @Override
     public Optional<RegisteredLocalServerLocal> setActive(String buildingId, boolean active) {
         if (buildingId == null || buildingId.isBlank()) {

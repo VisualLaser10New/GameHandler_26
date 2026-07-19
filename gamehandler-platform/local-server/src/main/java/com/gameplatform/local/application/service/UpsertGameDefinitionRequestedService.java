@@ -13,11 +13,15 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * Implementation of the W9 use case (PIANO §7.B): a GAME_ADMIN upserts a
- * game definition. Pre-controls the {@code GAME_ADMIN} role on
- * {@code replicated_users}, then atomically writes a
- * {@code admin_requests_local} PENDING row and the matching outbox
- * {@code GAME_DEFINITION_UPSERT_REQUESTED} event.
+ * Implementazione del caso d'uso W9 (PIANO §7.B): un GAME_ADMIN crea o
+ * aggiorna una definizione di gioco. Esegue il pre-controllo del ruolo
+ * {@code GAME_ADMIN} su {@code replicated_users}, poi scrive atomicamente
+ * una riga {@code admin_requests_local} PENDING e l'evento outbox
+ * {@code GAME_DEFINITION_UPSERT_REQUESTED}.
+ *
+ * @see UpsertGameDefinitionRequestedUseCase
+ * @see AdminRequestOutboxWriter
+ * @see RolePreCheck
  */
 @Service
 public class UpsertGameDefinitionRequestedService
@@ -38,17 +42,35 @@ public class UpsertGameDefinitionRequestedService
         this.clock = clock;
     }
 
+    /**
+     * Crea o aggiorna una definizione di gioco. Verifica il ruolo
+     * GAME_ADMIN e la validita' dei parametri, poi scrive la richiesta
+     * admin PENDING e l'evento outbox.
+     *
+     * @param gameType          il tipo di gioco (non null)
+     * @param name              il nome della definizione (non blank)
+     * @param minPlayers        il numero minimo di giocatori (almeno 1)
+     * @param maxPlayers        il numero massimo di giocatori (almeno minPlayers)
+     * @param teamAllowed       true se il gioco supporta squadre
+     * @param registrationRules regole di registrazione (mappa chiave-valore)
+     * @param actingUserId      l'identificativo dell'utente richiedente
+     * @param actingRole        il ruolo con cui l'utente agisce
+     * @param buildingId        l'identificativo del building di competenza
+     * @return il DTO della richiesta admin creata
+     * @throws IllegalArgumentException se i parametri non sono validi
+     * @throws org.springframework.security.access.AccessDeniedException se l'utente non ha il ruolo GAME_ADMIN
+     */
     @Override
     @Transactional
     public AdminRequestDto upsert(GameType gameType,
-                                   String name,
-                                   int minPlayers,
-                                   int maxPlayers,
-                                   boolean teamAllowed,
-                                   Map<String, Object> registrationRules,
-                                   String actingUserId,
-                                   String actingRole,
-                                   String buildingId) {
+                                    String name,
+                                    int minPlayers,
+                                    int maxPlayers,
+                                    boolean teamAllowed,
+                                    Map<String, Object> registrationRules,
+                                    String actingUserId,
+                                    String actingRole,
+                                    String buildingId) {
         RolePreCheck.requireRole(userRepository, actingUserId, REQUIRED_ROLE);
         if (gameType == null) {
             throw new IllegalArgumentException("gameType cannot be null");

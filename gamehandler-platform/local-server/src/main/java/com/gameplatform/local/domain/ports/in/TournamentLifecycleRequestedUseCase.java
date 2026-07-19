@@ -3,17 +3,28 @@ package com.gameplatform.local.domain.ports.in;
 import com.gameplatform.shared.dto.AdminRequestDto;
 
 /**
- * Parametric use case W12b/c/d (PIANO §7.B): a PLATFORM_ADMIN opens
- * registrations, cancels, or schedules matches for a tournament. The
- * lifecycle action is discriminated by {@code eventType}, one of
- * {@code TOURNAMENT_OPEN_REQUESTED}, {@code TOURNAMENT_CANCEL_REQUESTED},
- * {@code TOURNAMENT_SCHEDULE_REQUESTED}. Pre-controls the
- * {@code PLATFORM_ADMIN} role on {@code replicated_users}, then
- * atomically writes a {@code admin_requests_local} PENDING row and the
- * matching outbox lifecycle event.
+ * Use case parametrico per le operazioni sul ciclo di vita di un torneo.
+ * Un amministratore di piattaforma pu&ograve; aprire le registrazioni,
+ * cancellare o programmare le partite di un torneo. L'azione &egrave;
+ * discriminata dal tipo di evento specificato. Effettua il pre-controllo
+ * del ruolo {@code PLATFORM_ADMIN}, quindi scrive in modo atomico una
+ * riga {@code PENDING} su {@code admin_requests_local} e l'evento di
+ * outbox corrispondente.
+ *
+ * @see com.gameplatform.shared.dto.AdminRequestDto
  */
 public interface TournamentLifecycleRequestedUseCase {
 
+    /**
+     * Avanza una richiesta di azione sul ciclo di vita del torneo specificato.
+     *
+     * @param eventType   tipo di evento del ciclo di vita (apertura, cancellazione, programmazione)
+     * @param tournamentId identificativo del torneo
+     * @param actingUserId identificativo dell'amministratore richiedente
+     * @param actingRole   ruolo con cui l'amministratore agisce
+     * @param buildingId   identificativo della struttura di appartenenza
+     * @return il DTO della richiesta amministrativa persistita con stato {@code PENDING}
+     */
     AdminRequestDto lifecycle(String eventType,
                                String tournamentId,
                                String actingUserId,

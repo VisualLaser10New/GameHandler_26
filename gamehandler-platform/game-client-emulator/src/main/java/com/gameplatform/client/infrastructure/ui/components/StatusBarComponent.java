@@ -5,20 +5,24 @@ import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
 
 /**
- * Reusable JavaFX component that displays a status bar with a coloured
- * indicator dot and descriptive text.
+ * Componente JavaFX riutilizzabile che visualizza una barra di stato con
+ * un punto indicatore colorato e un testo descrittivo.
  * <p>
- * The dot colour changes based on keywords in the status text:
+ * Il colore del punto cambia in base a parole chiave nel testo di stato:
  * <ul>
- *   <li>Red for disconnected or error states</li>
- *   <li>Green for connected or online states</li>
- *   <li>Yellow/orange for all other states</li>
+ *   <li>Rosso per stati disconnessi o di errore</li>
+ *   <li>Verde per stati connessi o online</li>
+ *   <li>Giallo/arancione per tutti gli altri stati</li>
  * </ul>
  */
 public class StatusBarComponent extends HBox {
     private final Label statusLabel;
     private final Label dotLabel;
 
+    /**
+     * Costruisce una {@code StatusBarComponent} con stato iniziale
+     * "Disconnected" e punto indicatore rosso.
+     */
     public StatusBarComponent() {
         setSpacing(8);
         setStyle("-fx-padding: 6 12; -fx-background-color: #1a1a1a; -fx-border-color: #333;");
@@ -31,11 +35,13 @@ public class StatusBarComponent extends HBox {
     }
 
     /**
-     * Updates the status text and adjusts the indicator dot colour
-     * according to the semantic content of the text.
+     * Aggiorna il testo di stato e regola il colore del punto indicatore
+     * in base al contenuto semantico del testo.
      *
-     * @param statusText the new status message (e.g. "Connected to MQTT",
-     *                   "Disconnected", "Error: connection refused")
+     * @param statusText il nuovo messaggio di stato (es. "Connected to MQTT",
+     *                   "Disconnected", "Error: connection refused");
+     *                   se {@code null} il punto indicatore viene
+     *                   impostato sul colore rosso
      */
     public void updateStatus(String statusText) {
         statusLabel.setText(statusText);

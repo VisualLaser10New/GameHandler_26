@@ -20,19 +20,24 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Helper {@link Component} that encapsulates the atomic write of a
- * {@code admin_requests_local} PENDING row plus the matching outbox
- * {@code *_REQUESTED} event (PIANO §7.B W use cases). The single UUID
- * {@code requestId} doubles as both the {@code admin_requests_local}
- * primary key and the outbox {@code eventId} — this enables the matching
- * {@code *SyncService} to {@code markCompleted(requestId)} when the
- * Central return-event arrives carrying {@code originatingRequestId}.
+ * Helper component che incapsula la scrittura atomica di una riga
+ * {@code admin_requests_local} in stato PENDING insieme al corrispondente
+ * evento outbox {@code *_REQUESTED}. Il singolo UUID {@code requestId}
+ * funge sia da chiave primaria per {@code admin_requests_local} sia da
+ * {@code eventId} per l'outbox, consentendo ai servizi {@code *SyncService}
+ * di chiamare {@code markCompleted(requestId)} quando l'evento di ritorno
+ * dal Central arriva con {@code originatingRequestId}.
  *
- * <p>A {@code FAILED} admin request can also be persisted without an
- * outbox row (used by the W12e/W12f DRAFT pre-check). The whole write
- * is wrapped by the caller's {@code @Transactional} boundary so the
- * {@code AdminRequestLocal} and {@code OutboxEvent} rows are persisted
- * atomically (or not at all).</p>
+ * <p>Una richiesta admin {@code FAILED} puo' anche essere persistita senza
+ * riga outbox (usata dal pre-controllo DRAFT W12e/W12f). L'intera scrittura
+ * e' avvolta dal confine {@code @Transactional} del chiamante cosicche' le
+ * righe {@code AdminRequestLocal} e {@code OutboxEvent} siano persistite
+ * atomicamente.</p>
+ *
+ * @see AdminRequestLocal
+ * @see OutboxEvent
+ * @see AdminRequestRepository
+ * @see OutboxEventRepository
  */
 @Component
 public class AdminRequestOutboxWriter {
@@ -44,6 +49,15 @@ public class AdminRequestOutboxWriter {
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
+    /**
+     * Costruisce il writer con le dipendenze necessarie per la persistenza
+     * atomica delle richieste admin e degli eventi outbox.
+     *
+     * @param adminRequestRepository il repository per le richieste admin locali
+     * @param outboxEventRepository  il repository per gli eventi outbox
+     * @param objectMapper           il mapper JSON per serializzare i payload
+     * @param clock                  l'orologio per la generazione dei timestamp
+     */
     public AdminRequestOutboxWriter(AdminRequestRepository adminRequestRepository,
                                      OutboxEventRepository outboxEventRepository,
                                      ObjectMapper objectMapper,
@@ -55,16 +69,23 @@ public class AdminRequestOutboxWriter {
     }
 
     /**
-     * Atomically persists a PENDING {@link AdminRequestLocal} and the
-     * matching PENDING {@link OutboxEvent} carrying the serialized
-     * payload. The same UUID is used for {@code requestId} and
+     * Persiste atomicamente un {@link AdminRequestLocal} in stato PENDING e il
+     * corrispondente {@link OutboxEvent} in stato PENDING contenente il payload
+     * serializzato. Lo stesso UUID viene utilizzato per {@code requestId} e
      * {@code eventId}.
+     *
+     * @param eventType    il tipo di evento (es. ROLE_ASSIGNMENT_REQUESTED)
+     * @param actingUserId l'identificativo dell'utente che ha richiesto l'operazione
+     * @param actingRole   il ruolo con cui l'utente agisce
+     * @param buildingId   l'identificativo del building di competenza
+     * @param payload      l'oggetto da serializzare come payload JSON dell'evento
+     * @return il DTO della richiesta admin appena creata
      */
     public AdminRequestDto writePendingRequest(String eventType,
-                                                String actingUserId,
-                                                String actingRole,
-                                                String buildingId,
-                                                Object payload) {
+                                                 String actingUserId,
+                                                 String actingRole,
+                                                 String buildingId,
+                                                 Object payload) {
         String requestId = UUID.randomUUID().toString();
         Instant now = Instant.now(clock);
         String payloadJson = serialize(eventType, payload, requestId);
@@ -81,18 +102,26 @@ public class AdminRequestOutboxWriter {
     }
 
     /**
-     * Persists a FAILED {@link AdminRequestLocal} WITHOUT writing the
-     * matching outbox row. Used by the W12e/W12f DRAFT pre-check
-     * (refuse immediately FAILED without outbox when the tournament is
-     * not DRAFT). The {@code reason} is stored as the
-     * {@code result_data} JSON.
+     * Persiste un {@link AdminRequestLocal} in stato FAILED SENZA scrivere la
+     * corrispondente riga outbox. Utilizzato dal pre-controllo DRAFT W12e/W12f
+     * per rifiutare immediatamente con FAILED quando il torneo non e' in stato
+     * DRAFT. Il parametro {@code reason} viene memorizzato come JSON in
+     * {@code result_data}.
+     *
+     * @param eventType    il tipo di evento
+     * @param actingUserId l'identificativo dell'utente richiedente
+     * @param actingRole   il ruolo con cui l'utente agisce
+     * @param buildingId   l'identificativo del building di competenza
+     * @param payload      l'oggetto da serializzare come payload JSON
+     * @param reason       la stringa JSON contenente il motivo del fallimento
+     * @return il DTO della richiesta admin in stato FAILED
      */
     public AdminRequestDto writeFailedRequest(String eventType,
-                                               String actingUserId,
-                                               String actingRole,
-                                               String buildingId,
-                                               Object payload,
-                                               String reason) {
+                                                String actingUserId,
+                                                String actingRole,
+                                                String buildingId,
+                                                Object payload,
+                                                String reason) {
         String requestId = UUID.randomUUID().toString();
         Instant now = Instant.now(clock);
         String payloadJson = serialize(eventType, payload);
@@ -105,10 +134,30 @@ public class AdminRequestOutboxWriter {
         return toDto(adminReq);
     }
 
+    /**
+     * Serializza il payload in JSON delegando al metodo a tre parametri
+     * con requestId nullo.
+     *
+     * @param eventType il tipo di evento (non null)
+     * @param payload   l'oggetto da serializzare (non null)
+     * @return la stringa JSON del payload serializzato
+     * @throws IllegalArgumentException se la serializzazione fallisce
+     */
     private String serialize(String eventType, Object payload) {
         return serialize(eventType, payload, null);
     }
 
+    /**
+     * Serializza il payload in JSON e, se requestId non e' null e il tree
+     * JSON risultante e' un oggetto, injecta i campi {@code eventId} e
+     * {@code requestId} quando questi sono presenti ma null.
+     *
+     * @param eventType il tipo di evento (non null)
+     * @param payload   l'oggetto da serializzare (non null)
+     * @param requestId l'identificativo opzionale da injectare nel JSON; puo' essere null
+     * @return la stringa JSON del payload serializzato
+     * @throws IllegalArgumentException se la serializzazione fallisce
+     */
     private String serialize(String eventType, Object payload, String requestId) {
         try {
             JsonNode tree = objectMapper.valueToTree(payload);
@@ -128,6 +177,13 @@ public class AdminRequestOutboxWriter {
         }
     }
 
+    /**
+     * Converte un {@link AdminRequestLocal} nel corrispondente
+     * {@link AdminRequestDto}.
+     *
+     * @param adminReq l'entita' del modello di dominio (non null)
+     * @return il DTO con tutti i campi mappati uno-a-uno
+     */
     static AdminRequestDto toDto(AdminRequestLocal adminReq) {
         return new AdminRequestDto(
                 adminReq.getRequestId(),

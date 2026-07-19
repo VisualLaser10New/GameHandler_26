@@ -3,13 +3,21 @@ package com.gameplatform.client.domain.exception;
 import com.gameplatform.client.infrastructure.rest.ApiClient;
 
 /**
- * Raised by {@link ApiClient} when the Local Server responds with a
- * {@code 401 Unauthorized} (token missing, expired or invalid).
+ * Eccezione sollevata da {@link ApiClient} quando il server locale risponde
+ * con uno stato {@code 401 Unauthorized}, indicando che il token di
+ * autenticazione è mancante, scaduto o non valido.
  * <p>
- * The UI layer is expected to redirect the user to the {@code LoginView}
- * and clear the session state.
+ * Il livello UI è tenuto a reindirizzare l'utente verso la {@code LoginView}
+ * e a cancellare lo stato della sessione.
  */
 public class AuthenticationException extends RuntimeException {
+
+    /**
+     * Costruisce una {@code AuthenticationException} con il messaggio di
+     * dettaglio specificato.
+     *
+     * @param message il messaggio di dettaglio (può essere {@code null}).
+     */
     public AuthenticationException(String message) {
         super(message);
     }

@@ -16,9 +16,13 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Adapter implementing {@link TournamentMatchLocalRepository}. {@code save} is
- * an idempotent upsert by PK {@code id} (mirror of
- * {@code GameDefinitionLocalRepositoryAdapter}).
+ * Adapter JPA per il port {@link TournamentMatchLocalRepository}.
+ * Gestisce la persistenza degli incontri dei tornei, con operazioni
+ * di upsert idempotenti per chiave primaria e funzionalità di
+ * ricerca per partecipante e stato dell'incontro.
+ *
+ * @see TournamentMatchLocalRepository
+ * @see TournamentMatchLocalJpaRepository
  */
 @Component
 public class TournamentMatchLocalRepositoryAdapter implements TournamentMatchLocalRepository {
@@ -26,12 +30,24 @@ public class TournamentMatchLocalRepositoryAdapter implements TournamentMatchLoc
     private final TournamentMatchLocalJpaRepository jpaRepository;
     private final TournamentMatchLocalMapper mapper;
 
+    /**
+     * Costruisce un nuovo adapter con le dipendenze necessarie.
+     *
+     * @param jpaRepository repository JPA per gli incontri dei tornei
+     * @param mapper        mapper per la conversione tra entity e dominio
+     */
     public TournamentMatchLocalRepositoryAdapter(TournamentMatchLocalJpaRepository jpaRepository,
                                                  TournamentMatchLocalMapper mapper) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
     }
 
+    /**
+     * Salva un incontro del torneo nel database (upsert per chiave primaria).
+     *
+     * @param match l'incontro del torneo da salvare
+     * @return l'incontro persistito, {@code null} se l'argomento è {@code null}
+     */
     @Override
     @Transactional
     public TournamentMatchLocal save(TournamentMatchLocal match) {
@@ -43,6 +59,12 @@ public class TournamentMatchLocalRepositoryAdapter implements TournamentMatchLoc
         return mapper.toDomain(savedEntity);
     }
 
+    /**
+     * Recupera un incontro del torneo tramite il suo identificativo.
+     *
+     * @param id l'identificativo dell'incontro
+     * @return un {@code Optional} contenente l'incontro, vuoto se non trovato o se l'identificativo è {@code null}
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TournamentMatchLocal> findById(TournamentMatchId id) {
@@ -52,6 +74,12 @@ public class TournamentMatchLocalRepositoryAdapter implements TournamentMatchLoc
         return jpaRepository.findById(id.value()).map(mapper::toDomain);
     }
 
+    /**
+     * Recupera tutti gli incontri di un dato torneo.
+     *
+     * @param tournamentId l'identificativo del torneo
+     * @return una lista di incontri per il torneo, vuota se il torneo è {@code null}
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TournamentMatchLocal> findByTournamentId(TournamentId tournamentId) {
@@ -65,6 +93,12 @@ public class TournamentMatchLocalRepositoryAdapter implements TournamentMatchLoc
         return entities.stream().map(mapper::toDomain).collect(Collectors.toList());
     }
 
+    /**
+     * Recupera gli incontri programmati per un dato partecipante.
+     *
+     * @param userId l'identificativo dell'utente partecipante
+     * @return una lista di incontri programmati per il partecipante, vuota se l'utente è nullo/vuoto
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TournamentMatchLocal> findScheduledByParticipant(String userId) {
@@ -79,6 +113,11 @@ public class TournamentMatchLocalRepositoryAdapter implements TournamentMatchLoc
         return entities.stream().map(mapper::toDomain).collect(Collectors.toList());
     }
 
+    /**
+     * Elimina un incontro del torneo tramite il suo identificativo.
+     *
+     * @param id l'identificativo dell'incontro da eliminare; se {@code null} l'operazione non viene eseguita
+     */
     @Override
     @Transactional
     public void deleteById(TournamentMatchId id) {

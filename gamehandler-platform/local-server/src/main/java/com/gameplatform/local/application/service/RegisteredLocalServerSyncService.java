@@ -15,13 +15,16 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Receives {@code LOCAL_SERVER_REGISTRY_UPSERTED} events replicated from
- * the Central via outbox and applies them idempotently to the
- * {@code registered_local_servers_local} table. Each event carries a
- * single registered-local-server row; the sync service upserts it by PK
- * {@code buildingId}. Lets a PLATFORM_ADMIN connected to any Local see the
- * full registry of active/inactive servers without a direct Central call
- * (E1, PIANO §7.B).
+ * Riceve eventi {@code LOCAL_SERVER_REGISTRY_UPSERTED} replicati dal
+ * Central tramite outbox e li applica idempotentemente alla tabella
+ * {@code registered_local_servers_local}. Ogni evento trasporta una riga
+ * di server locale registrato; il servizio esegue un upsert per chiave
+ * primaria {@code buildingId}. Consente a un PLATFORM_ADMIN connesso a
+ * qualsiasi Local di vedere il registro completo dei server attivi/inattivi
+ * senza una chiamata diretta al Central (E1, PIANO §7.B).
+ *
+ * @see RegisteredLocalServerLocalRepository
+ * @see AdminRequestRepository
  */
 @Service
 @Transactional
@@ -35,6 +38,14 @@ public class RegisteredLocalServerSyncService {
     private final AdminRequestRepository adminRequestRepository;
     private final Clock clock;
 
+    /**
+     * Costruisce il servizio con i repository necessari per la replica
+     * del registro server locali e la chiusura delle richieste admin.
+     *
+     * @param registeredLocalServerLocalRepository il repository locale del registro server
+     * @param adminRequestRepository               il repository per la chiusura delle richieste admin
+     * @param clock                                l'orologio per la generazione dei timestamp
+     */
     public RegisteredLocalServerSyncService(RegisteredLocalServerLocalRepository registeredLocalServerLocalRepository,
                                              AdminRequestRepository adminRequestRepository,
                                              Clock clock) {
@@ -43,6 +54,14 @@ public class RegisteredLocalServerSyncService {
         this.clock = clock;
     }
 
+    /**
+     * Applica una lista di eventi di registro server locale alla tabella
+     * locale. Ogni evento LOCAL_SERVER_REGISTRY_UPSERTED viene upsertato
+     * per buildingId; se l'evento trasporta un originatingRequestId, la
+     * corrispondente richiesta admin viene marcata come COMPLETED.
+     *
+     * @param events la lista di eventi da applicare (puo' essere null)
+     */
     public void applyEvents(List<LocalServerRegistryEventDto> events) {
         if (events == null) {
             return;
@@ -74,6 +93,13 @@ public class RegisteredLocalServerSyncService {
         }
     }
 
+    /**
+     * Se l'evento trasporta un {@code originatingRequestId} non blank,
+     * marca la corrispondente richiesta admin come COMPLETED tramite
+     * {@link AdminRequestRepository#markCompleted}.
+     *
+     * @param event l'evento DTO da cui estrarre l'originatingRequestId (non null)
+     */
     private void markCompletedIfRequested(LocalServerRegistryEventDto event) {
         String originatingRequestId = event.originatingRequestId();
         if (originatingRequestId == null || originatingRequestId.isBlank()) {

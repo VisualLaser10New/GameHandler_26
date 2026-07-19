@@ -15,16 +15,17 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Receives {@code TOURNAMENT_STANDINGS_UPSERTED} events replicated from the
- * Central via outbox and applies them idempotently to the
- * {@code tournament_standings_local} table. The event carries a full
- * per-tournament standings snapshot; the sync service replaces the local
- * projection atomically (delete by {@code tournamentId} + insert of every
- * entry of the snapshot) so that re-delivery of the same event yields the
- * same end state. When {@code originatingRequestId != null} (the Central
- * return-event closes a Local admin request), the matching
- * {@code admin_requests_local} row is transitioned to {@code COMPLETED}
- * via {@link AdminRequestRepository#markCompleted}.
+ * Riceve eventi {@code TOURNAMENT_STANDINGS_UPSERTED} replicati dal
+ * Central tramite outbox e li applica idempotentemente alla tabella
+ * {@code tournament_standings_local}. L'evento trasporta uno snapshot
+ * completo delle classifiche per torneo; il servizio sostituisce la
+ * proiezione locale atomicamente (delete by tournamentId + insert di
+ * ogni entry). Quando {@code originatingRequestId != null}, la riga
+ * {@code admin_requests_local} corrispondente viene transizionata a
+ * COMPLETED via {@link AdminRequestRepository#markCompleted}.
+ *
+ * @see TournamentStandingsLocalRepository
+ * @see AdminRequestRepository
  */
 @Service
 @Transactional
@@ -38,6 +39,14 @@ public class TournamentStandingsLocalSyncService {
     private final AdminRequestRepository adminRequestRepository;
     private final Clock clock;
 
+    /**
+     * Costruisce il servizio con i repository necessari per la replica
+     * delle classifiche torneo e la chiusura delle richieste admin.
+     *
+     * @param tournamentStandingsLocalRepository il repository locale delle classifiche torneo
+     * @param adminRequestRepository             il repository per la chiusura delle richieste admin
+     * @param clock                              l'orologio per la generazione dei timestamp
+     */
     public TournamentStandingsLocalSyncService(TournamentStandingsLocalRepository tournamentStandingsLocalRepository,
                                                 AdminRequestRepository adminRequestRepository,
                                                 Clock clock) {
@@ -46,6 +55,15 @@ public class TournamentStandingsLocalSyncService {
         this.clock = clock;
     }
 
+    /**
+     * Applica una lista di eventi di classifiche torneo alla tabella
+     * locale. Per ogni evento TOURNAMENT_STANDINGS_UPSERTED, sostituisce
+     * atomicamente la proiezione locale (delete + insert). Se l'evento
+     * trasporta un originatingRequestId, la richiesta admin corrispondente
+     * viene marcata come COMPLETED.
+     *
+     * @param events la lista di eventi da applicare (puo' essere null)
+     */
     public void applyEvents(List<TournamentStandingsEventDto> events) {
         if (events == null) {
             return;
@@ -93,6 +111,14 @@ public class TournamentStandingsLocalSyncService {
         }
     }
 
+    /**
+     * Se l'evento trasporta un {@code originatingRequestId} non blank,
+     * marca la corrispondente richiesta admin come COMPLETED tramite
+     * {@link AdminRequestRepository#markCompleted}, includendo nel
+     * resultData il conteggio delle entry applicate.
+     *
+     * @param event l'evento DTO da cui estrarre l'originatingRequestId (non null)
+     */
     private void markCompletedIfRequested(TournamentStandingsEventDto event) {
         String originatingRequestId = event.originatingRequestId();
         if (originatingRequestId == null || originatingRequestId.isBlank()) {

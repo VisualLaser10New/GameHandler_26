@@ -23,17 +23,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * GAME_ADMIN dashboard (PIANO §7.C line 745-746).
+ * Dashboard per l'amministrazione delle definizioni dei giochi (GAME_ADMIN).
  * <p>
- * The catalog of game definitions is enriched by the existing
- * {@code GET /api/games} endpoint (carrying the
- * {@code GameStateDto} buildingScoped rows), then paired with an editor
- * that submits via the async-write
- * {@code POST /api/admin/games} (or {@code PUT /api/admin/games/{gameType}})
- * Local endpoints — both return an {@link AdminRequestDto} with
- * {@code status=PENDING} (outbox {@code GAME_DEFINITION_UPSERT_REQUESTED},
- * async replicated). The user is then redirected to the
- * {@code AdminRequestsView} for polling.
+ * Mostra il catalogo delle definizioni di gioco esistenti tramite
+ * {@code GET /api/games} e fornisce un editor per creare o aggiornare
+ * definizioni tramite {@code POST /api/admin/games} e
+ * {@code PUT /api/admin/games/{gameType}}. Entrambe le operazioni di
+ * scrittura restituiscono un {@link AdminRequestDto} con status PENDING
+ * e reindirizzano l'utente alla vista {@link AdminRequestsView} per il polling.
  */
 public class GameAdminDashboard {
 
@@ -50,6 +47,14 @@ public class GameAdminDashboard {
     private final LoadingIndicator loading = new LoadingIndicator();
     private Runnable onNavigateToRequests;
 
+    /**
+     * Costruisce la dashboard GAME_ADMIN.
+     * <p>
+     * Inizializza la tabella del catalogo, l'editor per le definizioni
+     * (con campi per gameType, nome, giocatori minimi/massimi, team
+     * consentiti e regole di registrazione in JSON) e i pulsanti per
+     * refresh, creazione e aggiornamento.
+     */
     public GameAdminDashboard() {
         VBox content = new VBox(10);
         content.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
@@ -121,15 +126,32 @@ public class GameAdminDashboard {
         root.setStyle("-fx-padding: 0; -fx-background-color: #1e1e1e;");
     }
 
+    /**
+     * Restituisce il nodo radice JavaFX per questa vista.
+     *
+     * @return il nodo {@link Parent} radice
+     */
     public Parent getView() {
         return root;
     }
 
+    /**
+     * Registra il callback per la navigazione verso la vista delle richieste admin.
+     *
+     * @param onNavigateToRequests l'azione da eseguire per navigare verso
+     *                             {@link AdminRequestsView}; può essere null
+     */
     public void setOnNavigateToRequests(Runnable onNavigateToRequests) {
         this.onNavigateToRequests = onNavigateToRequests;
     }
 
-    /** Loads the building-scoped catalog via {@code GET /api/games}. */
+    /**
+     * Carica il catalogo delle definizioni di gioco dal server locale.
+     * <p>
+     * Effettua una chiamata asincrona {@code GET /api/games} e aggiorna
+     * la tabella del catalogo con i risultati. In caso di risposta nulla
+     * imposta una lista vuota.
+     */
     public void refreshCatalog() {
         loading.show();
         statusLabel.setText("Loading catalog...");
@@ -142,6 +164,14 @@ public class GameAdminDashboard {
                 .exceptionally(this::error);
     }
 
+    /**
+     * Invia una richiesta di creazione di una nuova definizione di gioco.
+     * <p>
+     * Valida che il gameType sia selezionato, costruisce il corpo della
+     * richiesta e invia una POST asincrona a {@code /api/admin/games}.
+     * In caso di successo reindirizza alla vista delle richieste admin
+     * tramite il callback {@link #onNavigateToRequests}.
+     */
     private void submitCreate() {
         GameType gt = gameTypeField.getValue();
         if (gt == null) { statusLabel.setText("Select a gameType"); return; }
@@ -160,6 +190,14 @@ public class GameAdminDashboard {
                 .exceptionally(this::error);
     }
 
+    /**
+     * Invia una richiesta di aggiornamento di una definizione di gioco esistente.
+     * <p>
+     * Valida che il gameType sia selezionato, costruisce il corpo della
+     * richiesta e invia una PUT asincrona a {@code /api/admin/games/{gameType}}.
+     * In caso di successo reindirizza alla vista delle richieste admin
+     * tramite il callback {@link #onNavigateToRequests}.
+     */
     private void submitUpdate() {
         GameType gt = gameTypeField.getValue();
         if (gt == null) { statusLabel.setText("Select a gameType"); return; }
@@ -178,14 +216,37 @@ public class GameAdminDashboard {
                 .exceptionally(this::error);
     }
 
+    /**
+     * Restituisce l'identificativo di una richiesta admin in forma sicura.
+     *
+     * @param req la richiesta admin; può essere null
+     * @return l'identificativo della richiesta, o "?" se null o senza ID
+     */
     private static String reqId(AdminRequestDto req) {
         return req == null || req.requestId() == null ? "?" : req.requestId();
     }
 
+    /**
+     * Converte il testo di un campo in un intero, con valore predefinito.
+     *
+     * @param tf       il campo di testo da parsare; non null
+     * @param fallback il valore predefinito se la conversione fallisce
+     * @return il valore intero parsato, o {@code fallback} in caso di errore
+     */
     private static int parseIntOr(TextField tf, int fallback) {
         try { return Integer.parseInt(tf.getText().trim()); } catch (Exception e) { return fallback; }
     }
 
+    /**
+     * Analizza il contenuto dell'area di testo delle regole come JSON.
+     * <p>
+     * Se il contenuto è nullo, vuoto o non è un JSON valido, restituisce
+     * una mappa vuota e aggiorna l'etichetta di stato con un messaggio
+     * di avviso.
+     *
+     * @return una {@link Map} contenente le regole parsate, o una mappa
+     *         vuota in caso di errore
+     */
     private Map<String, Object> parseRulesOrEmpty() {
         String s = rulesArea.getText();
         if (s == null || s.isBlank()) return Map.of();
@@ -197,7 +258,16 @@ public class GameAdminDashboard {
         }
     }
 
-    // Reuse the helper column-builder pattern (named distinctly to avoid clash).
+    /**
+     * Gestisce un errore asincrono delle chiamate API.
+     * <p>
+     * Nasconde l'indicatore di caricamento, risale la catena delle
+     * eccezioni fino alla causa radice e aggiorna l'etichetta di
+     * stato con il messaggio di errore.
+     *
+     * @param ex l'eccezione da gestire; può essere null
+     * @return sempre null
+     */
     private Void error(Throwable ex) {
         loading.hide();
         Throwable t = ex;

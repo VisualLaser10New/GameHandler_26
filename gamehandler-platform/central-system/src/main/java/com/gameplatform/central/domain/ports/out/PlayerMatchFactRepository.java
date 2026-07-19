@@ -3,27 +3,27 @@ package com.gameplatform.central.domain.ports.out;
 import com.gameplatform.central.domain.model.PlayerMatchFact;
 
 /**
- * Persistence port for the {@code player_match_facts} read-model table (FASE 3,
- * PIANO &sect;2.3). One row per (session, participant).
+ * Porta di persistenza per la tabella read-model {@code player_match_facts}.
  *
- * <p>Persisted by the {@code SyncEventProcessor} projection when a
- * {@code GAME_SESSION_COMPLETED} event is consumed. The composite primary key
- * {@code (session_id, user_id)} makes each fact naturally idempotent, so the
- * projection exposes a single {@link #saveIfAbsent} operation: it inserts the
- * fact and reports whether the row was newly created, swallowing the
- * duplicate-key race internally (the adapter never lets the constraint
- * violation cross a transactional boundary, so the caller's transaction is not
- * poisoned).</p>
+ * <p>Contiene una riga per ogni coppia (sessione, partecipante) e viene popolata
+ * dalla proiezione {@code SyncEventProcessor} al consumo di un evento
+ * {@code GAME_SESSION_COMPLETED}. La chiave primaria composta
+ * {@code (session_id, user_id)} rende ogni fatto naturalmente idempotente.</p>
+ *
+ * @see PlayerMatchFact
+ * @see #saveIfAbsent(PlayerMatchFact)
  */
 public interface PlayerMatchFactRepository {
 
     /**
-     * Inserts the given player match fact if no fact yet exists for its
-     * {@code (sessionId, userId)} pair.
+     * Inserisce il fatto di partita indicato se non esiste già alcun fatto per la
+     * coppia {@code (sessionId, userId)}.
      *
-     * @return {@code true} if the row was newly inserted; {@code false} if a
-     *         fact for the same (sessionId, userId) pair already existed (the
-     *         call is a no-op idempotent retry in that case)
+     * @param fact il fatto di partita da inserire; non deve essere {@code null}
+     * @return {@code true} se la riga è stata inserita come nuova; {@code false} se esisteva già un fatto per la
+     *         stessa coppia {@code (sessionId, userId)} e l'operazione è stata un no-op idempotente
+     * @throws IllegalArgumentException se {@code fact} è {@code null}
+     * @see #saveIfAbsent(PlayerMatchFact)
      */
     boolean saveIfAbsent(PlayerMatchFact fact);
 }

@@ -23,6 +23,9 @@ import java.time.Instant;
  * @param targetUserId   the user id whose roles are being assigned
  * @param roles          the new roles to assign (replaces the existing set)
  * @param createdAt      the request creation instant
+ *
+ * @see com.gameplatform.shared.dto.UserUpdatedEventDto
+ * @see com.gameplatform.shared.usecase.UpdateUserUseCase
  */
 public record RoleAssignmentRequestedEventDto(
         String eventId,

@@ -60,6 +60,23 @@ public class GameDefinitionService implements UpsertGameDefinitionUseCase, ListG
         this.clock = clock;
     }
 
+    /**
+     * Inserisce o aggiorna una definizione di gioco in modo idempotente sulla
+     * chiave primaria {@code gameType}.
+     *
+     * <p>Se il {@code gameType} è già presente ne conserva il {@code createdAt}
+     * originale e aggiorna la riga esistente; in caso contrario crea una nuova
+     * definizione. In entrambi i casi emette un evento outbox
+     * {@code GAME_DEFINITION_UPSERTED} che verrà replicato ai Local Server.</p>
+     *
+     * @param input la definizione di gioco da persistere (non deve essere {@code null})
+     * @param originatingRequestId l'identificativo della richiesta originaria, o
+     *        {@code null} se non deriva da una richiesta amministrativa
+     * @return la definizione di gioco salvata (con {@code createdAt} e
+     *         {@code updatedAt} valorizzati)
+     * @throws InvalidGameDefinitionException se {@code input} è {@code null}
+     * @see #findByGameType(com.gameplatform.shared.domain.model.GameType)
+     */
     @Override
     public GameDefinition upsert(GameDefinition input, String originatingRequestId) {
         if (input == null) {
@@ -91,6 +108,12 @@ public class GameDefinitionService implements UpsertGameDefinitionUseCase, ListG
         return saved;
     }
 
+    /**
+     * Restituisce l'elenco di tutte le definizioni di gioco persistite.
+     *
+     * @return la lista delle definizioni presenti; lista vuota (mai
+     *         {@code null}) se non esiste alcuna definizione
+     */
     @Override
     @Transactional(readOnly = true)
     public List<GameDefinition> findAll() {
@@ -98,6 +121,13 @@ public class GameDefinitionService implements UpsertGameDefinitionUseCase, ListG
         return result != null ? result : List.of();
     }
 
+    /**
+     * Restituisce la definizione di gioco associata al tipo di gioco indicato.
+     *
+     * @param gameType il tipo di gioco da cercare (non deve essere {@code null})
+     * @return un {@link Optional} contenente la definizione trovata, o vuoto se
+     *         nessuna definizione corrisponde al {@code gameType}
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<GameDefinition> findByGameType(GameType gameType) {

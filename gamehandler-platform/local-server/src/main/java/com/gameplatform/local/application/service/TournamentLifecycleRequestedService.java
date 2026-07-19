@@ -12,12 +12,16 @@ import java.time.Instant;
 import java.util.Set;
 
 /**
- * Parametric implementation of the W12b/c/d use cases (PIANO §7.B). A
- * single service handles all three lifecycle transitions: OPEN,
- * CANCEL, SCHEDULE. Pre-controls the {@code PLATFORM_ADMIN} role on
- * {@code replicated_users}, then atomically writes a
- * {@code admin_requests_local} PENDING row and the matching outbox
- * parametric {@code eventType} event.
+ * Implementazione parametrica dei casi d'uso W12b/c/d (PIANO §7.B).
+ * Un singolo servizio gestisce tutte e tre le transizioni del ciclo
+ * di vita: OPEN, CANCEL, SCHEDULE. Esegue il pre-controllo del ruolo
+ * {@code PLATFORM_ADMIN} su {@code replicated_users}, poi scrive
+ * atomicamente una riga {@code admin_requests_local} PENDING e l'evento
+ * outbox parametrico corrispondente all'{@code eventType}.
+ *
+ * @see TournamentLifecycleRequestedUseCase
+ * @see AdminRequestOutboxWriter
+ * @see RolePreCheck
  */
 @Service
 public class TournamentLifecycleRequestedService implements TournamentLifecycleRequestedUseCase {
@@ -41,6 +45,21 @@ public class TournamentLifecycleRequestedService implements TournamentLifecycleR
         this.clock = clock;
     }
 
+    /**
+     * Esegue una transizione del ciclo di vita di un torneo (OPEN, CANCEL,
+     * SCHEDULE). Verifica il ruolo PLATFORM_ADMIN e la validita' dei
+     * parametri, poi scrive la richiesta admin PENDING e l'evento outbox.
+     *
+     * @param eventType    il tipo di transizione (uno tra TOURNAMENT_OPEN_REQUESTED,
+     *                     TOURNAMENT_CANCEL_REQUESTED, TOURNAMENT_SCHEDULE_REQUESTED)
+     * @param tournamentId l'identificativo del torneo (non blank)
+     * @param actingUserId l'identificativo dell'utente richiedente
+     * @param actingRole   il ruolo con cui l'utente agisce
+     * @param buildingId   l'identificativo del building di competenza
+     * @return il DTO della richiesta admin creata
+     * @throws IllegalArgumentException se eventType non e' supportato o tournamentId e' blank
+     * @throws org.springframework.security.access.AccessDeniedException se l'utente non ha il ruolo PLATFORM_ADMIN
+     */
     @Override
     @Transactional
     public AdminRequestDto lifecycle(String eventType,

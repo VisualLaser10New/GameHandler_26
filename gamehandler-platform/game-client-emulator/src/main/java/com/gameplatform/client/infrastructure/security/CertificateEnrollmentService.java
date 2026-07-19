@@ -24,9 +24,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Service to dynamically enroll a game client with the Local Server's CA.
- * Generates an RSA keypair and a CSR, submits it to the Local Server,
- * and saves the returned certificate/CA certificate to a PKCS12 keystore.
+ * Servizio per l'iscrizione dinamica di un client presso la CA del server locale.
+ * Genera una coppia di chiavi RSA e una CSR (Certificate Signing Request),
+ * la invia al server locale e salva il certificato restituito insieme al
+ * certificato della CA in un keystore PKCS12.
+ * <p>
+ * Il servizio viene utilizzato come fase di bootstrap: se il keystore e il
+ * truststore esistono già, l'iscrizione viene saltata.
+ *
+ * @see HttpClientHelper
  */
 public class CertificateEnrollmentService {
 
@@ -42,6 +48,12 @@ public class CertificateEnrollmentService {
         Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
     }
 
+    /**
+     * Crea un'istanza del servizio di iscrizione certificati per un determinato gioco.
+     *
+     * @param gameId         l'identificativo univoco del gioco per cui generare il certificato (non nullo)
+     * @param localServerUrl l'URL di base del server locale (non nullo)
+     */
     public CertificateEnrollmentService(String gameId, String localServerUrl) {
         this.gameId = gameId;
         this.localServerUrl = localServerUrl;
@@ -51,8 +63,19 @@ public class CertificateEnrollmentService {
     }
 
     /**
-     * Performs enrollment if the keystore does not exist.
-     * Returns true if enrollment succeeded or was already done.
+     * Avvia l'iscrizione del client se il keystore e il truststore non esistono ancora.
+     * Se entrambi i file sono già presenti, l'operazione viene saltata e il metodo
+     * restituisce immediatamente {@code true}.
+     * <p>
+     * In caso di errore durante la generazione della coppia di chiavi, la creazione
+     * della CSR, la comunicazione con il server o la scrittura dei file, restituisce
+     * {@code false}.
+     *
+     * @return {@code true} se l'iscrizione è stata completata con successo o era già stata
+     *         effettuata in precedenza; {@code false} in caso di errore durante una qualsiasi
+     *         fase del processo di iscrizione
+     * @see #getKeystoreFile()
+     * @see #getTruststoreFile()
      */
     public boolean enrollIfNecessary() {
         if (keystoreFile.exists() && truststoreFile.exists()) {
@@ -159,10 +182,26 @@ public class CertificateEnrollmentService {
         }
     }
 
+    /**
+     * Restituisce il file del keystore PKCS12 contenente la chiave privata e il certificato client.
+     * Il file potrebbe non esistere sul filesystem se l'iscrizione non è ancora stata completata
+     * con successo.
+     *
+     * @return il file del keystore (mai {@code null}); il file potrebbe non esistere fisicamente
+     *         se {@link #enrollIfNecessary()} non è stato ancora invocato con successo
+     */
     public File getKeystoreFile() {
         return keystoreFile;
     }
 
+    /**
+     * Restituisce il file del truststore PKCS12 contenente il certificato della CA locale.
+     * Il file potrebbe non esistere sul filesystem se l'iscrizione non è ancora stata completata
+     * con successo.
+     *
+     * @return il file del truststore (mai {@code null}); il file potrebbe non esistere fisicamente
+     *         se {@link #enrollIfNecessary()} non è stato ancora invocato con successo
+     */
     public File getTruststoreFile() {
         return truststoreFile;
     }

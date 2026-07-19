@@ -27,10 +27,25 @@ public class TournamentSummaryLocalMapper {
 
     private final ObjectMapper objectMapper;
 
+    /**
+     * Costruisce il mapper con l'ObjectMapper per la serializzazione JSON
+     * della lista buildingIds.
+     *
+     * @param objectMapper il mapper JSON per serializzazione/deserializzazione (non null)
+     */
     public TournamentSummaryLocalMapper(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * Converte un'entità JPA {@link TournamentSummaryLocalJpaEntity} nel
+     * corrispondente modello di dominio {@link TournamentSummaryLocal}.
+     * Deserializza il campo JSON {@code buildingIds} da stringa a lista.
+     *
+     * @param entity l'entità JPA da convertire, può essere {@code null}
+     * @return il modello di dominio, oppure {@code null} se l'input è {@code null}
+     * @throws RuntimeException in caso di errore di deserializzazione JSON
+     */
     public TournamentSummaryLocal toDomain(TournamentSummaryLocalJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -64,6 +79,15 @@ public class TournamentSummaryLocalMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link TournamentSummaryLocal} nella
+     * corrispondente entità JPA {@link TournamentSummaryLocalJpaEntity}.
+     * Serializza il campo {@code buildingIds} da lista a stringa JSON.
+     *
+     * @param domain il modello di dominio da convertire, può essere {@code null}
+     * @return l'entità JPA, oppure {@code null} se l'input è {@code null}
+     * @throws RuntimeException in caso di errore di serializzazione JSON
+     */
     public TournamentSummaryLocalJpaEntity toEntity(TournamentSummaryLocal domain) {
         if (domain == null) {
             return null;

@@ -37,6 +37,23 @@ public class TournamentSummaryLocal {
     private final boolean deleted;
     private final Instant updatedAt;
 
+    /**
+     * Costruisce una nuova replica locale di un riepilogo di torneo.
+     *
+     * @param tournamentId      identificatore del torneo (non null)
+     * @param name              nome del torneo (non blank)
+     * @param gameType          tipo di gioco (non null)
+     * @param teamBased         true se il torneo è a squadre
+     * @param teamSize          dimensione delle squadre
+     * @param status            stato del torneo (non null)
+     * @param startsAt          istante di inizio (può essere null)
+     * @param endsAt            istante di fine (può essere null)
+     * @param buildingIds       lista degli edifici coinvolti (può essere null)
+     * @param participantsCount numero di partecipanti
+     * @param deleted           flag di eliminazione logica
+     * @param updatedAt         istante dell'ultimo aggiornamento (non null)
+     * @throws IllegalArgumentException se tournamentId, name, gameType, status o updatedAt sono null/blank
+     */
     public TournamentSummaryLocal(TournamentId tournamentId, String name, GameType gameType, boolean teamBased,
                                   int teamSize, TournamentStatus status, Instant startsAt, Instant endsAt,
                                   List<String> buildingIds, int participantsCount, boolean deleted, Instant updatedAt) {
@@ -69,54 +86,120 @@ public class TournamentSummaryLocal {
         this.updatedAt = updatedAt;
     }
 
+    /**
+     * Restituisce l'identificatore del torneo.
+     *
+     * @return tournamentId
+     */
     public TournamentId getTournamentId() {
         return tournamentId;
     }
 
+    /**
+     * Restituisce il nome del torneo.
+     *
+     * @return name
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * Restituisce il tipo di gioco del torneo.
+     *
+     * @return gameType
+     */
     public GameType getGameType() {
         return gameType;
     }
 
+    /**
+     * Indica se il torneo è a squadre.
+     *
+     * @return true se a squadre
+     */
     public boolean isTeamBased() {
         return teamBased;
     }
 
+    /**
+     * Restituisce la dimensione delle squadre.
+     *
+     * @return teamSize
+     */
     public int getTeamSize() {
         return teamSize;
     }
 
+    /**
+     * Restituisce lo stato del torneo.
+     *
+     * @return status
+     */
     public TournamentStatus getStatus() {
         return status;
     }
 
+    /**
+     * Restituisce l'istante di inizio del torneo.
+     *
+     * @return startsAt, o null se non specificato
+     */
     public Instant getStartsAt() {
         return startsAt;
     }
 
+    /**
+     * Restituisce l'istante di fine del torneo.
+     *
+     * @return endsAt, o null se non specificato
+     */
     public Instant getEndsAt() {
         return endsAt;
     }
 
+    /**
+     * Restituisce la lista degli edifici coinvolti.
+     *
+     * @return buildingIds
+     */
     public List<String> getBuildingIds() {
         return buildingIds;
     }
 
+    /**
+     * Restituisce il numero di partecipanti.
+     *
+     * @return participantsCount
+     */
     public int getParticipantsCount() {
         return participantsCount;
     }
 
+    /**
+     * Indica se il torneo è stato eliminato logicamente.
+     *
+     * @return true se eliminato
+     */
     public boolean isDeleted() {
         return deleted;
     }
 
+    /**
+     * Restituisce l'istante dell'ultimo aggiornamento.
+     *
+     * @return updatedAt
+     */
     public Instant getUpdatedAt() {
         return updatedAt;
     }
 
+    /**
+     * Confronta questo riepilogo con un altro oggetto per uguaglianza basata su tournamentId.
+     *
+     * @param o l'oggetto da confrontare
+     * @return true se gli oggetti sono uguali
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -125,6 +208,11 @@ public class TournamentSummaryLocal {
         return Objects.equals(tournamentId, that.tournamentId);
     }
 
+    /**
+     * Restituisce l'hash code basato su tournamentId.
+     *
+     * @return hash code
+     */
     @Override
     public int hashCode() {
         return Objects.hash(tournamentId);

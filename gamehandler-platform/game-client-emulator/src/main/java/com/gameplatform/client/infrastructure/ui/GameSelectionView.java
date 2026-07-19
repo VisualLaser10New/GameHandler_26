@@ -21,13 +21,14 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * JavaFX view that lists the available game machines in the building.
+ * Vista JavaFX per la selezione delle macchine da gioco disponibili.
  * <p>
- * Games are displayed with colour-coded status indicators (green for
- * available, red for in-use, yellow otherwise). The list can be refreshed
- * via an HTTP GET to {@code /api/games} and receives real-time updates
- * through an MQTT {@link StateSubscriber}. Selecting an available game
- * and pressing "Play" triggers the {@code onGameSelected} callback.
+ * Elenca le macchine da gioco dell'edificio con indicatori di stato
+ * colorati (verde per disponibile, rosso per in uso, giallo per altri
+ * stati). La lista può essere aggiornata tramite {@code GET /api/games}
+ * e riceve aggiornamenti in tempo reale via MQTT tramite
+ * {@link StateSubscriber}. La selezione di un gioco disponibile e la
+ * pressione del pulsante "Play" attiva il callback {@code onGameSelected}.
  */
 public class GameSelectionView {
     private final VBox root;
@@ -39,12 +40,16 @@ public class GameSelectionView {
     private Consumer<GameStateDto> onGameSelected;
 
     /**
-     * Creates the game selection view.
+     * Costruisce la vista di selezione dei giochi.
+     * <p>
+     * Inizializza la lista delle macchine da gioco, i pulsanti di
+     * refresh e play, e la sottoscrizione MQTT per aggiornamenti
+     * in tempo reale dello stato delle macchine.
      *
-     * @param mqttAdapter the MQTT adapter for real-time state subscriptions;
-     *                    may be {@code null}
-     * @param buildingId  the building identifier used in MQTT topic filters;
-     *                    may be {@code null}
+     * @param mqttAdapter l'adattatore MQTT per le sottoscrizioni
+     *                    in tempo reale; può essere null
+     * @param buildingId  l'identificativo dell'edificio per i filtri
+     *                    dei topic MQTT; può essere null
      */
     public GameSelectionView(MqttClientAdapter mqttAdapter, String buildingId) {
         VBox content = new VBox(10);

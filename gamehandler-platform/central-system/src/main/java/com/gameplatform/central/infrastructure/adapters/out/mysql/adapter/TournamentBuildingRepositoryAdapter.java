@@ -26,12 +26,24 @@ public class TournamentBuildingRepositoryAdapter implements TournamentBuildingRe
     private final TournamentBuildingJpaRepository jpaRepo;
     private final TournamentBuildingMapper mapper;
 
+    /**
+     * Costruisce l'adapter iniettando il repository JPA e il mapper dei legami torneo-edificio.
+     *
+     * @param jpaRepo repository JPA per la gestione delle entit&agrave; di legame
+     * @param mapper  mapper che converte tra i parametri e l'entit&agrave; JPA
+     */
     public TournamentBuildingRepositoryAdapter(TournamentBuildingJpaRepository jpaRepo,
                                               TournamentBuildingMapper mapper) {
         this.jpaRepo = jpaRepo;
         this.mapper = mapper;
     }
 
+    /**
+     * Associa tutti gli edifici indicati al torneo, ignorando i valori nulli o vuoti.
+     *
+     * @param tournamentId l'identificativo del torneo; se {@code null} il metodo non effettua alcuna operazione
+     * @param buildingIds  l'elenco degli identificativi edificio da associare; se {@code null} il metodo non effettua alcuna operazione
+     */
     @Override
     @Transactional
     public void saveAll(TournamentId tournamentId, List<String> buildingIds) {
@@ -46,6 +58,13 @@ public class TournamentBuildingRepositoryAdapter implements TournamentBuildingRe
         }
     }
 
+    /**
+     * Restituisce l'elenco degli identificativi edificio associati a un torneo.
+     *
+     * @param tournamentId l'identificativo del torneo; se {@code null} restituisce una lista vuota
+     * @return la lista degli identificativi edificio; lista vuota se non ve ne sono o se {@code tournamentId} &egrave; {@code null}
+     * @see TournamentBuildingJpaRepository#findByTournamentId
+     */
     @Override
     @Transactional(readOnly = true)
     public List<String> findByTournament(TournamentId tournamentId) {
@@ -59,6 +78,12 @@ public class TournamentBuildingRepositoryAdapter implements TournamentBuildingRe
         return entities.stream().map(TournamentBuildingJpaEntity::getBuildingId).toList();
     }
 
+    /**
+     * Elimina tutti i legami tra il torneo indicato e gli edifici associati.
+     *
+     * @param tournamentId l'identificativo del torneo; se {@code null} il metodo non effettua alcuna operazione
+     * @see TournamentBuildingJpaRepository#deleteByTournamentId
+     */
     @Override
     @Transactional
     public void deleteByTournament(TournamentId tournamentId) {
@@ -68,6 +93,14 @@ public class TournamentBuildingRepositoryAdapter implements TournamentBuildingRe
         jpaRepo.deleteByTournamentId(tournamentId.value());
     }
 
+    /**
+     * Verifica l'esistenza di un legame tra un torneo e un edificio.
+     *
+     * @param tournamentId l'identificativo del torneo; se {@code null} restituisce {@code false}
+     * @param buildingId   l'identificativo dell'edificio; se {@code null} restituisce {@code false}
+     * @return {@code true} se esiste il legame, {@code false} altrimenti
+     * @see TournamentBuildingJpaRepository#existsByTournamentIdAndBuildingId
+     */
     @Override
     @Transactional(readOnly = true)
     public boolean existsByTournamentAndBuilding(TournamentId tournamentId, String buildingId) {

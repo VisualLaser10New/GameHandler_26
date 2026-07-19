@@ -14,18 +14,21 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Receives game-definition metadata events replicated from the Central via
- * outbox and applies them idempotently to the {@code game_definitions_local}
- * table. Idempotency is by PK {@code game_type}: a GAME_DEFINITION_UPSERTED
- * event upserts (JPA merge on an existing game_type row). No
- * {@code processed_events} table is kept on local — re-delivery of the same
- * event yields the same end state.
+ * Riceve eventi di metadati delle definizioni di gioco replicati dal Central
+ * tramite outbox e li applica idempotentemente alla tabella
+ * {@code game_definitions_local}. L'idempotenza e' garantita dalla chiave
+ * primaria {@code game_type}: un evento GAME_DEFINITION_UPSERTED esegue un
+ * upsert (merge JPA sulla riga esistente). Non viene mantenuta una tabella
+ * {@code processed_events} — la ri-consegna dello stesso evento produce lo
+ * stesso stato finale.
  *
- * <p>When {@code originatingRequestId != null} (the Central return-event
- * closes a Local-admin {@code GAME_DEFINITION_UPSERT_REQUESTED} request,
- * PIANO §7.A.7 / §7.B W9), the matching {@code admin_requests_local} row is
- * transitioned to {@code COMPLETED} via
- * {@link AdminRequestRepository#markCompleted}.</p>
+ * <p>Quando {@code originatingRequestId != null} (evento di ritorno dal
+ * Central che chiude una richiesta admin {@code GAME_DEFINITION_UPSERT_REQUESTED}),
+ * la riga {@code admin_requests_local} corrispondente viene transizionata
+ * a COMPLETED via {@link AdminRequestRepository#markCompleted}.</p>
+ *
+ * @see GameDefinitionLocalRepository
+ * @see AdminRequestRepository
  */
 @Service
 @Transactional
@@ -39,6 +42,14 @@ public class GameDefinitionSyncService {
     private final AdminRequestRepository adminRequestRepository;
     private final Clock clock;
 
+    /**
+     * Costruisce il servizio con i repository necessari per la replica
+     * delle definizioni di gioco e la chiusura delle richieste admin.
+     *
+     * @param gameDefinitionLocalRepository il repository locale delle definizioni di gioco
+     * @param adminRequestRepository        il repository per la chiusura delle richieste admin
+     * @param clock                         l'orologio per la generazione dei timestamp
+     */
     public GameDefinitionSyncService(GameDefinitionLocalRepository gameDefinitionLocalRepository,
                                       AdminRequestRepository adminRequestRepository,
                                       Clock clock) {
@@ -47,6 +58,14 @@ public class GameDefinitionSyncService {
         this.clock = clock;
     }
 
+    /**
+     * Applica una lista di eventi di definizione gioco alla tabella locale.
+     * Ogni evento GAME_DEFINITION_UPSERTED viene upsertato per chiave primaria
+     * game_type; se l'evento trasporta un {@code originatingRequestId}, la
+     * corrispondente richiesta admin viene marcata come COMPLETED.
+     *
+     * @param events la lista di eventi da applicare (puo' essere null)
+     */
     public void applyEvents(List<GameDefinitionEventDto> events) {
         if (events == null) {
             return;
@@ -74,6 +93,13 @@ public class GameDefinitionSyncService {
         }
     }
 
+    /**
+     * Se l'evento trasporta un {@code originatingRequestId} non blank,
+     * marca la corrispondente richiesta admin come COMPLETED tramite
+     * {@link AdminRequestRepository#markCompleted}.
+     *
+     * @param event l'evento DTO da cui estrarre l'originatingRequestId (non null)
+     */
     private void markCompletedIfRequested(GameDefinitionEventDto event) {
         String originatingRequestId = event.originatingRequestId();
         if (originatingRequestId == null || originatingRequestId.isBlank()) {

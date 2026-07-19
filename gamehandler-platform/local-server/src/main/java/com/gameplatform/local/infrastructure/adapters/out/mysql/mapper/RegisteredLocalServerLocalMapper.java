@@ -13,6 +13,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class RegisteredLocalServerLocalMapper {
 
+    /**
+     * Converte un'entità JPA {@link RegisteredLocalServerLocalJpaEntity} nel
+     * corrispondente modello di dominio {@link RegisteredLocalServerLocal}.
+     *
+     * @param entity l'entità JPA da convertire, può essere {@code null}
+     * @return il modello di dominio, oppure {@code null} se l'input è {@code null}
+     */
     public RegisteredLocalServerLocal toDomain(RegisteredLocalServerLocalJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -26,6 +33,13 @@ public class RegisteredLocalServerLocalMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link RegisteredLocalServerLocal} nella
+     * corrispondente entità JPA {@link RegisteredLocalServerLocalJpaEntity}.
+     *
+     * @param domain il modello di dominio da convertire, può essere {@code null}
+     * @return l'entità JPA, oppure {@code null} se l'input è {@code null}
+     */
     public RegisteredLocalServerLocalJpaEntity toEntity(RegisteredLocalServerLocal domain) {
         if (domain == null) {
             return null;

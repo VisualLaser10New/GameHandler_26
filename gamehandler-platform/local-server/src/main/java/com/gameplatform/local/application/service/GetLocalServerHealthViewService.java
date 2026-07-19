@@ -15,14 +15,17 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Read use case (PIANO §7.B): aggregates this Local node's own
- * pending-outbox count with the registry of all known registered local
- * servers for the {@code GET /api/admin/servers/health} PLATFORM_ADMIN
- * endpoint. The "own node" view is sourced from the locally replicated
- * {@code registered_local_servers_local} row keyed by
- * {@code app.building-id} (the registry row is replicated from the
- * Central registry); the pending-outbox count comes from the local
- * {@code outbox_events} table.
+ * Caso d'uso in lettura (PIANO §7.B): aggrega il conteggio degli outbox
+ * in attesa del nodo locale con il registro di tutti i server locali
+ * conosciuti per l'endpoint {@code GET /api/admin/servers/health}
+ * (PLATFORM_ADMIN). La vista del "proprio nodo" proviene dalla riga
+ * {@code registered_local_servers_local} replicata localmente, chiave
+ * {@code app.building-id}; il conteggio outbox PENDING proviene dalla
+ * tabella locale {@code outbox_events}.
+ *
+ * @see GetLocalServerHealthViewUseCase
+ * @see RegisteredLocalServerLocalRepository
+ * @see OutboxEventRepository
  */
 @Service
 @Transactional(readOnly = true)
@@ -34,6 +37,14 @@ public class GetLocalServerHealthViewService implements GetLocalServerHealthView
     private final OutboxEventRepository outboxEventRepository;
     private final String myBuildingId;
 
+    /**
+     * Costruisce il servizio con le dipendenze per la consultazione
+     * della salute del server locale.
+     *
+     * @param registeredLocalServerLocalRepository il repository dei server locali registrati
+     * @param outboxEventRepository               il repository per il conteggio degli outbox in attesa
+     * @param myBuildingId                        l'identificativo dell'edificio locale (da configurazione)
+     */
     public GetLocalServerHealthViewService(RegisteredLocalServerLocalRepository registeredLocalServerLocalRepository,
                                             OutboxEventRepository outboxEventRepository,
                                             @Value("${app.building-id}") String myBuildingId) {
@@ -42,6 +53,13 @@ public class GetLocalServerHealthViewService implements GetLocalServerHealthView
         this.myBuildingId = myBuildingId;
     }
 
+    /**
+     * Recupera la vista completa della salute del server locale,
+     * includendo il conteggio degli outbox PENDING (cappato a 500+1)
+     * e la lista completa del registro dei server locali.
+     *
+     * @return il DTO con la vista della salute del server
+     */
     @Override
     public ServerHealthViewDto getHealthView() {
         Optional<RegisteredLocalServerLocal> myRow =
@@ -63,6 +81,13 @@ public class GetLocalServerHealthViewService implements GetLocalServerHealthView
         );
     }
 
+    /**
+     * Converte un {@link RegisteredLocalServerLocal} nel corrispondente
+     * {@link ServerHealthDto}.
+     *
+     * @param server l'entita' del modello di dominio (non null)
+     * @return il DTO con buildingId, baseUrl, lastSeenAt e active
+     */
     private static ServerHealthDto toServerHealth(RegisteredLocalServerLocal server) {
         return new ServerHealthDto(
                 server.getBuildingId().id(),

@@ -20,6 +20,22 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
+/**
+ * Servizio applicativo per l'autenticazione degli utenti presso il sistema
+ * centrale (Source-of-Truth). Implementa {@link AuthenticateUserUseCase}
+ * eseguendo la verifica delle credenziali, la protezione contro il
+ * brute-force (rate-limit e password fittizia per utenti inesistenti) e
+ * l'emissione del token di sessione.
+ *
+ * <p>Applica inoltre una protezione temporale contro gli attacchi di tipo
+ * timing: la verifica di una password su un utente inesistente esegue comunque
+ * un controllo BCrypt fittizio, così da non rivelare l'esistenza o meno
+ * dell'username tramite la differenza di tempo di risposta.</p>
+ *
+ * @see AuthenticateUserUseCase
+ * @see com.gameplatform.central.domain.ports.out.UserRepository
+ * @see com.gameplatform.central.domain.ports.out.TokenProviderPort
+ */
 @Service
 public class AuthService implements AuthenticateUserUseCase {
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
@@ -42,6 +58,27 @@ public class AuthService implements AuthenticateUserUseCase {
         this.clock = clock;
     }
 
+    /**
+     * Autentica un utente verificando username e password e restituendo la
+     * risposta di login contenente il token firmato.
+     *
+     * <p>Prima della verifica applica un rate-limit basato sui tentativi
+     * falliti nell'ultimo minuto; in caso di superamento della soglia rifiuta
+     * la richiesta senza rivelare l'esistenza dell'utente. Se l'utente non
+     * esiste o la password non corrisponde registra il fallimento e lancia
+     * un'eccezione di credenziali non valide (il controllo BCrypt fittizio su
+     * utente inesistente previene attacchi di tipo timing). Con credenziali
+     * valide genera e restituisce un token con relativa scadenza.</p>
+     *
+     * @param username il nome utente da autenticare (non deve essere {@code null})
+     * @param password la password in chiaro fornita dall'utente (non deve essere {@code null})
+     * @return la risposta di login con token, id utente e istante di scadenza
+     * @throws RateLimitExceededException se i tentativi falliti negli ultimi 60 secondi
+     *         superano la soglia consentita
+     * @throws InvalidCredentialsException se l'utente non esiste o la password non è corretta
+     * @see #checkRateLimit(String)
+     * @see #recordFailure(String)
+     */
     @Override
     public LoginResponseDto authenticate(String username, String password) {
         checkRateLimit(username);

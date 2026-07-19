@@ -37,6 +37,11 @@ public class ReservationExpirationService {
         this.clock = clock;
     }
 
+    /**
+     * Sweep minuto delle prenotazioni scadute. Ogni prenotazione viene
+     * marcata come EXPIRED e la macchina da gioco associata viene
+     * rilasciata con pubblicazione MQTT dello stato AVAILABLE.
+     */
     @Scheduled(fixedRate = 60000)
     public void expireReservations() {
         List<Reservation> expiredReservations = reservationRepository.findExpired(Instant.now(clock));

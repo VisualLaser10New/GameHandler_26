@@ -16,12 +16,12 @@ import java.util.Random;
 import java.util.function.Consumer;
 
 /**
- * Emulation panel for Slot Machine.
+ * Pannello di emulazione per la Slot Machine.
  * <p>
- * The player presses "Spin!" to spin the three reels. A brief animation
- * cycles through symbols before showing the final result. The payout is
- * calculated (100 pts for three identical, 10 for two, 0 otherwise) and
- * added to the player's running score.
+ * Il giocatore preme "Spin!" per far girare i tre rulli. Una breve animazione
+ * scorre i simboli prima di mostrare il risultato finale. La vincita viene
+ * calcolata (100 punti per tre simboli identici, 10 per due, 0 altrimenti)
+ * e aggiunta al punteggio corrente del giocatore.
  */
 public class SlotMachinePanel implements GamePanel {
 
@@ -41,6 +41,10 @@ public class SlotMachinePanel implements GamePanel {
     private boolean spinning = false;
     private Consumer<Map<String, Integer>> scoreConsumer;
 
+    /**
+     * Costruisce il pannello della slot machine inizializzando i rulli,
+     * l'etichetta del risultato, il punteggio e il pulsante di avvio.
+     */
     public SlotMachinePanel() {
         root = new VBox(18);
         root.setAlignment(Pos.CENTER);
@@ -73,6 +77,14 @@ public class SlotMachinePanel implements GamePanel {
     @Override
     public Parent getView() { return root; }
 
+    /**
+     * Avvia la partita inizializzando il nome del giocatore (primo partecipante
+     * o "player" se la lista &egrave; vuota), azzerando il punteggio e abilitando
+     * il pulsante di avvio.
+     *
+     * @param participants lista dei nomi utente dei partecipanti; viene utilizzato
+     *                     solo il primo elemento come nome del giocatore
+     */
     @Override
     public void onGameStarted(List<String> participants) {
         playerName = participants.isEmpty() ? "player" : participants.get(0);
@@ -85,6 +97,10 @@ public class SlotMachinePanel implements GamePanel {
         spinButton.setDisable(false);
     }
 
+    /**
+     * Arresta la partita disabilitando il pulsante di avvio e mostrando
+     * il punteggio finale nell'etichetta del risultato.
+     */
     @Override
     public void onGameStopped() {
         spinButton.setDisable(true);
@@ -92,11 +108,21 @@ public class SlotMachinePanel implements GamePanel {
         resultLabel.setStyle("-fx-font-size: 14; -fx-text-fill: #f39c12; -fx-font-weight: bold;");
     }
 
+    /**
+     * Imposta il callback per la notifica delle variazioni di punteggio
+     * alla vista padre.
+     *
+     * @param scoreConsumer accetta una mappa di nome giocatore {@literal ->} punteggio
+     */
     @Override
     public void setScoreConsumer(Consumer<Map<String, Integer>> scoreConsumer) {
         this.scoreConsumer = scoreConsumer;
     }
 
+    /**
+     * Trasmette il punteggio corrente alla vista padre tramite il
+     * {@code scoreConsumer} se presente.
+     */
     private void publishScore() {
         if (scoreConsumer != null) {
             Map<String, Integer> snapshot = new LinkedHashMap<>();
@@ -105,10 +131,37 @@ public class SlotMachinePanel implements GamePanel {
         }
     }
 
+    /**
+     * Restituisce il punteggio totale accumulato dal giocatore.
+     *
+     * @return il punteggio totale corrente
+     */
     public int getTotalScore() { return totalScore; }
+
+    /**
+     * Restituisce l'identificativo del vincitore della partita.
+     * Per la slot machine, il vincitore &egrave; sempre il giocatore locale.
+     *
+     * @return il nome del giocatore locale
+     */
     public String getWinnerId() { return playerName; }
+
+    /**
+     * Restituisce i dati di risultato della partita nel formato
+     * "nomeGiocatore:punteggioTotale".
+     *
+     * @return stringa con il nome del giocatore e il punteggio totale separati da due punti
+     * @see #getWinnerId()
+     */
     public String getResultData() { return playerName + ":" + totalScore; }
 
+    /**
+     * Avvia l'animazione dei rulli della slot machine.
+     * Mostra un'animazione di 10 fotogrammi con simboli casuali, quindi
+     * determina il risultato finale e calcola la vincita in base ai simboli
+     * mostrati sui tre rulli. Durante l'animazione il pulsante di avvio
+     * viene disabilitato.
+     */
     private void doSpin() {
         if (spinning) return;
         spinning = true;
@@ -155,12 +208,28 @@ public class SlotMachinePanel implements GamePanel {
         animation.play();
     }
 
+    /**
+     * Calcola la vincita in base ai tre simboli mostrati sui rulli.
+     *
+     * @param r1 simbolo del primo rullo
+     * @param r2 simbolo del secondo rullo
+     * @param r3 simbolo del terzo rullo
+     * @return 100 se tutti e tre i simboli sono identici,
+     *         10 se almeno due simboli sono identici,
+     *         0 altrimenti
+     */
     private int calculatePayout(String r1, String r2, String r3) {
         if (r1.equals(r2) && r2.equals(r3)) return 100;
         if (r1.equals(r2) || r2.equals(r3) || r1.equals(r3)) return 10;
         return 0;
     }
 
+    /**
+     * Crea e restituisce un'etichetta per un rullo della slot machine.
+     *
+     * @return un'etichetta {@link Label} configurata con dimensioni minime
+     *         di 80x80 pixel e stile scuro con bordo
+     */
     private Label makeReelLabel() {
         Label l = new Label("❓");
         l.setMinSize(80, 80);

@@ -7,6 +7,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Statistiche locali calcolate per un determinato tipo di gioco, includendo
+ * il numero totale di sessioni, la durata media, il totale delle prenotazioni
+ * e il tasso di vittoria per utente. I dati vengono ricalcolati a partire
+ * dalla lista delle sessioni.
+ *
+ * @see GameSession
+ * @see GameType
+ */
 public class LocalStatistics {
     private final GameType gameType;
     private int totalSessions;
@@ -14,6 +23,16 @@ public class LocalStatistics {
     private int totalReservations;
     private Map<String, Double> winRateByUser;
 
+    /**
+     * Costruisce un nuovo oggetto statistiche locali.
+     *
+     * @param gameType          tipo di gioco (non null)
+     * @param totalSessions     numero totale di sessioni
+     * @param avgDuration       durata media delle sessioni in secondi
+     * @param totalReservations numero totale di prenotazioni
+     * @param winRateByUser     mappa dei tassi di vittoria per utente (può essere null)
+     * @throws IllegalArgumentException se gameType è null
+     */
     public LocalStatistics(GameType gameType, int totalSessions, double avgDuration, int totalReservations, Map<String, Double> winRateByUser) {
         if (gameType == null) {
             throw new IllegalArgumentException("GameType cannot be null");
@@ -25,6 +44,14 @@ public class LocalStatistics {
         this.winRateByUser = winRateByUser != null ? Map.copyOf(winRateByUser) : new HashMap<>();
     }
 
+    /**
+     * Ricalcola le statistiche a partire dalla lista completa delle sessioni,
+     * filtrando quelle corrispondenti al tipo di gioco e aggiornando
+     * il numero di sessioni, la durata media e il tasso di vittoria per utente.
+     *
+     * @param sessions lista di tutte le sessioni (non null)
+     * @throws IllegalArgumentException se sessions è null
+     */
     public void recalculate(List<GameSession> sessions) {
         if (sessions == null) {
             throw new IllegalArgumentException("Sessions list cannot be null");
@@ -68,26 +95,56 @@ public class LocalStatistics {
         this.winRateByUser = rates;
     }
 
+    /**
+     * Imposta il numero totale di prenotazioni.
+     *
+     * @param totalReservations totale prenotazioni
+     */
     public void setTotalReservations(int totalReservations) {
         this.totalReservations = totalReservations;
     }
 
+    /**
+     * Restituisce il tipo di gioco.
+     *
+     * @return gameType
+     */
     public GameType getGameType() {
         return gameType;
     }
 
+    /**
+     * Restituisce il numero totale di sessioni.
+     *
+     * @return totalSessions
+     */
     public int getTotalSessions() {
         return totalSessions;
     }
 
+    /**
+     * Restituisce la durata media delle sessioni in secondi.
+     *
+     * @return avgDuration
+     */
     public double getAvgDuration() {
         return avgDuration;
     }
 
+    /**
+     * Restituisce il numero totale di prenotazioni.
+     *
+     * @return totalReservations
+     */
     public int getTotalReservations() {
         return totalReservations;
     }
 
+    /**
+     * Restituisce la mappa dei tassi di vittoria per utente.
+     *
+     * @return winRateByUser
+     */
     public Map<String, Double> getWinRateByUser() {
         return winRateByUser;
     }

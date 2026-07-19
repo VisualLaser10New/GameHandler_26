@@ -16,6 +16,14 @@ import com.gameplatform.shared.domain.security.Role;
 
 import java.util.List;
 
+/**
+ * Controller REST per la consultazione dei giochi disponibili nel catalogo
+ * locale. Espone l'elenco completo dei giochi e quello filtrato per
+ * disponibilità.
+ *
+ * @see GetAvailableGamesUseCase
+ * @see GameDefinitionLocalRepository
+ */
 @RestController
 @RequestMapping("/api/games")
 @PreAuthorize("hasRole('PLAYER') or hasRole('GAME_ADMIN') or hasRole('PLATFORM_ADMIN') or hasRole('LOCAL_ADMIN')")
@@ -24,12 +32,24 @@ public class GameController {
     private final GetAvailableGamesUseCase getAvailableGamesUseCase;
     private final GameDefinitionLocalRepository gameDefinitionLocalRepository;
 
+    /**
+     * Costruisce il controller con il caso d'uso per la consultazione dei
+     * giochi e il repository delle definizioni locali.
+     *
+     * @param getAvailableGamesUseCase caso d'uso per la lista dei giochi disponibili
+     * @param gameDefinitionLocalRepository repository delle definizioni di gioco locali
+     */
     public GameController(GetAvailableGamesUseCase getAvailableGamesUseCase,
                           GameDefinitionLocalRepository gameDefinitionLocalRepository) {
         this.getAvailableGamesUseCase = getAvailableGamesUseCase;
         this.gameDefinitionLocalRepository = gameDefinitionLocalRepository;
     }
 
+    /**
+     * Restituisce l'elenco completo di tutti i giochi nel catalogo locale.
+     *
+     * @return una {@link ResponseEntity} contenente la lista di {@link GameStateDto}
+     */
     @GetMapping
     public ResponseEntity<List<GameStateDto>> getGames() {
         List<Game> games = getAvailableGamesUseCase.getAll();
@@ -39,6 +59,11 @@ public class GameController {
         return ResponseEntity.ok(dtos);
     }
 
+    /**
+     * Restituisce l'elenco dei soli giochi attualmente disponibili.
+     *
+     * @return una {@link ResponseEntity} contenente la lista di {@link GameStateDto} disponibili
+     */
     @GetMapping("/available")
     public ResponseEntity<List<GameStateDto>> getAvailableGames() {
         List<Game> games = getAvailableGamesUseCase.getAvailable();

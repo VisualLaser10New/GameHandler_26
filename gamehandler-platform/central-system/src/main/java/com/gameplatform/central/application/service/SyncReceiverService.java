@@ -78,6 +78,20 @@ public class SyncReceiverService implements ReceiveSyncDataUseCase {
                 localServerRegistryPort, clock);
     }
 
+    /**
+     * Riceve un payload di sincronizzazione da un Local Server e ne processa
+     * ogni evento in isolamento transazionale.
+     *
+     * <p>Gli eventi vuoti o con lista eventi nulla sono ignorati. Ogni evento è
+     * delegato a {@link SyncEventProcessor#processOne} che gira in una
+     * transazione {@code REQUIRES_NEW}; in caso di errore l'evento viene marcato
+     * come processato (poison isolation) così da non essere riprocessato. Al
+     * termine del ciclo aggiorna l'heartbeat {@code lastSeenAt} del server.</p>
+     *
+     * @param payload il payload di sincronizzazione ricevuto (se {@code null} o
+     *        senza eventi non effettua alcuna operazione)
+     * @see SyncEventProcessor#processOne(com.gameplatform.shared.domain.model.BuildingId, com.gameplatform.shared.dto.OutboxEventDto)
+     */
     @Override
     public void receiveSyncPayload(SyncPayloadDto payload) {
         if (payload == null || payload.events() == null || payload.events().isEmpty()) {

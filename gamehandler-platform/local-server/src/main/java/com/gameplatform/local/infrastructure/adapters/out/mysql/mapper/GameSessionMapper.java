@@ -15,15 +15,37 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Mapper null-safe tra il modello di dominio {@link GameSession} e l'entità
+ * di persistenza {@link GameSessionJpaEntity}. Gestisce la serializzazione
+ * JSON del risultato della partita ({@link GameResult}) e la conversione
+ * della lista dei partecipanti tra {@link UserId} e
+ * {@link SessionParticipantJpaEntity}.
+ */
 @Component
 public class GameSessionMapper {
     private static final Logger log = LoggerFactory.getLogger(GameSessionMapper.class);
     private final ObjectMapper objectMapper;
 
+    /**
+     * Costruisce il mapper con l'ObjectMapper per la serializzazione JSON
+     * del risultato della partita.
+     *
+     * @param objectMapper il mapper JSON per serializzazione/deserializzazione (non null)
+     */
     public GameSessionMapper(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * Converte un'entità JPA {@link GameSessionJpaEntity} nel corrispondente
+     * modello di dominio {@link GameSession}. Deserializza il campo JSON
+     * {@code resultData} in {@link GameResult} e converte i partecipanti JPA
+     * in oggetti {@link UserId}.
+     *
+     * @param entity l'entità JPA da convertire, può essere {@code null}
+     * @return il modello di dominio, oppure {@code null} se l'input è {@code null}
+     */
     public GameSession toDomain(GameSessionJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -65,6 +87,15 @@ public class GameSessionMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link GameSession} nella corrispondente
+     * entità JPA {@link GameSessionJpaEntity}. Serializza il risultato della
+     * partita in JSON e converte la lista dei partecipanti in entità
+     * {@link SessionParticipantJpaEntity}.
+     *
+     * @param domain il modello di dominio da convertire, può essere {@code null}
+     * @return l'entità JPA, oppure {@code null} se l'input è {@code null}
+     */
     public GameSessionJpaEntity toEntity(GameSession domain) {
         if (domain == null) {
             return null;

@@ -7,13 +7,14 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
 
 /**
- * Reusable error pane for the global error handler (PIANO §7.C line 757).
+ * Pannello di errore riutilizzabile per la gestione globale degli errori.
  * <p>
- * Rendered when a view request fails fatally (offline / 5xx). Includes a
- * short message, the technical cause and a Retry button wired to a
- * caller-provided callback. The pane intentionally uses the same dark
- * theme palette ({@code #1e1e1e/#333/#e74c3c}) as the rest of the
- * client so it can be swapped in for a normal view with no visual jolt.
+ * Viene visualizzato quando una richiesta di vista fallisce in modo fatale
+ * (offline / 5xx). Include un messaggio sintetico, la causa tecnica e un
+ * pulsante di riprova collegato a un callback fornito dal chiamante.
+ * Il pannello utilizza la stessa palette scura del resto del client
+ * ({@code #1e1e1e/#333/#e74c3c}) per poter essere sostituito a una vista
+ * normale senza salti visivi.
  */
 public final class ErrorPane extends VBox {
 
@@ -21,6 +22,10 @@ public final class ErrorPane extends VBox {
     private final Label detail   = new Label();
     private final Button retry    = new Button("Retry");
 
+    /**
+     * Costruisce un {@code ErrorPane} vuoto con layout centrato, spaziatura
+     * predefinita e pulsante di riprova inizialmente nascosto.
+     */
     public ErrorPane() {
         setAlignment(Pos.CENTER);
         setSpacing(10);
@@ -34,7 +39,20 @@ public final class ErrorPane extends VBox {
         retry.setVisible(false);
     }
 
-    /** Renders an error. {@code retryCallback} may be {@code null} to hide the button. */
+    /**
+     * Mostra un messaggio di errore nel pannello.
+     * <p>
+     * Se il metodo viene chiamato al di fuori del thread dell'applicazione
+     * JavaFX, l'esecuzione viene reindirizzata automaticamente al thread
+     * FX tramite {@link Platform#runLater(Runnable)}.
+     *
+     * @param title          il titolo dell'errore; se {@code null} viene sostituito
+     *                       con il testo predefinito "Error"
+     * @param message        il messaggio descrittivo dell'errore; se {@code null}
+     *                       viene sostituito con una stringa vuota
+     * @param retryCallback  callback eseguito alla pressione del pulsante di
+     *                       riprova; se {@code null} il pulsante viene nascosto
+     */
     public void show(String title, String message, Runnable retryCallback) {
         if (!Platform.isFxApplicationThread()) {
             Platform.runLater(() -> show(title, message, retryCallback));
@@ -50,12 +68,21 @@ public final class ErrorPane extends VBox {
         }
     }
 
-    /** Clears the pane for reuse. */
+    /**
+     * Ripristina lo stato iniziale del pannello, cancellando titolo e
+     * messaggio e nascondendo il pulsante di riprova.
+     */
     public void clear() {
         headline.setText("");
         detail.setText("");
         retry.setVisible(false);
     }
 
+    /**
+     * Restituisce il pulsante di riprova per consentirne la personalizzazione
+     * esterna (es. associazione di tasti rapidi o modifica dello stile).
+     *
+     * @return il pulsante di riprova {@link Button}
+     */
     public Button retryButton() { return retry; }
 }

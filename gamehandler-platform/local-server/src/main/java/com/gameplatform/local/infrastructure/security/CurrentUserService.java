@@ -10,32 +10,45 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 
 /**
- * Resolves the authenticated principal's {@link UserId} from the Spring Security
- * context on the Local server (FASE 3, PIANO &sect;2.5 &mdash; {@code GET /api/players/me/statistics}).
+ * Servizio che risolve l'identificativo dell'utente autenticato a partire dal
+ * contesto di sicurezza di Spring Security. Estrae il principale
+ * {@link Authentication} e recupera lo {@link UserId} corrispondente tramite
+ * la replica locale della tabella degli utenti.
  *
- * <p>Mirrors the Central {@code CurrentUserService} and the established
- * {@code LocalAdminBuildingAuthorizationManager} pattern (A3): the Local
- * {@code JwtAuthenticationFilter} populates the {@link Authentication} principal
- * with the JWT <em>subject</em> (the username), so the {@code userId} is
- * recovered by resolving the username through the locally replicated
- * {@code replicated_users} table via {@link UserRepository#findByUsername}. This
- * is a security {@code @Component} (not a REST adapter), so it may depend on
- * the {@code ports/out} {@link UserRepository}.</p>
+ * <p>Il filtro {@link JwtAuthenticationFilter} popola il principale
+ * dell'{@link Authentication} con il <em>subject</em> del JWT (il nome
+ * utente); questo servizio converte tale nome utente nell'{@link UserId}
+ * associato consultando il repository locale.</p>
+ *
+ * @see JwtAuthenticationFilter
+ * @see UserRepository
  */
 @Component
 public class CurrentUserService {
 
     private final UserRepository userRepository;
 
+    /**
+     * Costruisce un nuovo servizio con il repository utenti fornito.
+     *
+     * @param userRepository repository per la ricerca degli utenti replicati
+     *                       localmente
+     */
     public CurrentUserService(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
 
     /**
-     * @return the authenticated user's id, or {@link Optional#empty()} if no
-     *         authenticated principal is present or the username is not yet
-     *         replicated locally (offline-first: the player simply has no local
-     *         statistics yet in that case)
+     * Restituisce l'identificativo dell'utente correntemente autenticato.
+     *
+     * <p>Recupera l'{@link Authentication} dal {@link SecurityContextHolder},
+     * estrae il nome utente dal principale e lo risolve tramite
+     * {@link UserRepository#findByUsername}.</p>
+     *
+     * @return l'{@link UserId} dell'utente autenticato, oppure
+     *         {@link Optional#empty()} se non è presente un principale
+     *         autenticato o se il nome utente non è ancora stato replicato
+     *         localmente
      */
     public Optional<UserId> getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -50,9 +63,17 @@ public class CurrentUserService {
     }
 
     /**
-     * @return {@code true} iff the authenticated principal carries the
-     *         {@code ROLE_<role>} authority (the {@code role} argument is given
-     *         without the {@code ROLE_} prefix, e.g. {@code "PLATFORM_ADMIN"})
+     * Verifica se l'utente autenticato possiede un determinato ruolo.
+     *
+     * <p>Il parametro {@code role} può essere fornito senza il prefisso
+     * {@code ROLE_}; il metodo lo aggiunge automaticamente prima di
+     * effettuare il confronto con le authorities del principale
+     * autenticato.</p>
+     *
+     * @param role il nome del ruolo da verificare (con o senza il prefisso
+     *             {@code ROLE_}), ad esempio {@code "PLATFORM_ADMIN"}
+     * @return {@code true} se il principale autenticato possiede
+     *         l'autorità {@code ROLE_<role>}, {@code false} altrimenti
      */
     public boolean hasRole(String role) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();

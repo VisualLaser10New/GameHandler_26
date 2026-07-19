@@ -3,18 +3,37 @@ package com.gameplatform.shared.domain.security;
 import java.time.Instant;
 
 /**
- * Carries both the compact JWT string and the {@code exp} claim that was embedded
- * in it, so callers (e.g. {@code AuthService.authenticate}) can use a single
- * source of truth for the token's expiration (fix for BUG-AUTH-01 / B11).
+ * Contenitore immutabile che associa la stringa compatta del JWT al relativo
+ * claim {@code exp} incapsulato, offrendo una singola fonte di verità per la
+ * scadenza del token.
  *
- * <p>Placed in {@code shared-domain} so that both {@code central-system}'s
- * {@code TokenProviderPort} and {@code local-server}'s {@code TokenGeneratorPort}
- * can share the same return type without duplicating the record.</p>
+ * <p>Collodato nel modulo {@code shared-domain} affinché sia il
+ * {@code TokenProviderPort} del {@code central-system} sia il
+ * {@code TokenGeneratorPort} del {@code local-server} possano condividere il
+ * medesimo tipo di ritorno senza duplicarne la definizione.</p>
  *
- * @param token     compact JWT string
- * @param expiresAt the {@code exp} claim embedded in the JWT
+ * @param token     stringa JWT in forma compatta; non deve essere {@code null} né vuota
+ * @param expiresAt istante di scadenza ({@code exp}) incapsulato nel JWT; non deve essere {@code null}
+ *
+ * @see com.gameplatform.shared.domain.security.TokenProviderPort
+ * @see com.gameplatform.shared.domain.security.TokenGeneratorPort
  */
 public record TokenWithExpiry(String token, Instant expiresAt) {
+    /**
+     * Costruisce una nuova istanza di {@code TokenWithExpiry} validando i componenti
+     * forniti.
+     *
+     * <p>Verifica che il token non sia {@code null} né vuoto e che l'istante di
+     * scadenza non sia {@code null}, garantendo l'invarianza del record.</p>
+     *
+     * @param token     stringa JWT in forma compatta; se {@code null} o vuota viene
+     *                  lanciata un'eccezione
+     * @param expiresAt istante di scadenza incapsulato nel JWT; se {@code null}
+     *                  viene lanciata un'eccezione
+     *
+     * @throws IllegalArgumentException se {@code token} è {@code null} o vuoto, oppure
+     *                                  se {@code expiresAt} è {@code null}
+     */
     public TokenWithExpiry {
         if (token == null || token.isBlank()) {
             throw new IllegalArgumentException("token cannot be null or blank");

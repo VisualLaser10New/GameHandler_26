@@ -6,18 +6,28 @@ import com.gameplatform.shared.domain.model.TournamentId;
 import org.springframework.stereotype.Component;
 
 /**
- * Null-safe mapper between the {@link TournamentParticipant} central domain
- * model and the {@link TournamentParticipantJpaEntity} persistence entity
- * ({@code tournament_participants} table, FASE 4 PIANO &sect;3.3).
- * {@code @Component} instance bean (matches {@code GameDefinitionMapper}); wraps
- * the {@code tournament_id} String primary-key column to/from
- * {@link TournamentId} at the boundary and defends the boxed {@code is_team}
- * column with {@code Boolean.TRUE.equals(...)} (mirroring
- * {@code PlayerStatisticsMapper}).
+ * Mapper senza stato (null-safe) tra il modello di dominio centrale
+ * {@link TournamentParticipant} e l'entità persistente
+ * {@link TournamentParticipantJpaEntity}.
+ * <p>
+ * Esposto come bean Spring {@code @Component}, converte l'identificativo
+ * del torneo da/verso {@link TournamentId} e gestisce la traduzione
+ * del campo booleano {@code isTeam} con protezione {@code null}.
+ *
+ * @see TournamentParticipant
+ * @see TournamentParticipantJpaEntity
  */
 @Component
 public class TournamentParticipantMapper {
 
+    /**
+     * Converte un'entità persistente {@link TournamentParticipantJpaEntity} nel
+     * corrispondente modello di dominio {@link TournamentParticipant}.
+     *
+     * @param entity l'entità persistente di origine; se {@code null} restituisce {@code null}
+     * @return il modello di dominio {@link TournamentParticipant} o {@code null} se l'entità è {@code null}
+     * @see #toEntity(TournamentParticipant)
+     */
     public TournamentParticipant toDomain(TournamentParticipantJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -31,6 +41,14 @@ public class TournamentParticipantMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link TournamentParticipant} nell'entità
+     * persistente {@link TournamentParticipantJpaEntity} da persistere.
+     *
+     * @param domain il modello di dominio di origine; se {@code null} restituisce {@code null}
+     * @return l'entità persistente {@link TournamentParticipantJpaEntity} o {@code null} se il dominio è {@code null}
+     * @see #toDomain(TournamentParticipantJpaEntity)
+     */
     public TournamentParticipantJpaEntity toEntity(TournamentParticipant domain) {
         if (domain == null) {
             return null;

@@ -3,13 +3,16 @@ package com.gameplatform.shared.dto;
 import java.util.List;
 
 /**
- * Per-team bucket inside a {@link TeamMembersEventDto} payload. Carries the
- * {@code teamId} (UUID) and the full list of member {@code userId}s for that
- * team — the snapshot the Local side upserts into
- * {@code team_members_local}.
+ * Rappresenta il raggruppamento per singolo team all'interno del payload di un
+ * {@link TeamMembersEventDto}. Associa l'identificativo del team (UUID) alla lista
+ * completa degli identificativi utente dei suoi membri, costituendo la snapshot
+ * che il lato Local inserisce o aggiorna nella tabella {@code team_members_local}.
  *
- * @param teamId      the team id (UUID)
- * @param teamMembers the full list of member user ids for this team
+ * @param teamId      l'identificativo del team (UUID); non deve essere {@code null} né vuoto
+ * @param teamMembers la lista completa degli identificativi utente dei membri del team;
+ *                    non deve essere {@code null}; pu&ograve; essere vuota per indicare un team senza membri
+ *
+ * @see TeamMembersEventDto
  */
 public record TeamMemberEntryDto(
         String teamId,

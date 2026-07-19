@@ -22,8 +22,11 @@ import java.util.List;
  * @param buildingId     the building where the player is connected
  * @param tournamentId   the target tournament id
  * @param teamName       the team name (nullable for individual registration)
- * @param teamMemberIds  the team member ids (nullable for individual registration)
- * @param createdAt      the request creation instant
+ * @param teamMemberIds  the team member ids (nullable for individual registration;
+ *                       when non-null it may be empty for a single-player team)
+ * @param createdAt      the request creation instant (never {@code null})
+ *
+ * @see com.gameplatform.shared.dto.TournamentParticipantsUpsertedEventDto
  */
 public record ParticipantRegisterRequestedEventDto(
         String eventId,

@@ -51,15 +51,22 @@ public class PlayerStatisticsProjectionService {
     }
 
     /**
-     * Project one completed game session into the player read-models.
+     * Proietta una sessione di gioco completata nei modelli di lettura dei
+     * giocatori (FASE 3).
      *
-     * @param buildingId   the building where the session was played
-     * @param gameType     the game type of the session
-     * @param sessionId    the session identifier (fact PK component)
-     * @param participants the participating user ids (raw JWT user-id strings)
-     * @param winnerId     the winning user id, or {@code null} for a draw
-     * @param winCondition the session's win condition, or {@code null}
-     * @param endedAt      when the session ended (fact {@code ended_at})
+     * <p>Per ogni partecipante scrive una {@code PlayerMatchFact} idempotente
+     * (chiave composta {@code (session_id, user_id)}) e, solo quando il fatto è
+     * effettivamente nuovo, incrementa in modo atomico la relativa riga
+     * {@code PlayerStatistics}. I campi core {@code null} o l'assenza di
+     * partecipanti causano un'uscita anticipata senza alcuna modifica.</p>
+     *
+     * @param buildingId   l'edificio in cui è stata giocata la sessione (non deve essere {@code null})
+     * @param gameType     il tipo di gioco della sessione (non deve essere {@code null})
+     * @param sessionId    l'identificativo di sessione (componente della PK del fatto, non deve essere {@code null})
+     * @param participants gli id utente partecipanti (stringhe raw JWT); se {@code null} o vuoto non effettua aggiornamenti
+     * @param winnerId     l'id utente vincitore, o {@code null} per un pareggio
+     * @param winCondition la condizione di vittoria della sessione, o {@code null}
+     * @param endedAt      l'istante di termine della sessione (non deve essere {@code null})
      */
     public void onGameSessionCompleted(BuildingId buildingId,
                                        GameType gameType,

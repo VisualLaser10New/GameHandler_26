@@ -30,6 +30,24 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+/**
+ * Listener MQTT per i messaggi relativi al ciclo di vita delle sessioni di gioco e alla gestione delle lobby.
+ * <p>
+ * Smista i payload MQTT in base alla struttura del topic verso gli use case dedicati per le operazioni
+ * di avvio, pausa, ripresa e termine di una sessione, nonché per la creazione, iscrizione, avvio,
+ * cancellazione e abbandono di una lobby.
+ * </p>
+ *
+ * @see StartGameSessionUseCase
+ * @see EndGameSessionUseCase
+ * @see PauseGameSessionUseCase
+ * @see ResumeGameSessionUseCase
+ * @see CreateLobbyUseCase
+ * @see JoinLobbyUseCase
+ * @see StartLobbyUseCase
+ * @see CancelLobbyUseCase
+ * @see LeaveLobbyUseCase
+ */
 @Component
 public class GameSessionListener {
 
@@ -44,6 +62,21 @@ public class GameSessionListener {
     private final LeaveLobbyUseCase leaveLobbyUseCase;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Costruisce un nuovo listener iniettando i casi d'uso necessari per la gestione delle sessioni
+     * di gioco e delle lobby, e il mapper JSON per la deserializzazione di payload complessi.
+     *
+     * @param startGameSessionUseCase caso d'uso per l'avvio di una sessione
+     * @param endGameSessionUseCase   caso d'uso per la chiusura di una sessione
+     * @param pauseGameSessionUseCase caso d'uso per la pausa di una sessione
+     * @param resumeGameSessionUseCase caso d'uso per la ripresa di una sessione
+     * @param createLobbyUseCase      caso d'uso per la creazione di una lobby
+     * @param joinLobbyUseCase        caso d'uso per l'ingresso in una lobby
+     * @param startLobbyUseCase       caso d'uso per l'avvio della partita dalla lobby
+     * @param cancelLobbyUseCase      caso d'uso per la cancellazione di una lobby
+     * @param leaveLobbyUseCase       caso d'uso per l'abbandono di una lobby
+     * @param objectMapper            mapper per la deserializzazione di oggetti JSON complessi
+     */
     public GameSessionListener(
             StartGameSessionUseCase startGameSessionUseCase,
             EndGameSessionUseCase endGameSessionUseCase,
@@ -67,10 +100,29 @@ public class GameSessionListener {
         this.objectMapper = objectMapper;
     }
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GameSessionListener.class);
+
+    /**
+     * Elabora un messaggio MQTT in arrivo sul topic delle sessioni di gioco, interpreta l'azione
+     * richiesta dalla struttura del topic e delega l'esecuzione allo use case corrispondente.
+     * <p>
+     * Le azioni supportate includono la gestione delle lobby (create, join, leave, start, cancel)
+     * e le operazioni sulle sessioni (start, end, pause, resume).
+     * </p>
+     *
+     * @param topic   topic MQTT dal quale estrarre l'identificativo del gioco e l'azione richiesta
+     * @param payload payload del messaggio contenente i dati specifici per l'azione
+     * @throws com.gameplatform.local.domain.exception.InvalidGameStateTransitionException se la
+     *         transizione di stato richiesta non è valida per lo stato corrente (gestita internamente)
+     * @throws com.gameplatform.local.domain.exception.ConcurrentStateException se un'altra
+     *         transizione concorrente ha già modificato lo stato (gestita internamente)
+     * @see MqttPayloadSerializer#deserialize(byte[], Class)
+     */
     public void handleSessionMessage(String topic, byte[] payload) {
         String[] tokens = topic.split("/");
         String gameId = tokens[3];
         String action = tokens[5];
+        log.info("[GameSessionListener] RECV topic={} payload={}", topic, new String(payload, java.nio.charset.StandardCharsets.UTF_8));
 
         try {
             switch (action) {
@@ -80,10 +132,12 @@ public class GameSessionListener {
                         switch (lobbyAction) {
                             case "create" -> {
                                 LobbyCreatePayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyCreatePayload.class);
+                                log.info("[GameSessionListener] CREATE gameId={} creator={}", gameId, payloadDto.creatorId());
                                 createLobbyUseCase.createLobby(new GameId(gameId), payloadDto.gameType(), new UserId(payloadDto.creatorId()));
                             }
                             case "join" -> {
                                 LobbyJoinPayload payloadDto = MqttPayloadSerializer.deserialize(payload, LobbyJoinPayload.class);
+                                log.info("[GameSessionListener] JOIN sessionId={} userId={}", payloadDto.sessionId(), payloadDto.userId());
                                 joinLobbyUseCase.joinLobby(new GameSessionId(payloadDto.sessionId()), new UserId(payloadDto.userId()));
                             }
                             case "leave" -> {

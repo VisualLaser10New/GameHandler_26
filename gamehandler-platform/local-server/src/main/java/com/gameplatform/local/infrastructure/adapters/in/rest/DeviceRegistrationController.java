@@ -41,6 +41,13 @@ import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Controller REST per la registrazione dei dispositivi di gioco tramite
+ * certificati TLS mutui. Genera certificati firmati dalla CA locale per
+ * i dispositivi pre-autorizzati nel catalogo dell'edificio.
+ *
+ * @see LocalAdminBuildingAuthorizationManager
+ */
 @RestController
 @RequestMapping("/api/devices")
 @PreAuthorize("hasRole('LOCAL_ADMIN') or hasRole('PLATFORM_ADMIN')")
@@ -63,6 +70,15 @@ public class DeviceRegistrationController {
         Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
     }
 
+    /**
+     * Costruisce il controller con il repository dei giochi, il caricatore
+     * di risorse, il gestore delle autorizzazioni e l'identificativo dell'edificio.
+     *
+     * @param gameRepository repository JPA dei giochi
+     * @param resourceLoader caricatore di risorse per i certificati CA
+     * @param authorizationManager gestore delle autorizzazioni per l'admin locale
+     * @param buildingId identificativo dell'edificio
+     */
     public DeviceRegistrationController(GameJpaRepository gameRepository,
                                         ResourceLoader resourceLoader,
                                         LocalAdminBuildingAuthorizationManager authorizationManager,
@@ -73,6 +89,16 @@ public class DeviceRegistrationController {
         this.buildingId = buildingId;
     }
 
+    /**
+     * Registra un dispositivo firmando una Certificate Signing Request (CSR)
+     * con la CA locale. Il dispositivo deve essere pre-autorizzato nel
+     * catalogo dell'edificio.
+     *
+     * @param request mappa contenente i campi "gameId" e "csr" (PEM)
+     * @return una {@link ResponseEntity} con il certificato firmato e il certificato CA,
+     *         o status 400/403/500 in caso di errore
+     * @throws org.springframework.security.access.AccessDeniedException se il gioco non appartiene all'edificio
+     */
     @PostMapping("/register")
     public ResponseEntity<?> registerDevice(@RequestBody Map<String, String> request) {
         ensureAuthorized();
@@ -128,6 +154,12 @@ public class DeviceRegistrationController {
         }
     }
 
+    /**
+     * Verifica che l'amministratore autenticato sia autorizzato a gestire
+     * l'edificio corrente.
+     *
+     * @throws org.springframework.security.access.AccessDeniedException se non autorizzato
+     */
     private void ensureAuthorized() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!authorizationManager.canManageBuilding(authentication)) {
@@ -136,6 +168,12 @@ public class DeviceRegistrationController {
         }
     }
 
+    /**
+     * Carica il certificato della CA dal percorso configurato.
+     *
+     * @return il certificato X.509 della CA
+     * @throws Exception in caso di errore di caricamento
+     */
     private X509Certificate loadCaCertificate() throws Exception {
         try (InputStream in = resourceLoader.getResource(caCertPath).getInputStream()) {
             java.security.cert.CertificateFactory cf = java.security.cert.CertificateFactory.getInstance("X.509");
@@ -143,6 +181,12 @@ public class DeviceRegistrationController {
         }
     }
 
+    /**
+     * Carica la chiave privata della CA dal percorso configurato.
+     *
+     * @return la chiave privata della CA
+     * @throws Exception in caso di errore di caricamento o formato non supportato
+     */
     private PrivateKey loadCaPrivateKey() throws Exception {
         try (InputStream in = resourceLoader.getResource(caKeyPath).getInputStream()) {
             PEMParser pemParser = new PEMParser(new InputStreamReader(in));
@@ -158,6 +202,16 @@ public class DeviceRegistrationController {
         }
     }
 
+    /**
+     * Firma una Certificate Signing Request (CSR) utilizzando il certificato
+     * e la chiave privata della CA, producendo un certificato cliente.
+     *
+     * @param csr la richiesta di firma del certificato
+     * @param caCert il certificato della CA
+     * @param caPrivateKey la chiave privata della CA
+     * @return il certificato firmato in formato PEM
+     * @throws Exception in caso di errore durante la firma
+     */
     private String signCsr(PKCS10CertificationRequest csr, X509Certificate caCert, PrivateKey caPrivateKey) throws Exception {
         X500Name issuer = X500Name.getInstance(caCert.getSubjectX500Principal().getEncoded());
         
@@ -199,6 +253,13 @@ public class DeviceRegistrationController {
         return getPemEncoded(clientCert);
     }
 
+    /**
+     * Codifica un certificato X.509 nel formato PEM.
+     *
+     * @param cert il certificato da codificare
+     * @return la stringa in formato PEM
+     * @throws Exception in caso di errore di codifica
+     */
     private String getPemEncoded(X509Certificate cert) throws Exception {
         StringWriter sw = new StringWriter();
         try (org.bouncycastle.openssl.jcajce.JcaPEMWriter pemWriter = new org.bouncycastle.openssl.jcajce.JcaPEMWriter(sw)) {

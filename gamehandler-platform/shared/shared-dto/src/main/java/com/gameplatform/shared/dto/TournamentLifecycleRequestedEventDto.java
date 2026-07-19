@@ -3,29 +3,33 @@ package com.gameplatform.shared.dto;
 import java.time.Instant;
 
 /**
- * Parametric outbox payload for the three lifecycle admin-request events
- * {@code TOURNAMENT_OPEN_REQUESTED}, {@code TOURNAMENT_CANCEL_REQUESTED} and
- * {@code TOURNAMENT_SCHEDULE_REQUESTED} (PIANO §7.B W12), all carrying the same
- * {@code (tournamentId)} payload and discriminated only by {@code eventType}.
- * Consumed by the Central {@code SyncEventProcessor} §7.A.7 branches which
- * dispatch to {@code OpenTournamentRegistrationUseCase.open},
- * {@code CancelTournamentUseCase.cancel} or
- * {@code ScheduleTournamentMatchesUseCase.schedule} respectively.
+ * Payload parametrico dell'outbox per i tre eventi di richiesta amministrativa
+ * di ciclo di vita {@code TOURNAMENT_OPEN_REQUESTED}, {@code TOURNAMENT_CANCEL_REQUESTED} e
+ * {@code TOURNAMENT_SCHEDULE_REQUESTED} (PIANO §7.B W12), che trasportano tutti lo stesso
+ * payload {@code (tournamentId)} e si differenziano unicamente per {@code eventType}.
+ * Viene consumato dal {@code SyncEventProcessor} Centrale nei rami §7.A.7, che
+ * smista rispettivamente verso {@code OpenTournamentRegistrationUseCase.open},
+ * {@code CancelTournamentUseCase.cancel} o
+ * {@code ScheduleTournamentMatchesUseCase.schedule}.
  *
- * <p>The {@code requestId} equals the Local outbox {@code eventId}; the Central
- * return event (e.g. {@code TOURNAMENT_SUMMARY_UPSERTED}) carries it back as
- * {@code originatingRequestId} so the Local can {@code markCompleted}.</p>
+ * <p>Il {@code requestId} coincide con l'{@code eventId} dell'outbox Locale; l'evento
+ * di ritorno Centrale (es. {@code TOURNAMENT_SUMMARY_UPSERTED}) lo riporta come
+ * {@code originatingRequestId} affinché il nodo Locale possa invocare {@code markCompleted}.</p>
  *
- * @param eventId        the Local outbox event id (UUID)
- * @param eventType      one of {@code TOURNAMENT_OPEN_REQUESTED},
- *                       {@code TOURNAMENT_CANCEL_REQUESTED},
- *                       {@code TOURNAMENT_SCHEDULE_REQUESTED}
- * @param requestId      the admin-request id (== {@code eventId})
- * @param actingUserId   the admin user id (PLATFORM_ADMIN) requesting the change
- * @param actingRole     the role of the acting admin
- * @param buildingId     the building where the admin is connected
- * @param tournamentId   the target tournament id
- * @param createdAt      the request creation instant
+ * @param eventId        l'identificativo (UUID) dell'evento dell'outbox Locale; non deve essere {@code null}
+ * @param eventType      il tipo di evento richiesto, uno tra {@code TOURNAMENT_OPEN_REQUESTED},
+ *                       {@code TOURNAMENT_CANCEL_REQUESTED} e
+ *                       {@code TOURNAMENT_SCHEDULE_REQUESTED}; non deve essere {@code null}
+ * @param requestId      l'identificativo della richiesta amministrativa (uguale a {@code eventId}); non deve essere {@code null}
+ * @param actingUserId   l'identificativo dell'utente amministratore (PLATFORM_ADMIN) che richiede la modifica; non deve essere {@code null}
+ * @param actingRole     il ruolo dell'amministratore che effettua l'operazione; non deve essere {@code null}
+ * @param buildingId     l'identificativo della sede alla quale l'amministratore è connesso; non deve essere {@code null}
+ * @param tournamentId   l'identificativo del torneo destinatario dell'operazione; non deve essere {@code null}
+ * @param createdAt      l'istante di creazione della richiesta; non deve essere {@code null}
+ *
+ * @see com.gameplatform.shared.dto.OpenTournamentRegistrationUseCase
+ * @see com.gameplatform.shared.dto.CancelTournamentUseCase
+ * @see com.gameplatform.shared.dto.ScheduleTournamentMatchesUseCase
  */
 public record TournamentLifecycleRequestedEventDto(
         String eventId,

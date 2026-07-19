@@ -15,24 +15,22 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
- * Scheduled service (PIANO §7.B) that times out stale PENDING
- * admin-requests. The Central return-event observed by the
- * {@code *SyncService}s closes the lifecycle of an admin-request via
- * {@link AdminRequestRepository#markCompleted}; when no return-event
- * arrives within {@code admin.request.timeout-ms} (default 30 min), the
- * request is transitioned to {@code FAILED} with
- * {@code result_data = \{"reason":"TIMEOUT"}} here — closing the loop on
- * the Local side (poison rejection Central: the Central could not
- * process the {@code *_REQUESTED} event, so the request would otherwise
- * stay PENDING forever).
+ * Servizio schedulato che porta in timeout le richieste admin in stato
+ * PENDING quando l'evento di ritorno dal Central non arriva entro la
+ * finestra configurata (default 30 minuti). Le richieste vengono
+ * transizionate a FAILED con motivo TIMEOUT, chiudendo il ciclo di vita
+ * lato Local per le richieste che altrimenti rimarrebbero PENDING
+ * indefinitamente.
  *
- * <p>The {@link Scheduled} annotation polls every
- * {@code admin.request.timeout-check-ms} (default 60 s); the deadline
- * now() minus {@code admin.request.timeout-ms} is passed to
- * {@link AdminRequestRepository#findPendingOlderThan} and each surviving
- * row is transitioned to {@code FAILED} via
- * {@link AdminRequestRepository#markFailed} (conditional
- * {@code WHERE status = 'PENDING'} — idempotent on overlap).</p>
+ * <p>Il polling avviene ogni {@code admin.request.timeout-check-ms}
+ * (default 60 s); la soglia now() meno {@code admin.request.timeout-ms}
+ * viene passata a {@link AdminRequestRepository#findPendingOlderThan} e
+ * ogni riga ancora PENDING viene transizionata a FAILED via
+ * {@link AdminRequestRepository#markFailed} con condizione
+ * {@code WHERE status = 'PENDING'} (idempotente in caso di sovrapposizione).</p>
+ *
+ * @see AdminRequestRepository
+ * @see AdminRequestLocal
  */
 @Service
 public class AdminRequestTimeoutService {
@@ -53,6 +51,12 @@ public class AdminRequestTimeoutService {
         this.timeoutMs = timeoutMs;
     }
 
+    /**
+     * Esegue lo sweep delle richieste admin PENDING piu' vecchie della soglia
+     * di timeout configurata. Ogni riga ancora in stato PENDING viene
+     * transizionata a FAILED con motivo TIMEOUT. L'operazione e' idempotente
+     * grazie alla clausola condizionale {@code WHERE status = 'PENDING'}.
+     */
     @Scheduled(fixedDelayString = "${admin.request.timeout-check-ms:60000}")
     @Transactional
     public void timeoutPendingRequests() {

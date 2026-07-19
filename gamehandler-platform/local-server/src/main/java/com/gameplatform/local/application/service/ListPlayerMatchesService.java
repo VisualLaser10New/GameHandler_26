@@ -14,12 +14,15 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Read use case (PIANO §7.B): returns the COMPLETED game sessions in
- * which the given user participated, optionally filtered by game type.
- * The filter is applied in Java on top of
- * {@link GameSessionRepository#findByParticipant} (which returns every
- * session of any status); only {@link GameStatus#COMPLETED} sessions are
- * returned, projected to {@link PlayerMatchDto}.
+ * Caso d'uso in lettura (PIANO §7.B): restituisce le sessioni di gioco
+ * completate (stato COMPLETED) a cui un determinato utente ha partecipato,
+ * opzionalmente filtrate per tipo di gioco. Il filtro e' applicato in
+ * Java su {@link GameSessionRepository#findByParticipant} (che restituisce
+ * sessioni di qualsiasi stato); solo le sessioni COMPLETED vengono
+ * restituite, proiettate in {@link PlayerMatchDto}.
+ *
+ * @see ListPlayerMatchesUseCase
+ * @see GameSessionRepository
  */
 @Service
 @Transactional(readOnly = true)
@@ -27,10 +30,24 @@ public class ListPlayerMatchesService implements ListPlayerMatchesUseCase {
 
     private final GameSessionRepository gameSessionRepository;
 
+    /**
+     * Costruisce il servizio con il repository delle sessioni di gioco.
+     *
+     * @param gameSessionRepository il repository per l'accesso alle sessioni di gioco (non null)
+     */
     public ListPlayerMatchesService(GameSessionRepository gameSessionRepository) {
         this.gameSessionRepository = gameSessionRepository;
     }
 
+    /**
+     * Restituisce le partite completate per un dato utente, opzionalmente
+     * filtrate per tipo di gioco. Le sessioni sono proiettate in
+     * {@link PlayerMatchDto}.
+     *
+     * @param userId         l'identificativo dell'utente (se null, restituisce lista vuota)
+     * @param gameTypeFilter filtro opzionale per tipo di gioco (null per nessun filtro)
+     * @return la lista delle partite completate dell'utente
+     */
     @Override
     public List<PlayerMatchDto> listCompletedMatches(UserId userId, GameType gameTypeFilter) {
         if (userId == null) {
@@ -47,6 +64,15 @@ public class ListPlayerMatchesService implements ListPlayerMatchesUseCase {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Converte una {@link GameSession} nel corrispondente
+     * {@link PlayerMatchDto}. I partecipanti vengono mappati da
+     * {@link UserId} a stringa; valori null vengono preservati.
+     *
+     * @param session la sessione di gioco dal modello di dominio (non null)
+     * @return il DTO con id, gameType, startedAt, endedAt, durationSeconds,
+     *         winnerId, winCondition e la lista dei partecipanti
+     */
     private static PlayerMatchDto toDto(GameSession session) {
         List<String> participants = session.getParticipants().stream()
                 .map(u -> u != null ? u.value() : null)

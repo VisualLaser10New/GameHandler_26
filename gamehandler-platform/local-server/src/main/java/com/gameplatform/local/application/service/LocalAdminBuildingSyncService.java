@@ -15,12 +15,16 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Receives LOCAL_ADMIN↔building metadata events replicated from the Central via
- * outbox and applies them idempotently to the {@code local_admin_buildings_local}
- * table. Idempotency is by composite PK: an ASSIGNED event upserts (JPA merge on
- * an existing (user_id, building_id) row), a REVOKED event deletes (no-op if the
- * row is already absent). No {@code processed_events} table is kept on local —
- * re-delivery of the same event yields the same end state.
+ * Riceve eventi di metadati LOCAL_ADMIN↔building replicati dal Central
+ * tramite outbox e li applica idempotentemente alla tabella
+ * {@code local_admin_buildings_local}. L'idempotenza e' garantita dalla
+ * chiave composita: un evento ASSIGNED esegue un upsert (merge JPA sulla
+ * riga (user_id, building_id) esistente), un evento REVOKED elimina
+ * (no-op se la riga e' gia' assente). Non viene mantenuta una tabella
+ * {@code processed_events} — la ri-consegna dello stesso evento produce
+ * lo stesso stato finale.
+ *
+ * @see LocalAdminBuildingLocalRepository
  */
 @Service
 @Transactional
@@ -40,6 +44,13 @@ public class LocalAdminBuildingSyncService {
         this.clock = clock;
     }
 
+    /**
+     * Applica una lista di eventi di associazione LOCAL_ADMIN-building
+     * alla tabella locale. Ogni evento ASSIGNED viene upsertato, ogni
+     * evento REVOKED viene eliminato.
+     *
+     * @param events la lista di eventi da applicare (puo' essere null)
+     */
     public void applyEvents(List<LocalAdminBuildingEventDto> events) {
         if (events == null) {
             return;

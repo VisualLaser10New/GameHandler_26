@@ -38,12 +38,31 @@ public class AdminServerController {
     private final LocalServerRegistryPort localServerRegistryPort;
     private final OutboxEventRepository outboxEventRepository;
 
+    /**
+     * Costruisce il controller iniettando i port di dominio necessari.
+     *
+     * @param localServerRegistryPort port di uscita per l'accesso al registro dei server locali, non {@code null}
+     * @param outboxEventRepository   port di uscita per il conteggio degli eventi di replica pendenti, non {@code null}
+     */
     public AdminServerController(LocalServerRegistryPort localServerRegistryPort,
-                                 OutboxEventRepository outboxEventRepository) {
+                                  OutboxEventRepository outboxEventRepository) {
         this.localServerRegistryPort = localServerRegistryPort;
         this.outboxEventRepository = outboxEventRepository;
     }
 
+    /**
+     * Restituisce lo stato di salute di tutti i server locali registrati.
+     *
+     * <p>Per ogni server registrato produce un {@link ServerHealthDto} che combina lo
+     * snapshot del registro (flag di attività, URL di base, istante dell'ultimo
+     * heartbeat) con il numero di eventi di replica ancora pendenti per quel server.
+     * La lista è ordinata per istante dell'ultimo heartbeat in ordine decrescente.</p>
+     *
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e una lista di
+     *         {@link ServerHealthDto}; la lista è vuota se non risulta registrato
+     *         alcun server locale
+     * @see com.gameplatform.central.infrastructure.security.InternalApiKeyFilter
+     */
     @GetMapping("/internal/servers")
     public ResponseEntity<List<ServerHealthDto>> listServers() {
         List<RegisteredLocalServer> servers = localServerRegistryPort.findAll();

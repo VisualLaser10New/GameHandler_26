@@ -8,21 +8,36 @@ import org.springframework.security.access.AccessDeniedException;
 import java.util.Optional;
 
 /**
- * Defense-in-depth role pre-check helper for the W use cases (PIANO §7.B).
- * The Spring Security method-level {@code @PreAuthorize} annotation already
- * enforces the role at the REST adapter boundary; this helper additionally
- * verifies the role against the locally replicated {@code replicated_users}
- * table so a stale JWT (e.g. a role revoked by the Central) cannot be used
- * to issue an async {@code *_REQUESTED} outbox event. Throws
- * {@link AccessDeniedException} (→ 403 via {@code GlobalExceptionHandler})
- * on role mismatch and {@link IllegalArgumentException} (→ 400) when the
- * user is not locally replicated or the {@code actingUserId} is blank.
+ * Helper di pre-controllo del ruolo per i casi d'uso W (PIANO §7.B).
+ * Oltre all'annotazione {@code @PreAuthorize} di Spring Security al
+ * confine REST, questo helper verifica il ruolo sulla tabella replicata
+ * localmente {@code replicated_users} in modo che un JWT scaduto (es.
+ * ruolo revocato dal Central) non possa essere usato per emettere un
+ * evento outbox asincrono {@code *_REQUESTED}. Lancia
+ * {@link AccessDeniedException} (→ 403) in caso di ruolo non corrispondente
+ * e {@link IllegalArgumentException} (→ 400) se l'utente non e' replicato
+ * localmente o {@code actingUserId} e' blank.
  */
 final class RolePreCheck {
 
+    /**
+     * Costruttore privato per impedire l'istanziazione della classe
+     * utility {@code RolePreCheck}.
+     */
     private RolePreCheck() {
     }
 
+    /**
+     * Verifica che l'utente agente esista nella replica locale e possieda
+     * il ruolo richiesto.
+     *
+     * @param userRepository il repository degli utenti
+     * @param actingUserId   l'identificativo dell'utente agente (non blank)
+     * @param requiredRole   il ruolo richiesto per l'operazione
+     * @return l'utente verificato
+     * @throws IllegalArgumentException se actingUserId e' blank o l'utente non e' replicato localmente
+     * @throws AccessDeniedException se l'utente non possiede il ruolo richiesto
+     */
     static User requireRole(UserRepository userRepository, String actingUserId, String requiredRole) {
         if (actingUserId == null || actingUserId.isBlank()) {
             throw new IllegalArgumentException("actingUserId cannot be blank");

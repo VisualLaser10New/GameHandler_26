@@ -8,6 +8,14 @@ import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * DTO di richiesta utilizzato per creare un nuovo torneo sulla piattaforma.
+ * Trasporta i dati essenziali forniti dal client, quali denominazione, tipologia di gioco,
+ * modalità a squadre, dimensione della squadra, data di avvio e gli identificativi
+ * degli edifici che ospitano il torneo.
+ *
+ * @see GameType
+ */
 public record CreateTournamentRequestDto(
         @NotBlank(message = "name must not be blank") String name,
         @NotNull(message = "gameType must not be null") GameType gameType,

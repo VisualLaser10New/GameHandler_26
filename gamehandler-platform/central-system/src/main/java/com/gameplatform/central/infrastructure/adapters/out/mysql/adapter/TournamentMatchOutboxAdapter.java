@@ -44,6 +44,13 @@ public class TournamentMatchOutboxAdapter implements TournamentMatchOutboxPort {
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
+    /**
+     * Costruisce l'adapter iniettando il repository outbox, l'object mapper e l'orologio di sistema.
+     *
+     * @param outboxEventRepository repository degli eventi outbox su cui scrivere
+     * @param objectMapper          mapper per la serializzazione JSON del DTO
+     * @param clock                 orologio per la generazione del timestamp di creazione
+     */
     public TournamentMatchOutboxAdapter(OutboxEventRepository outboxEventRepository,
                                         ObjectMapper objectMapper,
                                         Clock clock) {
@@ -52,6 +59,14 @@ public class TournamentMatchOutboxAdapter implements TournamentMatchOutboxPort {
         this.clock = clock;
     }
 
+    /**
+     * Pubblica un evento outbox di tipo match di torneo schedulato, serializzandone il DTO in payload JSON.
+     *
+     * @param match      il match di torneo schedulato; non deve essere {@code null}
+     * @param tournament il torneo di appartenenza del match; non deve essere {@code null}
+     * @throws RuntimeException se la serializzazione JSON del DTO fallisce
+     * @see OutboxEventRepository#save
+     */
     @Override
     public void publishScheduled(TournamentMatch match, Tournament tournament) {
         String eventId = UUID.randomUUID().toString();

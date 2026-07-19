@@ -10,11 +10,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Publishes game machine state changes to the MQTT broker.
+ * Pubblica le variazioni di stato delle macchine da gioco sul broker MQTT.
  * <p>
- * Uses {@link MqttClientAdapter} to send {@link GameStatePayload} messages
- * on the topic {@code building/{buildingId}/game/{gameId}/state}
- * with QoS 1 and the retained flag set.
+ * Utilizza {@link MqttClientAdapter} per inviare messaggi {@link GameStatePayload}
+ * sul topic {@code building/{buildingId}/game/{gameId}/state} con QoS 1
+ * e il flag retained attivo.
  */
 public class GameStatePublisher {
 
@@ -24,10 +24,10 @@ public class GameStatePublisher {
     private final String buildingId;
 
     /**
-     * Creates a publisher for the given adapter and building.
+     * Costruisce un publisher per l'adapter e l'edificio specificati.
      *
-     * @param adapter    the MQTT client adapter used for publishing
-     * @param buildingId the building identifier for topic construction
+     * @param adapter    l'adapter MQTT utilizzato per la pubblicazione
+     * @param buildingId l'identificativo dell'edificio per la costruzione del topic
      */
     public GameStatePublisher(MqttClientAdapter adapter, String buildingId) {
         this.adapter = adapter;
@@ -35,21 +35,22 @@ public class GameStatePublisher {
     }
 
     /**
-     * Publishes a state change without associating a user.
+     * Pubblica una variazione di stato senza associare un utente.
      *
-     * @param gameId the game machine identifier
-     * @param status the new machine status
+     * @param gameId l'identificativo della macchina da gioco
+     * @param status il nuovo stato della macchina
+     * @see #publishState(String, GameMachineStatus, String)
      */
     public void publishState(String gameId, GameMachineStatus status) {
         publishState(gameId, status, null);
     }
 
     /**
-     * Publishes a state change optionally associated with a user.
+     * Pubblica una variazione di stato associata opzionalmente a un utente.
      *
-     * @param gameId the game machine identifier
-     * @param status the new machine status
-     * @param userId the user who triggered the change, or {@code null}
+     * @param gameId l'identificativo della macchina da gioco
+     * @param status il nuovo stato della macchina
+     * @param userId l'utente che ha provocato la variazione, oppure {@code null}
      */
     public void publishState(String gameId, GameMachineStatus status, String userId) {
         try {

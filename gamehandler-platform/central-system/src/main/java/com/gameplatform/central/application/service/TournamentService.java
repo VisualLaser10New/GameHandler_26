@@ -92,6 +92,21 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
                 gameDefinitionRepository, clock, null, null);
     }
 
+    /**
+     * Crea un nuovo torneo in stato DRAFT e lo persiste come Source-of-Truth.
+     *
+     * <p>Valida la presenza di almeno due edifici, la definizione di gioco, la
+     * coerenza team/teamSize e la data di inizio, quindi salva il torneo, le
+     * associazioni agli edifici e l'evento outbox di riepilogo. L'operazione è
+     * atomica all'interno della transazione di classe.</p>
+     *
+     * @param tournament il torneo da creare (non deve essere {@code null})
+     * @param buildingIds gli id edificio associati (almeno 2, nessuno vuoto)
+     * @param originatingRequestId l'id della richiesta originaria, o
+     *        {@code null} sul path REST diretto
+     * @return il DTO del torneo creato
+     * @throws InvalidTournamentException se un vincolo di validazione non è soddisfatto
+     */
     @Override
     public TournamentDto create(Tournament tournament, List<String> buildingIds, String originatingRequestId) {
         if (tournament == null) {
@@ -137,6 +152,15 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
         return toDto(saved, buildingIds, 0L);
     }
 
+    /**
+     * Apre le registrazioni per un torneo esistente (DRAFT → OPEN_REGISTRATION).
+     *
+     * @param tournamentId l'id del torneo da aprire (non deve essere {@code null})
+     * @param originatingRequestId l'id della richiesta originaria, o
+     *        {@code null} sul path REST diretto
+     * @return il DTO del torneo aggiornato
+     * @throws TournamentNotFoundException se il torneo non esiste
+     */
     @Override
     public TournamentDto open(TournamentId tournamentId, String originatingRequestId) {
         Tournament t = tournamentRepository.findById(tournamentId)
@@ -349,6 +373,13 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
         }
     }
 
+    /**
+     * Restituisce il torneo identificato dall'id fornito.
+     *
+     * @param id l'id del torneo da cercare (può essere {@code null})
+     * @return un {@link Optional} contenente il DTO del torneo, o vuoto se
+     *         l'id è {@code null} o il torneo non esiste
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TournamentDto> getById(TournamentId id) {
@@ -361,6 +392,12 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
                         tournamentParticipantRepository.countByTournament(t.getTournamentId())));
     }
 
+    /**
+     * Restituisce tutti i tornei persistiti.
+     *
+     * @return la lista dei DTO di tutti i tornei; lista vuota (mai
+     *         {@code null}) se non esiste alcun torneo
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TournamentDto> findAll() {
@@ -371,6 +408,13 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
                 .toList();
     }
 
+    /**
+     * Restituisce i tornei che si trovano nello stato indicato.
+     *
+     * @param status lo stato di torneo da filtrare (può essere {@code null})
+     * @return la lista dei DTO dei tornei nello stato dato; lista vuota se
+     *         {@code status} è {@code null} o nessun torneo corrisponde
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TournamentDto> findByStatus(TournamentStatus status) {
@@ -384,6 +428,15 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
                 .toList();
     }
 
+    /**
+     * Converte un'entità {@link Tournament} nel relativo DTO di trasporto,
+     * arricchito con edifici e conteggio partecipanti.
+     *
+     * @param t il torneo da convertire (non deve essere {@code null})
+     * @param buildings gli id edificio associati
+     * @param count il numero di partecipanti da riportare nel DTO
+     * @return il DTO del torneo
+     */
     private TournamentDto toDto(Tournament t, List<String> buildings, long count) {
         return new TournamentDto(
                 t.getTournamentId().value(),
@@ -398,6 +451,21 @@ public class TournamentService implements CreateTournamentUseCase, OpenTournamen
                 (int) count);
     }
 
+    /**
+     * Serializza un {@link TournamentSummaryEventDto} e lo scrive nell'outbox.
+     *
+     * <p>Condivide un singolo UUID fra l'id dell'evento outbox e il
+     * {@code eventId} del DTO. Se {@code errorMessage} non è {@code null} l'evento
+     * rappresenta un rifiuto (FAILED) per chiudere la richiesta amministrativa
+     * originaria sul lato Locale.</p>
+     *
+     * @param t il torneo di cui emettere lo snapshot (non deve essere {@code null})
+     * @param buildings gli id edificio associati
+     * @param participantsCount il numero di partecipanti da riportare
+     * @param deleted {@code true} per un evento tombstone (eliminazione)
+     * @param originatingRequestId l'id della richiesta originaria, o {@code null}
+     * @param errorMessage il messaggio di errore di rifiuto, o {@code null}
+     */
     private void writeOutboxEvent(Tournament t, List<String> buildings, long participantsCount,
                                   boolean deleted, String originatingRequestId, String errorMessage) {
         if (outboxEventRepository == null || objectMapper == null) {

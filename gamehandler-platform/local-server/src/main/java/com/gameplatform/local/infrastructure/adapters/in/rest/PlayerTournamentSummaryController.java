@@ -41,12 +41,26 @@ public class PlayerTournamentSummaryController {
     private final ListTournamentSummariesService listTournamentSummariesService;
     private final GetTournamentDetailService getTournamentDetailService;
 
+    /**
+     * Costruisce il controller con i servizi per la lista e il dettaglio
+     * dei tornei.
+     *
+     * @param listTournamentSummariesService servizio per la lista dei riepiloghi torneo
+     * @param getTournamentDetailService servizio per il dettaglio del torneo
+     */
     public PlayerTournamentSummaryController(ListTournamentSummariesService listTournamentSummariesService,
                                              GetTournamentDetailService getTournamentDetailService) {
         this.listTournamentSummariesService = listTournamentSummariesService;
         this.getTournamentDetailService = getTournamentDetailService;
     }
 
+    /**
+     * Restituisce l'elenco dei tornei, opzionalmente filtrati per stato.
+     *
+     * @param status filtro opzionale per stato del torneo
+     * @return una {@link ResponseEntity} con la lista di {@link TournamentSummaryDto}
+     * @throws IllegalArgumentException se il valore dello status non è valido
+     */
     @GetMapping
     public ResponseEntity<List<TournamentSummaryDto>> listTournaments(
             @RequestParam(name = "status", required = false) String status) {
@@ -63,6 +77,14 @@ public class PlayerTournamentSummaryController {
         return ResponseEntity.ok(listTournamentSummariesService.listSummaries(filter));
     }
 
+    /**
+     * Restituisce il dettaglio completo di un torneo, incluse classifiche,
+     * partite e partecipanti.
+     *
+     * @param id l'identificativo del torneo
+     * @return una {@link ResponseEntity} con il {@link TournamentDetailDto},
+     *         o status 404 se non trovato
+     */
     @GetMapping("/{id}")
     public ResponseEntity<TournamentDetailDto> getTournament(@PathVariable String id) {
         return getTournamentDetailService.getDetail(id)
@@ -70,6 +92,13 @@ public class PlayerTournamentSummaryController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
+    /**
+     * Restituisce la classifica di un torneo.
+     *
+     * @param id l'identificativo del torneo
+     * @return una {@link ResponseEntity} con la lista di {@link TournamentStandingDto},
+     *         o status 404 se non trovato
+     */
     @GetMapping("/{id}/standings")
     public ResponseEntity<List<TournamentStandingDto>> getTournamentStandings(@PathVariable String id) {
         return getTournamentDetailService.getDetail(id)
@@ -77,6 +106,13 @@ public class PlayerTournamentSummaryController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
+    /**
+     * Restituisce le partite di un torneo.
+     *
+     * @param id l'identificativo del torneo
+     * @return una {@link ResponseEntity} con la lista di {@link TournamentMatchDto},
+     *         o status 404 se non trovato
+     */
     @GetMapping("/{id}/matches")
     public ResponseEntity<List<TournamentMatchDto>> getTournamentMatches(@PathVariable String id) {
         return getTournamentDetailService.getDetail(id)
@@ -84,6 +120,13 @@ public class PlayerTournamentSummaryController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
+    /**
+     * Restituisce i partecipanti di un torneo.
+     *
+     * @param id l'identificativo del torneo
+     * @return una {@link ResponseEntity} con la lista di {@link TournamentParticipantViewDto},
+     *         o status 404 se non trovato
+     */
     @GetMapping("/{id}/participants")
     public ResponseEntity<List<TournamentParticipantViewDto>> getTournamentParticipants(@PathVariable String id) {
         return getTournamentDetailService.getDetail(id)

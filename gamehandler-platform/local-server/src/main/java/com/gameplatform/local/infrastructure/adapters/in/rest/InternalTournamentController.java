@@ -21,10 +21,23 @@ public class InternalTournamentController {
 
     private final TournamentMatchLocalSyncService tournamentMatchLocalSyncService;
 
+    /**
+     * Costruisce il controller con il servizio di sincronizzazione delle
+     * partite torneo.
+     *
+     * @param tournamentMatchLocalSyncService servizio per l'applicazione degli eventi
+     */
     public InternalTournamentController(TournamentMatchLocalSyncService tournamentMatchLocalSyncService) {
         this.tournamentMatchLocalSyncService = tournamentMatchLocalSyncService;
     }
 
+    /**
+     * Riceve un batch di eventi di partite torneo programmate replicati
+     * dal sistema centrale e li applica al database locale.
+     *
+     * @param events la lista degli eventi di partite torneo
+     * @return una {@link ResponseEntity} con status 200
+     */
     @PutMapping("/sync")
     public ResponseEntity<Void> syncTournamentMatches(@RequestBody List<TournamentMatchScheduledDto> events) {
         tournamentMatchLocalSyncService.applyEvents(events);

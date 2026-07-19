@@ -8,9 +8,22 @@ import com.gameplatform.shared.domain.model.GameMachineStatus;
 import com.gameplatform.shared.domain.model.GameType;
 import org.springframework.stereotype.Component;
 
+/**
+ * Mapper null-safe tra il modello di dominio {@link Game} e l'entità
+ * di persistenza {@link GameJpaEntity}. Propaga la versione ottimistica
+ * del lock dal dominio all'entità per garantire il corretto funzionamento
+ * di {@code @Version} in Spring Data JPA.
+ */
 @Component
 public class GameMapper {
 
+    /**
+     * Converte un'entità JPA {@link GameJpaEntity} nel corrispondente
+     * modello di dominio {@link Game}.
+     *
+     * @param entity l'entità JPA da convertire, può essere {@code null}
+     * @return il modello di dominio, oppure {@code null} se l'input è {@code null}
+     */
     public Game toDomain(GameJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -26,6 +39,15 @@ public class GameMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link Game} nella corrispondente
+     * entità JPA {@link GameJpaEntity}. Propaga la versione del dominio
+     * sull'entità per supportare l'ottimistic locking con {@code @Version}.
+     *
+     * @param domain il modello di dominio da convertire, può essere {@code null}
+     * @return l'entità JPA, oppure {@code null} se l'input è {@code null}
+     * @see GameMapper
+     */
     public GameJpaEntity toEntity(Game domain) {
         if (domain == null) {
             return null;

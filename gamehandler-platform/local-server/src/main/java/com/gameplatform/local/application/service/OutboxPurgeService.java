@@ -13,8 +13,11 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 /**
- * Daily sweep that purges outbox rows already SENT older than the configured retention
- * window (default 7 days). Prevents unbounded growth of the outbox table.
+ * Sweep giornaliero che elimina le righe outbox in stato SENT piu' vecchie
+ * della finestra di retention configurabile (default 7 giorni). Previene
+ * la crescita incontrollata della tabella outbox.
+ *
+ * @see OutboxEventJpaRepository
  */
 @Service
 public class OutboxPurgeService {
@@ -34,6 +37,10 @@ public class OutboxPurgeService {
         this.retentionDays = retentionDays;
     }
 
+    /**
+     * Elimina le righe outbox in stato SENT piu' vecchie del periodo di
+     * retention configurato.
+     */
     @Scheduled(fixedDelayString = "${app.outbox-purge-interval-ms:86400000}")
     @Transactional
     public void purgeOldSentEvents() {

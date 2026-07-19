@@ -26,6 +26,19 @@ import java.io.InputStream;
 import java.security.KeyStore;
 import java.util.UUID;
 
+/**
+ * Configurazione del client MQTT per la comunicazione asincrona tra il server locale e il broker.
+ * <p>
+ * Gestisce la creazione del client, la configurazione della connettività (incluso TLS/mTLS opzionale),
+ * e la sottoscrizione ai topic relativi allo stato delle partite, alle sessioni e agli heartbeat.
+ * Integra un meccanismo di deduplicazione per evitare l'elaborazione di messaggi già inviati in uscita.
+ * </p>
+ *
+ * @see com.gameplatform.local.infrastructure.adapters.in.mqtt.GameStateListener
+ * @see com.gameplatform.local.infrastructure.adapters.in.mqtt.GameSessionListener
+ * @see com.gameplatform.local.infrastructure.adapters.in.mqtt.HeartbeatListener
+ * @see com.gameplatform.local.infrastructure.adapters.out.mqtt.OutboundMessageDeduplicationCache
+ */
 @Configuration
 public class MqttConfig {
 
@@ -58,12 +71,33 @@ public class MqttConfig {
     private final ResourceLoader resourceLoader;
     private final OutboundMessageDeduplicationCache deduplicationCache;
 
+    /**
+     * Costruisce una nuova configurazione MQTT con il loader di risorse e la cache di deduplicazione.
+     *
+     * @param resourceLoader     il loader per la risoluzione dei percorsi delle risorse (truststore, keystore)
+     * @param deduplicationCache la cache per la deduplicazione dei messaggi in uscita
+     */
     public MqttConfig(ResourceLoader resourceLoader,
                       OutboundMessageDeduplicationCache deduplicationCache) {
         this.resourceLoader = resourceLoader;
         this.deduplicationCache = deduplicationCache;
     }
 
+    /**
+     * Crea e configura il client MQTT, stabilendo la connessione al broker e sottoscrivendo
+     * i topic per stato partite, sessioni e heartbeat.
+     * <p>
+     * Se il broker URL utilizza lo schema {@code ssl://} e sono configurati truststore e opzionalmente
+     * keystore, configura una connessione TLS/mTLS. I messaggi in ingresso vengono deduplicati tramite
+     * la cache di deduplicazione prima di essere inoltrati ai rispettivi listener.
+     * </p>
+     *
+     * @param gameStateListener   listener per i messaggi di stato delle partite
+     * @param gameSessionListener listener per i messaggi di sessione delle partite
+     * @param heartbeatListener   listener per i messaggi di heartbeat e relativi ack
+     * @return il client MQTT connesso e configurato
+     * @throws MqttException se si verifica un errore durante la creazione o la connessione del client
+     */
     @Bean(destroyMethod = "disconnect")
     public IMqttClient mqttClient(
             @org.springframework.context.annotation.Lazy GameStateListener gameStateListener,
@@ -142,6 +176,7 @@ public class MqttConfig {
                     client.subscribe(sessionTopic, 1, (topic, msg) -> {
                         byte[] payload = msg.getPayload();
                         if (deduplicationCache.isRecentOutbound(topic, payload)) {
+                            log.info("[MqttConfig] DROPPED (dedupe) topic={} payload={}", topic, new String(payload, java.nio.charset.StandardCharsets.UTF_8));
                             return;
                         }
                         try {

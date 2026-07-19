@@ -19,19 +19,17 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
 /**
- * Servlet filter that protects all {@code /internal/**} endpoints with a
- * shared-secret API key passed in the {@code X-Internal-Api-Key} request header.
+ * Filtro servlet che protegge tutti gli endpoint {@code /internal/**} con una
+ * chiave API condivisa trasmessa nell'header {@code X-Internal-Api-Key}.
  *
- * <h3>Security contract</h3>
- * <ul>
- *   <li>At application startup the {@code internal.api-key} property is validated:
- *       if it is blank or null an {@link IllegalStateException} is thrown, preventing
- *       the application from starting in an insecure configuration.</li>
- *   <li>Requests to {@code /internal/**} without the header, or with a header that
- *       does not match the configured key, are rejected with {@code 403 Forbidden}.
- *       The comparison uses a constant-time algorithm to mitigate timing attacks.</li>
- *   <li>Requests to other paths are passed through without modification.</li>
- * </ul>
+ * <p>All'avvio dell'applicazione la proprietà {@code internal.api-key} viene
+ * validata: se risulta vuota o nulla il filtro impedisce l'avvio lanciando
+ * un {@link IllegalStateException}. Le richieste verso {@code /internal/**}
+ * prive dell'header o con un valore non corrispondente vengono rifiutate con
+ * stato {@code 403 Forbidden}. Il confronto utilizza un algoritmo a tempo
+ * costante per mitigare attacchi di tipo timing.</p>
+ *
+ * @see OncePerRequestFilter
  */
 @Component
 public class InternalApiKeyFilter extends OncePerRequestFilter {
@@ -41,23 +39,30 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
     private final String configuredApiKey;
     private final Environment environment;
 
+    /**
+     * Costruisce un {@code InternalApiKeyFilter} con la chiave API configurata
+     * e l'ambiente Spring.
+     *
+     * @param configuredApiKey la chiave API configurata tramite la proprietà
+     *                         {@code internal.api-key}, non nulla e non vuota
+     * @param environment      l'ambiente Spring per la verifica dei profili
+     *                         attivi
+     */
     public InternalApiKeyFilter(@Value("${internal.api-key}") String configuredApiKey, Environment environment) {
         this.configuredApiKey = configuredApiKey;
         this.environment = environment;
     }
 
     /**
-     * Validates the configured API key at startup.
+     * Valida la chiave API configurata all'avvio dell'applicazione.
      *
-     * <p>A blank or null key would allow every request to pass, which is an
-     * insecure misconfiguration. The application must not start in this state.
-     * A non-blank key equal to the default {@code "secret"} is accepted (so
-     * local dev without {@code INTERNAL_API_KEY} still works) but emits a
-     * WARNING when the active profile is not {@code dev}, {@code test} or
-     * {@code e2e}, to surface the misconfiguration in production-like
-     * environments without breaking startup.</p>
+     * <p>Una chiave vuota o nulla rappresenta una configurazione insicura e
+     * impedisce l'avvio dell'applicazione. Se la chiave corrisponde al valore
+     * predefinito e il profilo attivo non è di sviluppo o test, viene emesso
+     * un avvertimento nei log.</p>
      *
-     * @throws IllegalStateException if {@code internal.api-key} is blank or null
+     * @throws IllegalStateException se la proprietà {@code internal.api-key}
+     *                               è vuota o nulla
      */
     @PostConstruct
     public void validateConfiguration() {
@@ -76,6 +81,21 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
         log.info("InternalApiKeyFilter initialized — internal API key is configured.");
     }
 
+    /**
+     * Applica il filtro di sicurezza alle richieste in ingresso.
+     *
+     * <p>Per le richieste verso percorsi che iniziano con {@code /internal/},
+     * verifica la presenza e la correttezza dell'header
+     * {@code X-Internal-Api-Key}. Se l'header è assente o non valido,
+     * risponde con {@code 403 Forbidden}. Per tutti gli altri percorsi,
+     * la richiesta viene lasciata proseguire senza modifiche.</p>
+     *
+     * @param request     la richiesta HTTP in ingresso
+     * @param response    la risposta HTTP in uscita
+     * @param filterChain la catena di filtri da invocare
+     * @throws ServletException in caso di errore nella gestione della richiesta
+     * @throws IOException      in caso di errore di I/O
+     */
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
                                     @NonNull HttpServletResponse response,

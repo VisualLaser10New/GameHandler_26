@@ -5,8 +5,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * Request DTO for user registration.
- * All fields are validated via Bean Validation before the request reaches the use-case.
+ * DTO di richiesta utilizzato per la registrazione di un nuovo utente nella piattaforma.
+ * Trasporta i dati anagrafici necessari alla creazione dell'account e viene validato
+ * tramite Bean Validation prima di raggiungere il caso d'uso di registrazione.
+ *
+ * @see com.gameplatform.shared.dto.UserResponseDto
  */
 public record CreateUserRequestDto(
     @NotBlank(message = "Username must not be blank")

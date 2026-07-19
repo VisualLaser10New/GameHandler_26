@@ -22,18 +22,13 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Admin-requests polling view (PIANO §7.C line 755).
+ * Vista di polling delle richieste admin dell'utente autenticato.
  * <p>
- * Lists the authenticated user's own requests ({@code GET /api/admin/requests}
- * — the Local server filters by {@code actingUserId == principal}) and
- * refreshes every {@code 8 s}. Each request is rendered as a card whose
- * visual state derives from its {@code status} field:
- * <ul>
- *   <li>{@code PENDING} → JavaFX {@link ProgressIndicator} + "in attesa di conferma…";</li>
- *   <li>{@code COMPLETED} → green ✓ + the {@code resultData} text (parsed for a {@code reason} field);</li>
- *   <li>{@code FAILED} → red banner "Operazione non confermata entro il timeout — riprova/riesamina"
- *       + the readable {@code result_data.reason}.</li>
- * </ul>
+ * Recupera periodicamente (ogni 8 secondi) le richieste tramite
+ * {@code GET /api/admin/requests} e le visualizza come schede il cui
+ * stato visivo deriva dal campo {@code status}: PENDING mostra un
+ * indicatore di attesa, COMPLETED mostra un segno di spunta verde,
+ * FAILED mostra un banner rosso con il motivo dell'errore.
  */
 public class AdminRequestsView {
 
@@ -48,6 +43,12 @@ public class AdminRequestsView {
     private javafx.animation.Timeline poller;
     private volatile Instant latestUpdatedAt;
 
+    /**
+     * Costruisce la vista delle richieste admin.
+     * <p>
+     * Inizializza il layout con titolo, pulsante di refresh manuale,
+     * contenitore per le schede delle richieste e indicatore di caricamento.
+     */
     public AdminRequestsView() {
         VBox content = new VBox(10);
         content.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
@@ -83,11 +84,21 @@ public class AdminRequestsView {
         root.setStyle("-fx-padding: 0; -fx-background-color: #1e1e1e;");
     }
 
+    /**
+     * Restituisce il nodo radice JavaFX per questa vista.
+     *
+     * @return il nodo {@link Parent} radice
+     */
     public Parent getView() {
         return root;
     }
 
-    /** Called by MainView when the user navigates to this view — starts polling. */
+    /**
+     * Avvia il polling periodico delle richieste admin.
+     * <p>
+     * Invocato da {@link MainView} quando l'utente naviga verso questa vista.
+     * Esegue un refresh immediato e avvia un timer con intervallo di 8 secondi.
+     */
     public void onEnter() {
         refresh();
         if (poller == null) {
@@ -98,11 +109,25 @@ public class AdminRequestsView {
         poller.play();
     }
 
-    /** Called by MainView when the user navigates away — stops the poller. */
+    /**
+     * Arresta il polling periodico delle richieste admin.
+     * <p>
+     * Invocato da {@link MainView} quando l'utente abbandona questa vista.
+     * Non produce effetti se il poller non era stato avviato.
+     */
     public void onLeave() {
         if (poller != null) poller.stop();
     }
 
+    /**
+     * Recupera le richieste admin dal server e aggiorna la visualizzazione.
+     * <p>
+     * Effettua una chiamata asincrona {@code GET /api/admin/requests}.
+     * In caso di risposta nulla imposta una lista vuota. Aggiorna il
+     * timestamp {@code latestUpdatedAt} con il valore più recente tra
+     * i campi {@code completedAt} e {@code createdAt} delle richieste
+     * restituite.
+     */
     private void refresh() {
         loading.show();
         statusLabel.setText("Loading requests...");
@@ -122,6 +147,13 @@ public class AdminRequestsView {
                 .exceptionally(this::error);
     }
 
+    /**
+     * Aggiorna il contenitore delle schede con le richieste correnti.
+     * <p>
+     * Se la lista {@code rows} è vuota mostra un messaggio informativo.
+     * Altrimenti genera una scheda per ogni richiesta tramite
+     * {@link #buildCard(AdminRequestDto)}.
+     */
     private void render() {
         cardsContainer.getChildren().clear();
         if (rows.isEmpty()) {
@@ -135,6 +167,18 @@ public class AdminRequestsView {
         }
     }
 
+    /**
+     * Costruisce una scheda visiva per una richiesta admin.
+     * <p>
+     * La scheda mostra il tipo di evento, l'identificativo richiesta,
+     * i metadati (ruolo, edificio, date di creazione/completamento) e
+     * lo stato corrente con indicatore visivo appropriato. Se la
+     * richiesta contiene un identificativo torneo, aggiunge un campo
+     * selezionabile con pulsante di copia.
+     *
+     * @param r la richiesta admin da visualizzare; non null
+     * @return una {@link VBox} contenente la scheda renderizzata
+     */
     private VBox buildCard(AdminRequestDto r) {
         VBox card = new VBox(4);
         card.setStyle("-fx-padding: 10; -fx-background-color: #2a2a2a;"
@@ -206,7 +250,16 @@ public class AdminRequestsView {
         return card;
     }
 
-    /** Read-only, focusable-but-traversable-off TextField so the text is selectable + copyable. */
+    /**
+     * Crea un campo di testo non modificabile con testo selezionabile.
+     * <p>
+     * Il campo restituito non è editabile e non riceve il focus tramite
+     * tabulazione, ma permette la selezione e la copia del testo.
+     *
+     * @param value il testo da visualizzare; se null viene sostituito
+     *              con una stringa vuota
+     * @return un {@link TextField} in sola lettura
+     */
     private static TextField selectableField(String value) {
         TextField tf = new TextField(value == null ? "" : value);
         tf.setEditable(false);
@@ -215,6 +268,15 @@ public class AdminRequestsView {
         return tf;
     }
 
+    /**
+     * Copia un testo negli appunti di sistema e mostra un feedback visivo.
+     * <p>
+     * Dopo la copia, il testo del pulsante viene temporaneamente sostituito
+     * con "Copied" per 1,2 secondi, quindi ripristinato al valore originale.
+     *
+     * @param text   il testo da copiare; non null
+     * @param source il pulsante su cui mostrare il feedback visivo; non null
+     */
     private static void copyToClipboard(String text, Button source) {
         ClipboardContent cc = new ClipboardContent();
         cc.putString(text);
@@ -230,14 +292,16 @@ public class AdminRequestsView {
     }
 
     /**
-     * Extracts the tournament id carried by an admin request: prefers the
-     * {@code resultData} JSON (written by the Local {@code *SyncService} when
-     * the Central return-event closes the request, so it is available once
-     * COMPLETED — including for {@code TOURNAMENT_CREATE_REQUESTED}, whose
-     * payload does NOT carry the tournament id), and falls back to the
-     * {@code payload} JSON for the lifecycle/registration events that DO
-     * embed {@code tournamentId} up front (so PENDING OPEN/CANCEL/SCHEDULE/
-     * UPDATE/DELETE/PARTICIPANT_REGISTER cards still surface it).
+     * Estrae l'identificativo del torneo da una richiesta admin.
+     * <p>
+     * Preferisce il campo {@code resultData} JSON (disponibile quando la
+     * richiesta è COMPLETED) e, in assenza, utilizza il campo {@code payload}
+     * JSON per eventi lifecycle/registrazione che incorporano
+     * {@code tournamentId} in anticipo.
+     *
+     * @param r la richiesta admin da cui estrarre l'identificativo; non null
+     * @return l'identificativo del torneo, o null se non presente in
+     *         nessuno dei due campi JSON
      */
     static String extractTournamentId(AdminRequestDto r) {
         String tid = readJsonField(r.resultData(), "tournamentId");
@@ -245,6 +309,14 @@ public class AdminRequestsView {
         return readJsonField(r.payload(), "tournamentId");
     }
 
+    /**
+     * Legge il valore di un campo JSON da una stringa.
+     *
+     * @param json  la stringa JSON da analizzare; può essere null o vuota
+     * @param field il nome del campo da estrarre; non null
+     * @return il valore testuale del campo, o null se il JSON è nullo,
+     *         vuoto, non contiene il campo, o il campo è nullo
+     */
     private static String readJsonField(String json, String field) {
         if (json == null || json.isBlank()) return null;
         try {
@@ -257,7 +329,16 @@ public class AdminRequestsView {
         return null;
     }
 
-    /** Extracts a human-readable message from {@code resultData}. */
+    /**
+     * Estrae un messaggio leggibile dal campo {@code resultData}.
+     * <p>
+     * Cerca prima il campo {@code reason}, poi {@code status} nel JSON
+     * del risultato. Se nessuno dei due è presente, tronca il testo
+     * a 80 caratteri.
+     *
+     * @param r la richiesta admin contenente il risultato; non null
+     * @return una stringa leggibile che descrive il risultato; non null
+     */
     private static String readableResult(AdminRequestDto r) {
         String rd = r.resultData();
         if (rd == null || rd.isBlank()) return r.status();
@@ -271,6 +352,16 @@ public class AdminRequestsView {
         return rd.length() > 80 ? rd.substring(0, 80) + "…" : rd;
     }
 
+    /**
+     * Gestisce un errore asincrono delle chiamate API.
+     * <p>
+     * Nasconde l'indicatore di caricamento, risale la catena delle
+     * eccezioni fino alla causa radice e aggiorna l'etichetta di
+     * stato con il messaggio di errore.
+     *
+     * @param ex l'eccezione da gestire; può essere null
+     * @return sempre null
+     */
     private Void error(Throwable ex) {
         loading.hide();
         Throwable t = ex;

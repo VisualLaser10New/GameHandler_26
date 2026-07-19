@@ -12,12 +12,11 @@ import javafx.scene.layout.VBox;
 import java.util.List;
 
 /**
- * Aggregated statistics view (legacy FASE 3, retrofitted with the
- * centralised {@link ApiClient}).
+ * Vista delle statistiche aggregate di gioco.
  * <p>
- * Polls {@code GET /api/statistics} — the Local
- * {@code StatisticsController} aggregated per building. The view is
- * available to every authenticated user (PIANO §7.C line 741 / line 752).
+ * Recupera i dati tramite {@code GET /api/statistics} dal
+ * {@code StatisticsController} locale, aggregati per edificio.
+ * La vista è disponibile per ogni utente autenticato.
  */
 public class StatisticsView {
     private final VBox root;
@@ -25,6 +24,12 @@ public class StatisticsView {
     private final VBox statsContainer;
     private final Label statusLabel;
 
+    /**
+     * Costruisce la vista delle statistiche aggregate.
+     * <p>
+     * Inizializza il titolo, il contenitore per le schede delle
+     * statistiche e l'etichetta di stato.
+     */
     public StatisticsView() {
         VBox content = new VBox(10);
 
@@ -48,10 +53,22 @@ public class StatisticsView {
         root.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
     }
 
+    /**
+     * Restituisce il nodo radice JavaFX per questa vista.
+     *
+     * @return il nodo {@link Parent} radice
+     */
     public Parent getView() {
         return root;
     }
 
+    /**
+     * Carica e mostra le statistiche aggregate.
+     * <p>
+     * Effettua una chiamata asincrona {@code GET /api/statistics} e
+     * renderizza ogni {@link StatisticsDto} come scheda informativa
+     * con tipo di gioco, edificio, sessioni, durata media e prenotazioni.
+     */
     public void showStats() {
         statusLabel.setText("Loading...");
         ApiClient.instance().get("/api/statistics", new TypeReference<List<StatisticsDto>>() {})

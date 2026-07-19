@@ -34,11 +34,23 @@ public class PlayerMatchFactRepositoryAdapter implements PlayerMatchFactReposito
     @PersistenceContext
     private EntityManager entityManager;
 
+    /**
+     * Costruisce l'adapter iniettando il repository JPA, il mapper e l'{@link EntityManager}.
+     *
+     * @param jpaRepository repository JPA per la gestione delle entit&agrave; dei fatti di partita
+     * @param mapper        mapper che converte tra il modello di dominio e l'entit&agrave; JPA
+     */
     public PlayerMatchFactRepositoryAdapter(PlayerMatchFactJpaRepository jpaRepository, PlayerMatchFactMapper mapper) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
     }
 
+    /**
+     * Persiste il fatto di partita solo se non esiste gi&agrave; una coppia (sessione, utente) equivalente.
+     *
+     * @param fact il fatto di partita da salvare; se {@code null} restituisce {@code false}
+     * @return {@code true} se il fatto &egrave; stato inserito, {@code false} se era gi&agrave; presente o {@code fact} &egrave; {@code null}
+     */
     @Override
     public boolean saveIfAbsent(PlayerMatchFact fact) {
         if (fact == null) {

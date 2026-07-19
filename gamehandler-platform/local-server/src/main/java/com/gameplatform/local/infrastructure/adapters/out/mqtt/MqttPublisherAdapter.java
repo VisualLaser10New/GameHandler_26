@@ -20,6 +20,20 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
+/**
+ * Adattatore che pubblica messaggi MQTT verso il broker per la notifica dello stato di gioco,
+ * degli eventi di sessione e degli alert. Implementa le interfacce {@link PublishGameStatePort}
+ * e {@link PublishAlertPort} del dominio.
+ *
+ * <p>Delega la serializzazione dei payload a {@link MqttPayloadSerializer} e utilizza
+ * {@link OutboundMessageDeduplicationCache} per evitare il loopback dei messaggi pubblicati
+ * sugli stessi topic a cui il server locale è sottoscritto.</p>
+ *
+ * @see PublishGameStatePort
+ * @see PublishAlertPort
+ * @see OutboundMessageDeduplicationCache
+ * @see MqttPayloadSerializer
+ */
 @Component
 public class MqttPublisherAdapter implements PublishGameStatePort, PublishAlertPort {
 
@@ -30,6 +44,16 @@ public class MqttPublisherAdapter implements PublishGameStatePort, PublishAlertP
     private final String buildingId;
     private final OutboundMessageDeduplicationCache deduplicationCache;
 
+    /**
+     * Costruisce un nuovo adattatore con il client MQTT, il mapper JSON, l'identificativo
+     * dell'edificio e la cache di deduplicazione dei messaggi in uscita.
+     *
+     * @param mqttClient          client MQTT lazy-inizializzato per la pubblicazione dei messaggi
+     * @param objectMapper        mapper JSON per la serializzazione dei risultati di sessione
+     * @param buildingId          identificativo dell'edificio, utilizzato per comporre i topic
+     * @param deduplicationCache  cache per la deduplicazione dei messaggi in uscita
+     * @see OutboundMessageDeduplicationCache
+     */
     public MqttPublisherAdapter(
             @org.springframework.context.annotation.Lazy IMqttClient mqttClient,
             ObjectMapper objectMapper,
@@ -41,6 +65,15 @@ public class MqttPublisherAdapter implements PublishGameStatePort, PublishAlertP
         this.deduplicationCache = deduplicationCache;
     }
 
+    /**
+     * Pubblica lo stato corrente di una macchina da gioco sul topic MQTT dedicato.
+     * Il messaggio viene inviato con il flag retained attivo e il QoS configurato per lo stato.
+     *
+     * @param gameId  identificativo del gioco
+     * @param status  stato corrente della macchina da gioco
+     * @see MqttTopics#gameState(String, String)
+     * @see GameStatePayload
+     */
     @Override
     public void publishState(GameId gameId, GameMachineStatus status) {
         try {
@@ -60,6 +93,20 @@ public class MqttPublisherAdapter implements PublishGameStatePort, PublishAlertP
         }
     }
 
+    /**
+     * Pubblica un evento di sessione (avvio, termine, pausa, ripresa) sul topic MQTT
+     * specificato. Il payload viene serializzato nel formato appropriato in base al
+     * tipo di evento desunto dal suffisso del topic.
+     *
+     * @param topic    topic MQTT su cui pubblicare l'evento
+     * @param payload  oggetto contenente i dati dell'evento; se è un'istanza di
+     *                 {@link GameSession} viene serializzato con il payload tipizzato
+     *                 corrispondente
+     * @see SessionStartPayload
+     * @see SessionEndPayload
+     * @see SessionPausePayload
+     * @see SessionResumePayload
+     */
     @Override
     public void publishSessionEvent(String topic, Object payload) {
         try {
@@ -112,6 +159,14 @@ public class MqttPublisherAdapter implements PublishGameStatePort, PublishAlertP
         }
     }
 
+    /**
+     * Pubblica un alert sul topic MQTT degli alert dell'edificio.
+     * Il messaggio viene inviato con QoS 1 e senza retained flag.
+     *
+     * @param payload  payload contenente i dettagli dell'alert
+     * @see MqttTopics#alerts(String)
+     * @see AlertPayload
+     */
     @Override
     public void publishAlert(AlertPayload payload) {
         try {

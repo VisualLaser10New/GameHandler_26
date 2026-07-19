@@ -26,10 +26,23 @@ public class InternalTournamentSummaryController {
 
     private final TournamentSummarySyncService tournamentSummarySyncService;
 
+    /**
+     * Costruisce il controller con il servizio di sincronizzazione dei
+     * riepiloghi dei tornei.
+     *
+     * @param tournamentSummarySyncService servizio per l'applicazione degli eventi
+     */
     public InternalTournamentSummaryController(TournamentSummarySyncService tournamentSummarySyncService) {
         this.tournamentSummarySyncService = tournamentSummarySyncService;
     }
 
+    /**
+     * Riceve un batch di eventi di riepilogo torneo replicati dal sistema
+     * centrale e li applica al database locale.
+     *
+     * @param events la lista degli eventi di riepilogo torneo
+     * @return una {@link ResponseEntity} con status 200
+     */
     @PutMapping("/sync")
     public ResponseEntity<Void> syncTournamentSummaries(@RequestBody List<TournamentSummaryEventDto> events) {
         tournamentSummarySyncService.applyEvents(events);

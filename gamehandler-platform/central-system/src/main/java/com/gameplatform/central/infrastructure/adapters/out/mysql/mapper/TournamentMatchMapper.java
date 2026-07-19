@@ -8,25 +8,34 @@ import com.gameplatform.shared.domain.model.TournamentMatchStatus;
 import org.springframework.stereotype.Component;
 
 /**
- * Null-safe mapper between the {@link TournamentMatch} central domain model and
- * the {@link TournamentMatchJpaEntity} persistence entity
- * ({@code tournament_matches} table, FASE 4 PIANO &sect;3.4). {@code @Component}
- * instance bean (matches {@code GameDefinitionMapper}/{@code PlayerStatisticsMapper});
- * converts the {@code status} String column to/from
- * {@link TournamentMatchStatus} and wraps the {@code id}/{@code tournament_id}
- * columns to/from {@link TournamentMatchId}/{@link TournamentId} at the
- * boundary. Boxed primitives ({@code round}/{@code bracket_position}) are
- * null-safe-defaulted to {@code 0} on the domain side (mirroring
- * {@code PlayerStatisticsMapper}); the nullable FASE 5/6 columns
- * ({@code participant_b}, {@code building_id}, {@code game_id},
- * {@code session_id}, {@code winner}, {@code scheduled_at}, {@code played_at},
- * {@code result_data}) are preserved as-is. Per the Module Plan &sect;4.1 spec,
- * the match has no {@code game_type} field (it lives on the parent
- * {@code Tournament}).
+ * Mapper senza stato (null-safe) tra il modello di dominio centrale
+ * {@link TournamentMatch} e l'entità persistente {@link TournamentMatchJpaEntity}.
+ * <p>
+ * Esposto come bean Spring {@code @Component}, converte gli identificativi
+ * da/verso {@link TournamentMatchId} e {@link TournamentId}, traduce lo
+ * {@code status} Stringa da/verso {@link TournamentMatchStatus} e applica
+ * valori predefiniti ({@code 0}) ai campi {@code round} e
+ * {@code bracket_position} quando {@code null} nell'entità.
+ *
+ * @see TournamentMatch
+ * @see TournamentMatchJpaEntity
  */
 @Component
 public class TournamentMatchMapper {
 
+    /**
+     * Converte un'entità persistente {@link TournamentMatchJpaEntity} nel
+     * corrispondente modello di dominio {@link TournamentMatch}.
+     * <p>
+     * I campi {@code round} e {@code bracket_position} vengono impostati a
+     * {@code 0} se {@code null} nell'entità; lo {@code status} viene convertito
+     * tramite {@link TournamentMatchStatus#valueOf(String)}.
+     *
+     * @param entity l'entità persistente di origine; se {@code null} restituisce {@code null}
+     * @return il modello di dominio {@link TournamentMatch} o {@code null} se l'entità è {@code null}
+     * @throws IllegalArgumentException se la stringa {@code status} non corrisponde a un valore {@link TournamentMatchStatus} valido
+     * @see #toEntity(TournamentMatch)
+     */
     public TournamentMatch toDomain(TournamentMatchJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -49,6 +58,17 @@ public class TournamentMatchMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link TournamentMatch} nell'entità
+     * persistente {@link TournamentMatchJpaEntity} da persistere.
+     * <p>
+     * Lo {@link TournamentMatchStatus} viene serializzato tramite
+     * {@link Enum#name()}.
+     *
+     * @param domain il modello di dominio di origine; se {@code null} restituisce {@code null}
+     * @return l'entità persistente {@link TournamentMatchJpaEntity} o {@code null} se il dominio è {@code null}
+     * @see #toDomain(TournamentMatchJpaEntity)
+     */
     public TournamentMatchJpaEntity toEntity(TournamentMatch domain) {
         if (domain == null) {
             return null;

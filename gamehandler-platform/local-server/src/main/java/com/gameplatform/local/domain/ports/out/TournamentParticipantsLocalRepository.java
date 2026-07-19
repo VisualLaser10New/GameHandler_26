@@ -16,11 +16,36 @@ import java.util.List;
  */
 public interface TournamentParticipantsLocalRepository {
 
+    /**
+     * Salva o aggiorna un partecipante al torneo. Operazione idempotente
+     * basata sulla chiave composita (tournamentId, participantId).
+     *
+     * @param participant il partecipante da persistere
+     * @return il partecipante persistito
+     */
     TournamentParticipantLocal save(TournamentParticipantLocal participant);
 
+    /**
+     * Restituisce tutti i partecipanti di un determinato torneo.
+     *
+     * @param tournamentId l'identificativo del torneo
+     * @return la lista dei partecipanti al torneo specificato
+     */
     List<TournamentParticipantLocal> findByTournament(TournamentId tournamentId);
 
+    /**
+     * Elimina tutti i partecipanti di un determinato torneo. Utilizzato
+     * per la sostituzione completa dello snapshot dei partecipanti.
+     *
+     * @param tournamentId l'identificativo del torneo
+     */
     void deleteByTournament(TournamentId tournamentId);
 
+    /**
+     * Elimina un singolo partecipante da un torneo.
+     *
+     * @param tournamentId l'identificativo del torneo
+     * @param participantId l'identificativo del partecipante da rimuovere
+     */
     void deleteByTournamentAndParticipantId(TournamentId tournamentId, String participantId);
 }

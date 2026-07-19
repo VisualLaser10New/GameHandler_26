@@ -3,18 +3,27 @@ package com.gameplatform.shared.dto;
 import java.time.Instant;
 
 /**
- * Read-model view of a single tournament participant (individual or team) for
- * the {@code TOURNAMENT_PARTICIPANTS_UPSERTED} Central→Local replication flow
- * (PIANO §7.A.3 / §7.B). Unlike {@link TournamentParticipantDto} (which carries
- * only the identity/display snapshot used by the Central REST endpoint), this
- * view also carries the registration instant so the local projection can
- * preserve the registration ordering used by the bracket builder.
+ * Vista di read-model di un singolo partecipante a un torneo (individuale o squadra)
+ * per il flusso di replicazione Central&rarr;Local {@code TOURNAMENT_PARTICIPANTS_UPSERTED}
+ * (PIANO &sect;7.A.3 / &sect;7.B).
  *
- * @param participantId the participant id (a {@code UserId} value when
- *                      {@code isTeam == false}, a {@code TeamId} value otherwise)
- * @param isTeam        whether the participant is a team
- * @param displayName   the display name (username for individuals, team name for teams)
- * @param registeredAt  the registration instant
+ * <p>A differenza di {@link TournamentParticipantDto}, che trasporta esclusivamente
+ * lo snapshot di identit&agrave; e nome utilizzato dall'endpoint REST del Central, questa
+ * vista include anche l'istante di registrazione affinch&eacute; la proiezione locale
+ * possa preservare l'ordine di iscrizione impiegato dal costruttore del tabellone.</p>
+ *
+ * <p>Questo record &egrave; immutabile e funge da Data Transfer Object: espone i componenti
+ * {@code participantId}, {@code isTeam}, {@code displayName} e {@code registeredAt} tramite
+ * gli accessor generati automaticamente, utilizzati per ricostruire la proiezione locale
+ * dei partecipanti.</p>
+ *
+ * @param participantId identificativo del partecipante (un valore {@code UserId} quando
+ *                      {@code isTeam == false}, un valore {@code TeamId} altrimenti)
+ * @param isTeam        {@code true} se il partecipante &egrave; una squadra, {@code false} se &egrave; un individuo
+ * @param displayName   nome da visualizzare (username per gli individui, nome della squadra per le squadre)
+ * @param registeredAt  istante di registrazione del partecipante al torneo
+ *
+ * @see TournamentParticipantDto
  */
 public record TournamentParticipantViewDto(
         String participantId,

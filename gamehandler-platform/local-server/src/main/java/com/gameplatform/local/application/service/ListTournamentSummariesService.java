@@ -12,11 +12,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Read use case (PIANO §7.B): returns the {@code tournaments_summary_local}
- * rows (optionally filtered by status), projected to
- * {@link TournamentSummaryDto}. Only non-deleted rows are returned — the
- * {@code TournamentSummarySyncService} physically removes tombstones so
- * every persisted row is non-deleted in steady state.
+ * Caso d'uso in lettura (PIANO §7.B): restituisce le righe
+ * {@code tournaments_summary_local} (opzionalmente filtrate per stato),
+ * proiettate in {@link TournamentSummaryDto}. Vengono restituite solo
+ * le righe non eliminate.
+ *
+ * @see ListTournamentSummariesUseCase
+ * @see TournamentSummaryLocalRepository
+ * @see TournamentSummarySyncService
  */
 @Service
 @Transactional(readOnly = true)
@@ -24,10 +27,22 @@ public class ListTournamentSummariesService implements ListTournamentSummariesUs
 
     private final TournamentSummaryLocalRepository tournamentSummaryLocalRepository;
 
+    /**
+     * Costruisce il servizio con il repository dei riepiloghi dei tornei.
+     *
+     * @param tournamentSummaryLocalRepository il repository per l'accesso ai riepiloghi (non null)
+     */
     public ListTournamentSummariesService(TournamentSummaryLocalRepository tournamentSummaryLocalRepository) {
         this.tournamentSummaryLocalRepository = tournamentSummaryLocalRepository;
     }
 
+    /**
+     * Restituisce la lista dei riepiloghi dei tornei, opzionalmente
+     * filtrati per stato. Le righe eliminate vengono escluse.
+     *
+     * @param statusFilter filtro opzionale per stato del torneo (null per nessun filtro)
+     * @return la lista dei DTO di riepilogo dei tornei
+     */
     @Override
     public List<TournamentSummaryDto> listSummaries(TournamentStatus statusFilter) {
         return tournamentSummaryLocalRepository.findAll().stream()
@@ -37,6 +52,13 @@ public class ListTournamentSummariesService implements ListTournamentSummariesUs
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Converte un {@link TournamentSummaryLocal} nel corrispondente
+     * {@link TournamentSummaryDto}.
+     *
+     * @param summary il riepilogo del torneo dal modello di dominio (non null)
+     * @return il DTO con tutti i campi mappati uno-a-uno
+     */
     private static TournamentSummaryDto toDto(TournamentSummaryLocal summary) {
         return new TournamentSummaryDto(
                 summary.getTournamentId().value(),

@@ -22,6 +22,17 @@ import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+/**
+ * Servizio di registrazione locale per nuovi utenti. Valida i campi
+ * obbligatori (username, password, email), verifica unicita' di username
+ * ed email, hash la password con BCrypt, persiste l'utente nella tabella
+ * {@code local_signup_users} e genera un evento outbox
+ * {@code USER_REGISTERED} per la replica verso il Central.
+ *
+ * @see RegisterLocalUserUseCase
+ * @see LocalSignupUserRepository
+ * @see OutboxEventRepository
+ */
 @Service
 @Transactional
 public class LocalSignupService implements RegisterLocalUserUseCase {
@@ -44,6 +55,18 @@ public class LocalSignupService implements RegisterLocalUserUseCase {
         this.clock = clock;
     }
 
+    /**
+     * Registra un nuovo utente locale. Valida i parametri, verifica
+     * l'unicita' di username ed email, hash la password con BCrypt,
+     * persiste l'utente e genera l'evento outbox USER_REGISTERED.
+     *
+     * @param username il nome utente (non blank, max 100 caratteri)
+     * @param password la password in chiaro (non blank)
+     * @param email    l'email (non blank, formato valido, max 255 caratteri)
+     * @return l'utente registrato
+     * @throws IllegalArgumentException se uno dei parametri non e' valido
+     * @throws com.gameplatform.local.domain.exception.UserAlreadyExistsException se username o email esistono gia'
+     */
     @Override
     public LocalSignupUser register(String username, String password, String email) {
         if (username == null || username.isBlank()) {
@@ -102,6 +125,14 @@ public class LocalSignupService implements RegisterLocalUserUseCase {
         return savedUser;
     }
 
+    /**
+     * Crea e persiste un evento outbox {@code USER_REGISTERED} per la
+     * replica dell'utente verso il Central. Serialezza il DTO dell'evento
+     * in JSON e salva l'evento nello stato PENDING.
+     *
+     * @param user l'utente registrato (non null)
+     * @throws RuntimeException se la serializzazione JSON del payload fallisce
+     */
     private void createUserRegisteredOutboxEvent(LocalSignupUser user) {
         try {
             UserRegisteredEventDto eventDto = new UserRegisteredEventDto(

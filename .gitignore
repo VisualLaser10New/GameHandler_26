@@ -38,3 +38,4 @@ password_file
 
 # Moquette persistence artifact files
 *.msg
+/.junie/

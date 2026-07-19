@@ -26,10 +26,30 @@ public class StatisticsController {
 
     private final GetGlobalStatisticsUseCase getGlobalStatisticsUseCase;
 
+    /**
+     * Costruisce il controller iniettando il caso d'uso per le statistiche globali.
+     *
+     * @param getGlobalStatisticsUseCase caso d'uso per il calcolo delle statistiche aggregate, non {@code null}
+     */
     public StatisticsController(GetGlobalStatisticsUseCase getGlobalStatisticsUseCase) {
         this.getGlobalStatisticsUseCase = getGlobalStatisticsUseCase;
     }
 
+    /**
+     * Restituisce le statistiche globali aggregate, filtrabili per edificio, tipo di gioco e periodo.
+     *
+     * <p>L'accesso richiede il ruolo {@code PLATFORM_ADMIN}. I parametri di filtro sono tutti
+     * opzionali: se un filtro non è fornito, le statistiche non vengono limitate su quel dominio.</p>
+     *
+     * @param buildingId identificativo opzionale dell'edificio per cui filtrare; se {@code null} o vuoto non filtra
+     * @param gameType   tipo di gioco opzionale per filtrare; se {@code null} o vuoto non filtra
+     * @param start      data di inizio opzionale del periodo (estremo incluso); se {@code null} non filtra per inizio
+     * @param end        data di fine opzionale del periodo (estremo incluso); se {@code null} non filtra per fine
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e la lista di {@link StatisticsDto};
+     *         la lista è vuota se nessun dato soddisfa i filtri
+     * @throws IllegalArgumentException se {@code gameType} non corrisponde a un valore valido (mappato a {@code 400})
+     * @see GlobalExceptionHandler
+     */
     @GetMapping
     public ResponseEntity<List<StatisticsDto>> getStatistics(
             @RequestParam(required = false) String buildingId,

@@ -16,17 +16,15 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Sweeps local {@code outbox_events} rows that reached the FAILED retry threshold,
- * promotes a copy into the {@code outbox_dead_letter} table (DLQ) with the reason
- * {@link #REASON_RETRY_THRESHOLD_EXCEEDED}, and deletes the original outbox row.
+ * Servizio schedulato che promuove le righe {@code outbox_events} in stato
+ * FAILED nella tabella {@code outbox_dead_letter} (DLQ) con motivo
+ * {@link #REASON_RETRY_THRESHOLD_EXCEEDED}, eliminando la riga originale.
+ * Impedisce la crescita incontrollata delle righe FAILED e mantiene gli
+ * eventi falliti disponibili per ispezione offline. La dimensione corrente
+ * del DLQ viene loggata ad ogni tick.
  *
- * <p>This caps the unbounded growth of {@code outbox_events} PENDING -> FAILED rows
- * and keeps failed events available for offline inspection. The sweep is
- * transactional, so promotion + deletion are atomic w.r.t. concurrent
- * {@code incrementRetry} paths (which only ever flip PENDING -> FAILED).</p>
- *
- * <p>The running DLQ size is logged on every tick so operators can monitor backlog
- * without a separate {@code DlqMonitorService}.</p>
+ * @see DeadLetterRepository
+ * @see OutboxEventJpaRepository
  */
 @Service
 public class OutboxDlqPromotionService {
@@ -48,6 +46,11 @@ public class OutboxDlqPromotionService {
         this.clock = clock;
     }
 
+    /**
+     * Promuove tutti gli eventi outbox in stato FAILED nella tabella
+     * DLQ, eliminando le righe originali. L'operazione e' transazionale
+     * e atomica rispetto a percorsi concorrenti di incrementRetry.
+     */
     @Transactional
     @Scheduled(fixedDelayString = "${app.dlq-promotion-interval-ms:600000}")
     public void promoteFailedToDlq() {

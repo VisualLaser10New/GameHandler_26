@@ -1,16 +1,23 @@
 package com.gameplatform.shared.dto;
 
 /**
- * Request body for updating a game in a building's catalog (LOCAL_ADMIN).
+ * DTO (Data Transfer Object) utilizzato come corpo della richiesta per
+ * aggiornare un gioco all'interno del catalogo di un edificio da parte di un
+ * amministratore locale (LOCAL_ADMIN).
  *
- * <p>Both fields are optional (nullable); at least one must be present (validated
- * by the service). {@code status}, when provided, must be one of the
- * {@code GameMachineStatus} enum literals handled by the admin flow (currently
- * {@code AVAILABLE} and {@code MAINTENANCE}).</p>
+ * <p>Entrambi i campi sono opzionali (nullable): almeno uno dei due deve essere
+ * valorizzato, come validato dal servizio. Il campo {@code status}, quando
+ * fornito, deve corrispondere a uno dei valori dell'enumerazione
+ * {@code GameMachineStatus} gestiti dal flusso amministrativo (attualmente
+ * {@code AVAILABLE} e {@code MAINTENANCE}).</p>
  *
- * @param name   the new human-readable name, or null to leave unchanged
- * @param status the new {@code GameMachineStatus} literal ({@code AVAILABLE} or
- *               {@code MAINTENANCE}), or null to leave unchanged
+ * @param name   il nuovo nome leggibile dell'elemento, oppure {@code null} per
+ *               lasciarlo invariato
+ * @param status il nuovo valore dell'enumerazione {@code GameMachineStatus}
+ *               ({@code AVAILABLE} o {@code MAINTENANCE}), oppure {@code null}
+ *               per lasciarlo invariato
+ *
+ * @see com.gameplatform.shared.dto.GameMachineStatus
  */
 public record UpdateGameRequestDto(
         String name,

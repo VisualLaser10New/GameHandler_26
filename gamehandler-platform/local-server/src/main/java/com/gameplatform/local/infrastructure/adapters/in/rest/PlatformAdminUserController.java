@@ -33,6 +33,14 @@ public class PlatformAdminUserController {
     private final CurrentUserService currentUserService;
     private final String buildingId;
 
+    /**
+     * Costruisce il controller con il caso d'uso per l'assegnazione dei
+     * ruoli e il servizio per l'utente corrente.
+     *
+     * @param assignUseCase caso d'uso per l'assegnazione dei ruoli
+     * @param currentUserService servizio per la risoluzione dell'utente autenticato
+     * @param buildingId identificativo dell'edificio
+     */
     public PlatformAdminUserController(AssignRoleRequestedUseCase assignUseCase,
                                        CurrentUserService currentUserService,
                                        @Value("${app.building-id}") String buildingId) {
@@ -41,6 +49,14 @@ public class PlatformAdminUserController {
         this.buildingId = buildingId;
     }
 
+    /**
+     * Assegna un nuovo insieme di ruoli a un utente target. La richiesta
+     * viene processata in modo asincrono tramite outbox.
+     *
+     * @param userId l'identificativo dell'utente target
+     * @param roles la lista dei ruoli da assegnare
+     * @return una {@link ResponseEntity} con status 202 e il {@link AdminRequestDto}
+     */
     @PostMapping("/{userId}/roles")
     public ResponseEntity<AdminRequestDto> assignRoles(@PathVariable String userId,
                                                        @RequestBody List<String> roles) {

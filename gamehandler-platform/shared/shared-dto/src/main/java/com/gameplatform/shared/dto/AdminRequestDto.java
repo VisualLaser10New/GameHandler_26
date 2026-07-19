@@ -11,17 +11,24 @@ import java.time.Instant;
  * the W use case that created the request) so the client can interpret
  * them without depending on the request-specific DTO contract.
  *
- * @param requestId       the admin-request id (== outbox eventId)
- * @param eventType       the {@code *_REQUESTED} event type emitted
- * @param actingUserId    the admin/PLAYER user id that opened the request
- * @param actingRole      the role of the acting user
- * @param buildingId      the building where the user is connected
- * @param payload         the request payload (JSON string)
- * @param status          the request status (PENDING / COMPLETED / FAILED)
- * @param resultData      the result data (JSON string, nullable)
- * @param createdAt       the request creation instant
- * @param completedAt     the request completion instant (nullable while PENDING)
- * @param outboxEventId   the outbox event id carrying the request (== requestId)
+ * Proiezione in sola lettura di una riga di richiesta admin locale, utilizzata
+ * per l'endpoint Local {@code GET /api/admin/requests[?requestId=]} (PIANO §7.B).
+ * I dati provengono dalla tabella {@code admin_requests_local}; le colonne
+ * {@code payload} e {@code resultData} sono restituite come {@link String} opache
+ * (JSON codificato così come scritto dal caso d'uso W che ha creato la richiesta),
+ * così il client può interpretarle senza dipendere dal contratto DTO specifico.
+ *
+ * @param requestId     l'identificativo della richiesta admin; non è {@code null} e corrisponde all'{@code outboxEventId}
+ * @param eventType     il tipo di evento {@code *_REQUESTED} emesso; non è {@code null}
+ * @param actingUserId  l'identificativo dell'utente admin/PLAYER che ha aperto la richiesta; non è {@code null}
+ * @param actingRole    il ruolo dell'utente che ha effettuato l'azione; non è {@code null}
+ * @param buildingId    l'identificativo dell'edificio a cui l'utente è connesso; non è {@code null}
+ * @param payload       il payload della richiesta in formato JSON; non è {@code null} (stringa vuota se assente)
+ * @param status        lo stato della richiesta (PENDING / COMPLETED / FAILED); non è {@code null}
+ * @param resultData    i dati di risultato in formato JSON; può essere {@code null} se non ancora disponibili
+ * @param createdAt     l'istante di creazione della richiesta; non è {@code null}
+ * @param completedAt   l'istante di completamento della richiesta; è {@code null} finché lo stato è PENDING
+ * @param outboxEventId l'identificativo dell'evento outbox che trasporta la richiesta; non è {@code null} e corrisponde a {@code requestId}
  */
 public record AdminRequestDto(
         String requestId,

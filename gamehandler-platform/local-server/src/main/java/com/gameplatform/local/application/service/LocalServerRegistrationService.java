@@ -12,20 +12,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Application service that self-registers the local server against the central system
- * at application startup, with exponential backoff and jitter.
+ * Servizio che auto-registra il server locale presso il sistema centrale
+ * all'avvio dell'applicazione, con backoff esponenziale e jitter.
+ * Implementa {@link SmartLifecycle} per eseguire la registrazione dopo
+ * che il contesto Spring e' completamente inizializzato.
  *
- * <p>Implements {@link SmartLifecycle} so registration runs after the Spring context
- * is fully refreshed (i.e. after MQTT, scheduler and adapters are wired). The
- * {@code stop()} callback interrupts the worker thread: registration is a startup
- * operation; if the central is down the app still starts and the periodic
- * {@link SyncSchedulerService} keeps retrying sync, while a follow-up registration
- * will happen when the central comes back (the central's {@code updateLastSeenAt}
- * is an upsert-safe heartbeat).</p>
+ * <p>Politica di retry: delay iniziale 1s, fattore esponenziale 2, delay
+ * massimo 30s, jitter ±20%. Il ciclo termina non appena
+ * {@link RegisterLocalServerPort#register()} restituisce true, o quando
+ * il thread viene interrotto.</p>
  *
- * <p>Retry policy: initial delay 1s, exponential factor 2, max delay 30s, jitter ±20%.
- * The loop terminates as soon as {@link RegisterLocalServerPort#register()} returns true,
- * or when the running thread is interrupted.</p>
+ * @see RegisterLocalServerUseCase
+ * @see RegisterLocalServerPort
+ * @see SyncSchedulerService
  */
 @Service
 public class LocalServerRegistrationService implements RegisterLocalServerUseCase, SmartLifecycle {
@@ -49,6 +48,13 @@ public class LocalServerRegistrationService implements RegisterLocalServerUseCas
         this.syncCentralSystemPort = syncCentralSystemPort;
     }
 
+    /**
+     * Esegue la registrazione verso il sistema centrale con backoff
+     * esponenziale e jitter fino al successo o all'interruzione del
+     * thread.
+     *
+     * @return true se la registrazione e' avvenuta con successo
+     */
     @Override
     public boolean register() {
         long delay = INITIAL_DELAY_MS;
@@ -106,11 +112,23 @@ public class LocalServerRegistrationService implements RegisterLocalServerUseCas
         return true;
     }
 
+    /**
+     * Verifica se la registrazione e' stata completata con successo.
+     * Visibile per test.
+     *
+     * @return true se il server e' registrato
+     */
     // visible for testing
     boolean isRegistered() {
         return registered.get();
     }
 
+    /**
+     * Pone il thread in sleep per il tempo specificato con l'aggiunta
+     * di jitter casuale del ±20%.
+     *
+     * @param baseDelayMs il delay base in millisecondi
+     */
     private void sleepWithJitter(long baseDelayMs) {
         long jitter = (long) (baseDelayMs * JITTER * (Math.random() - 0.5) * 2);
         long total = Math.max(100L, baseDelayMs + jitter);

@@ -21,16 +21,15 @@ import javafx.stage.Stage;
 import java.util.function.Consumer;
 
 /**
- * Main JavaFX application entry point and navigation controller (extended
- * in FASE 7 §7.C for routing, dynamic navbar and logout).
+ * Punto di ingresso principale dell'applicazione JavaFX e controller di navigazione.
  * <p>
- * Delegates the navbar to {@link NavbarController} so the visible buttons
- * reflect {@link HttpClientHelper#getRoles()}. Adds eight new view
- * constants (tournament browsing, player stats/matches, the three admin
- * dashboards and the admin-requests polling view) plus the inherited
- * six (login / signup / game selection / lobby / game play / statistics).
- * On login, the navbar is rebuilt; on logout every session field is
- * cleared and the user is sent back to the login screen.
+ * Delega la navbar a {@link NavbarController} in modo che i pulsanti
+ * visibili riflettano {@link HttpClientHelper#getRoles()}. Gestisce
+ * quindici viste (login, signup, selezione giochi, lobby, gioco,
+ * statistiche, statistiche personali, match personali, tornei,
+ * tre dashboard admin e vista richieste admin). Al login la navbar
+ * viene ricostruita; al logout la sessione viene cancellata e
+ * l'utente reindirizzato al login.
  */
 public class MainView extends Application {
 
@@ -67,6 +66,15 @@ public class MainView extends Application {
 
     // ─────────────────────────── JavaFX lifecycle ────────────────────────────
 
+    /**
+     * Avvia l'applicazione JavaFX.
+     * <p>
+     * Inizializza la finestra principale, la navbar, la barra di stato,
+     * i servizi (MQTT, orchestrazione) e le viste. Configura i callback
+     * di navigazione tra le viste e mostra la schermata di login.
+     *
+     * @param stage lo stage primario dell'applicazione; non null
+     */
     @Override
     public void start(Stage stage) {
         this.primaryStage = stage;
@@ -99,6 +107,9 @@ public class MainView extends Application {
         navigateTo(NavbarController.VIEW_LOGIN);
     }
 
+    /**
+     * Arresta l'applicazione e libera le risorse.
+     */
     @Override
     public void stop() {
         shutdown();
@@ -106,6 +117,14 @@ public class MainView extends Application {
 
     // ─────────────────────────── Initialisation ─────────────────────────────
 
+    /**
+     * Inizializza i servizi di backend.
+     * <p>
+     * Configura la connessione MQTT, il publisher di heartbeat, il
+     * servizio di orchestrazione del gioco, il monitor di connessione
+     * e la sottoscrizione agli eventi di sessione.
+     * In caso di errore MQTT, aggiorna la barra di stato.
+     */
     private void initializeServices() {
         try {
             String brokerUrl = System.getenv().getOrDefault("MQTT_BROKER_URL", MqttClientConfig.DEFAULT_BROKER_URL);
@@ -162,6 +181,13 @@ public class MainView extends Application {
         }
     }
 
+    /**
+     * Inizializza tutte le viste dell'applicazione.
+     * <p>
+     * Crea le istanze di ogni vista, configura i callback di
+     * navigazione, i flussi di login/signup, la selezione del
+     * gioco, la lobby, il gameplay e i tornei.
+     */
     private void initializeViews() {
         loginView        = new LoginView();
         signupView       = new SignupView();
@@ -245,9 +271,15 @@ public class MainView extends Application {
     // ─────────────────────────── Navigation ──────────────────────────────────
 
     /**
-     * Switches the centre area to the requested view.
+     * Cambia la vista centrale dell'applicazione.
+     * <p>
+     * Arresta i poller attivi, imposta la vista richiesta nell'area
+     * centrale del layout e aggiorna la visibilità della navbar.
+     * Le viste di login, signup, lobby e gioco nascondono la navbar.
      *
-     * @param viewName one of the {@code VIEW_*} constants from {@link NavbarController}
+     * @param viewName una delle costanti {@code VIEW_*} definite in
+     *                 {@link NavbarController}
+     * @throws IllegalArgumentException se il nome della vista non è riconosciuto
      */
     public void navigateTo(String viewName) {
         if (primaryStage == null) return;
@@ -332,15 +364,21 @@ public class MainView extends Application {
         root.requestLayout();
     }
 
-    /** Stops any active pollers when leaving a long-running view. */
+    /**
+     * Arresta i poller attivi quando si abbandona una vista a lunga esecuzione.
+     */
     private void stopPollers() {
         adminRequestsView.onLeave();
     }
 
     /**
-     * Picks the first view the user should land on after login — must be
-     * visible for the current role per {@link NavbarController#rebuild()}
-     * (otherwise the navbar would offer no matching button).
+     * Seleziona la vista predefinita dopo il login in base al ruolo.
+     * <p>
+     * La vista scelta deve essere visibile per il ruolo corrente secondo
+     * {@link NavbarController#rebuild()}, altrimenti la navbar non
+     * mostrerebbe alcun pulsante corrispondente.
+     *
+     * @return il nome della vista predefinita per il ruolo corrente
      */
     private String defaultViewAfterLogin() {
         if (HttpClientHelper.hasRole(Role.PLATFORM_ADMIN.name())) return NavbarController.VIEW_ADMIN_PLATFORM;
@@ -351,6 +389,12 @@ public class MainView extends Application {
 
     // ─────────────────────────── Logout ───────────────────────────────────
 
+    /**
+     * Esegue il logout dell'utente.
+     * <p>
+     * Cancella i dati di sessione da {@link HttpClientHelper}, reimposta
+     * l'URL base del client API e naviga alla schermata di login.
+     */
     private void doLogout() {
         try {
             HttpClientHelper.clearSession();
@@ -362,6 +406,12 @@ public class MainView extends Application {
         }
     }
 
+    /**
+     * Arresta tutti i servizi e libera le risorse.
+     * <p>
+     * Arresta il poller delle richieste admin, il monitor di connessione,
+     * il servizio di heartbeat e disconnette l'adattatore MQTT.
+     */
     private void shutdown() {
         try {
             adminRequestsView.onLeave();

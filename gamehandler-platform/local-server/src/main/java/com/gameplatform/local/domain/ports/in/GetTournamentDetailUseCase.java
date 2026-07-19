@@ -5,12 +5,19 @@ import com.gameplatform.shared.dto.TournamentDetailDto;
 import java.util.Optional;
 
 /**
- * Use case (PIANO §7.B): returns the detail view of a single tournament,
- * aggregating the four local replicas ({@code tournaments_summary_local},
- * {@code tournament_standings_local}, {@code tournament_matches_local},
- * {@code tournament_participants_local}).
+ * Use case per la lettura del dettaglio di un torneo. Aggrega le
+ * informazioni provenienti dalle quattro tabelle locali di replica
+ * (riepilogo, classifica, partite e partecipanti) in un unico DTO.
+ *
+ * @see com.gameplatform.shared.dto.TournamentDetailDto
  */
 public interface GetTournamentDetailUseCase {
 
+    /**
+     * Restituisce la vista dettagliata del torneo specificato.
+     *
+     * @param tournamentId identificativo del torneo
+     * @return un {@code Optional} contenente il DTO di dettaglio, oppure vuoto se non trovato
+     */
     Optional<TournamentDetailDto> getDetail(String tournamentId);
 }

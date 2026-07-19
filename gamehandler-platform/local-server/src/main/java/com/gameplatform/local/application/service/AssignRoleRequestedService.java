@@ -12,11 +12,15 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Implementation of the W10 use case (PIANO §7.B, RF-UT-02): a
- * PLATFORM_ADMIN assigns a new role set to a target user. Pre-controls
- * the {@code PLATFORM_ADMIN} role on {@code replicated_users}, then
- * atomically writes a {@code admin_requests_local} PENDING row and the
- * matching outbox {@code ROLE_ASSIGNMENT_REQUESTED} event.
+ * Implementazione del caso d'uso W10 (PIANO §7.B): un PLATFORM_ADMIN
+ * assegna un nuovo set di ruoli a un utente target. Esegue il pre-controllo
+ * del ruolo {@code PLATFORM_ADMIN} su {@code replicated_users}, quindi
+ * scrive atomicamente una riga {@code admin_requests_local} in stato PENDING
+ * e il corrispondente evento outbox {@code ROLE_ASSIGNMENT_REQUESTED}.
+ *
+ * @see AssignRoleRequestedUseCase
+ * @see AdminRequestOutboxWriter
+ * @see RolePreCheck
  */
 @Service
 public class AssignRoleRequestedService implements AssignRoleRequestedUseCase {
@@ -36,6 +40,21 @@ public class AssignRoleRequestedService implements AssignRoleRequestedUseCase {
         this.clock = clock;
     }
 
+    /**
+     * Assegna un nuovo set di ruoli a un utente target. Verifica che
+     * l'utente agente possieda il ruolo {@code PLATFORM_ADMIN} e che i
+     * parametri siano validi, poi scrive la richiesta admin PENDING e
+     * l'evento outbox.
+     *
+     * @param targetUserId l'identificativo dell'utente a cui assegnare i ruoli (non blank)
+     * @param roles        la lista dei ruoli da assegnare (non vuota)
+     * @param actingUserId l'identificativo dell'utente che richiede l'operazione
+     * @param actingRole   il ruolo con cui l'utente agente opera
+     * @param buildingId   l'identificativo del building di competenza
+     * @return il DTO della richiesta admin creata
+     * @throws IllegalArgumentException se targetUserId e' blank o roles e' vuoto
+     * @throws org.springframework.security.access.AccessDeniedException se l'utente agente non ha il ruolo PLATFORM_ADMIN
+     */
     @Override
     @Transactional
     public AdminRequestDto assign(String targetUserId,

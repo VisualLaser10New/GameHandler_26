@@ -26,20 +26,20 @@ import java.net.HttpURLConnection;
 import java.util.List;
 
 /**
- * Pushes {@code TOURNAMENT_SUMMARY_UPSERTED} events to a single local server's
- * {@code PUT /internal/tournaments/summaries/sync} endpoint. Structural twin of
- * {@link LocalTournamentMatchRestAdapter} (same SSLContext wiring, timeouts,
- * {@code X-Internal-Api-Key} header, {@link RetryTemplate} 3 attempts).
+ * Adapter REST che invia eventi {@code TOURNAMENT_SUMMARY_UPSERTED} al local
+ * server tramite l'endpoint {@code PUT /internal/tournaments/summaries/sync}.
  *
- * <p>The request body is {@code List<TournamentSummaryEventDto>}; the receiver
- * upsert is idempotent by PK ({@code tournamentId}), so a transient transport
- * failure is simply retried via the outbox on the next scheduler tick — no
- * ack / poison-isolation contract is required. {@code deleted=true} tombstone
- * events are handled by the local side as a {@code deleteById}.</p>
+ * <p>Gemello strutturale di {@link LocalTournamentMatchRestAdapter} (stesso
+ * wiring SSLContext, timeout, header {@code X-Internal-Api-Key} e
+ * {@link RetryTemplate} a 3 tentativi). Il corpo della richiesta &egrave;
+ * {@code List<TournamentSummaryEventDto>}; l'upsert lato ricevente &egrave;
+ * idempotente per PK ({@code tournamentId}), quindi un errore di trasporto
+ * transiente viene semplicemente ritentato tramite outbox al successivo ciclo
+ * dello scheduler. Gli eventi {@code deleted=true} sono gestiti dal local
+ * server come {@code deleteById}.</p>
  *
- * <p>The local {@code InternalApiKeyFilter} already protects every
- * {@code /internal/**} path, so this endpoint is automatically secured by the
- * {@code X-Internal-Api-Key} header sent below.</p>
+ * @see LocalTournamentMatchRestAdapter
+ * @see PushTournamentSummaryToLocalServersPort
  */
 @Component
 public class LocalTournamentSummaryRestAdapter implements PushTournamentSummaryToLocalServersPort {
@@ -52,6 +52,15 @@ public class LocalTournamentSummaryRestAdapter implements PushTournamentSummaryT
     private final String apiKey;
     private final RetryTemplate retryTemplate;
 
+    /**
+     * Costruisce l'adapter configurando il client HTTP con il contesto SSL, la
+     * chiave API interna e i timeout di connessione e lettura.
+     *
+     * @param sslContext       contesto SSL utilizzato per le connessioni HTTPS; non deve essere {@code null}
+     * @param apiKey           chiave API interna inviata nell'header {@code X-Internal-Api-Key}; non deve essere {@code null}
+     * @param connectTimeoutMs timeout di connessione in millisecondi; se non configurato assume il valore predefinito 5000
+     * @param readTimeoutMs    timeout di lettura in millisecondi; se non configurato assume il valore predefinito 5000
+     */
     @org.springframework.beans.factory.annotation.Autowired
     public LocalTournamentSummaryRestAdapter(
             SSLContext sslContext,
@@ -74,13 +83,26 @@ public class LocalTournamentSummaryRestAdapter implements PushTournamentSummaryT
         this.retryTemplate = buildDefaultRetryTemplate();
     }
 
-    // Package-private constructor for testing
+    /**
+     * Costruisce l'adapter con un {@link RestTemplate} fornito esternamente,
+     * utile per i test unitari.
+     *
+     * @param restTemplate il template REST da utilizzare per le chiamate HTTP; non deve essere {@code null}
+     * @param apiKey       chiave API interna inviata nell'header {@code X-Internal-Api-Key}; non deve essere {@code null}
+     */
     LocalTournamentSummaryRestAdapter(RestTemplate restTemplate, String apiKey) {
         this.restTemplate = restTemplate;
         this.apiKey = apiKey;
         this.retryTemplate = buildDefaultRetryTemplate();
     }
 
+    /**
+     * Costruisce il template di retry predefinito con 3 tentativi, backoff
+     * esponenziale da 100 ms a 10 s e ripetizione solo su
+     * {@link TransientPushException}.
+     *
+     * @return il template di retry configurato; mai {@code null}
+     */
     private static RetryTemplate buildDefaultRetryTemplate() {
         return RetryTemplate.builder()
                 .maxAttempts(3)
@@ -89,6 +111,20 @@ public class LocalTournamentSummaryRestAdapter implements PushTournamentSummaryT
                 .build();
     }
 
+    /**
+     * Invia una lista di eventi di riepilogo torneo al local server specificato
+     * tramite una richiesta {@code PUT} all'endpoint di sincronizzazione.
+     * <p>
+     * In caso di errore transiente dopo aver esaurito i tentativi di retry,
+     * rilancia un'eccezione {@link RuntimeException} contenente la causa
+     * originale.
+     *
+     * @param events la lista degli eventi di riepilogo torneo da inviare; non deve essere {@code null}
+     * @param server il local server di destinazione; non deve essere {@code null}
+     * @throws RuntimeException se la richiesta fallisce dopo aver esaurito tutti i tentativi di retry
+     * @see #isTransient(Exception)
+     * @see #isConnectionRefusedRoot(Throwable)
+     */
     @Override
     public void push(List<TournamentSummaryEventDto> events, RegisteredLocalServer server) {
         String url = server.getBaseUrl() + ENDPOINT_PATH;
@@ -130,6 +166,17 @@ public class LocalTournamentSummaryRestAdapter implements PushTournamentSummaryT
         }
     }
 
+    /**
+     * Verifica se un'eccezione rappresenta un errore transiente che pu&ograve;
+     * essere ritentato.
+     * <p>
+     * Sono considerati transienti: {@link ResourceAccessException}, errori HTTP
+     * 5xx, {@code 429 Too Many Requests} e {@code 408 Request Timeout}.
+     *
+     * @param e l'eccezione da classificare; non deve essere {@code null}
+     * @return {@code true} se l'eccezione &egrave; di tipo transiente,
+     *         {@code false} altrimenti
+     */
     static boolean isTransient(Exception e) {
         if (e instanceof ResourceAccessException) {
             return true;
@@ -141,6 +188,15 @@ public class LocalTournamentSummaryRestAdapter implements PushTournamentSummaryT
         return false;
     }
 
+    /**
+     * Verifica se la causa radice di un'eccezione (o dell'intera catena di
+     * cause) &egrave; un {@link java.net.ConnectException}, indicando che il
+     * server di destinazione non &egrave; raggiungibile.
+     *
+     * @param t l'eccezione o throwable da ispezionare; non deve essere {@code null}
+     * @return {@code true} se nella catena delle cause &egrave; presente un
+     *         {@code ConnectException}, {@code false} altrimenti
+     */
     static boolean isConnectionRefusedRoot(Throwable t) {
         Throwable cur = t;
         while (cur != null) {

@@ -4,38 +4,41 @@ import com.gameplatform.central.domain.model.Tournament;
 import com.gameplatform.central.domain.model.TournamentMatch;
 
 /**
- * Outbox emission contract for a newly-scheduled tournament match.
+ * Contratto di emissione outbox per una partita di torneo appena programmata.
  *
- * <p>The implementing infrastructure adapter ({@code TournamentMatchOutboxAdapter})
- * is responsible for building the {@code TournamentMatchScheduledDto} with a fresh
- * shared UUID, JSON-serialising it, and persisting the {@code OutboxEvent} row of
- * type {@code "TOURNAMENT_MATCH_SCHEDULED"} within the caller's active transaction
- * (Outbox Pattern, mirroring {@code LocalAdminBuildingService.writeOutboxEvent}).
- * The row remains {@code PENDING} until the FASE 6 scheduler drains it and pushes
- * it to the involved Local servers.</p>
+ * <p>L'adattatore infrastrutturale ({@code TournamentMatchOutboxAdapter}) è
+ * responsabile di costruire il {@code TournamentMatchScheduledDto} con un nuovo
+ * UUID, serializzarlo in JSON e persistere la riga {@code OutboxEvent} di tipo
+ * {@code "TOURNAMENT_MATCH_SCHEDULED"} all'interno della transazione attiva del
+ * chiamante (pattern Outbox). La riga resta {@code PENDING} finché lo scheduler
+ * non la svuota e la invia ai server locali interessati.</p>
  *
- * <p>This port deliberately depends only on domain types
- * ({@link TournamentMatch}, {@link Tournament}) and NOT on {@code shared-dto}
- * or {@code OutboxEvent}; this keeps the domain layer free of infrastructure
- * and DTO surface concerns. The adapter owns the DTO construction and the
- * UUID generation.</p>
+ * <p>Questa porta dipende deliberatamente solo da tipi di dominio
+ * ({@link TournamentMatch}, {@link Tournament}) e non da {@code shared-dto} o
+ * {@code OutboxEvent}, mantenendo il livello di dominio libero da infrastruttura
+ * e DTO. L'adattatore possiede la costruzione del DTO e la generazione dell'UUID.</p>
  *
- * <p>Implementations MUST NEVER be called for {@code BYE} rows — a BYE is an
- * auto-advancement, not a match scheduled for play at a building, and must
- * not be replicated to Local in FASE 6. The sole caller
- * ({@code TournamentBracketService.schedule}) enforces this guard.</p>
+ * <p>Le implementazioni NON DEVONO mai essere invocate per righe {@code BYE}: un
+ * BYE è un avanzamento automatico, non una partita programmata presso un
+ * edificio, e non deve essere replicato ai server locali.</p>
+ *
+ * @see TournamentMatch
+ * @see Tournament
  */
 public interface TournamentMatchOutboxPort {
+
     /**
-     * Atomically writes (within the caller's tx) a single outbox event of type
-     * {@code "TOURNAMENT_MATCH_SCHEDULED"} for the given {@code SCHEDULED} match.
+     * Scrive atomicamente (nella transazione del chiamante) un singolo evento
+     * outbox di tipo {@code "TOURNAMENT_MATCH_SCHEDULED"} per la partita
+     * {@code SCHEDULED} indicata.
      *
-     * @param match      the newly-scheduled match (MUST have status
+     * @param match      la partita appena programmata (deve avere stato
      *                   {@link com.gameplatform.shared.domain.model.TournamentMatchStatus#SCHEDULED};
-     *                   MUST NOT be a BYE row)
-     * @param tournament the parent tournament (provides {@code gameType} for
-     *                   the denormalised outbox payload since the match has no
-     *                   game_type column)
+     *                   non deve essere una riga BYE); non deve essere {@code null}
+     * @param tournament il torneo padre (fornisce il {@code gameType} per il payload
+     *                   denormalizzato, poiché la partita non ha colonna game_type); non deve essere {@code null}
+     * @throws IllegalArgumentException se {@code match} o {@code tournament} sono {@code null},
+     *                                  se lo stato della partita non è {@code SCHEDULED} o se è una riga BYE
      */
     void publishScheduled(TournamentMatch match, Tournament tournament);
 }

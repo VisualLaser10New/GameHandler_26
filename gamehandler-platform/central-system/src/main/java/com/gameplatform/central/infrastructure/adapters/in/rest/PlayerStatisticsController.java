@@ -47,12 +47,32 @@ public class PlayerStatisticsController {
     private final GetPlayerStatisticsUseCase getPlayerStatisticsUseCase;
     private final CurrentUserService currentUserService;
 
+    /**
+     * Costruisce il controller iniettando il caso d'uso e il servizio utente corrente.
+     *
+     * @param getPlayerStatisticsUseCase caso d'uso per la lettura delle statistiche, non {@code null}
+     * @param currentUserService         servizio per la risoluzione dell'utente autenticato, non {@code null}
+     */
     public PlayerStatisticsController(GetPlayerStatisticsUseCase getPlayerStatisticsUseCase,
-                                      CurrentUserService currentUserService) {
+                                       CurrentUserService currentUserService) {
         this.getPlayerStatisticsUseCase = getPlayerStatisticsUseCase;
         this.currentUserService = currentUserService;
     }
 
+    /**
+     * Restituisce le statistiche del giocatore attualmente autenticato.
+     *
+     * <p>Restituisce le statistiche filtrate opzionalmente per tipo di gioco. L'accesso
+     * richiede il ruolo {@code PLAYER} o {@code PLATFORM_ADMIN}.</p>
+     *
+     * @param gameType tipo di gioco opzionale per filtrare le statistiche; se {@code null} o vuoto,
+     *                 restituisce le statistiche per tutti i giochi
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e la lista di {@link PlayerStatisticsDto};
+     *         la lista è vuota se non esiste alcuna statistica
+     * @throws PlayerStatisticsAccessDeniedException se l'utente autenticato non può essere risolto (mappato a {@code 403})
+     * @throws IllegalArgumentException se {@code gameType} non corrisponde a un valore valido (mappato a {@code 400})
+     * @see GlobalExceptionHandler
+     */
     @GetMapping("/me/statistics")
     @PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<List<PlayerStatisticsDto>> getMyStatistics(
@@ -62,6 +82,22 @@ public class PlayerStatisticsController {
         return ResponseEntity.ok(getPlayerStatisticsUseCase.getStatistics(userId, parsedGameType));
     }
 
+    /**
+     * Restituisce le statistiche del giocatore identificato dall'identificativo fornito.
+     *
+     * <p>L'accesso è consentito a un {@code PLATFORM_ADMIN} oppure al giocatore stesso
+     * (verifica di identità). Le statistiche possono essere filtrate opzionalmente per tipo di gioco.</p>
+     *
+     * @param userId   identificativo del giocatore di cui leggere le statistiche, non {@code null} né vuoto
+     * @param gameType tipo di gioco opzionale per filtrare le statistiche; se {@code null} o vuoto,
+     *                 restituisce le statistiche per tutti i giochi
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e la lista di {@link PlayerStatisticsDto};
+     *         la lista è vuota se non esiste alcuna statistica
+     * @throws PlayerStatisticsAccessDeniedException se il chiamante non è autorizzato a vedere le statistiche
+     *                                               del giocatore indicato, o l'utente corrente non è risolvibile (mappato a {@code 403})
+     * @throws IllegalArgumentException se {@code gameType} non corrisponde a un valore valido (mappato a {@code 400})
+     * @see GlobalExceptionHandler
+     */
     @GetMapping("/{userId}/statistics")
     public ResponseEntity<List<PlayerStatisticsDto>> getUserStatistics(
             @PathVariable String userId,
@@ -77,12 +113,25 @@ public class PlayerStatisticsController {
         return ResponseEntity.ok(getPlayerStatisticsUseCase.getStatistics(targetUserId, parsedGameType));
     }
 
+    /**
+     * Risolve l'identificativo dell'utente attualmente autenticato.
+     *
+     * @return l'{@link UserId} dell'utente corrente
+     * @throws PlayerStatisticsAccessDeniedException se l'utente autenticato non può essere risolto
+     */
     private UserId requireCurrentUserId() {
         return currentUserService.getCurrentUserId()
                 .orElseThrow(() -> new PlayerStatisticsAccessDeniedException(
                         "Authenticated user could not be resolved"));
     }
 
+    /**
+     * Converte una stringa in un {@link GameType} di dominio.
+     *
+     * @param gameType stringa opzionale rappresentante il tipo di gioco; se {@code null} o vuota restituisce {@code null}
+     * @return il {@link GameType} corrispondente, o {@code null} se l'input non è fornito
+     * @throws IllegalArgumentException se la stringa non corrisponde a nessun valore valido di {@link GameType}
+     */
     private static GameType parseGameType(String gameType) {
         if (gameType == null || gameType.isBlank()) {
             return null;

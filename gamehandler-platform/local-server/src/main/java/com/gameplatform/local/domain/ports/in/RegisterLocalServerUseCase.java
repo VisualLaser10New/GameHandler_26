@@ -1,15 +1,15 @@
 package com.gameplatform.local.domain.ports.in;
 
 /**
- * Use case: the local server registers itself with the central system at startup.
- *
- * <p>Implementations handle retry/backoff until the central system is reachable
- * and acknowledges the registration.</p>
+ * Use case per la registrazione del server locale presso il sistema centrale.
+ * L'implementazione gestisce i tentativi e i backoff fino a quando il sistema
+ * centrale non &egrave; raggiungibile e conferma la registrazione.
  */
 public interface RegisterLocalServerUseCase {
     /**
-     * Blocking call that tries to register this local server with the central system.
-     * Returns {@code true} on success, {@code false} if registration ultimately fails.
+     * Tenta la registrazione del server locale presso il sistema centrale.
+     *
+     * @return {@code true} se la registrazione &egrave; avvenuta con successo, {@code false} altrimenti
      */
     boolean register();
 }

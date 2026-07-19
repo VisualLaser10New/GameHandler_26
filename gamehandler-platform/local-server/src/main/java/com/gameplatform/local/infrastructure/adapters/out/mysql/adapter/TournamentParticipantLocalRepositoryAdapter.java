@@ -13,12 +13,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * JPA adapter for the {@link TournamentParticipantsLocalRepository} port
- * (PIANO §7.B). {@code save} is an upsert by the composite PK
- * ({@code tournamentId}, {@code participantId});
- * {@code deleteByTournament} removes the full per-tournament snapshot in
- * one bulk delete — used by the sync service's full-snapshot replace
- * (delete+insert idempotency).
+ * Adapter JPA per il port {@link TournamentParticipantsLocalRepository}.
+ * Gestisce la persistenza dei partecipanti ai tornei, con operazioni
+ * di upsert per chiave primaria composta (tournamentId, participantId)
+ * e funzionalità di eliminazione bulk per sostituzione completa dello
+ * snapshot di partecipanti per torneo.
+ *
+ * @see TournamentParticipantsLocalRepository
+ * @see TournamentParticipantLocalJpaRepository
  */
 @Component
 public class TournamentParticipantLocalRepositoryAdapter implements TournamentParticipantsLocalRepository {
@@ -26,12 +28,24 @@ public class TournamentParticipantLocalRepositoryAdapter implements TournamentPa
     private final TournamentParticipantLocalJpaRepository jpaRepository;
     private final TournamentParticipantLocalMapper mapper;
 
+    /**
+     * Costruisce un nuovo adapter con le dipendenze necessarie.
+     *
+     * @param jpaRepository repository JPA per i partecipanti ai tornei
+     * @param mapper        mapper per la conversione tra entity e dominio
+     */
     public TournamentParticipantLocalRepositoryAdapter(TournamentParticipantLocalJpaRepository jpaRepository,
                                                         TournamentParticipantLocalMapper mapper) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
     }
 
+    /**
+     * Salva un partecipante al torneo nel database (upsert per chiave composta).
+     *
+     * @param participant il partecipante da salvare
+     * @return il partecipante persistito, {@code null} se l'argomento è {@code null}
+     */
     @Override
     @Transactional
     public TournamentParticipantLocal save(TournamentParticipantLocal participant) {
@@ -43,6 +57,12 @@ public class TournamentParticipantLocalRepositoryAdapter implements TournamentPa
         return mapper.toDomain(saved);
     }
 
+    /**
+     * Recupera tutti i partecipanti di un dato torneo.
+     *
+     * @param tournamentId l'identificativo del torneo
+     * @return una lista di partecipanti, vuota se il torneo è {@code null}
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TournamentParticipantLocal> findByTournament(TournamentId tournamentId) {
@@ -54,6 +74,11 @@ public class TournamentParticipantLocalRepositoryAdapter implements TournamentPa
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Elimina tutti i partecipanti di un torneo in un'unica operazione bulk.
+     *
+     * @param tournamentId l'identificativo del torneo; se {@code null} l'operazione non viene eseguita
+     */
     @Override
     @Transactional
     public void deleteByTournament(TournamentId tournamentId) {
@@ -63,6 +88,12 @@ public class TournamentParticipantLocalRepositoryAdapter implements TournamentPa
         jpaRepository.deleteByTournamentId(tournamentId.value());
     }
 
+    /**
+     * Elimina un partecipante specifico da un torneo.
+     *
+     * @param tournamentId l'identificativo del torneo
+     * @param participantId l'identificativo del partecipante da eliminare; se uno dei parametri è nullo/vuoto l'operazione non viene eseguita
+     */
     @Override
     @Transactional
     public void deleteByTournamentAndParticipantId(TournamentId tournamentId, String participantId) {

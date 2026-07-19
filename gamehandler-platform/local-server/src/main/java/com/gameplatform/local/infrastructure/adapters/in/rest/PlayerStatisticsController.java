@@ -41,6 +41,13 @@ public class PlayerStatisticsController {
     private final GetPlayerStatisticsUseCase getPlayerStatisticsUseCase;
     private final CurrentUserService currentUserService;
 
+    /**
+     * Costruisce il controller con il caso d'uso per le statistiche del
+     * giocatore e il servizio per l'utente corrente.
+     *
+     * @param getPlayerStatisticsUseCase caso d'uso per le statistiche del giocatore
+     * @param currentUserService servizio per la risoluzione dell'utente autenticato
+     */
     public PlayerStatisticsController(GetPlayerStatisticsUseCase getPlayerStatisticsUseCase,
                                       CurrentUserService currentUserService) {
         this.getPlayerStatisticsUseCase = getPlayerStatisticsUseCase;
@@ -67,6 +74,13 @@ public class PlayerStatisticsController {
                 .toList());
     }
 
+    /**
+     * Converte una stringa nel corrispondente enum {@link GameType}.
+     *
+     * @param gameType la stringa rappresentante il tipo di gioco (può essere null)
+     * @return il {@link GameType} corrispondente, o null se la stringa è vuota o nulla
+     * @throws IllegalArgumentException se la stringa non corrisponde a un valore valido
+     */
     private static GameType parseGameType(String gameType) {
         if (gameType == null || gameType.isBlank()) {
             return null;

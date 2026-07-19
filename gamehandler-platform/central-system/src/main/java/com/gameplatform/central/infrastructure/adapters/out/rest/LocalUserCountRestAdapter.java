@@ -20,32 +20,31 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import java.net.HttpURLConnection;
 /**
- * M4 — central REST adapter that queries the local-server
- * {@code GET /internal/users/count} endpoint and returns the number of
- * {@code replicated_users} rows the server currently holds.
+ * Adapter REST che interroga il local server tramite l'endpoint
+ * {@code GET /internal/users/count} e restituisce il numero di righe
+ * {@code replicated_users} attualmente presenti sul server.
  *
- * <p>Wiring conventions are deliberately identical to {@link LocalRestAdapter}
- * so that both REST clients share the same api-key header
- * ({@code X-Internal-Api-Key}), the same {@link SimpleClientHttpRequestFactory}
- * timeouts ({@code central.replication.connect-timeout-ms} /
- * {@code central.replication.read-timeout-ms}, both default 5000 ms), and the
- * same {@link RetryTemplate} shape (3 attempts, exponential backoff 100 ms →
- * 10 s, retry on {@link TransientPushException} only). Transient classification
- * is delegated to {@link LocalRestAdapter#isTransient(Exception)} so the
- * policy stays in a single place (DRY).</p>
+ * <p>La configurazione di wiring &egrave; deliberatamente identica a quella di
+ * {@link LocalRestAdapter}: stesso header api-key ({@code X-Internal-Api-Key}),
+ * stessi timeout {@link SimpleClientHttpRequestFactory}
+ * ({@code central.replication.connect-timeout-ms} /
+ * {@code central.replication.read-timeout-ms}, entrambi con default 5000 ms) e
+ * stesso {@link RetryTemplate} (3 tentativi, backoff esponenziale 100 ms →
+ * 10 s, retry solo su {@link TransientPushException}). La classificazione
+ * degli errori transienti &egrave; delegata a
+ * {@link LocalRestAdapter#isTransient(Exception)} per mantenere la politica
+ * in un unico punto (DRY).</p>
  *
- * <p><b>Failure contract (chosen over throwing):</b> on any exception or non-2xx
- * response after exhausting retries the adapter returns
+ * <p><b>Contratto di fallimento:</b> in caso di eccezione o risposta non-2xx
+ * dopo aver esaurito i tentativi, l'adapter restituisce
  * {@link QueryLocalServerUserCountPort#COUNT_UNAVAILABLE} ({@code -1L})
- * instead of throwing. The sentinel is declared on the port interface so the
- * application service can reference it without importing the adapter (hexagonal
- * dependency rule: app layer depends only on {@code domain/ports/out}). The
- * reconciliation service treats this as "unknown" and skips that server for
- * the current cycle — this is more conservative than throwing because a single
- * unreachable server would otherwise abort the entire sweep (or, if caught
- * per-server, would still log the same WARN). Returning {@code -1L} keeps the
- * adapter signature simple ({@code long} return type, no checked exception) and
- * lets the service decide policy.</p>
+ * invece di lanciare un'eccezione. Il valore sentinella &egrave; dichiarato
+ * sull'interfaccia del port in modo che il servizio applicativo possa
+ * referenziarlo senza importare l'adapter (regola esagonale: il livello
+ * applicativo dipende solo da {@code domain/ports/out}).</p>
+ *
+ * @see LocalRestAdapter
+ * @see QueryLocalServerUserCountPort
  */
 @Component
 public class LocalUserCountRestAdapter implements QueryLocalServerUserCountPort {
@@ -56,6 +55,15 @@ public class LocalUserCountRestAdapter implements QueryLocalServerUserCountPort 
     private final String apiKey;
     private final RetryTemplate retryTemplate;
 
+    /**
+     * Costruisce l'adapter configurando il client HTTP con il contesto SSL, la
+     * chiave API interna e i timeout di connessione e lettura.
+     *
+     * @param sslContext       contesto SSL utilizzato per le connessioni HTTPS; non deve essere {@code null}
+     * @param apiKey           chiave API interna inviata nell'header {@code X-Internal-Api-Key}; non deve essere {@code null}
+     * @param connectTimeoutMs timeout di connessione in millisecondi; se non configurato assume il valore predefinito 5000
+     * @param readTimeoutMs    timeout di lettura in millisecondi; se non configurato assume il valore predefinito 5000
+     */
     @org.springframework.beans.factory.annotation.Autowired
     public LocalUserCountRestAdapter(
             SSLContext sslContext,
@@ -78,13 +86,26 @@ public class LocalUserCountRestAdapter implements QueryLocalServerUserCountPort 
         this.retryTemplate = buildDefaultRetryTemplate();
     }
 
-    // Package-private constructor for testing — mirrors LocalServerRestAdapter.
+    /**
+     * Costruisce l'adapter con un {@link RestTemplate} fornito esternamente,
+     * utile per i test unitari.
+     *
+     * @param restTemplate il template REST da utilizzare per le chiamate HTTP; non deve essere {@code null}
+     * @param apiKey       chiave API interna inviata nell'header {@code X-Internal-Api-Key}; non deve essere {@code null}
+     */
     LocalUserCountRestAdapter(RestTemplate restTemplate, String apiKey) {
         this.restTemplate = restTemplate;
         this.apiKey = apiKey;
         this.retryTemplate = buildDefaultRetryTemplate();
     }
 
+    /**
+     * Costruisce il template di retry predefinito con 3 tentativi, backoff
+     * esponenziale da 100 ms a 10 s e ripetizione solo su
+     * {@link TransientPushException}.
+     *
+     * @return il template di retry configurato; mai {@code null}
+     */
     private static RetryTemplate buildDefaultRetryTemplate() {
         return RetryTemplate.builder()
                 .maxAttempts(3)
@@ -93,6 +114,22 @@ public class LocalUserCountRestAdapter implements QueryLocalServerUserCountPort 
                 .build();
     }
 
+    /**
+     * Restituisce il numero di utenti replicati ({@code replicated_users})
+     * presenti sul local server specificato, interrogando l'endpoint
+     * {@code GET /internal/users/count}.
+     * <p>
+     * In caso di errore transiente (dopo aver esaurito i tentativi di retry) o
+     * di qualsiasi altra eccezione, restituisce
+     * {@link QueryLocalServerUserCountPort#COUNT_UNAVAILABLE} ({@code -1L})
+     * senza lanciare eccezioni.
+     *
+     * @param server il local server da interrogare; non deve essere {@code null}
+     * @return il numero di utenti replicati, oppure {@code -1L} se il conteggio
+     *         non è disponibile
+     * @see QueryLocalServerUserCountPort#COUNT_UNAVAILABLE
+     * @see LocalRestAdapter#isTransient(Exception)
+     */
     @Override
     public long countReplicatedUsers(RegisteredLocalServer server) {
         String url = server.getBaseUrl() + "/internal/users/count";

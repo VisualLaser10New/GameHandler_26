@@ -23,10 +23,16 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Read use case (PIANO §7.B): aggregates the detail view of a single
- * tournament (summary + standings + matches + participants) from the
- * four local replicas. Empty if the tournament summary row is missing
- * or marked as deleted.
+ * Caso d'uso in lettura (PIANO §7.B): aggrega la vista di dettaglio
+ * di un singolo torneo (riepilogo + classifiche + incontri + partecipanti)
+ * a partire dalle quattro repliche locali. Restituisce vuoto se la riga
+ * di riepilogo del torneo e' assente o marcata come eliminata.
+ *
+ * @see GetTournamentDetailUseCase
+ * @see TournamentSummaryLocalRepository
+ * @see TournamentStandingsLocalRepository
+ * @see TournamentParticipantsLocalRepository
+ * @see TournamentMatchLocalRepository
  */
 @Service
 @Transactional(readOnly = true)
@@ -37,6 +43,15 @@ public class GetTournamentDetailService implements GetTournamentDetailUseCase {
     private final TournamentParticipantsLocalRepository tournamentParticipantsLocalRepository;
     private final TournamentMatchLocalRepository tournamentMatchLocalRepository;
 
+    /**
+     * Costruisce il servizio con i quattro repository locali necessari
+     * per aggregare la vista di dettaglio del torneo.
+     *
+     * @param tournamentSummaryLocalRepository     il repository delle repliche riepilogo torneo
+     * @param tournamentStandingsLocalRepository   il repository delle repliche classifiche torneo
+     * @param tournamentParticipantsLocalRepository il repository delle repliche partecipanti torneo
+     * @param tournamentMatchLocalRepository       il repository delle repliche match torneo
+     */
     public GetTournamentDetailService(TournamentSummaryLocalRepository tournamentSummaryLocalRepository,
                                        TournamentStandingsLocalRepository tournamentStandingsLocalRepository,
                                        TournamentParticipantsLocalRepository tournamentParticipantsLocalRepository,
@@ -47,6 +62,14 @@ public class GetTournamentDetailService implements GetTournamentDetailUseCase {
         this.tournamentMatchLocalRepository = tournamentMatchLocalRepository;
     }
 
+    /**
+     * Recupera il dettaglio completo di un torneo, aggregando riepilogo,
+     * classifiche, incontri e partecipanti. Restituisce vuoto se il
+     * torneo non esiste o e' marcato come eliminato.
+     *
+     * @param tournamentId l'identificativo del torneo (non blank per avere un risultato)
+     * @return un Optional contenente il dettaglio del torneo, o vuoto se non trovato o eliminato
+     */
     @Override
     public Optional<TournamentDetailDto> getDetail(String tournamentId) {
         if (tournamentId == null || tournamentId.isBlank()) {
@@ -74,6 +97,13 @@ public class GetTournamentDetailService implements GetTournamentDetailUseCase {
         ));
     }
 
+    /**
+     * Converte un {@link TournamentSummaryLocal} nel corrispondente
+     * {@link TournamentSummaryDto}.
+     *
+     * @param summary il riepilogo del torneo dal modello di dominio (non null)
+     * @return il DTO con tutti i campi mappati uno-a-uno
+     */
     private static TournamentSummaryDto toSummaryDto(TournamentSummaryLocal summary) {
         return new TournamentSummaryDto(
                 summary.getTournamentId().value(),
@@ -90,6 +120,13 @@ public class GetTournamentDetailService implements GetTournamentDetailUseCase {
         );
     }
 
+    /**
+     * Converte un {@link TournamentStandingLocal} nel corrispondente
+     * {@link TournamentStandingDto}.
+     *
+     * @param standing la classifica del torneo dal modello di dominio (non null)
+     * @return il DTO con participantId, displayName, wins, losses, points e rank
+     */
     private static TournamentStandingDto toStandingDto(TournamentStandingLocal standing) {
         return new TournamentStandingDto(
                 standing.getParticipantId(),
@@ -101,6 +138,13 @@ public class GetTournamentDetailService implements GetTournamentDetailUseCase {
         );
     }
 
+    /**
+     * Converte un {@link TournamentParticipantLocal} nel corrispondente
+     * {@link TournamentParticipantViewDto}.
+     *
+     * @param participant il partecipante del torneo dal modello di dominio (non null)
+     * @return il DTO con participantId, isTeam, displayName e registeredAt
+     */
     private static TournamentParticipantViewDto toParticipantView(TournamentParticipantLocal participant) {
         return new TournamentParticipantViewDto(
                 participant.getParticipantId(),
@@ -110,6 +154,14 @@ public class GetTournamentDetailService implements GetTournamentDetailUseCase {
         );
     }
 
+    /**
+     * Converte un {@link TournamentMatchLocal} nel corrispondente
+     * {@link TournamentMatchDto}. I campi risultato e vincitore vengono
+     * impostati a null per la vista di dettaglio.
+     *
+     * @param match il match del torneo dal modello di dominio (non null)
+     * @return il DTO con id, round, bracketPosition, partecipanti, gameId, status e scheduledAt
+     */
     private static TournamentMatchDto toMatchDto(TournamentMatchLocal match) {
         return new TournamentMatchDto(
                 match.getId().value(),

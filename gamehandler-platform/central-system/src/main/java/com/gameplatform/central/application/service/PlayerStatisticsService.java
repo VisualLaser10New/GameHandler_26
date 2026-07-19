@@ -24,6 +24,21 @@ import java.util.List;
  * is filtered to that single game type; otherwise every game type the user has
  * played is returned.</p>
  */
+/**
+ * Servizio applicativo lato lettura per le statistiche personali di un
+ * giocatore (FASE 3). Implementa {@link GetPlayerStatisticsUseCase} leggendo
+ * il read-model {@code player_statistics} centrale, proiettato da
+ * {@code SyncEventProcessor}.
+ *
+ * <p>Un utente che non ha disputato alcuna partita restituisce una lista
+ * <em>vuota</em> (non un'eccezione): {@code matchesPlayed == 0} è rappresentato
+ * dall'assenza di righe. Quando {@code gameType} è non-null il risultato è
+ * filtrato a quel singolo tipo di gioco; altrimenti restituisce tutti i tipi
+ * giocati dall'utente.</p>
+ *
+ * @see GetPlayerStatisticsUseCase
+ * @see PlayerStatisticsProjectionService
+ */
 @Service
 @Transactional(readOnly = true)
 public class PlayerStatisticsService implements GetPlayerStatisticsUseCase {
@@ -34,6 +49,18 @@ public class PlayerStatisticsService implements GetPlayerStatisticsUseCase {
         this.repository = repository;
     }
 
+    /**
+     * Restituisce le statistiche personali di un utente, opzionalmente filtrate
+     * per tipo di gioco.
+     *
+     * @param userId l'identificativo dell'utente di cui leggere le statistiche
+     *        (non deve essere {@code null})
+     * @param gameType il tipo di gioco su cui filtrare, o {@code null} per
+     *        restituire tutte le tipologie giocate
+     * @return la lista delle statistiche dell'utente; lista vuota (mai
+     *         {@code null}) se l'utente non ha statistiche per i criteri dati
+     * @throws IllegalArgumentException se {@code userId} è {@code null}
+     */
     @Override
     public List<PlayerStatisticsDto> getStatistics(UserId userId, GameType gameType) {
         if (userId == null) {
@@ -49,6 +76,13 @@ public class PlayerStatisticsService implements GetPlayerStatisticsUseCase {
                 .toList();
     }
 
+    /**
+     * Converte una entità {@link PlayerStatistics} nel corrispondente DTO di
+     * trasporto.
+     *
+     * @param stats la statistica persistita da convertire (non deve essere {@code null})
+     * @return il DTO contenente i valori della statistica
+     */
     private static PlayerStatisticsDto toDto(PlayerStatistics stats) {
         return new PlayerStatisticsDto(
                 stats.getUserId().value(),

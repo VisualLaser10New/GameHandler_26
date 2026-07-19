@@ -34,6 +34,14 @@ public class GameAdminController {
     private final CurrentUserService currentUserService;
     private final String buildingId;
 
+    /**
+     * Costruisce il controller con il caso d'uso per l'upsert delle definizioni
+     * di gioco e il servizio per l'utente corrente.
+     *
+     * @param upsertUseCase caso d'uso per l'upsert delle definizioni di gioco
+     * @param currentUserService servizio per la risoluzione dell'utente autenticato
+     * @param buildingId identificativo dell'edificio
+     */
     public GameAdminController(UpsertGameDefinitionRequestedUseCase upsertUseCase,
                                 CurrentUserService currentUserService,
                                 @Value("${app.building-id}") String buildingId) {
@@ -42,6 +50,14 @@ public class GameAdminController {
         this.buildingId = buildingId;
     }
 
+    /**
+     * Crea una nuova definizione di gioco. La richiesta viene processata in
+     * modo asincrono tramite outbox; il risultato è un {@link AdminRequestDto}
+     * con stato PENDING.
+     *
+     * @param req i dati della definizione di gioco da creare
+     * @return una {@link ResponseEntity} con status 202 e il {@link AdminRequestDto}
+     */
     @PostMapping
     public ResponseEntity<AdminRequestDto> createGame(@RequestBody UpsertGameDefinitionRequestDto req) {
         Optional<UserId> currentUserId = currentUserService.getCurrentUserId();
@@ -62,6 +78,16 @@ public class GameAdminController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(result);
     }
 
+    /**
+     * Aggiorna una definizione di gioco esistente, identificata dal
+     * {@code gameType}. La richiesta viene processata in modo asincrono
+     * tramite outbox.
+     *
+     * @param gameType il tipo di gioco da aggiornare (usato come fallback se
+     *                 non specificato nel body)
+     * @param req i dati aggiornati della definizione di gioco
+     * @return una {@link ResponseEntity} con status 202 e il {@link AdminRequestDto}
+     */
     @PutMapping("/{gameType}")
     public ResponseEntity<AdminRequestDto> updateGame(@PathVariable String gameType,
                                                        @RequestBody UpsertGameDefinitionRequestDto req) {

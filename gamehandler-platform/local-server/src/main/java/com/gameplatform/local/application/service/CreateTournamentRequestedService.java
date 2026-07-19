@@ -13,11 +13,15 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Implementation of the W12a use case (PIANO §7.B): a PLATFORM_ADMIN
- * creates a new tournament. Pre-controls the {@code PLATFORM_ADMIN}
- * role on {@code replicated_users}, then atomically writes a
- * {@code admin_requests_local} PENDING row and the matching outbox
- * {@code TOURNAMENT_CREATE_REQUESTED} event.
+ * Implementazione del caso d'uso W12a (PIANO §7.B): un PLATFORM_ADMIN
+ * crea un nuovo torneo. Esegue il pre-controllo del ruolo
+ * {@code PLATFORM_ADMIN} su {@code replicated_users}, quindi scrive
+ * atomicamente una riga {@code admin_requests_local} in stato PENDING
+ * e il corrispondente evento outbox {@code TOURNAMENT_CREATE_REQUESTED}.
+ *
+ * @see CreateTournamentRequestedUseCase
+ * @see AdminRequestOutboxWriter
+ * @see RolePreCheck
  */
 @Service
 public class CreateTournamentRequestedService implements CreateTournamentRequestedUseCase {
@@ -37,17 +41,35 @@ public class CreateTournamentRequestedService implements CreateTournamentRequest
         this.clock = clock;
     }
 
+    /**
+     * Crea un nuovo torneo. Verifica che l'utente agente possieda il ruolo
+     * {@code PLATFORM_ADMIN} e che i parametri siano validi, poi scrive la
+     * richiesta admin PENDING e l'evento outbox.
+     *
+     * @param name         il nome del torneo (non blank)
+     * @param gameType     il tipo di gioco del torneo (non null)
+     * @param teamBased    true se il torneo e' a squadre, false per individuale
+     * @param teamSize     il numero di giocatori per squadra
+     * @param startsAt     l'istante di inizio del torneo (non null)
+     * @param buildingIds  la lista degli identificativi dei building ospitanti (almeno 2)
+     * @param actingUserId l'identificativo dell'utente richiedente
+     * @param actingRole   il ruolo con cui l'utente agisce
+     * @param buildingId   l'identificativo del building di competenza dell'utente
+     * @return il DTO della richiesta admin creata
+     * @throws IllegalArgumentException se name e' blank, gameType e' null, startsAt e' null o buildingIds ha meno di 2 elementi
+     * @throws org.springframework.security.access.AccessDeniedException se l'utente non ha il ruolo PLATFORM_ADMIN
+     */
     @Override
     @Transactional
     public AdminRequestDto create(String name,
-                                   GameType gameType,
-                                   boolean teamBased,
-                                   int teamSize,
-                                   Instant startsAt,
-                                   List<String> buildingIds,
-                                   String actingUserId,
-                                   String actingRole,
-                                   String buildingId) {
+                                    GameType gameType,
+                                    boolean teamBased,
+                                    int teamSize,
+                                    Instant startsAt,
+                                    List<String> buildingIds,
+                                    String actingUserId,
+                                    String actingRole,
+                                    String buildingId) {
         RolePreCheck.requireRole(userRepository, actingUserId, REQUIRED_ROLE);
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("name cannot be blank");

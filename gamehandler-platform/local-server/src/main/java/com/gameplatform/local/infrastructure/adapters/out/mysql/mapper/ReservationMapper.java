@@ -8,9 +8,22 @@ import com.gameplatform.shared.domain.model.ReservationStatus;
 import com.gameplatform.shared.domain.model.UserId;
 import org.springframework.stereotype.Component;
 
+/**
+ * Mapper null-safe tra il modello di dominio {@link Reservation} e l'entità
+ * di persistenza {@link ReservationJpaEntity}. Propaga la versione ottimistica
+ * del lock dal dominio all'entità per supportare {@code @Version} in Spring
+ * Data JPA.
+ */
 @Component
 public class ReservationMapper {
 
+    /**
+     * Converte un'entità JPA {@link ReservationJpaEntity} nel corrispondente
+     * modello di dominio {@link Reservation}.
+     *
+     * @param entity l'entità JPA da convertire, può essere {@code null}
+     * @return il modello di dominio, oppure {@code null} se l'input è {@code null}
+     */
     public Reservation toDomain(ReservationJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -28,6 +41,14 @@ public class ReservationMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link Reservation} nella corrispondente
+     * entità JPA {@link ReservationJpaEntity}. Propaga la versione del dominio
+     * sull'entità per supportare l'ottimistic locking con {@code @Version}.
+     *
+     * @param domain il modello di dominio da convertire, può essere {@code null}
+     * @return l'entità JPA, oppure {@code null} se l'input è {@code null}
+     */
     public ReservationJpaEntity toEntity(Reservation domain) {
         if (domain == null) {
             return null;

@@ -57,6 +57,27 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * Servizio centrale per la gestione del ciclo di vita delle sessioni di gioco
+ * e delle lobby. Implementa i casi d'uso di avvio, pausa, ripresa e
+ * conclusione delle sessioni, nonche' la creazione, gestione e cancellazione
+ * delle lobby. Integra la canonicalizzazione dell'identita' dei partecipanti
+ * (username {@literal ->} UUID) per garantire la corretta proiezione delle
+ * statistiche lato Central, e supporta le sessioni legate ai match dei
+ * tornei (FASE 6) con validazione degli avversari e aggiornamento dello
+ * stato del match locale.
+ *
+ * @see StartGameSessionUseCase
+ * @see EndGameSessionUseCase
+ * @see PauseGameSessionUseCase
+ * @see ResumeGameSessionUseCase
+ * @see CreateLobbyUseCase
+ * @see JoinLobbyUseCase
+ * @see StartLobbyUseCase
+ * @see CancelLobbyUseCase
+ * @see LeaveLobbyUseCase
+ * @see GetActiveLobbyUseCase
+ */
 @Service
 @Transactional
 public class GameSessionService implements StartGameSessionUseCase, EndGameSessionUseCase, PauseGameSessionUseCase, ResumeGameSessionUseCase, CreateLobbyUseCase, JoinLobbyUseCase, StartLobbyUseCase, CancelLobbyUseCase, LeaveLobbyUseCase, GetActiveLobbyUseCase {
@@ -187,6 +208,16 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         return resolved;
     }
 
+    /**
+     * Avvia una sessione di gioco senza legame con un match torneo.
+     * Delega al metodo overloadato con {@code tournamentMatchId = null}.
+     *
+     * @param gameId        l'identificativo del gioco da avviare
+     * @param gameType      il tipo di gioco
+     * @param participants  la lista dei partecipanti
+     * @param reservationId l'identificativo della prenotazione (opzionale)
+     * @return la sessione di gioco creata
+     */
     @Override
     public GameSession start(GameId gameId, GameType gameType, List<UserId> participants, ReservationId reservationId) {
         return start(gameId, gameType, participants, reservationId, null);
@@ -408,6 +439,19 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         return savedSession;
     }
 
+    /**
+     * Conclude una sessione di gioco con il risultato specificato. Se la
+     * sessione e' gia' COMPLETED, non fa nulla. Per le sessioni legate a
+     * match torneo, verifica che il vincitore non sia null e, per tornei
+     * a squadre, converte il risultato in {@link TeamResult}. Emette gli
+     * eventi outbox GAME_SESSION_COMPLETED e, se applicabile,
+     * TOURNAMENT_MATCH_COMPLETED, e rilascia la macchina da gioco.
+     *
+     * @param sessionId l'identificativo della sessione da concludere
+     * @param result    il risultato della partita
+     * @throws IllegalArgumentException se la sessione non viene trovata
+     * @throws IllegalStateException se un match torneo termina senza vincitore
+     */
     @Override
     public void end(GameSessionId sessionId, GameResult result) {
         GameSession session = gameSessionRepository.findById(sessionId)
@@ -578,6 +622,13 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         }
     }
 
+    /**
+     * Mette in pausa una sessione di gioco attiva e pubblica l'evento
+     * MQTT di pausa.
+     *
+     * @param sessionId l'identificativo della sessione da mettere in pausa
+     * @throws IllegalArgumentException se la sessione non viene trovata
+     */
     @Override
     public void pause(GameSessionId sessionId) {
         GameSession session = gameSessionRepository.findById(sessionId)
@@ -610,6 +661,13 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         }
     }
 
+    /**
+     * Riprende una sessione di gioco in pausa e pubblica l'evento MQTT
+     * di ripresa.
+     *
+     * @param sessionId l'identificativo della sessione da riprendere
+     * @throws IllegalArgumentException se la sessione non viene trovata
+     */
     @Override
     public void resume(GameSessionId sessionId) {
         GameSession session = gameSessionRepository.findById(sessionId)
@@ -642,6 +700,19 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         }
     }
 
+    /**
+     * Crea una nuova lobby per un gioco. Se la macchina da gioco e' bloccata
+     * in uno stato LOBBY residuo, la rilascia prima di procedere. Imposta lo
+     * stato della macchina a LOBBY e crea una sessione in stato WAITING.
+     * Pubblica l'evento MQTT di creazione lobby.
+     *
+     * @param gameId    l'identificativo del gioco
+     * @param gameType  il tipo di gioco
+     * @param creatorId l'identificativo del creatore della lobby
+     * @return la sessione di lobby creata
+     * @throws SessionAlreadyActiveException se esiste gia' una sessione attiva sul gioco
+     * @throws GameNotAvailableException     se la macchina da gioco non viene trovata
+     */
     @Override
     public GameSession createLobby(GameId gameId, GameType gameType, UserId creatorId) {
         Optional<GameSession> activeSession = gameSessionRepository.findActiveByGameId(gameId);
@@ -704,6 +775,18 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         return savedSession;
     }
 
+    /**
+     * Aggiunge un partecipante a una lobby esistente in stato WAITING.
+     * Verifica che la lobby non sia gia' piena in base al massimo di
+     * giocatori consentito dal tipo di gioco. Rinnova la finestra di
+     * inattivita' della lobby. Pubblica l'evento MQTT di join.
+     *
+     * @param sessionId l'identificativo della sessione di lobby
+     * @param userId    l'identificativo dell'utente che si unisce
+     * @return la sessione di lobby aggiornata
+     * @throws IllegalArgumentException se la sessione non viene trovata
+     * @throws IllegalStateException    se la sessione non e' in stato WAITING o e' piena
+     */
     @Override
     public GameSession joinLobby(GameSessionId sessionId, UserId userId) {
         GameSession session = gameSessionRepository.findById(sessionId)
@@ -723,6 +806,9 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         // Canonicalise the joiner identity (username → UUID) before adding
         // so the participants list stays uniformly keyed on the user id.
         session.addParticipant(resolveCanonicalUserId(userId));
+        // Refresh the lobby inactivity window so a late join (e.g. from another
+        // machine) does not get aborted by LobbyExpirationService moments later.
+        session.renewLobby(Instant.now(clock));
         GameSession savedSession = gameSessionRepository.save(session);
 
         // Publish to MQTT
@@ -739,6 +825,18 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         return savedSession;
     }
 
+    /**
+     * Rimuove un partecipante da una lobby in stato WAITING. Il creatore
+     * della lobby non puo' abbandonarla (deve usare {@link #cancelLobby}).
+     * Rinnova la finestra di inattivita' della lobby. Pubblica l'evento
+     * MQTT di abbandono.
+     *
+     * @param sessionId l'identificativo della sessione di lobby
+     * @param userId    l'identificativo dell'utente che abbandona
+     * @return la sessione di lobby aggiornata
+     * @throws IllegalArgumentException se la sessione non viene trovata
+     * @throws IllegalStateException    se la sessione non e' in stato WAITING o l'utente e' il creatore
+     */
     @Override
     public GameSession leaveLobby(GameSessionId sessionId, UserId userId) {
         GameSession session = gameSessionRepository.findById(sessionId)
@@ -753,6 +851,9 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         // removeParticipant is idempotent on non-participants and rejects the
         // creator (participants.get(0)) with IllegalStateException.
         session.removeParticipant(resolveCanonicalUserId(userId));
+        // Refresh the lobby inactivity window on leave too, so the remaining
+        // players are not abruptly kicked by the expiration timer.
+        session.renewLobby(Instant.now(clock));
         GameSession savedSession = gameSessionRepository.save(session);
 
         // Publish to MQTT — emit the RAW (non-canonicalised) userId so the
@@ -771,6 +872,17 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         return savedSession;
     }
 
+    /**
+     * Avvia la partita da una lobby in stato WAITING. Verifica che ci
+     * siano almeno il numero minimo di giocatori richiesto dal tipo di
+     * gioco. Imposta lo stato della sessione a IN_PROGRESS e della
+     * macchina a IN_USE. Pubblica l'evento MQTT di avvio.
+     *
+     * @param sessionId l'identificativo della sessione di lobby
+     * @return la sessione di gioco avviata
+     * @throws IllegalArgumentException se la sessione non viene trovata
+     * @throws IllegalStateException    se la sessione non e' in stato WAITING o non ci sono abbastanza giocatori
+     */
     @Override
     public GameSession startLobby(GameSessionId sessionId) {
         GameSession session = gameSessionRepository.findById(sessionId)
@@ -809,6 +921,18 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         return savedSession;
     }
 
+    /**
+     * Cancella una lobby in stato WAITING. Solo il creatore (primo
+     * partecipante) puo' cancellare la lobby. La sessione viene
+     * transizionata a CANCELLED e la macchina da gioco viene rilasciata
+     * a AVAILABLE. Pubblica gli eventi MQTT di stato e di cancellazione.
+     *
+     * @param sessionId l'identificativo della sessione di lobby
+     * @param userId    l'identificativo dell'utente che richiede la cancellazione
+     * @return la sessione di lobby cancellata
+     * @throws IllegalArgumentException se la sessione non viene trovata
+     * @throws IllegalStateException    se la sessione non e' in stato WAITING o l'utente non e' il creatore
+     */
     @Override
     public GameSession cancelLobby(GameSessionId sessionId, UserId userId) {
         GameSession session = gameSessionRepository.findById(sessionId)
@@ -856,12 +980,26 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
         return savedSession;
     }
 
+    /**
+     * Costruisce il topic MQTT per gli eventi di lobby.
+     *
+     * @param session la sessione di gioco
+     * @param action  l'azione (create, join, leave, start, cancel)
+     * @return il topic MQTT completo
+     */
     private static String lobbyTopic(GameSession session, String action) {
         return "building/" + session.getBuildingId().id()
                 + "/game/" + session.getGameId().id()
                 + "/session/lobby/" + action;
     }
 
+    /**
+     * Restituisce la lobby attiva per un dato gioco, se presente e in
+     * stato WAITING.
+     *
+     * @param gameId l'identificativo del gioco
+     * @return un Optional contenente la lobby attiva, o vuoto se assente
+     */
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public Optional<GameSession> getActiveLobby(GameId gameId) {
@@ -869,6 +1007,13 @@ public class GameSessionService implements StartGameSessionUseCase, EndGameSessi
                 .filter(s -> s.getStatus() == GameStatus.WAITING);
     }
 
+    /**
+     * Esegue la pubblicazione MQTT in modo differito dopo il commit
+     * della transazione Spring, se una transazione e' attiva. Se non
+     * c'e' una transazione attiva, esegue il Runnable immediatamente.
+     *
+     * @param publishRunnable il codice di pubblicazione MQTT da eseguire
+     */
     private void deferMqttPublish(Runnable publishRunnable) {
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
             org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(

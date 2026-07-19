@@ -6,20 +6,29 @@ import com.gameplatform.shared.dto.LocalAdminBuildingEventDto;
 import java.util.List;
 
 /**
- * Outbound port for pushing a batch of LOCAL_ADMIN&harr;building metadata events
- * to a single Local Server's {@code PUT /internal/metadata/sync} endpoint.
+ * Porta di uscita per l'invio di un batch di eventi di metadati relativi
+ * all'associazione LOCAL_ADMIN&harr;edificio all'endpoint
+ * {@code PUT /internal/metadata/sync} di un singolo server locale.
  *
- * <p>Symmetric to {@link PushUserToLocalServersPort} but for metadata. There is
- * no ack contract / poison-isolation here: the local upsert/delete is idempotent
- * by composite PK, so a transient transport failure just retried via the outbox
- * on the next scheduler tick — it can never produce a "poison" event.</p>
+ * <p>Simmetrica a {@link PushUserToLocalServersPort} ma relativa ai metadati.
+ * Non è previsto alcun contratto di ack: l'upsert o la cancellazione locale è
+ * idempotente per chiave primaria composta, quindi un fallimento transitorio di
+ * trasporto viene ritentato tramite l'outbox al ciclo successivo dello
+ * scheduler, senza mai produrre un evento "avvelenato".</p>
+ *
+ * @see PushUserToLocalServersPort
+ * @see LocalAdminBuildingEventDto
  */
 public interface PushMetadataToLocalServersPort {
+
     /**
-     * Pushes a batch of metadata events to a single local server.
+     * Invia un batch di eventi di metadati al server locale indicato.
      *
+     * @param events il batch di eventi di metadati da inviare; non deve essere {@code null}
+     * @param server il server locale attivo di destinazione; non deve essere {@code null}
+     * @throws IllegalArgumentException in caso di parametri {@code null}
      * @throws com.gameplatform.central.domain.exception.TransientPushException
-     *         on transient transport failure (caller retries via the outbox)
+     *         in caso di fallimento transitorio di trasporto (il chiamante ritenta tramite l'outbox)
      */
     void pushMetadata(List<LocalAdminBuildingEventDto> events, RegisteredLocalServer server);
 }

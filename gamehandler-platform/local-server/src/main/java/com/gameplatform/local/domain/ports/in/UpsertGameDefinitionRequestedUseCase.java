@@ -6,14 +6,30 @@ import com.gameplatform.shared.dto.AdminRequestDto;
 import java.util.Map;
 
 /**
- * Use case W9 (PIANO §7.B): a GAME_ADMIN upserts (create or update) a
- * game definition. Pre-controls the {@code GAME_ADMIN} role on
- * {@code replicated_users}, then atomically writes a
- * {@code admin_requests_local} PENDING row and the matching outbox
- * {@code GAME_DEFINITION_UPSERT_REQUESTED} event.
+ * Use case per la richiesta di creazione o aggiornamento di una definizione
+ * di gioco da parte di un amministratore dei giochi. Effettua il pre-controllo
+ * del ruolo {@code GAME_ADMIN} sugli utenti replicati, quindi scrive in modo
+ * atomico una riga {@code PENDING} su {@code admin_requests_local} e l'evento
+ * di outbox corrispondente.
+ *
+ * @see com.gameplatform.shared.dto.AdminRequestDto
  */
 public interface UpsertGameDefinitionRequestedUseCase {
 
+    /**
+     * Avanza la richiesta di creazione o aggiornamento di una definizione di gioco.
+     *
+     * @param gameType          tipo di gioco
+     * @param name              nome della definizione del gioco
+     * @param minPlayers        numero minimo di giocatori
+     * @param maxPlayers        numero massimo di giocatori
+     * @param teamAllowed       indica se il gioco permette squadre
+     * @param registrationRules regole di registrazione come mappa chiave-valore
+     * @param actingUserId      identificativo dell'amministratore richiedente
+     * @param actingRole        ruolo con cui l'amministratore agisce
+     * @param buildingId        identificativo della struttura di appartenenza
+     * @return il DTO della richiesta amministrativa persistita con stato {@code PENDING}
+     */
     AdminRequestDto upsert(GameType gameType,
                             String name,
                             int minPlayers,

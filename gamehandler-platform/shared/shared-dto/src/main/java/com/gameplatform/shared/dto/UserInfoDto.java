@@ -3,24 +3,30 @@ package com.gameplatform.shared.dto;
 import java.util.List;
 
 /**
- * DTO returned by the {@code GET /api/auth/me} Local endpoint
- * (PIANO §7.B). Carries the authenticated user's username plus the
- * enriched {@code userId}, {@code roles} (resolved from the locally
- * replicated {@code replicated_users} table) and {@code buildings}
- * (resolved from {@code local_admin_buildings_local} when the user is
- * a {@code LOCAL_ADMIN}; empty for non-admin roles).
+ * DTO restituito dall'endpoint Locale {@code GET /api/auth/me}
+ * (PIANO §7.B). Trasporta lo username dell'utente autenticato insieme
+ * all'id utente arricchito {@code userId}, ai {@code roles} (risolti a
+ * partire dalla tabella locale replicata {@code replicated_users}) e ai
+ * {@code buildings} (risolti da {@code local_admin_buildings_local}
+ * quando l'utente è un {@code LOCAL_ADMIN}; vuoto per i ruoli non admin).
  *
- * <p>The short single-arg constructor {@link #UserInfoDto(String)} is
- * retained for backward compatibility with the FASE 2 contract and
- * delegates to the canonical 4-arg constructor with {@code null} userId
- * and empty lists.</p>
+ * <p>Il costruttore breve a singolo argomento
+ * {@link #UserInfoDto(String)} è mantenuto per compatibilità con il
+ * contratto della FASE 2 e delega al costruttore canonico a 4 argomenti
+ * con {@code userId} nullo e liste vuote.</p>
  *
- * @param username  the authenticated user's username
- * @param userId    the authenticated user's id (nullable when not yet
- *                  resolved, e.g. a stubbed unit-test response)
- * @param roles     the user roles list (possibly empty, never null)
- * @param buildings the buildings this user is a LOCAL_ADMIN of
- *                  (possibly empty, never null)
+ * @param username  lo username dell'utente autenticato
+ * @param userId    l'id dell'utente autenticato (nullo finché non
+ *                  risolto, es. risposta stubbata in unit test)
+ * @param roles     la lista dei ruoli dell'utente (eventualmente vuota,
+ *                  mai nulla)
+ * @param buildings la lista degli edifici di cui l'utente è
+ *                  {@code LOCAL_ADMIN} (eventualmente vuota, mai nulla)
+ *
+ * @see com.gameplatform.shared.dto.UserInfoDto#username()
+ * @see com.gameplatform.shared.dto.UserInfoDto#userId()
+ * @see com.gameplatform.shared.dto.UserInfoDto#roles()
+ * @see com.gameplatform.shared.dto.UserInfoDto#buildings()
  */
 public record UserInfoDto(
         String username,
@@ -28,7 +34,14 @@ public record UserInfoDto(
         List<String> roles,
         List<String> buildings
 ) {
-    /** Backward-compatible short constructor. */
+    /**
+     * Costruttore breve mantenuto per compatibilità con il contratto
+     * della FASE 2. Crea un'istanza delegando al costruttore canonico a
+     * 4 argomenti, impostando {@code userId} a {@code null} e
+     * {@code roles} e {@code buildings} a liste vuote.
+     *
+     * @param username lo username dell'utente autenticato
+     */
     public UserInfoDto(String username) {
         this(username, null, List.of(), List.of());
     }

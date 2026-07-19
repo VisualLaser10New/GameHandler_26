@@ -1143,6 +1143,15 @@ public class UserReplicationSchedulerService {
      * ({@code USER_REGISTERED}/{@code USER_UPDATED}) <em>or</em>
      * LOCAL_ADMIN↔building metadata events.
      */
+    /**
+     * Determina se un evento outbox appartiene ai tipi gestiti da questo
+     * scheduler di replica.
+     *
+     * @param event l'evento outbox da valutare (non deve essere {@code null})
+     * @return {@code true} se l'evento è di replica utente, metadati,
+     *         definizione gioco, match/torneo, summary, standings,
+     *         partecipanti, registry o team-members
+     */
     private boolean isReplicationEvent(OutboxEvent event) {
         return isUserReplicationEvent(event) || isMetadataEvent(event) || isGameDefinitionEvent(event)
                 || isTournamentMatchEvent(event) || isTournamentSummaryEvent(event)
@@ -1150,44 +1159,106 @@ public class UserReplicationSchedulerService {
                 || isLocalServerRegistryEvent(event) || isTeamMembersEvent(event);
     }
 
+    /**
+     * Verifica se l'evento è di replica utente ({@code USER_REGISTERED}/
+     * {@code USER_UPDATED}).
+     *
+     * @param event l'evento outbox da valutare (non deve essere {@code null})
+     * @return {@code true} se l'evento è di replica utente
+     */
     private boolean isUserReplicationEvent(OutboxEvent event) {
         return USER_REGISTERED_EVENT.equals(event.getEventType())
                 || USER_UPDATED_EVENT.equals(event.getEventType());
     }
 
+    /**
+     * Verifica se l'evento è di metadati LOCAL_ADMIN↔building.
+     *
+     * @param event l'evento outbox da valutare (non deve essere {@code null})
+     * @return {@code true} se l'evento è di assegnazione/revoca building
+     */
     private boolean isMetadataEvent(OutboxEvent event) {
         return LOCAL_ADMIN_BUILDING_ASSIGNED_EVENT.equals(event.getEventType())
                 || LOCAL_ADMIN_BUILDING_REVOKED_EVENT.equals(event.getEventType());
     }
 
+    /**
+     * Verifica se l'evento è un upsert di definizione gioco.
+     *
+     * @param event l'evento outbox da valutare (non deve essere {@code null})
+     * @return {@code true} se l'evento è {@code GAME_DEFINITION_UPSERTED}
+     */
     private boolean isGameDefinitionEvent(OutboxEvent event) {
         return GAME_DEFINITION_UPSERTED_EVENT.equals(event.getEventType());
     }
 
+    /**
+     * Verifica se l'evento è un match di torneo pianificato.
+     *
+     * @param event l'evento outbox da valutare (non deve essere {@code null})
+     * @return {@code true} se l'evento è {@code TOURNAMENT_MATCH_SCHEDULED}
+     */
     private boolean isTournamentMatchEvent(OutboxEvent event) {
         return TOURNAMENT_MATCH_SCHEDULED_EVENT.equals(event.getEventType());
     }
 
+    /**
+     * Verifica se l'evento è un riepilogo di torneo.
+     *
+     * @param event l'evento outbox da valutare (non deve essere {@code null})
+     * @return {@code true} se l'evento è {@code TOURNAMENT_SUMMARY_UPSERTED}
+     */
     private boolean isTournamentSummaryEvent(OutboxEvent event) {
         return TOURNAMENT_SUMMARY_UPSERTED_EVENT.equals(event.getEventType());
     }
 
+    /**
+     * Verifica se l'evento è una classifica di torneo.
+     *
+     * @param event l'evento outbox da valutare (non deve essere {@code null})
+     * @return {@code true} se l'evento è {@code TOURNAMENT_STANDINGS_UPSERTED}
+     */
     private boolean isTournamentStandingsEvent(OutboxEvent event) {
         return TOURNAMENT_STANDINGS_UPSERTED_EVENT.equals(event.getEventType());
     }
 
+    /**
+     * Verifica se l'evento è un evento partecipanti di torneo.
+     *
+     * @param event l'evento outbox da valutare (non deve essere {@code null})
+     * @return {@code true} se l'evento è {@code TOURNAMENT_PARTICIPANTS_UPSERTED}
+     */
     private boolean isTournamentParticipantsEvent(OutboxEvent event) {
         return TOURNAMENT_PARTICIPANTS_UPSERTED_EVENT.equals(event.getEventType());
     }
 
+    /**
+     * Verifica se l'evento è un evento di registro dei Local Server.
+     *
+     * @param event l'evento outbox da valutare (non deve essere {@code null})
+     * @return {@code true} se l'evento è {@code LOCAL_SERVER_REGISTRY_UPSERTED}
+     */
     private boolean isLocalServerRegistryEvent(OutboxEvent event) {
         return LOCAL_SERVER_REGISTRY_UPSERTED_EVENT.equals(event.getEventType());
     }
 
+    /**
+     * Verifica se l'evento è un evento di membri di squadra.
+     *
+     * @param event l'evento outbox da valutare (non deve essere {@code null})
+     * @return {@code true} se l'evento è {@code TEAM_MEMBERS_UPSERTED}
+     */
     private boolean isTeamMembersEvent(OutboxEvent event) {
         return TEAM_MEMBERS_UPSERTED_EVENT.equals(event.getEventType());
     }
 
+    /**
+     * Deserializza il payload di un evento di replica utente nel relativo DTO.
+     *
+     * @param event l'evento outbox contenente il payload (non deve essere {@code null})
+     * @return il DTO utente deserializzato
+     * @throws IllegalStateException se il payload non è un JSON valido
+     */
     private UserSyncDto deserializeUser(OutboxEvent event) {
         try {
             return objectMapper.readValue(event.getPayload(), UserSyncDto.class);
@@ -1196,6 +1267,13 @@ public class UserReplicationSchedulerService {
         }
     }
 
+    /**
+     * Verifica se la causa radice dell'errore è un rifiuto di connessione.
+     *
+     * @param t il throwable da analizzare (può essere {@code null})
+     * @return {@code true} se nella catena delle cause è presente una
+     *         {@link ConnectException}, {@code false} altrimenti
+     */
     private static boolean isConnectionRefused(Throwable t) {
         Throwable cur = t;
         while (cur != null) {

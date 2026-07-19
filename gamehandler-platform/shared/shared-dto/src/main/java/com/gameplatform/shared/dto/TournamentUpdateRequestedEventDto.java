@@ -4,27 +4,31 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Outbox payload for the {@code TOURNAMENT_UPDATE_REQUESTED} event emitted by a
- * Local Server PLATFORM_ADMIN use case (PIANO §7.B W12) and consumed by the
- * Central {@code SyncEventProcessor} §7.A.7 branch
- * {@code TOURNAMENT_UPDATE_REQUESTED}, which delegates to
- * {@code UpdateTournamentUseCase.update(tournamentId, name, startsAt, buildingIds, originatingRequestId)}.
+ * DTO di tipo record che rappresenta il payload dell'outbox per l'evento
+ * {@code TOURNAMENT_UPDATE_REQUESTED}. Viene emesso da un caso d'uso
+ * PLATFORM_ADMIN del Local Server (PIANO §7.B W12) e consumato dal
+ * {@code SyncEventProcessor} Central (§7.A.7), che delega al
+ * {@code UpdateTournamentUseCase} per applicare le modifiche richieste.
  *
- * <p>The {@code requestId} equals the Local outbox {@code eventId}; the Central
- * return event ({@code TOURNAMENT_SUMMARY_UPSERTED}) carries it back as
- * {@code originatingRequestId} so the Local can {@code markCompleted}.</p>
+ * <p>Il campo {@code requestId} coincide con l'{@code eventId} dell'outbox del
+ * Local Server; l'evento di ritorno del Central ({@code TOURNAMENT_SUMMARY_UPSERTED})
+ * lo riporta come {@code originatingRequestId} affinch&eacute; il Local possa
+ * completare l'operazione tramite {@code markCompleted}.</p>
  *
- * @param eventId        the Local outbox event id (UUID)
- * @param eventType      always {@code TOURNAMENT_UPDATE_REQUESTED}
- * @param requestId      the admin-request id (== {@code eventId})
- * @param actingUserId   the admin user id (PLATFORM_ADMIN) requesting the change
- * @param actingRole     the role of the acting admin
- * @param buildingId     the building where the admin is connected
- * @param tournamentId   the target tournament id
- * @param name           the new tournament name
- * @param startsAt       the new scheduled start instant
- * @param buildingIds    the new buildings hosting the tournament
- * @param createdAt      the request creation instant
+ * @param eventId        l'identificativo (UUID) dell'evento nell'outbox del Local Server
+ * @param eventType      il tipo di evento, sempre {@code TOURNAMENT_UPDATE_REQUESTED}
+ * @param requestId      l'identificativo della richiesta admin (uguale a {@code eventId})
+ * @param actingUserId   l'identificativo dell'utente admin (PLATFORM_ADMIN) che richiede la modifica
+ * @param actingRole     il ruolo dell'utente admin che effettua l'operazione
+ * @param buildingId     l'edificio presso cui l'admin &egrave; connesso
+ * @param tournamentId   l'identificativo del torneo oggetto della modifica
+ * @param name           il nuovo nome da assegnare al torneo
+ * @param startsAt       il nuovo istante di avvio pianificato del torneo
+ * @param buildingIds    gli edifici che ospitano il torneo dopo l'aggiornamento
+ * @param createdAt      l'istante di creazione della richiesta di aggiornamento
+ *
+ * @see com.gameplatform.shared.dto.UpdateTournamentUseCase
+ * @see com.gameplatform.shared.dto.SyncEventProcessor
  */
 public record TournamentUpdateRequestedEventDto(
         String eventId,

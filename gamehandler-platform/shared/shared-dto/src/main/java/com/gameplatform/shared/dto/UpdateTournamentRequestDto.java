@@ -7,10 +7,29 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Request body for {@code PUT /api/tournaments/{id}} (use case §7.A.1).
- * Carries the three mutable fields of a {@code DRAFT} tournament:
- * {@code name}, {@code startsAt} and {@code buildingIds}. Validation messages
- * mirror {@link CreateTournamentRequestDto}.
+ * DTO di richiesta per l'operazione {@code PUT /api/tournaments/{id}}
+ * (caso d'uso §7.A.1).
+ *
+ * <p>Trasporta i tre campi mutabili di un torneo in stato {@code DRAFT}:
+ * il {@code name}, lo {@code startsAt} e la lista {@code buildingIds}.
+ * I messaggi di validazione rispecchiano quelli definiti in
+ * {@link CreateTournamentRequestDto}.</p>
+ *
+ * <p>I componenti del record rappresentano i seguenti dati:
+ * <ul>
+ *     <li>{@code name} - il nome del torneo, non vuoto;</li>
+ *     <li>{@code startsAt} - l'istante di avvio del torneo, non nullo;</li>
+ *     <li>{@code buildingIds} - gli identificativi degli edifici coinvolti,
+ *     non nulli e di cardinalità minima pari a 2.</li>
+ * </ul>
+ * </p>
+ *
+ * @param name        il nome del torneo, non deve essere vuoto.
+ * @param startsAt    l'istante di avvio pianificato del torneo, non deve essere nullo.
+ * @param buildingIds la lista degli identificativi degli edifici partecipanti,
+ *                    non nulla e contenente almeno 2 elementi.
+ *
+ * @see CreateTournamentRequestDto
  */
 public record UpdateTournamentRequestDto(
         @NotBlank(message = "name must not be blank") String name,

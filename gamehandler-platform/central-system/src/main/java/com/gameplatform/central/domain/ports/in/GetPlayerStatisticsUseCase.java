@@ -19,5 +19,14 @@ import java.util.List;
  * single game type.</p>
  */
 public interface GetPlayerStatisticsUseCase {
+
+    /**
+     * Restituisce le statistiche personali aggregate per l'utente indicato.
+     *
+     * @param userId l'identificativo dell'utente di cui recuperare le statistiche; non deve essere {@code null}
+     * @param gameType il tipo di gioco su cui filtrare le statistiche; se {@code null} sono incluse tutte le tipologie giocate dall'utente
+     * @return la lista di {@link PlayerStatisticsDto} contenente le statistiche aggregate; la lista è vuota se l'utente non ha disputato alcun incontro
+     * @throws com.gameplatform.shared.domain.exception.UserNotFoundException se l'utente indicato non esiste
+     */
     List<PlayerStatisticsDto> getStatistics(UserId userId, GameType gameType);
 }

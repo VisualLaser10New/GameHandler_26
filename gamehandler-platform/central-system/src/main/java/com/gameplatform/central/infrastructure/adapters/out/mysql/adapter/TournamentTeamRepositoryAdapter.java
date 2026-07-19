@@ -35,6 +35,13 @@ public class TournamentTeamRepositoryAdapter implements TournamentTeamRepository
     private final TournamentTeamMemberJpaRepository memberRepo;
     private final TeamMapper mapper;
 
+    /**
+     * Costruisce l'adapter iniettando i repository JPA delle squadre e dei membri e il mapper dei team.
+     *
+     * @param teamRepo   repository JPA per la gestione delle entit&agrave; di squadra
+     * @param memberRepo repository JPA per la gestione delle entit&agrave; di appartenenza ai membri
+     * @param mapper     mapper che converte tra il modello di dominio e le entit&agrave; JPA
+     */
     public TournamentTeamRepositoryAdapter(TournamentTeamJpaRepository teamRepo,
                                           TournamentTeamMemberJpaRepository memberRepo,
                                           TeamMapper mapper) {
@@ -43,6 +50,13 @@ public class TournamentTeamRepositoryAdapter implements TournamentTeamRepository
         this.mapper = mapper;
     }
 
+    /**
+     * Salva (o aggiorna) una squadra, ricostruendone atomicamente l'elenco dei membri.
+     *
+     * @param team la squadra da persistere; se {@code null} restituisce {@code null}
+     * @return la squadra salvata, o {@code null} se l'input era {@code null}
+     * @see TournamentTeamJpaRepository#save
+     */
     @Override
     @Transactional
     public Team save(Team team) {
@@ -58,6 +72,13 @@ public class TournamentTeamRepositoryAdapter implements TournamentTeamRepository
         return team;
     }
 
+    /**
+     * Restituisce la squadra identificata dal relativo identificativo, inclusi i membri.
+     *
+     * @param teamId l'identificativo della squadra; se {@code null} restituisce {@link Optional#empty()}
+     * @return l'{@link Optional} contenente la squadra trovata, o vuoto se assente o se {@code teamId} &egrave; {@code null}
+     * @see TournamentTeamJpaRepository#findById
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<Team> findById(TeamId teamId) {
@@ -72,6 +93,13 @@ public class TournamentTeamRepositoryAdapter implements TournamentTeamRepository
         return Optional.of(mapper.toDomain(teamOpt.get(), members));
     }
 
+    /**
+     * Restituisce l'elenco delle squadre associate a un torneo, ciascuna con i propri membri.
+     *
+     * @param tournamentId l'identificativo del torneo; se {@code null} restituisce una lista vuota
+     * @return la lista delle squadre del torneo; lista vuota se non ve ne sono o se {@code tournamentId} &egrave; {@code null}
+     * @see TournamentTeamJpaRepository#findByTournamentId
+     */
     @Override
     @Transactional(readOnly = true)
     public List<Team> findByTournament(TournamentId tournamentId) {
@@ -90,6 +118,14 @@ public class TournamentTeamRepositoryAdapter implements TournamentTeamRepository
         return result;
     }
 
+    /**
+     * Restituisce la squadra di un torneo individuata dal relativo nome.
+     *
+     * @param tournamentId l'identificativo del torneo; se {@code null} restituisce {@link Optional#empty()}
+     * @param name         il nome della squadra; se {@code null} restituisce {@link Optional#empty()}
+     * @return l'{@link Optional} contenente la squadra trovata, o vuoto se assente o se un argomento &egrave; {@code null}
+     * @see TournamentTeamJpaRepository#findByTournamentIdAndName
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<Team> findByTournamentAndName(TournamentId tournamentId, String name) {
@@ -103,6 +139,14 @@ public class TournamentTeamRepositoryAdapter implements TournamentTeamRepository
                 });
     }
 
+    /**
+     * Restituisce la squadra di un torneo di cui fa parte l'utente indicato.
+     *
+     * @param tournamentId  l'identificativo del torneo; se {@code null} restituisce {@link Optional#empty()}
+     * @param memberUserId  l'identificativo dell'utente membro; se {@code null} restituisce {@link Optional#empty()}
+     * @return l'{@link Optional} contenente la squadra trovata, o vuoto se assente o se un argomento &egrave; {@code null}
+     * @see TournamentTeamMemberJpaRepository#findTeamIdsByUserId
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<Team> findByTournamentAndMember(TournamentId tournamentId, UserId memberUserId) {
@@ -123,6 +167,14 @@ public class TournamentTeamRepositoryAdapter implements TournamentTeamRepository
         return Optional.empty();
     }
 
+    /**
+     * Verifica l'esistenza di una squadra in un torneo per il nome indicato.
+     *
+     * @param tournamentId l'identificativo del torneo; se {@code null} restituisce {@code false}
+     * @param name         il nome della squadra; se {@code null} restituisce {@code false}
+     * @return {@code true} se la squadra esiste, {@code false} altrimenti
+     * @see TournamentTeamJpaRepository#existsByTournamentIdAndName
+     */
     @Override
     @Transactional(readOnly = true)
     public boolean existsByTournamentAndName(TournamentId tournamentId, String name) {
@@ -132,6 +184,12 @@ public class TournamentTeamRepositoryAdapter implements TournamentTeamRepository
         return teamRepo.existsByTournamentIdAndName(tournamentId.value(), name);
     }
 
+    /**
+     * Elimina la squadra identificata, inclusi i relativi membri.
+     *
+     * @param teamId l'identificativo della squadra da eliminare; se {@code null} il metodo non effettua alcuna operazione
+     * @see TournamentTeamMemberJpaRepository#deleteByTeamId
+     */
     @Override
     @Transactional
     public void deleteById(TeamId teamId) {

@@ -14,18 +14,17 @@ import java.time.format.DateTimeFormatter;
 import java.util.function.Supplier;
 
 /**
- * Status widget displayed bottom-right (or wherever the calling view
- * embeds it) that:
+ * Widget di stato visualizzato in basso a destra (o dove la vista lo
+ * incorpora) che:
  * <ul>
- *   <li>shows the "Dati aggiornati al: HH:mm:ss" timestamp built from
- *       {@code max(updatedAt)} of the current view (PIANO §7.C line 759);</li>
- *   <li>adds a yellow "in attesa di replica" badge when
- *       {@code now - max(updatedAt) > staleThresholdMs} — configurable
- *       via {@code ui.stale-threshold-ms} (default 300000ms / 5 min).</li>
+ *   <li>mostra il timestamp "Dati aggiornati al: HH:mm:ss" costruito a
+ *       partire da {@code max(updatedAt)} della vista corrente;</li>
+ *   <li>aggiunge un badge giallo "in attesa di replica" quando
+ *       {@code now - max(updatedAt) > staleThresholdMs} — configurabile
+ *       tramite {@code ui.stale-threshold-ms} (default 300000 ms, 5 minuti).</li>
  * </ul>
- * The view supplies a {@link Supplier Optional<Instant>} returning the
- * most recent {@code updatedAt} of the loaded entities (empty when the
- * view has no data yet).
+ * La vista fornisce un {@link Supplier} che restituisce l'{@link Instant}
+ * più recente tra le entità caricate (vuoto quando la vista non ha ancora dati).
  */
 public final class StalenessBadge extends HBox {
 
@@ -37,6 +36,17 @@ public final class StalenessBadge extends HBox {
     private final Supplier<java.util.Optional<Instant>> latestUpdatedSupplier;
     private final long staleThresholdMs;
 
+    /**
+     * Costruisce un {@code StalenessBadge} con il fornitore di timestamp
+     * e la soglia di obsolescenza specificati.
+     *
+     * @param latestUpdatedSupplier fornitore che restituisce l'{@link Instant}
+     *                              più recente tra i dati correnti; può
+     *                              restituire {@link Optional#empty()} se
+     *                              non sono presenti dati
+     * @param staleThresholdMs      soglia di obsolescenza in millisecondi;
+     *                              deve essere un valore positivo
+     */
     public StalenessBadge(Supplier<java.util.Optional<Instant>> latestUpdatedSupplier,
                           long staleThresholdMs) {
         this.latestUpdatedSupplier = latestUpdatedSupplier;
@@ -51,7 +61,20 @@ public final class StalenessBadge extends HBox {
         getChildren().addAll(timestampLabel, staleBadge);
     }
 
-    /** Should be called by the view every time its data set is refreshed. */
+    /**
+     * Aggiorna il timestamp visualizzato e la visibilità del badge di
+     * obsolescenza in base ai dati più recenti forniti dal supplier.
+     * <p>
+     * Se il supplier restituisce {@link Optional#empty()}, viene mostrato
+     * il segnaposto "Data updated at: —" e il badge viene nascosto.
+     * Se il supplier restituisce un {@link Instant}, il badge viene
+     * mostrato quando la differenza tra l'istante corrente e quello
+     * fornito supera la soglia di obsolescenza.
+     * <p>
+     * Se il metodo viene chiamato al di fuori del thread dell'applicazione
+     * JavaFX, l'esecuzione viene reindirizzata automaticamente al thread
+     * FX tramite {@link Platform#runLater(Runnable)}.
+     */
     public void refresh() {
         if (!Platform.isFxApplicationThread()) {
             Platform.runLater(this::refresh);

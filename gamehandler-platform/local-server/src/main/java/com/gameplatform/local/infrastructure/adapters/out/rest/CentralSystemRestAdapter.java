@@ -20,6 +20,17 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import java.net.HttpURLConnection;
 
+/**
+ * Adattatore REST per la comunicazione con il sistema centrale.
+ * <p>
+ * Implementa {@link SyncCentralSystemPort} per verificare la raggiungibilità del sistema centrale
+ * e inviare i payload di sincronizzazione tramite chiamate HTTP. Configura un {@link RestTemplate}
+ * con un {@link SSLContext} personalizzato per la gestione delle connessioni HTTPS.
+ * </p>
+ *
+ * @see SyncCentralSystemPort
+ * @see RegisterLocalServerAdapter
+ */
 @Component
 public class CentralSystemRestAdapter implements SyncCentralSystemPort {
 
@@ -29,6 +40,13 @@ public class CentralSystemRestAdapter implements SyncCentralSystemPort {
     private final String centralSystemUrl;
     private final String internalApiKey;
 
+    /**
+     * Costruisce un nuovo adattatore con il contesto SSL e le configurazioni specificate.
+     *
+     * @param sslContext       contesto SSL per le connessioni HTTPS verso il sistema centrale
+     * @param centralSystemUrl URL di base del sistema centrale
+     * @param internalApiKey   chiave API interna per l'autenticazione delle richieste
+     */
     public CentralSystemRestAdapter(
             SSLContext sslContext,
             @Value("${app.central-system-url}") String centralSystemUrl,
@@ -51,6 +69,16 @@ public class CentralSystemRestAdapter implements SyncCentralSystemPort {
         this.restTemplate = new RestTemplate(requestFactory);
     }
 
+    /**
+     * Verifica se il sistema centrale è raggiungibile effettuando una richiesta GET
+     * all'endpoint di sincronizzazione.
+     * <p>
+     * Il metodo considera il sistema centrale raggiungibile se la risposta è un errore HTTP
+     * gestito (es. 405 Method Not Allowed) o se la richiesta ha successo.
+     * </p>
+     *
+     * @return {@code true} se il sistema centrale è raggiungibile, {@code false} altrimenti
+     */
     @Override
     public boolean isReachable() {
         try {
@@ -71,6 +99,13 @@ public class CentralSystemRestAdapter implements SyncCentralSystemPort {
         }
     }
 
+    /**
+     * Invia un payload di sincronizzazione al sistema centrale tramite POST all'endpoint
+     * di sincronizzazione.
+     *
+     * @param payload il DTO contenente i dati di sincronizzazione da inviare
+     * @return {@code true} se l'invio è avvenuto con successo (risposta 2xx), {@code false} altrimenti
+     */
     @Override
     public boolean sendSyncPayload(SyncPayloadDto payload) {
         try {

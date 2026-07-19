@@ -10,14 +10,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Manages the lifecycle and health of an MQTT connection.
+ * Gestisce il ciclo di vita e la salute di una connessione MQTT.
  * <p>
- * On {@link #start()}, the manager attempts an initial connection with
- * retries every {@value #RECONNECT_DELAY_SECONDS} seconds until successful.
- * A periodic health check runs every {@value #HEALTH_CHECK_INTERVAL_SECONDS}
- * seconds; if the connection is lost, it triggers reconnection automatically.
+ * All'avvio tramite {@link #start()}, il gestore tenta una connessione iniziale
+ * con tentativi ogni {@value #RECONNECT_DELAY_SECONDS} secondi fino al successo.
+ * Un controllo periodico di salute viene eseguito ogni
+ * {@value #HEALTH_CHECK_INTERVAL_SECONDS} secondi; se la connessione viene persa,
+ * viene attivata automaticamente la riconnessione.
  * <p>
- * Supports graceful {@link #stop()} and {@link #shutdown()} for resource cleanup.
+ * Supporta l'arresto graduale tramite {@link #stop()} e {@link #shutdown()}
+ * per la pulizia delle risorse.
  */
 public class MqttConnectionManager {
 
@@ -31,9 +33,9 @@ public class MqttConnectionManager {
     private final AtomicBoolean running;
 
     /**
-     * Creates a connection manager for the given adapter.
+     * Costruisce un gestore di connessione per l'adapter specificato.
      *
-     * @param adapter the {@link MqttClientAdapter} to manage
+     * @param adapter l'{@link MqttClientAdapter} da gestire
      */
     public MqttConnectionManager(MqttClientAdapter adapter) {
         this.adapter = adapter;
@@ -42,11 +44,12 @@ public class MqttConnectionManager {
     }
 
     /**
-     * Starts the connection manager.
+     * Avvia il gestore di connessione.
      * <p>
-     * Performs an initial blocking connection with retry, then schedules
-     * a periodic health check to detect and recover from connection loss.
-     * This method is idempotent; subsequent calls are ignored while running.
+     * Esegue una connessione iniziale bloccante con tentativi, quindi programma
+     * un controllo periodico di salute per rilevare e recuperare la perdita di
+     * connessione. Questo metodo è idempotente; chiamate successive vengono
+     * ignorate se gi&agrave; in esecuzione.
      */
     public void start() {
         if (running.compareAndSet(false, true)) {
@@ -57,9 +60,9 @@ public class MqttConnectionManager {
     }
 
     /**
-     * Stops the connection manager.
+     * Arresta il gestore di connessione.
      * <p>
-     * Cancels the health check scheduler and disconnects the MQTT client.
+     * Cancella lo scheduler del controllo di salute e disconnette il client MQTT.
      */
     public void stop() {
         if (running.compareAndSet(true, false)) {
@@ -74,9 +77,9 @@ public class MqttConnectionManager {
     }
 
     /**
-     * Attempts to connect to the broker, retrying every
-     * {@value #RECONNECT_DELAY_SECONDS} seconds until successful or
-     * the manager is stopped.
+     * Tenta la connessione al broker, riprovando ogni
+     * {@value #RECONNECT_DELAY_SECONDS} secondi fino al successo o fino
+     * all'arresto del gestore.
      */
     private void connectWithRetry() {
         while (running.get() && !adapter.isConnected()) {
@@ -97,8 +100,8 @@ public class MqttConnectionManager {
     }
 
     /**
-     * Periodic health check callback. Triggers reconnection if the
-     * MQTT client is no longer connected.
+     * Callback periodico di controllo di salute.
+     * Attiva la riconnessione se il client MQTT non è pi&ugrave; connesso.
      */
     private void checkConnection() {
         if (running.get() && !adapter.isConnected()) {
@@ -108,28 +111,28 @@ public class MqttConnectionManager {
     }
 
     /**
-     * Returns whether the MQTT client is currently connected.
+     * Restituisce {@code true} se il client MQTT è attualmente connesso.
      *
-     * @return {@code true} if connected, {@code false} otherwise
+     * @return {@code true} se connesso, {@code false} altrimenti
      */
     public boolean isConnected() {
         return adapter.isConnected();
     }
 
     /**
-     * Returns the underlying adapter.
+     * Restituisce l'adapter sottostante gestito da questo gestore.
      *
-     * @return the {@link MqttClientAdapter} managed by this manager
+     * @return l'{@link MqttClientAdapter} gestito
      */
     public MqttClientAdapter getAdapter() {
         return adapter;
     }
 
     /**
-     * Performs a graceful shutdown of the scheduler.
+     * Esegue un arresto graduale dello scheduler.
      * <p>
-     * Waits up to 5 seconds for pending tasks to complete before
-     * forcing shutdown.
+     * Attende fino a 5 secondi per il completamento delle attività in sospeso
+     * prima di forzare l'arresto.
      */
     public void shutdown() {
         scheduler.shutdown();

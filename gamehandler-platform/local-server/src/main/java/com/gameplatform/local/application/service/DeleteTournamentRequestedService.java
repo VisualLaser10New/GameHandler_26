@@ -16,14 +16,17 @@ import java.time.Instant;
 import java.util.Optional;
 
 /**
- * Implementation of the W12f use case (PIANO §7.B): a PLATFORM_ADMIN
- * deletes a tournament. Pre-controls the {@code PLATFORM_ADMIN} role on
- * {@code replicated_users} and the DRAFT invariant on
- * {@code tournaments_summary_local} (refuses immediately with a
- * {@code FAILED} admin-request, WITHOUT writing the outbox row, when the
- * tournament is missing or not in {@code DRAFT} status), then atomically
- * writes a {@code admin_requests_local} PENDING row and the matching
- * outbox {@code TOURNAMENT_DELETE_REQUESTED} event.
+ * Implementazione del caso d'uso W12f (PIANO §7.B): un PLATFORM_ADMIN
+ * elimina un torneo. Esegue il pre-controllo del ruolo
+ * {@code PLATFORM_ADMIN} su {@code replicated_users} e dell'invariante
+ * DRAFT su {@code tournaments_summary_local} (rifiuta immediatamente con
+ * FAILED senza scrivere riga outbox se il torneo non e' in stato DRAFT o
+ * non esiste), poi scrive atomicamente una riga {@code admin_requests_local}
+ * PENDING e l'evento outbox {@code TOURNAMENT_DELETE_REQUESTED}.
+ *
+ * @see DeleteTournamentRequestedUseCase
+ * @see AdminRequestOutboxWriter
+ * @see TournamentSummaryLocal
  */
 @Service
 public class DeleteTournamentRequestedService implements DeleteTournamentRequestedUseCase {
@@ -46,6 +49,20 @@ public class DeleteTournamentRequestedService implements DeleteTournamentRequest
         this.clock = clock;
     }
 
+    /**
+     * Elimina un torneo. Verifica il ruolo PLATFORM_ADMIN e l'invariante
+     * DRAFT sul torneo; se il torneo non esiste o non e' in stato DRAFT,
+     * scrive una richiesta admin FAILED senza outbox, altrimenti scrive
+     * la richiesta PENDING con l'evento outbox.
+     *
+     * @param tournamentId l'identificativo del torneo da eliminare (non blank)
+     * @param actingUserId l'identificativo dell'utente richiedente
+     * @param actingRole   il ruolo con cui l'utente agisce
+     * @param buildingId   l'identificativo del building di competenza
+     * @return il DTO della richiesta admin creata (FAILED se il pre-controllo DRAFT fallisce, PENDING altrimenti)
+     * @throws IllegalArgumentException se tournamentId e' blank
+     * @throws org.springframework.security.access.AccessDeniedException se l'utente non ha il ruolo PLATFORM_ADMIN
+     */
     @Override
     @Transactional
     public AdminRequestDto delete(String tournamentId,

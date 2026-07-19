@@ -14,6 +14,18 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Mapper senza stato (null-safe) tra il modello di dominio centrale
+ * {@link AggregatedStatistics} e l'entità persistente
+ * {@link AggregatedStatisticsJpaEntity}.
+ * <p>
+ * Esposto come bean Spring {@code @Component}, utilizza un
+ * {@link ObjectMapper} iniettato per serializzare/deserializzare
+ * la colonna JSON {@code data} da/verso una {@link Map}.
+ *
+ * @see AggregatedStatistics
+ * @see AggregatedStatisticsJpaEntity
+ */
 @Component
 public class StatisticsMapper {
 
@@ -25,6 +37,18 @@ public class StatisticsMapper {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * Converte un'entità persistente {@link AggregatedStatisticsJpaEntity} nel
+     * corrispondente modello di dominio {@link AggregatedStatistics}.
+     * <p>
+     * La colonna JSON {@code data} viene deserializzata in una {@link Map};
+     * se {@code null} o vuota viene restituita una mappa vuota.
+     *
+     * @param entity l'entità persistente di origine; se {@code null} restituisce {@code null}
+     * @return il modello di dominio {@link AggregatedStatistics} o {@code null} se l'entità è {@code null}
+     * @throws RuntimeException se la colonna {@code data} contiene un JSON non valido
+     * @see #toEntity(AggregatedStatistics)
+     */
     public AggregatedStatistics toDomain(AggregatedStatisticsJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -52,6 +76,18 @@ public class StatisticsMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link AggregatedStatistics} nell'entità
+     * persistente {@link AggregatedStatisticsJpaEntity} da persistere.
+     * <p>
+     * La mappa {@code data} viene serializzata in una stringa JSON; se
+     * {@code null} viene serializzata come {@code "{}"}.
+     *
+     * @param domain il modello di dominio di origine; se {@code null} restituisce {@code null}
+     * @return l'entità persistente {@link AggregatedStatisticsJpaEntity} o {@code null} se il dominio è {@code null}
+     * @throws RuntimeException se la mappa {@code data} non può essere serializzata in JSON
+     * @see #toDomain(AggregatedStatisticsJpaEntity)
+     */
     public AggregatedStatisticsJpaEntity toEntity(AggregatedStatistics domain) {
         if (domain == null) {
             return null;

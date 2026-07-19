@@ -34,12 +34,27 @@ public class AdminRequestsController {
     private final ListAdminRequestsUseCase listAdminRequestsUseCase;
     private final CurrentUserService currentUserService;
 
+    /**
+     * Costruisce il controller con il caso d'uso per la consultazione delle
+     * richieste amministrative e il servizio per l'utente corrente.
+     *
+     * @param listAdminRequestsUseCase caso d'uso per la lista delle richieste admin
+     * @param currentUserService servizio per la risoluzione dell'utente autenticato
+     */
     public AdminRequestsController(ListAdminRequestsUseCase listAdminRequestsUseCase,
                                     CurrentUserService currentUserService) {
         this.listAdminRequestsUseCase = listAdminRequestsUseCase;
         this.currentUserService = currentUserService;
     }
 
+    /**
+     * Restituisce l'elenco delle richieste amministrative dell'utente
+     * autenticato, filtrate per {@code actingUserId} corrispondente al
+     * principal corrente.
+     *
+     * @return una {@link ResponseEntity} con la lista di {@link AdminRequestDto},
+     *         o status 401 se l'utente non è autenticato
+     */
     @GetMapping
     public ResponseEntity<List<AdminRequestDto>> listMyRequests() {
         Optional<UserId> currentUserId = currentUserService.getCurrentUserId();
@@ -49,6 +64,14 @@ public class AdminRequestsController {
         return ResponseEntity.ok(listAdminRequestsUseCase.listByActingUser(currentUserId.get().value()));
     }
 
+    /**
+     * Restituisce una specifica richiesta amministrativa appartenente
+     * all'utente autenticato.
+     *
+     * @param requestId l'identificativo della richiesta
+     * @return una {@link ResponseEntity} con il {@link AdminRequestDto} richiesto,
+     *         o status 404 se non trovata, o status 401 se non autenticato
+     */
     @GetMapping("/{requestId}")
     public ResponseEntity<AdminRequestDto> getMyRequest(@PathVariable String requestId) {
         Optional<UserId> currentUserId = currentUserService.getCurrentUserId();

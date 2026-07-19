@@ -25,24 +25,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * LOCAL_ADMIN dashboard (PIANO §7.C line 743-744).
+ * Dashboard LOCAL_ADMIN per la gestione dell'edificio.
  * <p>
- * Aggregates the building-scoped admin endpoints exposed by
+ * Aggrega gli endpoint admin con scope edificio esposti da
  * {@code AdminLocalController}:
  * <ul>
- *   <li>{@code GET /api/admin/local/devices} → games list (table {@link GameStateDto});</li>
- *   <li>{@code GET /api/admin/local/sessions/active} → active sessions (table {@link GameSessionDto});</li>
- *   <li>{@code GET /api/admin/local/statistics?gameType=XXX} → building-scoped
- *       local statistics (rendered as a card after the {@code gameType} is
- *       selected).</li>
+ *   <li>{@code GET /api/admin/local/devices} → lista giochi (tabella {@link GameStateDto});</li>
+ *   <li>{@code GET /api/admin/local/sessions/active} → sessioni attive (tabella {@link GameSessionDto});</li>
+ *   <li>{@code GET /api/admin/local/statistics?gameType=XXX} → statistiche
+ *       locali per edificio (renderizzate come scheda dopo la selezione del gameType).</li>
  * </ul>
- * No CRUD buttons: the {@code AdminLocalController} CRUD-on-games endpoints
- * are documented in the dashboard comment but editing is intentionally
- * read-only here (creates/updates/deletes are out of scope of the FASE 7
- * UI — see PIANO §7.C line 743 "endpoint esistenti su AdminLocalController").
- * The fine-grained writes are deferred to a follow-up; the view only
- * consumes the three read endpoints (which match the spec wording
- * "giochi building … dispositivi … sessioni attive … statistiche edificio").
+ * La vista è in sola lettura: le operazioni di scrittura CRUD sono
+ * delegate a viste successive.
  */
 public class LocalAdminDashboard {
 
@@ -59,6 +53,13 @@ public class LocalAdminDashboard {
     private boolean buildingSelectorInstalled = false;
     private final HBox toolbar = new HBox(8);
 
+    /**
+     * Costruisce la dashboard LOCAL_ADMIN.
+     * <p>
+     * Inizializza le tabelle per dispositivi e sessioni attive, i filtri
+     * per le statistiche, il selettore di edificio (per PLATFORM_ADMIN)
+     * e i pulsanti per refresh, aggiunta gioco e caricamento statistiche.
+     */
     public LocalAdminDashboard() {
         VBox content = new VBox(10);
         content.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
@@ -161,10 +162,22 @@ public class LocalAdminDashboard {
         root.setStyle("-fx-padding: 0; -fx-background-color: #1e1e1e;");
     }
 
+    /**
+     * Restituisce il nodo radice JavaFX per questa vista.
+     *
+     * @return il nodo {@link Parent} radice
+     */
     public Parent getView() {
         return root;
     }
 
+    /**
+     * Aggiorna tutti i dati della dashboard.
+     * <p>
+     * Carica l'elenco dei dispositivi e delle sessioni attive dal server
+     * locale. Installa il selettore di edificio se l'utente è
+     * PLATFORM_ADMIN.
+     */
     public void refreshAll() {
         ensureBuildingSelectorIfPlatformAdmin();
         loading.show();
@@ -184,6 +197,13 @@ public class LocalAdminDashboard {
                 .exceptionally(this::error);
     }
 
+    /**
+     * Carica le statistiche per il tipo di gioco selezionato.
+     * <p>
+     * Effettua una chiamata asincrona {@code GET /api/admin/local/statistics}
+     * con il parametro {@code gameType} selezionato. Mostra il risultato
+     * JSON formattato nell'area di testo dedicata.
+     */
     private void loadStatistics() {
         GameType filter = gameTypeStatFilter.getValue();
         if (filter == null) {
@@ -201,6 +221,13 @@ public class LocalAdminDashboard {
                 .exceptionally(this::error);
     }
 
+    /**
+     * Mostra un dialogo per l'aggiunta di un nuovo gioco all'edificio.
+     * <p>
+     * Presenta un form con selezione del tipo di gioco e nome.
+     * Invia una POST asincrona a {@code /api/admin/local/games}
+     * e aggiorna la dashboard al completamento.
+     */
     private void showAddGameDialog() {
         ComboBox<GameType> typeCombo = new ComboBox<>(FXCollections.observableArrayList(GameType.values()));
         typeCombo.setConverter(new StringConverter<>() {
@@ -264,6 +291,14 @@ public class LocalAdminDashboard {
                 });
     }
 
+    /**
+     * Rimuove un gioco dall'edificio.
+     * <p>
+     * Invia una DELETE asincrona a {@code /api/admin/local/games/{gameId}}
+     * e aggiorna la dashboard al completamento.
+     *
+     * @param game il gioco da rimuovere; se null non produce effetti
+     */
     private void removeGame(GameStateDto game) {
         if (game == null) return;
         loading.show();
@@ -290,6 +325,14 @@ public class LocalAdminDashboard {
                 });
     }
 
+    /**
+     * Alterna lo stato di un gioco tra AVAILABLE e MAINTENANCE.
+     * <p>
+     * Invia una PUT asincrona a {@code /api/admin/local/games/{gameId}}
+     * con il nuovo stato e aggiorna la dashboard al completamento.
+     *
+     * @param game il gioco di cui alternare lo stato; se null non produce effetti
+     */
     private void toggleGameStatus(GameStateDto game) {
         if (game == null) return;
         String current = game.status() == null ? "" : game.status().name();
@@ -320,6 +363,14 @@ public class LocalAdminDashboard {
                 });
     }
 
+    /**
+     * Cambia l'edificio attivo per la dashboard.
+     * <p>
+     * Aggiorna l'URL base del client API e ricarica tutti i dati.
+     *
+     * @param buildingId l'identificativo dell'edificio; se null o vuoto
+     *                   non produce effetti
+     */
     private void switchBuilding(String buildingId) {
         if (buildingId == null || buildingId.isBlank()) return;
         String url = ApiClient.BUILDING_URLS.get(buildingId);
@@ -333,19 +384,14 @@ public class LocalAdminDashboard {
     }
 
     /**
-     * Installs the {@code buildingSelector} into the toolbar the first time
-     * this view is shown to a PLATFORM_ADMIN. The check is deferred from
-     * the constructor (where it would always return false because the
-     * roles are populated after login, see {@link LoginView#performLogin}
-     * {@code GET /api/auth/me} → {@link HttpClientHelper#setRoles}).
-     * Idempotent: once installed, subsequent calls are no-ops.
+     * Installa il selettore di edificio per PLATFORM_ADMIN.
      * <p>
-     * The list of selectable buildings is recovered dynamically from
-     * {@code GET /api/admin/servers/health} ({@link ServerHealthViewDto#registeredServers()})
-     * filtering by {@code active == true} so the combobox only offers the
-     * nodes that are currently registered AND active on this Local Server.
-     * If the API fails or returns no active server, falls back to
-     * {@code "building-1"} so the combobox is never left empty.
+     * La verifica del ruolo è differita rispetto al costruttore perché
+     * i ruoli vengono popolati dopo il login. Metodo idempotente: una
+     * volta installato, le chiamate successive non producono effetti.
+     * La lista degli edifici selezionabili viene recuperata dinamicamente
+     * da {@code GET /api/admin/servers/health} filtrando per server
+     * attivi. Se l'API fallisce, utilizza "building-1" come predefinito.
      */
     private void ensureBuildingSelectorIfPlatformAdmin() {
         if (buildingSelectorInstalled) return;
@@ -392,6 +438,14 @@ public class LocalAdminDashboard {
 
     // ───────────────────────────── helpers ─────────────────────────────
 
+    /**
+     * Crea un contenitore con titolo e tabella.
+     *
+     * @param header     il titolo della sezione; non null
+     * @param tv         la tabella da includere; non null
+     * @param prefHeight l'altezza preferita della tabella
+     * @return una {@link VBox} contenente titolo e tabella
+     */
     private static VBox titled(String header, TableView<?> tv, int prefHeight) {
         Label h = new Label(header);
         h.setStyle("-fx-text-fill: #3498db; -fx-font-weight: bold;");
@@ -400,6 +454,16 @@ public class LocalAdminDashboard {
         return box;
     }
 
+    /**
+     * Gestisce un errore asincrono delle chiamate API.
+     * <p>
+     * Nasconde l'indicatore di caricamento, risale la catena delle
+     * eccezioni fino alla causa radice e aggiorna l'etichetta di
+     * stato con il messaggio di errore.
+     *
+     * @param ex l'eccezione da gestire; può essere null
+     * @return sempre null
+     */
     private Void error(Throwable ex) {
         loading.hide();
         Throwable t = ex;

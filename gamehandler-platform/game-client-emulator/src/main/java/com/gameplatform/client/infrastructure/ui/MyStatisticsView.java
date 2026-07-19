@@ -24,15 +24,12 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Player-scoped statistics view (PIANO §7.C line 736).
+ * Vista delle statistiche personali del giocatore.
  * <p>
- * Polls {@code GET /api/players/me/statistics[?gameType=]} on the
- * Local Server, renders each {@link PlayerStatisticsDto} as a row of a
- * {@link TableView} and exposes a {@link ComboBox} filter on the
- * {@link GameType} enum. Refresh is manual via a Refresh button — the
- * server computes the projection on-demand from
- * {@code game_sessions + session_participants} (FASE 3) so no replication
- * lag is involved.
+ * Recupera i dati tramite {@code GET /api/players/me/statistics[?gameType=]}
+ * dal server locale e renderizza ogni {@link PlayerStatisticsDto} come
+ * riga di una {@link TableView}. Espone un filtro {@link ComboBox} sul
+ * tipo di gioco. Il refresh è manuale tramite pulsante Refresh.
  */
 public class MyStatisticsView {
 
@@ -50,6 +47,12 @@ public class MyStatisticsView {
 
     private volatile Instant latestUpdatedAt;
 
+    /**
+     * Costruisce la vista delle statistiche personali.
+     * <p>
+     * Inizializza la tabella, il filtro per tipo di gioco, il
+     * pulsante di refresh e l'indicatore di obsolescenza dei dati.
+     */
     public MyStatisticsView() {
         VBox content = new VBox(8);
         content.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
@@ -114,10 +117,22 @@ public class MyStatisticsView {
         gameTypeFilter.setOnAction(e -> refresh());
     }
 
+    /**
+     * Restituisce il nodo radice JavaFX per questa vista.
+     *
+     * @return il nodo {@link Parent} radice
+     */
     public Parent getView() {
         return root;
     }
 
+    /**
+     * Aggiorna le statistiche personali dal server.
+     * <p>
+     * Effettua una chiamata asincrona {@code GET /api/players/me/statistics}
+     * con il filtro gameType opzionale. Aggiorna la tabella con i risultati
+     * e l'indicatore di obsolescenza.
+     */
     public void refresh() {
         loading.show();
         statusLabel.setText("Loading statistics...");
@@ -140,6 +155,16 @@ public class MyStatisticsView {
                 .exceptionally(ex -> { Platform.runLater(() -> handleError(ex)); return null; });
     }
 
+    /**
+     * Gestisce un errore asincrono delle chiamate API.
+     * <p>
+     * Nasconde l'indicatore di caricamento e mostra un messaggio
+     * specifico in base al tipo di eccezione (ServerUnavailableException,
+     * AuthenticationException o errore generico).
+     *
+     * @param ex l'eccezione da gestire; può essere null
+     * @return sempre null
+     */
     private Void handleError(Throwable ex) {
         loading.hide();
         String cause = rootCause(ex);
@@ -152,6 +177,12 @@ public class MyStatisticsView {
         return null;
     }
 
+    /**
+     * Risale la catena delle eccezioni fino alla causa radice.
+     *
+     * @param ex l'eccezione iniziale; può essere null
+     * @return il messaggio della causa radice, o il nome della classe se null
+     */
     private static String rootCause(Throwable ex) {
         Throwable t = ex;
         while (t.getCause() != null) t = t.getCause();

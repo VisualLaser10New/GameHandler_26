@@ -15,6 +15,16 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * JPA entity per la tabella {@code game_sessions}.
+ * Rappresenta una sessione di gioco effettiva, con stato, durata, vincitore
+ * e partecipanti. Contiene una relazione {@code @OneToMany} verso
+ * {@link SessionParticipantJpaEntity} e utilizza optimistic locking
+ * tramite {@code @Version}.
+ *
+ * @see SessionParticipantJpaEntity
+ * @see GameJpaEntity
+ */
 @Entity
 @Table(name = "game_sessions")
 public class GameSessionJpaEntity {
@@ -68,9 +78,30 @@ public class GameSessionJpaEntity {
     @Column(name = "tournament_id", length = 36)
     private String tournamentId;
 
+    /**
+     * Costruttore predefinito richiesto da JPA.
+     */
     public GameSessionJpaEntity() {
     }
 
+    /**
+     * Costruisce una nuova sessione di gioco con tutti i campi.
+     *
+     * @param id                identificatore univoco della sessione
+     * @param gameId            identificatore della postazione gioco
+     * @param gameType          tipo di gioco
+     * @param buildingId        identificativo dell'edificio
+     * @param status            stato della sessione
+     * @param startedAt         istante di inizio della sessione
+     * @param endedAt           istante di fine (può essere {@code null})
+     * @param durationSeconds   durata in secondi (può essere {@code null})
+     * @param winnerId          identificativo del vincitore (può essere {@code null})
+     * @param winCondition      condizione di vittoria (può essere {@code null})
+     * @param resultData        dati di risultato in formato JSON (può essere {@code null})
+     * @param participants      elenco dei partecipanti alla sessione
+     * @param tournamentMatchId identificativo dell'incontro torneo associato (può essere {@code null})
+     * @param tournamentId      identificativo del torneo associato (può essere {@code null})
+     */
     public GameSessionJpaEntity(String id, String gameId, String gameType, String buildingId, String status, Instant startedAt, Instant endedAt, Integer durationSeconds, String winnerId, String winCondition, String resultData, List<SessionParticipantJpaEntity> participants, String tournamentMatchId, String tournamentId) {
         this.id = id;
         this.gameId = gameId;
@@ -88,122 +119,272 @@ public class GameSessionJpaEntity {
         this.tournamentId = tournamentId;
     }
 
+    /**
+     * Restituisce l'identificatore univoco della sessione.
+     *
+     * @return id
+     */
     public String getId() {
         return id;
     }
 
+    /**
+     * Imposta l'identificatore univoco della sessione.
+     *
+     * @param id nuovo identificatore
+     */
     public void setId(String id) {
         this.id = id;
     }
 
+    /**
+     * Restituisce l'identificatore della postazione gioco.
+     *
+     * @return gameId
+     */
     public String getGameId() {
         return gameId;
     }
 
+    /**
+     * Imposta l'identificatore della postazione gioco.
+     *
+     * @param gameId nuovo identificatore postazione
+     */
     public void setGameId(String gameId) {
         this.gameId = gameId;
     }
 
+    /**
+     * Restituisce il tipo di gioco della sessione.
+     *
+     * @return gameType
+     */
     public String getGameType() {
         return gameType;
     }
 
+    /**
+     * Imposta il tipo di gioco della sessione.
+     *
+     * @param gameType nuovo tipo di gioco
+     */
     public void setGameType(String gameType) {
         this.gameType = gameType;
     }
 
+    /**
+     * Restituisce l'identificativo dell'edificio in cui si svolge la sessione.
+     *
+     * @return buildingId
+     */
     public String getBuildingId() {
         return buildingId;
     }
 
+    /**
+     * Imposta l'identificativo dell'edificio.
+     *
+     * @param buildingId nuovo identificativo edificio
+     */
     public void setBuildingId(String buildingId) {
         this.buildingId = buildingId;
     }
 
+    /**
+     * Restituisce lo stato della sessione.
+     *
+     * @return status
+     */
     public String getStatus() {
         return status;
     }
 
+    /**
+     * Imposta lo stato della sessione.
+     *
+     * @param status nuovo stato
+     */
     public void setStatus(String status) {
         this.status = status;
     }
 
+    /**
+     * Restituisce l'istante di inizio della sessione.
+     *
+     * @return startedAt
+     */
     public Instant getStartedAt() {
         return startedAt;
     }
 
+    /**
+     * Imposta l'istante di inizio della sessione.
+     *
+     * @param startedAt nuovo istante di inizio
+     */
     public void setStartedAt(Instant startedAt) {
         this.startedAt = startedAt;
     }
 
+    /**
+     * Restituisce l'istante di fine della sessione.
+     *
+     * @return endedAt (può essere {@code null} se la sessione è ancora in corso)
+     */
     public Instant getEndedAt() {
         return endedAt;
     }
 
+    /**
+     * Imposta l'istante di fine della sessione.
+     *
+     * @param endedAt nuovo istante di fine
+     */
     public void setEndedAt(Instant endedAt) {
         this.endedAt = endedAt;
     }
 
+    /**
+     * Restituisce la durata in secondi della sessione.
+     *
+     * @return durationSeconds (può essere {@code null})
+     */
     public Integer getDurationSeconds() {
         return durationSeconds;
     }
 
+    /**
+     * Imposta la durata in secondi della sessione.
+     *
+     * @param durationSeconds nuova durata in secondi
+     */
     public void setDurationSeconds(Integer durationSeconds) {
         this.durationSeconds = durationSeconds;
     }
 
+    /**
+     * Restituisce l'identificativo del vincitore della sessione.
+     *
+     * @return winnerId (può essere {@code null})
+     */
     public String getWinnerId() {
         return winnerId;
     }
 
+    /**
+     * Imposta l'identificativo del vincitore della sessione.
+     *
+     * @param winnerId nuovo identificativo vincitore
+     */
     public void setWinnerId(String winnerId) {
         this.winnerId = winnerId;
     }
 
+    /**
+     * Restituisce la condizione di vittoria della sessione.
+     *
+     * @return winCondition (può essere {@code null})
+     */
     public String getWinCondition() {
         return winCondition;
     }
 
+    /**
+     * Imposta la condizione di vittoria della sessione.
+     *
+     * @param winCondition nuova condizione di vittoria
+     */
     public void setWinCondition(String winCondition) {
         this.winCondition = winCondition;
     }
 
+    /**
+     * Restituisce i dati di risultato in formato JSON.
+     *
+     * @return resultData (può essere {@code null})
+     */
     public String getResultData() {
         return resultData;
     }
 
+    /**
+     * Imposta i dati di risultato in formato JSON.
+     *
+     * @param resultData nuovi dati di risultato
+     */
     public void setResultData(String resultData) {
         this.resultData = resultData;
     }
 
+    /**
+     * Restituisce l'elenco dei partecipanti alla sessione.
+     *
+     * @return lista di partecipanti
+     */
     public List<SessionParticipantJpaEntity> getParticipants() {
         return participants;
     }
 
+    /**
+     * Imposta l'elenco dei partecipanti alla sessione.
+     *
+     * @param participants nuova lista di partecipanti
+     */
     public void setParticipants(List<SessionParticipantJpaEntity> participants) {
         this.participants = participants;
     }
 
+    /**
+     * Restituisce la versione per l'optimistic locking.
+     *
+     * @return version
+     */
     public Long getVersion() {
         return version;
     }
 
+    /**
+     * Imposta la versione per l'optimistic locking.
+     *
+     * @param version nuova versione
+     */
     public void setVersion(Long version) {
         this.version = version;
     }
 
+    /**
+     * Restituisce l'identificativo dell'incontro torneo associato.
+     *
+     * @return tournamentMatchId (può essere {@code null})
+     */
     public String getTournamentMatchId() {
         return tournamentMatchId;
     }
 
+    /**
+     * Imposta l'identificativo dell'incontro torneo associato.
+     *
+     * @param tournamentMatchId nuovo identificativo incontro torneo
+     */
     public void setTournamentMatchId(String tournamentMatchId) {
         this.tournamentMatchId = tournamentMatchId;
     }
 
+    /**
+     * Restituisce l'identificativo del torneo associato.
+     *
+     * @return tournamentId (può essere {@code null})
+     */
     public String getTournamentId() {
         return tournamentId;
     }
 
+    /**
+     * Imposta l'identificativo del torneo associato.
+     *
+     * @param tournamentId nuovo identificativo torneo
+     */
     public void setTournamentId(String tournamentId) {
         this.tournamentId = tournamentId;
     }

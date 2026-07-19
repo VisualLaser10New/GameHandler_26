@@ -11,6 +11,19 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.time.Instant;
 
+/**
+ * Listener MQTT per i messaggi di heartbeat provenienti dai client di gioco.
+ * <p>
+ * Gestisce sia le richieste di heartbeat (client-initiated), per le quali risponde con un
+ * messaggio ACK sul topic dedicato, sia le notifiche ACK (server-initiated). In entrambi i casi
+ * registra il heartbeat presso {@link HealthCheckService} per la verifica dello stato di salute
+ * e, per gli ACK, notifica anche {@link SessionRecoveryService}.
+ * </p>
+ *
+ * @see HealthCheckService
+ * @see SessionRecoveryService
+ * @see PublishGameStatePort
+ */
 @Component
 public class HeartbeatListener {
 
@@ -19,6 +32,15 @@ public class HeartbeatListener {
     private final PublishGameStatePort publishGameStatePort;
     private final Clock clock;
 
+    /**
+     * Costruisce un listener per gli heartbeat con i servizi di health check e recovery,
+     * il port di pubblicazione degli eventi e l'orologio di sistema.
+     *
+     * @param healthCheckService    servizio per la registrazione degli heartbeat dei giocatori
+     * @param sessionRecoveryService servizio per la registrazione degli ACK di heartbeat
+     * @param publishGameStatePort  port per la pubblicazione dei messaggi ACK sul broker MQTT
+     * @param clock                 orologio di sistema per la generazione dei timestamp
+     */
     public HeartbeatListener(
             HealthCheckService healthCheckService,
             SessionRecoveryService sessionRecoveryService,
@@ -30,6 +52,21 @@ public class HeartbeatListener {
         this.clock = clock;
     }
 
+    /**
+     * Elabora un messaggio MQTT di heartbeat, distinguendo tra richiesta di heartbeat
+     * (client-initiated) e notifica ACK (server-initiated).
+     * <p>
+     * Per una richiesta di heartbeat registra il battito presso {@link HealthCheckService} e
+     * pubblica un messaggio ACK sul topic di ritorno. Per una notifica ACK registra il
+     * heartbeat sia su {@link HealthCheckService} sia su {@link SessionRecoveryService}.
+     * </p>
+     *
+     * @param topic   topic MQTT dal quale estrarre l'identificativo del gioco e dell'edificio
+     * @param payload payload del messaggio (non utilizzato direttamente; l'azione è determinata
+     *                dall'ultimo segmento del topic)
+     * @see MqttTopics#heartbeatAck(String, String)
+     * @see HeartbeatAckPayload
+     */
     public void handleHeartbeat(String topic, byte[] payload) {
         String[] tokens = topic.split("/");
         String buildingId = tokens[1];

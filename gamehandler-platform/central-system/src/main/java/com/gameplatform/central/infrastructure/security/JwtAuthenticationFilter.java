@@ -19,19 +19,17 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Servlet filter that validates a Bearer JWT on every incoming request.
+ * Filtro servlet che valida un token JWT di tipo Bearer su ogni richiesta
+ * in ingresso.
  *
- * <h3>Security contract</h3>
- * <ul>
- *   <li>If the {@code Authorization} header is absent or does not start with
- *       {@code Bearer }, the filter is a no-op — downstream security rules
- *       handle unauthenticated access.</li>
- *   <li>If a {@code Bearer} token is present but is <em>invalid</em>
- *       (expired, malformed, wrong signature) the filter immediately returns
- *       {@code 401 Unauthorized} and does <strong>not</strong> forward the
- *       request further along the chain. This prevents accidentally letting
- *       an invalid token through to protected endpoints.</li>
- * </ul>
+ * <p>Se l'header {@code Authorization} è assente o non inizia con
+ * {@code Bearer}, il filtro lascia proseguire la richiesta senza modifiche.
+ * Se il token Bearer è presente ma non valido, la richiesta viene
+ * immediatamente rifiutata con stato {@code 401 Unauthorized} senza
+ * invocare i filtri successivi.</p>
+ *
+ * @see OncePerRequestFilter
+ * @see JwtTokenProvider
  */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -40,10 +38,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
 
+    /**
+     * Costruisce un {@code JwtAuthenticationFilter} con il provider di token
+     * JWT per la validazione e l'estrazione dei claims.
+     *
+     * @param jwtTokenProvider il provider per la gestione dei token JWT,
+     *                         non nullo
+     */
     public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
+    /**
+     * Applica il filtro di autenticazione JWT alla richiesta in ingresso.
+     *
+     * <p>Se l'header {@code Authorization} contiene un token Bearer valido,
+     * estrae i claims, costruisce un'istanza di
+     * {@link UsernamePasswordAuthenticationToken} e la imposta nel contesto
+     * di sicurezza di Spring. Se il token non è presente la richiesta
+     * prosegue senza autenticazione; se è presente ma non valido viene
+     * restituito errore {@code 401 Unauthorized}.</p>
+     *
+     * @param request     la richiesta HTTP in ingresso
+     * @param response    la risposta HTTP in uscita
+     * @param filterChain la catena di filtri da invocare
+     * @throws ServletException in caso di errore nella gestione della richiesta
+     * @throws IOException      in caso di errore di I/O
+     */
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {

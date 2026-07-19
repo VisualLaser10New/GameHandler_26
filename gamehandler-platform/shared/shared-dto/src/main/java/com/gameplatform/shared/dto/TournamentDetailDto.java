@@ -7,15 +7,26 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Read-model projection of a single tournament with its full detail
- * (summary + standings + matches + participants) for the Local
- * {@code GET /api/tournaments/{id}} endpoint (PIANO §7.B). Aggregates
- * the four local replicas into a single response payload.
+ * Proiezione in sola lettura di un singolo torneo con il relativo dettaglio
+ * completo (riepilogo, classifica, incontri e partecipanti) esposta
+ * dall'endpoint Locale {@code GET /api/tournaments/{id}} (PIANO §7.B).
+ * Aggrega le quattro repliche locali in un unico payload di risposta.
  *
- * @param summary       the tournament summary projection
- * @param standings     the standings rows (possibly empty)
- * @param matches       the local match rows (possibly empty)
- * @param participants  the registered participants (possibly empty)
+ * @param summary       riepilogo del torneo; non deve essere {@code null}
+ * @param standings     righe della classifica; lista non {@code null},
+ *                      possibilmente vuota se il torneo non ha ancora
+ *                      assegnato punteggi
+ * @param matches       incontri locali del torneo; lista non {@code null},
+ *                      possibilmente vuota se non sono ancora stati
+ *                      generati incontri
+ * @param participants  partecipanti registrati al torneo; lista non
+ *                      {@code null}, possibilmente vuota se non vi sono
+ *                      iscrizioni
+ *
+ * @see TournamentSummaryDto
+ * @see TournamentStandingDto
+ * @see TournamentMatchDto
+ * @see TournamentParticipantViewDto
  */
 public record TournamentDetailDto(
         TournamentSummaryDto summary,

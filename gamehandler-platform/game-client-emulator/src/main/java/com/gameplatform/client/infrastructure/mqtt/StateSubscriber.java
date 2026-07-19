@@ -8,13 +8,13 @@ import org.slf4j.LoggerFactory;
 import java.util.function.BiConsumer;
 
 /**
- * Subscribes to MQTT topics for game state, session events, heartbeats,
- * and heartbeat acknowledgements.
+ * Sottoscrive topic MQTT per stato di gioco, eventi di sessione, heartbeat
+ * e acknowledgement degli heartbeat.
  * <p>
- * Incoming messages are forwarded to a {@link BiConsumer} callback
- * that receives the topic and raw payload bytes. Supports wildcard
- * subscriptions for all games of a building, as well as specific
- * game-scoped subscriptions.
+ * I messaggi in arrivo vengono inoltrati a un callback {@link BiConsumer}
+ * che riceve il topic e i byte del payload. Supporta sottoscrizioni con
+ * wildcard per tutti i giochi di un edificio, nonché sottoscrizioni
+ * specifiche per un singolo gioco.
  */
 public class StateSubscriber {
 
@@ -25,11 +25,11 @@ public class StateSubscriber {
     private final BiConsumer<String, byte[]> messageHandler;
 
     /**
-     * Creates a subscriber for the given adapter, building, and handler.
+     * Costruisce un subscriber per l'adapter, l'edificio e l'handler specificati.
      *
-     * @param adapter        the MQTT client adapter used for subscribing
-     * @param buildingId     the building identifier for topic construction
-     * @param messageHandler callback that receives (topic, payload) for each message
+     * @param adapter        l'adapter MQTT utilizzato per la sottoscrizione
+     * @param buildingId     l'identificativo dell'edificio per la costruzione del topic
+     * @param messageHandler callback che riceve (topic, payload) per ogni messaggio
      */
     public StateSubscriber(MqttClientAdapter adapter, String buildingId,
                            BiConsumer<String, byte[]> messageHandler) {
@@ -39,19 +39,21 @@ public class StateSubscriber {
     }
 
     /**
-     * Subscribes to state topics for all games in the building.
-     * Topic pattern: {@code building/{buildingId}/game/+/state}
+     * Sottoscrive i topic di stato per tutti i giochi dell'edificio.
+     * Pattern del topic: {@code building/{buildingId}/game/+/state}
+     *
+     * @see #subscribeToStates(String)
      */
     public void subscribeToStates() {
         subscribeToStates(null);
     }
 
     /**
-     * Subscribes to state topics, optionally for a specific game.
+     * Sottoscrive i topic di stato, opzionalmente per un gioco specifico.
      *
-     * @param specificGameId if non-blank, subscribes to
+     * @param specificGameId se non blank, sottoscrive
      *                       {@code building/{id}/game/{gameId}/state};
-     *                       otherwise subscribes to the wildcard pattern
+     *                       altrimenti sottoscrive il pattern con wildcard
      *                       {@code building/{id}/game/+/state}
      */
     public void subscribeToStates(String specificGameId) {
@@ -76,19 +78,21 @@ public class StateSubscriber {
     }
 
     /**
-     * Subscribes to session event topics for all games in the building.
-     * Topic pattern: {@code building/{buildingId}/game/+/session/+}
+     * Sottoscrive i topic degli eventi di sessione per tutti i giochi dell'edificio.
+     * Pattern del topic: {@code building/{buildingId}/game/+/session/+}
+     *
+     * @see #subscribeToSessionEvents(String)
      */
     public void subscribeToSessionEvents() {
         subscribeToSessionEvents(null);
     }
 
     /**
-     * Subscribes to session event topics, optionally for a specific game.
+     * Sottoscrive i topic degli eventi di sessione, opzionalmente per un gioco specifico.
      *
-     * @param specificGameId if non-blank, subscribes to
+     * @param specificGameId se non blank, sottoscrive
      *                       {@code building/{id}/game/{gameId}/session/+};
-     *                       otherwise subscribes to the wildcard pattern
+     *                       altrimenti sottoscrive il pattern con wildcard
      *                       {@code building/{id}/game/+/session/+}
      */
     public void subscribeToSessionEvents(String specificGameId) {
@@ -113,8 +117,8 @@ public class StateSubscriber {
     }
 
     /**
-     * Subscribes to heartbeat topics for all games in the building.
-     * Topic pattern: {@code building/{buildingId}/game/+/heartbeat}
+     * Sottoscrive i topic heartbeat per tutti i giochi dell'edificio.
+     * Pattern del topic: {@code building/{buildingId}/game/+/heartbeat}
      * QoS 0 (fire-and-forget).
      */
     public void subscribeToHeartbeats() {
@@ -133,10 +137,10 @@ public class StateSubscriber {
     }
 
     /**
-     * Subscribes to lobby event topics for a specific game.
-     * Topic pattern: {@code building/{buildingId}/game/{gameId}/session/lobby/+}
+     * Sottoscrive i topic degli eventi di lobby per un gioco specifico.
+     * Pattern del topic: {@code building/{buildingId}/game/{gameId}/session/lobby/+}
      *
-     * @param gameId the game machine identifier to filter on
+     * @param gameId l'identificativo della macchina da gioco su cui filtrare
      */
     public void subscribeToLobbyEvents(String gameId) {
         try {
@@ -154,8 +158,8 @@ public class StateSubscriber {
     }
 
     /**
-     * Subscribes to heartbeat acknowledgement topics for all games.
-     * Topic pattern: {@code building/{buildingId}/game/+/heartbeat/ack}
+     * Sottoscrive i topic di acknowledgement heartbeat per tutti i giochi.
+     * Pattern del topic: {@code building/{buildingId}/game/+/heartbeat/ack}
      * QoS 0 (fire-and-forget).
      */
     public void subscribeToHeartbeatAcks() {

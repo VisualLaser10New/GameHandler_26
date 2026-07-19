@@ -8,33 +8,52 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Persistence port for the {@code player_statistics} read-model table (FASE 3,
- * PIANO &sect;2.3). Aggregated per-player, per-game-type counters kept in sync
- * with {@code player_match_facts} by the {@code SyncEventProcessor} projection.
+ * Porta di persistenza per la tabella read-model {@code player_statistics}.
  *
- * <p>{@link #increment} encapsulates the atomic, race-safe counter increment:
- * the adapter implementation acquires a {@code PESSIMISTIC_WRITE} lock on the
- * existing row before merging, and resolves the first-row insert race (two
- * concurrent events for a brand-new (user, gameType)) internally &mdash; via the
- * EntityManager directly, so the constraint violation is caught before it can
- * cross a transactional boundary and the caller's transaction is never marked
- * rollback-only. This mirrors the {@code aggregated_statistics}
- * {@code findBy...WithLock} pessimistic-lock pattern (PIANO &sect;2.4 /
- * protocol &sect;2.C thread-safety mandate).</p>
+ * <p>Contiene contatori aggregati per giocatore e per tipo di gioco, mantenuti
+ * in sincronia con {@code player_match_facts} dalla proiezione
+ * {@code SyncEventProcessor}. L'incremento è progettato per essere sicuro in
+ * presenza di concorrenza tramite un lock pessimistico.</p>
+ *
+ * @see PlayerStatistics
+ * @see #increment(UserId, GameType, boolean, java.time.Instant)
  */
 public interface PlayerStatisticsRepository {
 
-    /** All statistics rows for the given user (empty list if the user has played nothing). */
+    /**
+     * Restituisce tutte le righe di statistiche relative all'utente indicato.
+     *
+     * @param userId l'identificativo dell'utente; non deve essere {@code null}
+     * @return la lista delle statistiche dell'utente; mai {@code null}, vuota se l'utente non ha giocato alcuna partita
+     * @throws IllegalArgumentException se {@code userId} è {@code null}
+     */
     List<PlayerStatistics> findByUserId(UserId userId);
 
-    /** The single statistics row for (user, gameType), if any. */
+    /**
+     * Restituisce la riga di statistiche per la coppia utente e tipo di gioco indicata.
+     *
+     * @param userId   l'identificativo dell'utente; non deve essere {@code null}
+     * @param gameType il tipo di gioco; non deve essere {@code null}
+     * @return un {@link Optional} contenente la statistica trovata, o vuoto se non esiste
+     * @throws IllegalArgumentException se {@code userId} o {@code gameType} sono {@code null}
+     */
     Optional<PlayerStatistics> findByUserIdAndGameType(UserId userId, GameType gameType);
 
     /**
-     * Atomically records one additional completed match for (user, gameType):
-     * {@code matchesPlayed += 1}, {@code matchesWon += (won ? 1 : 0)} and
-     * {@code lastPlayedAt = max(existing, endedAt)}. Race-safe under a
-     * pessimistic write lock; must be invoked within an active transaction.
+     * Registra atomicamente una partita completata aggiuntiva per la coppia utente
+     * e tipo di gioco, incrementando i contatori e aggiornando l'istante di ultima
+     * partita giocata.
+     *
+     * <p>L'operazione è sicura in presenza di concorrenza tramite un lock in
+     * scrittura pessimistico e deve essere invocata all'interno di una transazione
+     * attiva.</p>
+     *
+     * @param userId   l'identificativo dell'utente; non deve essere {@code null}
+     * @param gameType il tipo di gioco; non deve essere {@code null}
+     * @param won      {@code true} se la partita è stata vinta, {@code false} altrimenti
+     * @param endedAt  l'istante di termine della partita; non deve essere {@code null}
+     * @throws IllegalArgumentException se {@code userId}, {@code gameType} o {@code endedAt} sono {@code null}
+     * @throws IllegalStateException    se non è attiva alcuna transazione
      */
     void increment(UserId userId, GameType gameType, boolean won, java.time.Instant endedAt);
 }

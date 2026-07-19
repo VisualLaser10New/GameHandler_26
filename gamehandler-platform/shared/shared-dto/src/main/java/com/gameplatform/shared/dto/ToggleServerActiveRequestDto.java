@@ -1,11 +1,15 @@
 package com.gameplatform.shared.dto;
 
 /**
- * Request body for the {@code PATCH /api/admin/servers/{buildingId}/active}
- * PLATFORM_ADMIN endpoint (Feature 3): toggles the {@code is_active} flag of a
- * registered local server projection on the responding Local node.
+ * DTO di richiesta per l'endpoint {@code PATCH /api/admin/servers/{buildingId}/active}
+ * riservato al ruolo {@code PLATFORM_ADMIN} (Feature 3). Rappresenta il payload
+ * necessario per invertire o impostare il valore del flag {@code is_active} di una
+ * proiezione di server locale registrata sul nodo Local che elabora la richiesta.
  *
- * @param active the desired active state ({@code true} to activate, {@code false} to deactivate)
+ * @param active lo stato di attivazione desiderato: {@code true} per attivare il server,
+ *               {@code false} per disattivarlo
+ *
+ * @see com.gameplatform.shared.dto
  */
 public record ToggleServerActiveRequestDto(
         boolean active

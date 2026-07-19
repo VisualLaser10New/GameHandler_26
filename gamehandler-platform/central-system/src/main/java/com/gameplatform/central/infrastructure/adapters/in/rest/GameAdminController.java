@@ -46,6 +46,13 @@ public class GameAdminController {
     private final ListGameDefinitionsUseCase listUseCase;
     private final Clock clock;
 
+    /**
+     * Costruisce il controller iniettando i casi d'uso e l'orologio di dominio.
+     *
+     * @param upsertUseCase caso d'uso per creare o aggiornare una definizione di gioco, non {@code null}
+     * @param listUseCase   caso d'uso per elencare le definizioni di gioco, non {@code null}
+     * @param clock         orologio di dominio per la generazione degli istanti temporali, non {@code null}
+     */
     public GameAdminController(UpsertGameDefinitionUseCase upsertUseCase,
                                 ListGameDefinitionsUseCase listUseCase,
                                 Clock clock) {
@@ -54,6 +61,19 @@ public class GameAdminController {
         this.clock = clock;
     }
 
+    /**
+     * Crea o aggiorna una definizione di gioco a partire dai dati forniti.
+     *
+     * <p>L'operazione richiede il ruolo {@code GAME_ADMIN} o {@code PLATFORM_ADMIN}
+     * e utilizza l'orologio di dominio per marcare gli istanti di creazione e
+     * aggiornamento della definizione.</p>
+     *
+     * @param request dto di richiesta con i dati della definizione, validato tramite {@code @Valid}; non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e il {@link GameDefinitionDto} della definizione salvata
+     * @throws IllegalArgumentException se i dati forniti violano i vincoli di dominio (mappato a {@code 400})
+     * @throws jakarta.validation.ValidationException se il body non supera i vincoli di validazione (mappato a {@code 400})
+     * @see GlobalExceptionHandler
+     */
     @PostMapping("/definitions")
     @PreAuthorize("hasRole('GAME_ADMIN') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<GameDefinitionDto> upsertDefinition(@Valid @RequestBody UpsertGameDefinitionRequestDto request) {
@@ -70,6 +90,21 @@ public class GameAdminController {
         return ResponseEntity.ok(toDto(saved));
     }
 
+    /**
+     * Aggiorna una definizione di gioco esistente identificata dal tipo di gioco.
+     *
+     * <p>L'operazione richiede il ruolo {@code GAME_ADMIN} o {@code PLATFORM_ADMIN}.
+     * Verifica che il {@code gameType} presente nel path coincida con quello indicato
+     * nel body, altrimenti rifiuta la richiesta.</p>
+     *
+     * @param gameType tipo di gioco da aggiornare, ricavato dal path; non {@code null}
+     * @param request  dto di richiesta con i nuovi dati della definizione, validato tramite {@code @Valid}; non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e il {@link GameDefinitionDto} della definizione aggiornata
+     * @throws IllegalArgumentException se il {@code gameType} del path non coincide con quello del body,
+     *                                  o se i dati violano i vincoli di dominio (mappato a {@code 400})
+     * @throws jakarta.validation.ValidationException se il body non supera i vincoli di validazione (mappato a {@code 400})
+     * @see GlobalExceptionHandler
+     */
     @PutMapping("/definitions/{gameType}")
     @PreAuthorize("hasRole('GAME_ADMIN') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<GameDefinitionDto> updateDefinition(@PathVariable GameType gameType,
@@ -90,6 +125,14 @@ public class GameAdminController {
         return ResponseEntity.ok(toDto(saved));
     }
 
+    /**
+     * Restituisce l'elenco di tutte le definizioni di gioco presenti nel sistema.
+     *
+     * <p>L'operazione è disponibile a qualsiasi principal autenticato.</p>
+     *
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e la lista dei {@link GameDefinitionDto};
+     *         la lista è vuota se non esiste alcuna definizione
+     */
     @GetMapping("/definitions")
     public ResponseEntity<List<GameDefinitionDto>> listDefinitions() {
         List<GameDefinitionDto> dtos = listUseCase.findAll().stream()
@@ -98,6 +141,12 @@ public class GameAdminController {
         return ResponseEntity.ok(dtos);
     }
 
+    /**
+     * Converte un {@link GameDefinition} di dominio nel corrispondente DTO di trasporto.
+     *
+     * @param def definizione di gioco di dominio da convertire, non {@code null}
+     * @return {@link GameDefinitionDto} contenente i dati esposti della definizione
+     */
     private static GameDefinitionDto toDto(GameDefinition def) {
         return new GameDefinitionDto(
                 def.getGameType(),

@@ -12,5 +12,13 @@ import java.util.List;
  * {@code rank} is left {@code null}; final ranking assignment is FASE 6.
  */
 public interface GetTournamentStandingsUseCase {
+
+    /**
+     * Restituisce la classifica corrente del torneo, ordinata per punti e vittorie decrescenti.
+     *
+     * @param tournamentId l'identificativo del torneo di cui recuperare la classifica; non deve essere {@code null}
+     * @return la lista di {@link TournamentStandingDto} rappresentante la classifica; la lista è vuota se il torneo non ha partecipanti
+     * @throws com.gameplatform.shared.domain.exception.TournamentNotFoundException se il torneo non esiste
+     */
     List<TournamentStandingDto> getStandings(TournamentId tournamentId);
 }

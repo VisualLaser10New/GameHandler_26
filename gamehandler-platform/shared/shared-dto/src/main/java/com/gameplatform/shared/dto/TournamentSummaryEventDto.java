@@ -6,46 +6,51 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Outbox payload for the {@code TOURNAMENT_SUMMARY_UPSERTED} event in the
- * Central→Local replication flow (use case §7.A.1). Carries a flattened
- * tournament summary so the local node can upsert its projection.
+ * Payload dell'outbox per l'evento {@code TOURNAMENT_SUMMARY_UPSERTED} nel
+ * flusso di replica Central&rarr;Local (caso d'uso &sect;7.A.1). Trasporta un
+ * riepilogo appiattito del torneo affinch&eacute; il nodo locale possa
+ * inserire o aggiornare la propria proiezione.
  *
- * <p>{@code deleted == true} marks a tombstone: the local must delete its
- * projection for the given {@code tournamentId} rather than upserting.
- * {@code originatingRequestId} is nullable: {@code null} for events raised by
- * the direct REST branch and non-null for the SyncEventProcessor branch §7.A.3,
- * where it carries the id of the originating outbox event for idempotency
- * tracking.</p>
+ * <p>Il valore {@code deleted == true} indica un tombstone: il nodo locale
+ * deve eliminare la propria proiezione per l'identificativo {@code tournamentId}
+ * invece di eseguirne l'upsert. Il campo {@code originatingRequestId} &egrave;
+ * nullable: {@code null} per gli eventi generati dal ramo REST diretto e non
+ * nullo per il ramo SyncEventProcessor (&sect;7.A.3), dove trasporta l'id
+ * dell'evento outbox originario per la tracciatura dell'idempotenza.</p>
  *
- * <p>{@code errorMessage} is non-null when the Central use case that handled a
- * {@code *_REQUESTED} event rejected the request (e.g. a tournament-lifecycle
- * transition refused because the current {@code TournamentStatus} does not admit
- * it, or the tournament was not found). In that case the local
- * {@code TournamentSummarySyncService} closes the matching
- * {@code admin_requests_local} row as {@code FAILED} with the readable reason
- * in {@code result_data}, instead of {@code COMPLETED} — closing the loop
- * immediately rather than letting the
- * {@code admin.request.timeout-ms} deadline fire 30 minutes later and surface
- * as a vague "TIMEOUT" to the platform admin (BUG-CANCEL-PENDING).</p>
+ * <p>Il campo {@code errorMessage} &egrave; non nullo quando il caso d'uso
+ * Central che ha gestito un evento {@code *_REQUESTED} ha respinto la
+ * richiesta (ad esempio una transizione del ciclo di vita di un torneo rifiutata
+ * perch&eacute; lo {@code TournamentStatus} corrente non la ammette, oppure il
+ * torneo non &egrave; stato trovato). In tal caso il
+ * {@code TournamentSummarySyncService} locale chiude la riga corrispondente di
+ * {@code admin_requests_local} come {@code FAILED} con la motivazione leggibile
+ * in {@code result_data}, anzich&eacute; come {@code COMPLETED}, chiudendo il
+ * ciclo immediatamente invece di attendere che la scadenza
+ * {@code admin.request.timeout-ms} scatti dopo 30 minuti e riporti un vago
+ * "TIMEOUT" all'amministratore di piattaforma (BUG-CANCEL-PENDING).</p>
  *
- * @param eventId             outbox event id (UUID)
- * @param eventType           always {@code TOURNAMENT_SUMMARY_UPSERTED}
- * @param tournamentId        the tournament id
- * @param name                tournament name
- * @param gameType            the game type
- * @param teamBased           whether the tournament is team-based
- * @param teamSize            team size (1 for individual)
- * @param status              the tournament status
- * @param startsAt            scheduled start instant
- * @param endsAt              actual end instant (null while not COMPLETED)
- * @param buildingIds         the buildings hosting the tournament
- * @param participantsCount   number of enrolled participants
- * @param updatedAt           last mutation instant
- * @param deleted             {@code true} for a tombstone event
- * @param originatingRequestId id of the originating request/event (nullable)
- * @param errorMessage        readable rejection reason (nullable; non-null ⇒
- *                            the local must mark the matching admin-request
- *                            {@code FAILED} instead of {@code COMPLETED})
+ * @param eventId              identificativo dell'evento outbox (UUID)
+ * @param eventType            sempre {@code TOURNAMENT_SUMMARY_UPSERTED}
+ * @param tournamentId         l'identificativo del torneo
+ * @param name                 il nome del torneo
+ * @param gameType             il tipo di gioco
+ * @param teamBased            indica se il torneo &egrave; a squadre
+ * @param teamSize             dimensione della squadra (1 per individuale)
+ * @param status               lo stato del torneo
+ * @param startsAt             istante di avvio pianificato
+ * @param endsAt               istante di fine effettivo (null finch&eacute; non COMPLETED)
+ * @param buildingIds          gli edifici che ospitano il torneo
+ * @param participantsCount    numero di partecipanti iscritti
+ * @param updatedAt            istante dell'ultima mutazione
+ * @param deleted              {@code true} per un evento tombstone
+ * @param originatingRequestId id della richiesta/evento originario (nullable)
+ * @param errorMessage         motivazione leggibile del rifiuto (nullable; non nullo &rArr;
+ *                             il locale deve marcare la richiesta admin
+ *                             corrispondente come {@code FAILED} anzich&eacute; {@code COMPLETED})
+ *
+ * @see com.gameplatform.shared.domain.model.GameType
+ * @see com.gameplatform.shared.domain.model.TournamentStatus
  */
 public record TournamentSummaryEventDto(
         String eventId,
@@ -66,10 +71,28 @@ public record TournamentSummaryEventDto(
         String errorMessage
 ) {
     /**
-     * Backward-compat secondary ctor (no failure indication): delegates to the
-     * canonical 16-arg ctor with {@code errorMessage = null}. Existing call
-     * sites (FASE 7.A create/open/update/delete flow, admin-request success
-     * branches and tests) keep the previous 15-arg arity undisturbed.
+     * Costruttore secondario di retrocompatibilit&agrave; (senza indicazione di
+     * fallimento): delega al costruttore canonico a 16 argomenti impostando
+     * {@code errorMessage = null}. I siti di chiamata esistenti (flusso
+     * FASE 7.A di creazione/apertura/aggiornamento/eliminazione, rami di
+     * successo delle richieste admin e test) conservano la precedente arit&agrave;
+     * a 15 argomenti invariata.
+     *
+     * @param eventId              identificativo dell'evento outbox (UUID)
+     * @param eventType            sempre {@code TOURNAMENT_SUMMARY_UPSERTED}
+     * @param tournamentId         l'identificativo del torneo
+     * @param name                 il nome del torneo
+     * @param gameType             il tipo di gioco
+     * @param teamBased            indica se il torneo &egrave; a squadre
+     * @param teamSize             dimensione della squadra (1 per individuale)
+     * @param status               lo stato del torneo
+     * @param startsAt             istante di avvio pianificato
+     * @param endsAt               istante di fine effettivo (null finch&eacute; non COMPLETED)
+     * @param buildingIds          gli edifici che ospitano il torneo
+     * @param participantsCount    numero di partecipanti iscritti
+     * @param updatedAt            istante dell'ultima mutazione
+     * @param deleted              {@code true} per un evento tombstone
+     * @param originatingRequestId id della richiesta/evento originario (nullable)
      */
     public TournamentSummaryEventDto(String eventId, String eventType, String tournamentId, String name,
                                      GameType gameType, boolean teamBased, int teamSize, TournamentStatus status,
@@ -81,7 +104,25 @@ public record TournamentSummaryEventDto(
     }
 
     /**
-     * Backward-compat secondary ctor (legacy 14-arg, no tombstone/originatingRequestId/errorMessage).
+     * Costruttore secondario di retrocompatibilit&agrave; legacy a 14 argomenti,
+     * privo di tombstone, {@code originatingRequestId} ed {@code errorMessage}.
+     * Delega al costruttore canonico impostando {@code deleted = false},
+     * {@code originatingRequestId = null} ed {@code errorMessage = null}, cos&igrave;
+     * da preservare i siti di chiamata pi&ugrave; datati.
+     *
+     * @param eventId           identificativo dell'evento outbox (UUID)
+     * @param eventType         sempre {@code TOURNAMENT_SUMMARY_UPSERTED}
+     * @param tournamentId      l'identificativo del torneo
+     * @param name              il nome del torneo
+     * @param gameType          il tipo di gioco
+     * @param teamBased         indica se il torneo &egrave; a squadre
+     * @param teamSize          dimensione della squadra (1 per individuale)
+     * @param status            lo stato del torneo
+     * @param startsAt          istante di avvio pianificato
+     * @param endsAt            istante di fine effettivo (null finch&eacute; non COMPLETED)
+     * @param buildingIds       gli edifici che ospitano il torneo
+     * @param participantsCount numero di partecipanti iscritti
+     * @param updatedAt         istante dell'ultima mutazione
      */
     public TournamentSummaryEventDto(String eventId, String eventType, String tournamentId, String name,
                                      GameType gameType, boolean teamBased, int teamSize, TournamentStatus status,

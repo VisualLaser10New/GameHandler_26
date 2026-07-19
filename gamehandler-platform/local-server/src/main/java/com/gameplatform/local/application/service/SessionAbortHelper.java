@@ -33,36 +33,18 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * R3 (outbox atomicity) — atomic abort-and-emit helper.
+ * Helper atomico di abort ed emissione evento. Esegue l'abort della
+ * sessione, il rilascio della macchina da gioco e la pubblicazione
+ * dell'evento outbox GAME_SESSION_ABORTED all'interno di una propria
+ * transazione {@link Propagation#REQUIRES_NEW}. Qualsiasi eccezione
+ * propaga il rollback dell'intera transazione — la sessione NON viene
+ * abortita, la macchina NON viene rilasciata, NESSUNA riga outbox viene
+ * scritta. I chiamanti (es. {@link HealthCheckService}) wrappano la
+ * chiamata in un try/catch che logga e passa oltre; il tick successivo
+ * ritenta.
  *
- * <p>Holds the body that previously lived inline in {@link HealthCheckService}'s
- * TIMEOUT branch (where it was wrapped in a {@code try { ... } catch (Exception e)
- * { log.error(...); }} that swallowed any failure from {@code objectMapper.write
- * ValueAsString} or {@code outboxEventRepository.save}). That swallow let the
- * class-level {@code @Transactional} on {@code performHealthCheck} commit the
- * abort (session + game release) WITHOUT the matching {@code GAME_SESSION_ABORTED}
- * outbox row, leaving central statistics permanently understated.</p>
- *
- * <p>This bean runs the abort + game release + outbox emission inside its own
- * {@link Propagation#REQUIRES_NEW} transaction. ANY exception (serialization
- * failure, save failure, transition guard violation) propagates out and rolls
- * back the ENTIRE transaction → session NOT aborted, game NOT released, NO
- * outbox row. Callers (e.g. {@link HealthCheckService}) wrap the call in a
- * {@code try/catch} that merely logs — the rollback is the desired contract,
- * and the next heartbeat tick retries.</p>
- *
- * <p>The bean is a SEPARATE Spring component (not a self-invoked private method)
- * because Spring's {@code @Transactional} proxy does not intercept
- * {@code this}-internal calls — REQUIRES_NEW via self-invocation is a no-op.
- * Calling a sibling bean is the only way the new tx actually opens.</p>
- *
- * <p>The body mirrors the previous {@link SessionRecoveryHelper#abortSession}
- * implementation exactly (abort → save session → release game + save → defer
- * publishState afterCommit → build payload + save outbox), generalised to take
- * a {@link StopReason} and a {@code stopReasonCode} string for the outbox
- * payload so the same atomic unit serves both the heartbeat-TIMEOUT path
- * (HealthCheckService) and the SERVER_RESTART recovery path
- * (SessionRecoveryService via SessionRecoveryHelper).</p>
+ * @see HealthCheckService
+ * @see SessionRecoveryHelper
  */
 @Component
 public class SessionAbortHelper {
@@ -94,6 +76,20 @@ public class SessionAbortHelper {
         this.tournamentMatchLocalRepository = tournamentMatchLocalRepository;
     }
 
+    /**
+     * Esegue l'abort atomico di una sessione di gioco: transiziona la
+     * sessione (WAITING {@literal ->} ABORTED via cancelLobby, oppure
+     * IN_PROGRESS/PAUSED {@literal ->} ABORTED via abort), rilascia la
+     * macchina da gioco, emette l'evento outbox GAME_SESSION_ABORTED e,
+     * per sessioni legate a match torneo, emette anche
+     * TOURNAMENT_MATCH_COMPLETED con stato ABANDONED e calcola il
+     * vincitore per walkover.
+     *
+     * @param session        la sessione da abortire
+     * @param stopReason     la ragione dello stop (es. TIMEOUT, ABORTED)
+     * @param stopReasonCode il codice testuale per il payload outbox
+     * @throws Exception in caso di qualsiasi errore (propaga il rollback)
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void abortAndEmit(GameSession session, StopReason stopReason, String stopReasonCode) throws Exception {
         // WAITING sessions are lobbies that never started; cancel via cancelLobby

@@ -35,11 +35,28 @@ public class InternalSyncController {
     private final SyncUsersUseCase syncUsersUseCase;
     private final UserRepository userRepository;
 
+    /**
+     * Costruisce il controller con il caso d'uso per la sincronizzazione
+     * utenti e il repository degli utenti.
+     *
+     * @param syncUsersUseCase caso d'uso per la sincronizzazione degli utenti
+     * @param userRepository repository degli utenti per il conteggio
+     */
     public InternalSyncController(SyncUsersUseCase syncUsersUseCase, UserRepository userRepository) {
         this.syncUsersUseCase = syncUsersUseCase;
         this.userRepository = userRepository;
     }
 
+    /**
+     * Sincronizza un batch di utenti dal sistema centrale. La risposta
+     * contiene gli acknowledge per ogni singolo utente; utenti con errori
+     * non causano il fallimento dell'intero batch.
+     *
+     * @param users la lista degli utenti da sincronizzare
+     * @param apiKey la chiave API interna per l'autenticazione (opzionale,
+     *               validata dal filtro)
+     * @return una {@link ResponseEntity} con la lista di {@link UserSyncAckDto}
+     */
     @PutMapping("/sync")
     public ResponseEntity<List<UserSyncAckDto>> syncUsers(
             @RequestBody List<UserSyncDto> users,
@@ -53,6 +70,12 @@ public class InternalSyncController {
      * {@code replicated_users} table. The body is a bare JSON number
      * (e.g. {@code 7}); the central {@code LocalServerUserCountRestAdapter}
      * deserialises it as {@link Long}.
+     */
+    /**
+     * Restituisce il numero di righe nella tabella {@code replicated_users}.
+     * Utilizzato dal sistema centrale per la riconciliazione.
+     *
+     * @return una {@link ResponseEntity} con il conteggio degli utenti
      */
     @GetMapping("/count")
     public ResponseEntity<Long> replicatedUsersCount() {

@@ -9,18 +9,31 @@ import com.gameplatform.shared.domain.model.WinCondition;
 import org.springframework.stereotype.Component;
 
 /**
- * Null-safe mapper between the {@link PlayerMatchFact} central domain model
- * and the {@link PlayerMatchFactJpaEntity} persistence entity. {@code @Component}
- * instance bean (matches {@code GameDefinitionMapper} /
- * {@code LocalAdminBuildingMapper}). Translates the {@code user_id}/
- * {@code building_id} String columns to/from the {@link UserId}/
- * {@link BuildingId} value objects and the {@code game_type}/
- * {@code win_condition} Strings to/from
- * {@link GameType}/{@link WinCondition} enum NAMEs.
+ * Mapper senza stato (null-safe) tra il modello di dominio centrale
+ * {@link PlayerMatchFact} e l'entità persistente
+ * {@link PlayerMatchFactJpaEntity}.
+ * <p>
+ * Esposto come bean Spring {@code @Component}, converte le colonne
+ * {@code user_id} e {@code building_id} da/verso {@link UserId} e
+ * {@link BuildingId}, e le colonne {@code game_type} e
+ * {@code win_condition} da/verso gli enum {@link GameType} e
+ * {@link WinCondition}.
+ *
+ * @see PlayerMatchFact
+ * @see PlayerMatchFactJpaEntity
  */
 @Component
 public class PlayerMatchFactMapper {
 
+    /**
+     * Converte un'entità persistente {@link PlayerMatchFactJpaEntity} nel
+     * corrispondente modello di dominio {@link PlayerMatchFact}.
+     *
+     * @param entity l'entità persistente di origine; se {@code null} restituisce {@code null}
+     * @return il modello di dominio {@link PlayerMatchFact} o {@code null} se l'entità è {@code null}
+     * @throws IllegalArgumentException se la stringa {@code game_type} o {@code win_condition} non corrisponde a un valore enum valido
+     * @see #toEntity(PlayerMatchFact)
+     */
     public PlayerMatchFact toDomain(PlayerMatchFactJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -37,6 +50,14 @@ public class PlayerMatchFactMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link PlayerMatchFact} nell'entità
+     * persistente {@link PlayerMatchFactJpaEntity} da persistere.
+     *
+     * @param domain il modello di dominio di origine; se {@code null} restituisce {@code null}
+     * @return l'entità persistente {@link PlayerMatchFactJpaEntity} o {@code null} se il dominio è {@code null}
+     * @see #toDomain(PlayerMatchFactJpaEntity)
+     */
     public PlayerMatchFactJpaEntity toEntity(PlayerMatchFact domain) {
         if (domain == null) {
             return null;

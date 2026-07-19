@@ -5,19 +5,18 @@ import com.gameplatform.shared.domain.model.GameType;
 import java.time.Instant;
 
 /**
- * DTO representing a player's aggregated statistics for a single game type,
- * returned by both the Central read-model ({@code player_statistics}, source of
- * truth) and the Local on-demand computation ({@code StatisticsService}, derived
- * from {@code game_sessions}+{@code session_participants}).
+ * Rappresenta le statistiche aggregate di un giocatore per una singola tipologia di gioco.
  *
- * <p>Defined in {@code shared-dto} so the Central and Local REST adapters expose
- * the exact same shape to clients (FASE 3, PIANO &sect;2.4/&sect;2.5).</p>
+ * <p>Il DTO viene restituito sia dal read-model Central sia dal calcolo on-demand Locale,
+ * garantendo che gli adapter REST espongano la medesima struttura dati ai client.</p>
  *
- * @param userId        the player's {@link com.gameplatform.shared.domain.model.UserId} value
- * @param gameType      the game type these statistics refer to
- * @param matchesPlayed number of completed matches the player participated in
- * @param matchesWon    number of those matches the player won
- * @param lastPlayedAt  when the player last played this game type (null if never)
+ * @param userId        l'identificativo del giocatore; non deve essere {@code null}
+ * @param gameType      la tipologia di gioco cui si riferiscono le statistiche; non deve essere {@code null}
+ * @param matchesPlayed il numero di partite completate a cui il giocatore ha partecipato; vale {@code 0} se non ne ha disputate
+ * @param matchesWon    il numero di partite vinte tra quelle disputate; vale {@code 0} se non ne ha vinte
+ * @param lastPlayedAt  l'istante dell'ultima partita giocata per questa tipologia; è {@code null} se il giocatore non ha mai giocato
+ *
+ * @see com.gameplatform.shared.domain.model.GameType
  */
 public record PlayerStatisticsDto(
         String userId,

@@ -6,27 +6,34 @@ import com.gameplatform.shared.dto.LocalServerRegistryEventDto;
 import java.util.List;
 
 /**
- * Outbound port for pushing a batch of {@code LOCAL_SERVER_REGISTRY_UPSERTED}
- * events to a single Local Server's {@code PUT /internal/servers/sync}
- * endpoint. Structural twin of {@link PushTournamentSummaryToLocalServersPort}.
+ * Porta di uscita per l'invio di un batch di eventi
+ * {@code LOCAL_SERVER_REGISTRY_UPSERTED} all'endpoint
+ * {@code PUT /internal/servers/sync} di un singolo server locale. Gemello
+ * strutturale di {@link PushTournamentSummaryToLocalServersPort}.
  *
- * <p>No ack / poison-isolation: the local upsert is idempotent by PK
- * ({@code buildingId}), so a transient transport failure just retries via the
- * outbox on the next scheduler tick. Exposing {@code registered_local_servers}
- * to every Local lets a PLATFORM_ADMIN client (connected to any Local) see the
- * full registry without a direct Central call (E1).</p>
+ * <p>Non è previsto alcun contratto di ack o di isolamento dei messaggi
+ * avvelenati: l'upsert locale è idempotente per chiave primaria
+ * {@code (buildingId)}, pertanto un fallimento transitorio di trasporto viene
+ * semplicemente ritentato tramite l'outbox al ciclo successivo dello scheduler.
+ * Esporre il registro dei server locali a ogni server consente a un client
+ * {@code PLATFORM_ADMIN} collegato a qualunque server locale di vedere
+ * l'intero registro senza una chiamata diretta al sistema centrale.</p>
  *
  * @throws com.gameplatform.central.domain.exception.TransientPushException
- *         on transient transport failure (caller retries via the outbox)
+ *         in caso di fallimento transitorio di trasporto (il chiamante ritenta tramite l'outbox)
+ * @see PushTournamentSummaryToLocalServersPort
+ * @see LocalServerRegistryEventDto
  */
 public interface PushLocalServerRegistryToLocalServersPort {
 
     /**
-     * Pushes a batch of local-server-registry upsert events to a single local
-     * server.
+     * Invia un batch di eventi di registro dei server locali a un singolo server locale.
      *
-     * @param events the registry DTO batch to push
-     * @param server the single target active local server
+     * @param events il batch di DTO di registro da inviare; non deve essere {@code null}
+     * @param server il singolo server locale attivo di destinazione; non deve essere {@code null}
+     * @throws IllegalArgumentException in caso di parametri {@code null}
+     * @throws com.gameplatform.central.domain.exception.TransientPushException
+     *         in caso di fallimento transitorio di trasporto
      */
     void push(List<LocalServerRegistryEventDto> events, RegisteredLocalServer server);
 }

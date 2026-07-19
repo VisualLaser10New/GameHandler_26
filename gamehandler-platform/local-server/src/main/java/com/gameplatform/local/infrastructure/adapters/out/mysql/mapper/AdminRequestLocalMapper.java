@@ -12,6 +12,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class AdminRequestLocalMapper {
 
+    /**
+     * Converte un'entità JPA {@link AdminRequestLocalJpaEntity} nel corrispondente
+     * modello di dominio {@link AdminRequestLocal}.
+     *
+     * @param entity l'entità JPA da convertire, può essere {@code null}
+     * @return il modello di dominio, oppure {@code null} se l'input è {@code null}
+     */
     public AdminRequestLocal toDomain(AdminRequestLocalJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -31,6 +38,13 @@ public class AdminRequestLocalMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link AdminRequestLocal} nella corrispondente
+     * entità JPA {@link AdminRequestLocalJpaEntity}.
+     *
+     * @param domain il modello di dominio da convertire, può essere {@code null}
+     * @return l'entità JPA, oppure {@code null} se l'input è {@code null}
+     */
     public AdminRequestLocalJpaEntity toEntity(AdminRequestLocal domain) {
         if (domain == null) {
             return null;

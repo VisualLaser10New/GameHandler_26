@@ -27,6 +27,17 @@ import javax.net.ssl.SSLContext;
 import java.net.HttpURLConnection;
 import java.util.List;
 
+/**
+ * Adapter REST che replica gli utenti verso un singolo local server tramite il
+ * relativo endpoint {@code PUT /internal/users/sync}.
+ *
+ * <p>Configura un {@link RestTemplate} con {@link SSLContext} dedicato, timeout
+ * di connessione e lettura, header {@code X-Internal-Api-Key} e un
+ * {@link RetryTemplate} a 3 tentativi. A differenza degli altri adapter di
+ * replica, ritorna gli ack per utente ricevuti dal local server.</p>
+ *
+ * @see PushUserToLocalServersPort
+ */
 @Component
 public class LocalRestAdapter implements PushUserToLocalServersPort {
 
@@ -36,6 +47,15 @@ public class LocalRestAdapter implements PushUserToLocalServersPort {
     private final String apiKey;
     private final RetryTemplate retryTemplate;
 
+    /**
+     * Costruisce l'adapter configurando il client HTTP con il contesto SSL, la
+     * chiave API interna e i timeout di connessione e lettura.
+     *
+     * @param sslContext        contesto SSL utilizzato per le connessioni HTTPS; non deve essere {@code null}
+     * @param apiKey            chiave API interna inviata nell'header {@code X-Internal-Api-Key}; non deve essere {@code null}
+     * @param connectTimeoutMs  timeout di connessione in millisecondi; se non configurato assume il valore predefinito 5000
+     * @param readTimeoutMs     timeout di lettura in millisecondi; se non configurato assume il valore predefinito 5000
+     */
     @org.springframework.beans.factory.annotation.Autowired
     public LocalRestAdapter(
             SSLContext sslContext,
@@ -58,13 +78,26 @@ public class LocalRestAdapter implements PushUserToLocalServersPort {
         this.retryTemplate = buildDefaultRetryTemplate();
     }
 
-    // Package-private constructor for testing
+    /**
+     * Costruisce l'adapter con un {@link RestTemplate} fornito esternamente,
+     * utile per i test unitari.
+     *
+     * @param restTemplate il template REST da utilizzare per le chiamate HTTP; non deve essere {@code null}
+     * @param apiKey       chiave API interna inviata nell'header {@code X-Internal-Api-Key}; non deve essere {@code null}
+     */
     LocalRestAdapter(RestTemplate restTemplate, String apiKey) {
         this.restTemplate = restTemplate;
         this.apiKey = apiKey;
         this.retryTemplate = buildDefaultRetryTemplate();
     }
 
+    /**
+     * Costruisce il template di retry predefinito con 3 tentativi, backoff
+     * esponenziale da 100 ms a 10 s e ripetizione solo su
+     * {@link TransientPushException}.
+     *
+     * @return il template di retry configurato; mai {@code null}
+     */
     private static RetryTemplate buildDefaultRetryTemplate() {
         return RetryTemplate.builder()
                 .maxAttempts(3)
@@ -73,6 +106,23 @@ public class LocalRestAdapter implements PushUserToLocalServersPort {
                 .build();
     }
 
+    /**
+     * Invia una lista di utenti al local server specificato tramite una
+     * richiesta {@code PUT} all'endpoint {@code /internal/users/sync} e
+     * restituisce gli ack ricevuti per ogni utente.
+     * <p>
+     * In caso di errore transiente dopo aver esaurito i tentativi di retry,
+     * rilancia un'eccezione {@link RuntimeException} contenente la causa
+     * originale.
+     *
+     * @param users  la lista degli utenti da sincronizzare; non deve essere {@code null}
+     * @param server il local server di destinazione; non deve essere {@code null}
+     * @return la lista degli ack ricevuti dal local server per ogni utente;
+     *         una lista vuota se il corpo della risposta &egrave; {@code null}
+     * @throws RuntimeException se la richiesta fallisce dopo aver esaurito tutti i tentativi di retry
+     * @see #isTransient(Exception)
+     * @see #isConnectionRefusedRoot(Throwable)
+     */
     @Override
     public List<UserSyncAckDto> pushUsers(List<UserSyncDto> users, RegisteredLocalServer server) {
         String url = server.getBaseUrl() + "/internal/users/sync";
@@ -116,6 +166,17 @@ public class LocalRestAdapter implements PushUserToLocalServersPort {
         }
     }
 
+    /**
+     * Verifica se un'eccezione rappresenta un errore transiente che pu&ograve;
+     * essere ritentato.
+     * <p>
+     * Sono considerati transienti: {@link ResourceAccessException}, errori HTTP
+     * 5xx, {@code 429 Too Many Requests} e {@code 408 Request Timeout}.
+     *
+     * @param e l'eccezione da classificare; non deve essere {@code null}
+     * @return {@code true} se l'eccezione &egrave; di tipo transiente,
+     *         {@code false} altrimenti
+     */
     static boolean isTransient(Exception e) {
         if (e instanceof ResourceAccessException) {
             return true;
@@ -127,6 +188,15 @@ public class LocalRestAdapter implements PushUserToLocalServersPort {
         return false;
     }
 
+    /**
+     * Verifica se la causa radice di un'eccezione (o dell'intera catena di
+     * cause) &egrave; un {@link java.net.ConnectException}, indicando che il
+     * server di destinazione non &egrave; raggiungibile.
+     *
+     * @param t l'eccezione o throwable da ispezionare; non deve essere {@code null}
+     * @return {@code true} se nella catena delle cause &egrave; presente un
+     *         {@code ConnectException}, {@code false} altrimenti
+     */
     static boolean isConnectionRefusedRoot(Throwable t) {
         Throwable cur = t;
         while (cur != null) {

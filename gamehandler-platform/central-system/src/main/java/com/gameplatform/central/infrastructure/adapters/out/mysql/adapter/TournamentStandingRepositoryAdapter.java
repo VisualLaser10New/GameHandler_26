@@ -27,12 +27,25 @@ public class TournamentStandingRepositoryAdapter implements TournamentStandingRe
     private final TournamentStandingJpaRepository jpaRepo;
     private final TournamentStandingMapper mapper;
 
+    /**
+     * Costruisce l'adapter iniettando il repository JPA e il mapper delle classifiche di torneo.
+     *
+     * @param jpaRepo repository JPA per la gestione delle entit&agrave; di classifica
+     * @param mapper  mapper che converte tra il modello di dominio e l'entit&agrave; JPA
+     */
     public TournamentStandingRepositoryAdapter(TournamentStandingJpaRepository jpaRepo,
                                                TournamentStandingMapper mapper) {
         this.jpaRepo = jpaRepo;
         this.mapper = mapper;
     }
 
+    /**
+     * Salva (o aggiorna) una classifica di torneo e restituisce l'entit&agrave; persistita.
+     *
+     * @param standing la classifica da persistere; non deve essere {@code null}
+     * @return la classifica salvata, con eventuali valorizzazioni gestite dal database
+     * @see TournamentStandingJpaRepository#save
+     */
     @Override
     @Transactional
     public TournamentStanding save(TournamentStanding standing) {
@@ -40,10 +53,18 @@ public class TournamentStandingRepositoryAdapter implements TournamentStandingRe
         return mapper.toDomain(savedEntity);
     }
 
+    /**
+     * Restituisce la classifica di un torneo per un partecipante.
+     *
+     * @param tournamentId  l'identificativo del torneo; se {@code null} restituisce {@link Optional#empty()}
+     * @param participantId l'identificativo del partecipante; se {@code null} restituisce {@link Optional#empty()}
+     * @return l'{@link Optional} contenente la classifica trovata, o vuoto se assente o se un argomento &egrave; {@code null}
+     * @see TournamentStandingJpaRepository#findByTournamentIdAndParticipantId
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TournamentStanding> findByTournamentAndParticipantId(TournamentId tournamentId,
-                                                                        String participantId) {
+                                                                       String participantId) {
         if (tournamentId == null || participantId == null) {
             return Optional.empty();
         }
@@ -51,6 +72,13 @@ public class TournamentStandingRepositoryAdapter implements TournamentStandingRe
                 .map(mapper::toDomain);
     }
 
+    /**
+     * Restituisce l'elenco delle classifiche associate a un torneo.
+     *
+     * @param tournamentId l'identificativo del torneo; se {@code null} restituisce una lista vuota
+     * @return la lista delle classifiche del torneo; lista vuota se non ve ne sono o se {@code tournamentId} &egrave; {@code null}
+     * @see TournamentStandingJpaRepository#findByTournamentId
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TournamentStanding> findByTournament(TournamentId tournamentId) {
@@ -64,6 +92,13 @@ public class TournamentStandingRepositoryAdapter implements TournamentStandingRe
         return entities.stream().map(mapper::toDomain).toList();
     }
 
+    /**
+     * Elimina la classifica di un torneo per un partecipante.
+     *
+     * @param tournamentId  l'identificativo del torneo; se {@code null} il metodo non effettua alcuna operazione
+     * @param participantId l'identificativo del partecipante; se {@code null} il metodo non effettua alcuna operazione
+     * @see TournamentStandingJpaRepository#deleteByTournamentAndParticipantId
+     */
     @Override
     @Transactional
     public void deleteByTournamentAndParticipantId(TournamentId tournamentId, String participantId) {
@@ -73,6 +108,13 @@ public class TournamentStandingRepositoryAdapter implements TournamentStandingRe
         jpaRepo.deleteByTournamentAndParticipantId(tournamentId.value(), participantId);
     }
 
+    /**
+     * Restituisce l'elenco delle classifiche di un torneo acquisendone il lock pessimistico in scrittura.
+     *
+     * @param tournamentId l'identificativo del torneo; se {@code null} restituisce una lista vuota
+     * @return la lista delle classifiche del torneo (bloccate); lista vuota se non ve ne sono o se {@code tournamentId} &egrave; {@code null}
+     * @see TournamentStandingJpaRepository#findByTournamentIdForUpdate
+     */
     @Override
     @Transactional
     public List<TournamentStanding> findByTournamentIdForUpdate(TournamentId tournamentId) {

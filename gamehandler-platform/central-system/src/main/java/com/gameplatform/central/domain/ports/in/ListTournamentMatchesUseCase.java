@@ -11,5 +11,13 @@ import java.util.List;
  * No status filtering applied.
  */
 public interface ListTournamentMatchesUseCase {
+
+    /**
+     * Restituisce l'elenco completo degli incontri di un torneo, incluse le righe {@code BYE}.
+     *
+     * @param tournamentId l'identificativo del torneo di cui recuperare gli incontri; non deve essere {@code null}
+     * @return la lista di {@link TournamentMatchDto} rappresentante gli incontri; la lista è vuota se il torneo non ha incontri
+     * @throws com.gameplatform.shared.domain.exception.TournamentNotFoundException se il torneo non esiste
+     */
     List<TournamentMatchDto> findByTournament(TournamentId tournamentId);
 }

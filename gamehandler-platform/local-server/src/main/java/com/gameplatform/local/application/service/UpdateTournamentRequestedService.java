@@ -17,14 +17,18 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Implementation of the W12e use case (PIANO §7.B): a PLATFORM_ADMIN
- * updates a tournament's metadata. Pre-controls the {@code PLATFORM_ADMIN}
- * role on {@code replicated_users} and the DRAFT invariant on
- * {@code tournaments_summary_local} (refuses immediately with a
- * {@code FAILED} admin-request, WITHOUT writing the outbox row, when the
- * tournament is missing or not in {@code DRAFT} status), then atomically
- * writes a {@code admin_requests_local} PENDING row and the matching
- * outbox {@code TOURNAMENT_UPDATE_REQUESTED} event.
+ * Implementazione del caso d'uso W12e (PIANO §7.B): un PLATFORM_ADMIN
+ * aggiorna i metadati di un torneo. Esegue il pre-controllo del ruolo
+ * {@code PLATFORM_ADMIN} su {@code replicated_users} e dell'invariante
+ * DRAFT su {@code tournaments_summary_local} (rifiuta immediatamente con
+ * FAILED senza scrivere riga outbox se il torneo non e' in stato DRAFT
+ * o non esiste), poi scrive atomicamente una riga
+ * {@code admin_requests_local} PENDING e l'evento outbox
+ * {@code TOURNAMENT_UPDATE_REQUESTED}.
+ *
+ * @see UpdateTournamentRequestedUseCase
+ * @see AdminRequestOutboxWriter
+ * @see TournamentSummaryLocal
  */
 @Service
 public class UpdateTournamentRequestedService implements UpdateTournamentRequestedUseCase {
@@ -47,15 +51,32 @@ public class UpdateTournamentRequestedService implements UpdateTournamentRequest
         this.clock = clock;
     }
 
+    /**
+     * Aggiorna i metadati di un torneo. Verifica il ruolo PLATFORM_ADMIN
+     * e l'invariante DRAFT sul torneo; se il torneo non esiste o non e'
+     * in stato DRAFT, scrive una richiesta admin FAILED senza outbox,
+     * altrimenti scrive la richiesta PENDING con l'evento outbox.
+     *
+     * @param tournamentId l'identificativo del torneo da aggiornare (non blank)
+     * @param name         il nuovo nome del torneo (non blank)
+     * @param startsAt     il nuovo istante di inizio (non null)
+     * @param buildingIds  la lista dei building ospitanti (almeno 2)
+     * @param actingUserId l'identificativo dell'utente richiedente
+     * @param actingRole   il ruolo con cui l'utente agisce
+     * @param buildingId   l'identificativo del building di competenza
+     * @return il DTO della richiesta admin creata
+     * @throws IllegalArgumentException se i parametri non sono validi
+     * @throws org.springframework.security.access.AccessDeniedException se l'utente non ha il ruolo PLATFORM_ADMIN
+     */
     @Override
     @Transactional
     public AdminRequestDto update(String tournamentId,
-                                   String name,
-                                   Instant startsAt,
-                                   List<String> buildingIds,
-                                   String actingUserId,
-                                   String actingRole,
-                                   String buildingId) {
+                                    String name,
+                                    Instant startsAt,
+                                    List<String> buildingIds,
+                                    String actingUserId,
+                                    String actingRole,
+                                    String buildingId) {
         RolePreCheck.requireRole(userRepository, actingUserId, REQUIRED_ROLE);
         if (tournamentId == null || tournamentId.isBlank()) {
             throw new IllegalArgumentException("tournamentId cannot be blank");

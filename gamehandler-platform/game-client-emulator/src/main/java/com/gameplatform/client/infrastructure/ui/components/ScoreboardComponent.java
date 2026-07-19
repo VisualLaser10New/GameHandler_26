@@ -7,15 +7,20 @@ import java.util.Comparator;
 import java.util.Map;
 
 /**
- * Reusable JavaFX component that displays a sorted scoreboard of players
- * and their scores.
+ * Componente JavaFX riutilizzabile che visualizza una classifica ordinata
+ * di giocatori con i relativi punteggi.
  * <p>
- * Scores are shown in descending order (highest first). An empty state
- * message is displayed when no scores are available.
+ * I punteggi vengono mostrati in ordine decrescente (dal più alto al più
+ * basso). Un messaggio di stato vuoto viene visualizzato quando non sono
+ * disponibili punteggi.
  */
 public class ScoreboardComponent extends VBox {
     private final Label titleLabel;
 
+    /**
+     * Costruisce un {@code ScoreboardComponent} vuoto con spaziatura
+     * predefinita, sfondo scuro e titolo "Scoreboard".
+     */
     public ScoreboardComponent() {
         setSpacing(4);
         setStyle("-fx-padding: 10; -fx-background-color: #2a2a2a; -fx-border-color: #555; -fx-border-radius: 4;");
@@ -25,10 +30,12 @@ public class ScoreboardComponent extends VBox {
     }
 
     /**
-     * Updates the displayed scores, replacing any existing entries.
+     * Aggiorna i punteggi visualizzati, sostituendo le eventuali voci
+     * esistenti.
      *
-     * @param scores a map of player name to score; may be {@code null} or empty
-     *               to show the "No scores yet" placeholder
+     * @param scores mappa dei nomi dei giocatori ai rispettivi punteggi;
+     *               può essere {@code null} o vuota per mostrare il
+     *               segnaposto "No scores yet"
      */
     public void updateScores(Map<String, Integer> scores) {
         getChildren().retainAll(titleLabel);

@@ -3,22 +3,31 @@ package com.gameplatform.local.domain.ports.in;
 import com.gameplatform.shared.domain.model.ReservationId;
 import com.gameplatform.shared.domain.model.UserId;
 
+/**
+ * Use case per la cancellazione di una prenotazione di gioco.
+ * Fornisce due modalit&agrave; di cancellazione: una senza verifica di
+ * propriet&agrave; riservata ai percorsi interni o amministrativi, e una
+ * con controllo di propriet&agrave; per l'uso da parte dei giocatori.
+ *
+ * @see com.gameplatform.shared.domain.model.ReservationId
+ */
 public interface CancelReservationUseCase {
 
     /**
-     * Cancels the reservation without an ownership check. Reserved for internal
-     * / superuser paths (reservation expiration scheduler, PLATFORM_ADMIN
-     * bypass). Players must use {@link #cancel(ReservationId, UserId)} which
-     * enforces ownership (Verifica 2 — VIOL-4 IDOR fix).
+     * Cancella la prenotazione senza effettuare il controllo di propriet&agrave;.
+     * Riservata ai percorsi interni come lo scheduler di scadenza prenotazioni
+     * o per bypass amministrativo PLATFORM_ADMIN.
+     *
+     * @param reservationId identificativo della prenotazione da cancellare
      */
     void cancel(ReservationId reservationId);
 
     /**
-     * Cancels the reservation after enforcing that {@code actingUserId} is the
-     * reservation's owner; throws {@code AccessDeniedException} otherwise.
-     * Used by the REST {@code DELETE /api/reservations/{id}} endpoint to close
-     * the previous IDOR (any PLAYER could cancel any reservation if it knew
-     * the id), Verifica 2 — VIOL-4.
+     * Cancella la prenotazione dopo aver verificato che l'utente richiedente
+     * sia il proprietario della prenotazione.
+     *
+     * @param reservationId  identificativo della prenotazione da cancellare
+     * @param actingUserId   identificativo dell'utente che richiede la cancellazione
      */
     void cancel(ReservationId reservationId, UserId actingUserId);
 }

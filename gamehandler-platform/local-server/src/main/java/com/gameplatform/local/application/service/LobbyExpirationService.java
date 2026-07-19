@@ -19,6 +19,14 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+/**
+ * Servizio schedulato che gestisce la scadenza delle lobby rimaste in
+ * stato WAITING oltre il tempo di inattivita' configurato (default 10
+ * minuti). Alla scadenza, la sessione viene cancellata e la macchina
+ * da gioco viene rilasciata a AVAILABLE. La pubblicazione MQTT dello
+ * stato AVAILABLE e dell'evento lobby/cancel notifica ai giocatori
+ * in attesa di abbandonare la schermata di lobby.
+ */
 @Service
 @Transactional
 public class LobbyExpirationService {
@@ -36,7 +44,7 @@ public class LobbyExpirationService {
             GameRepository gameRepository,
             PublishGameStatePort publishGameStatePort,
             Clock clock,
-            @org.springframework.beans.factory.annotation.Value("${app.lobby.expiration-minutes:2}") long lobbyExpirationMinutes) {
+            @org.springframework.beans.factory.annotation.Value("${app.lobby.expiration-minutes:10}") long lobbyExpirationMinutes) {
         this.gameSessionRepository = gameSessionRepository;
         this.gameRepository = gameRepository;
         this.publishGameStatePort = publishGameStatePort;
@@ -44,6 +52,11 @@ public class LobbyExpirationService {
         this.lobbyExpirationMinutes = lobbyExpirationMinutes;
     }
 
+    /**
+     * Sweep minuto delle lobby in stato WAITING. Per ogni lobby la cui
+     * finestra di inattivita' e' scaduta, cancella la sessione, rilascia
+     * la macchina da gioco e pubblica gli eventi MQTT.
+     */
     @Scheduled(fixedRate = 60000)
     public void expireLobbies() {
         log.debug("Checking for expired lobbies...");

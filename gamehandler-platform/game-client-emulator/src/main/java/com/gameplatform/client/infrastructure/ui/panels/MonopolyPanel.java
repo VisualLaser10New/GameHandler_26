@@ -8,11 +8,11 @@ import javafx.scene.layout.*;
 import java.util.*;
 
 /**
- * Emulation panel for Monopoly.
+ * Pannello di emulazione per il Monopoly.
  * <p>
- * Tracks each player's money balance. Buttons allow recording
- * money transfers between players (e.g. rent, buying properties)
- * and advancing the turn.
+ * Traccia il saldo di denaro di ogni giocatore. I pulsanti consentono di
+ * registrare trasferimenti di denaro tra giocatori (es. affitto, acquisto
+ * propriet&agrave;) e di avanzare il turno.
  */
 public class MonopolyPanel implements GamePanel {
 
@@ -31,6 +31,10 @@ public class MonopolyPanel implements GamePanel {
     private TurnPublisher turnPublisher;
     private String currentUser = "";
 
+    /**
+     * Costruisce il pannello del Monopoly inizializzando l'indicatore del turno,
+     * la lista dei giocatori, i controlli di trasferimento e il pulsante di fine turno.
+     */
     public MonopolyPanel() {
         root = new VBox(14);
         root.setAlignment(Pos.CENTER);
@@ -86,6 +90,14 @@ public class MonopolyPanel implements GamePanel {
     @Override
     public Parent getView() { return root; }
 
+    /**
+     * Avvia la partita inizializzando la lista dei partecipanti con un saldo
+     * iniziale di 1500 unit&agrave; per ciascuno e popolando i menu a tendina
+     * per i trasferimenti.
+     *
+     * @param participants lista dei nomi utente dei partecipanti in ordine di sessione;
+     *                     deve contenere almeno un giocatore per abilitare i trasferimenti
+     */
     @Override
     public void onGameStarted(List<String> participants) {
         this.players = new ArrayList<>(participants);
@@ -103,6 +115,14 @@ public class MonopolyPanel implements GamePanel {
         refreshPlayersBox();
     }
 
+    /**
+     * Imposta il contesto di turno per la sincronizzazione multiplayer.
+     *
+     * @param turnPublisher publisher per la trasmissione dei cambi di turno
+     * @param currentUser   nome utente del giocatore locale; {@code null} viene
+     *                      convertito in stringa vuota
+     * @see #onRemoteTurnUpdate(int, String)
+     */
     @Override
     public void setTurnContext(TurnPublisher turnPublisher, String currentUser) {
         this.turnPublisher = turnPublisher;
@@ -110,6 +130,14 @@ public class MonopolyPanel implements GamePanel {
         applyTurnControls();
     }
 
+    /**
+     * Applica l'aggiornamento del turno ricevuto da un emulatore remoto.
+     * Aggiorna l'indice del turno e lo stato dei controlli solo se il nuovo indice
+     * &egrave; valido (compreso tra 0 e la dimensione della lista dei partecipanti).
+     *
+     * @param newTurnIndex il nuovo indice del turno (base 0) nella lista dei partecipanti
+     * @param playerName   il nome utente del giocatore a cui spetta il turno
+     */
     @Override
     public void onRemoteTurnUpdate(int newTurnIndex, String playerName) {
         if (newTurnIndex >= 0 && newTurnIndex < players.size()) {
@@ -119,6 +147,10 @@ public class MonopolyPanel implements GamePanel {
         }
     }
 
+    /**
+     * Arresta la partita disabilitando tutti i controlli e aggiornando
+     * l'etichetta del turno con il messaggio di fine partita.
+     */
     @Override
     public void onGameStopped() {
         fromCombo.setDisable(true);
@@ -130,16 +162,38 @@ public class MonopolyPanel implements GamePanel {
         turnLabel.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-text-fill: #f39c12;");
     }
 
+    /**
+     * Restituisce l'identificativo del vincitore della partita.
+     * Il vincitore &egrave; il giocatore con il saldo pi&ugrave; alto.
+     *
+     * @return il nome utente del giocatore con il saldo massimo, oppure {@code null}
+     *         se non ci sono giocatori o in caso di parit&agrave;
+     * @see #getResultData()
+     */
     public String getWinnerId() {
         return money.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null);
     }
 
+    /**
+     * Restituisce i dati di risultato della partita nel formato
+     * "giocatore1:saldo1,giocatore2:saldo2".
+     *
+     * @return stringa con coppie "giocatore:saldo" separate da virgola;
+     *         restituisce stringa vuota se non ci sono partecipanti
+     * @see #getWinnerId()
+     */
     public String getResultData() {
         StringBuilder sb = new StringBuilder();
         money.forEach((p, m) -> { if (sb.length() > 0) sb.append(','); sb.append(p).append(':').append(m); });
         return sb.toString();
     }
 
+    /**
+     * Esegue un trasferimento di denaro dal giocatore sorgente al giocatore
+     * destinazione per l'importo specificato. Il trasferimento viene annullato
+     * se il mittente non ha fondi sufficienti, se i giocatori coincidono o se
+     * uno dei due non &egrave; selezionato.
+     */
     private void doTransfer() {
         String from = fromCombo.getValue();
         String to = toCombo.getValue();
@@ -152,6 +206,12 @@ public class MonopolyPanel implements GamePanel {
         refreshPlayersBox();
     }
 
+    /**
+     * Termina il turno corrente e passa al giocatore successivo.
+     * Aggiorna l'indicatore del turno, lo stato dei controlli e trasmette
+     * il cambio di turno agli emulatori remoti. Se la lista dei partecipanti
+     * &egrave; vuota, non esegue alcuna operazione.
+     */
     private void endTurn() {
         if (players.isEmpty()) return;
         turnIndex = (turnIndex + 1) % players.size();
@@ -160,6 +220,11 @@ public class MonopolyPanel implements GamePanel {
         broadcastTurn();
     }
 
+    /**
+     * Trasmette il cambio di turno agli emulatori remoti tramite il
+     * {@link TurnPublisher} se presente e se la lista dei partecipanti
+     * non &egrave; vuota.
+     */
     private void broadcastTurn() {
         if (turnPublisher != null && !players.isEmpty()) {
             turnPublisher.publish(turnIndex, players.get(turnIndex));
@@ -167,9 +232,9 @@ public class MonopolyPanel implements GamePanel {
     }
 
     /**
-     * Enables the transfer / end-turn controls only when it is the
-     * local user's turn, keeping all emulators in sync on the active
-     * player.
+     * Abilita i controlli di trasferimento e fine turno solo quando &egrave;
+     * il turno del giocatore locale, mantenendo tutti gli emulatori sincronizzati
+     * sul giocatore attivo.
      */
     private void applyTurnControls() {
         boolean myTurn = !players.isEmpty()
@@ -183,12 +248,20 @@ public class MonopolyPanel implements GamePanel {
         transferButton.setDisable(!myTurn);
     }
 
+    /**
+     * Aggiorna l'etichetta del turno con il nome del giocatore corrente.
+     * Se la lista dei partecipanti &egrave; vuota, non esegue alcuna operazione.
+     */
     private void updateTurnLabel() {
         if (players.isEmpty()) return;
         turnLabel.setText("Turn of: " + players.get(turnIndex));
         turnLabel.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-text-fill: #27ae60;");
     }
 
+    /**
+     * Aggiorna la visualizzazione della lista dei giocatori con i saldi correnti.
+     * I giocatori con saldo zero o negativo vengono evidenziati in rosso.
+     */
     private void refreshPlayersBox() {
         playersBox.getChildren().clear();
         money.forEach((p, m) -> {

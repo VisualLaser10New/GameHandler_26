@@ -5,10 +5,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * Spring Data JPA repository for {@link TournamentSummaryLocalJpaEntity}. The
- * default {@code save} is an upsert by PK {@code tournament_id} — mirror of
- * {@code TournamentMatchLocalJpaRepository} and
- * {@code GameDefinitionLocalJpaRepository}.
+ * Interfaccia Spring Data JPA per l'entità {@link TournamentSummaryLocalJpaEntity}.
+ * Il metodo {@code save} predefinito esegue un upsert per chiave primaria
+ * {@code tournamentId}. Costituisce il mirror locale dei dati di riepilogo
+ * del torneo, in modo analogo a {@code TournamentMatchLocalJpaRepository}
+ * e {@code GameDefinitionLocalJpaRepository}.
+ *
+ * @see TournamentSummaryLocalJpaEntity
+ * @see TournamentMatchLocalJpaRepository
+ * @see GameDefinitionLocalJpaRepository
  */
 @Repository
 public interface TournamentSummaryLocalJpaRepository

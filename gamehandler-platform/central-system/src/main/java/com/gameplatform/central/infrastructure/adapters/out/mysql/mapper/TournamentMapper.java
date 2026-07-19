@@ -10,21 +10,34 @@ import com.gameplatform.shared.domain.model.UserId;
 import org.springframework.stereotype.Component;
 
 /**
- * Null-safe mapper between the {@link Tournament} central domain model and the
- * {@link TournamentJpaEntity} persistence entity ({@code tournaments} table,
- * FASE 4 PIANO &sect;3.1). {@code @Component} instance bean (matches
- * {@code GameDefinitionMapper}/{@code PlayerStatisticsMapper}); converts the
- * {@code game_type}/{@code format}/{@code status} String columns to/from the
- * {@link GameType}/{@link TournamentFormat}/{@link TournamentStatus} enums via
- * {@code .name()}/{@code valueOf(...)} and wraps the {@code id}/{@code created_by}
- * String columns to/from {@link TournamentId}/{@link UserId} at the boundary.
- * Boxed primitives on the entity ({@code team_based}/{@code team_size}) are
- * null-safe-defaulted on the domain side (mirroring
- * {@code PlayerStatisticsMapper}).
+ * Mapper senza stato (null-safe) tra il modello di dominio centrale
+ * {@link Tournament} e l'entità persistente {@link TournamentJpaEntity}.
+ * <p>
+ * Esposto come bean Spring {@code @Component}, converte le colonne Stringa
+ * {@code game_type}, {@code format} e {@code status} da/verso gli enum
+ * {@link GameType}, {@link TournamentFormat} e {@link TournamentStatus},
+ * e avvolge gli identificativi {@code id} e {@code created_by} in
+ * {@link TournamentId} e {@link UserId}.
+ *
+ * @see Tournament
+ * @see TournamentJpaEntity
  */
 @Component
 public class TournamentMapper {
 
+    /**
+     * Converte un'entità persistente {@link TournamentJpaEntity} nel corrispondente
+     * modello di dominio {@link Tournament}.
+     * <p>
+     * I campi {@code team_based} e {@code team_size} vengono gestiti con
+     * protezione {@code null}; {@code team_size} viene impostato a {@code 1}
+     * se {@code null}.
+     *
+     * @param entity l'entità persistente di origine; se {@code null} restituisce {@code null}
+     * @return il modello di dominio {@link Tournament} o {@code null} se l'entità è {@code null}
+     * @throws IllegalArgumentException se la stringa {@code game_type}, {@code format} o {@code status} non corrisponde a un valore enum valido
+     * @see #toEntity(Tournament)
+     */
     public Tournament toDomain(TournamentJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -44,6 +57,16 @@ public class TournamentMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link Tournament} nell'entità persistente
+     * {@link TournamentJpaEntity} da persistere.
+     * <p>
+     * Gli enum vengono serializzati tramite {@link Enum#name()}.
+     *
+     * @param domain il modello di dominio di origine; se {@code null} restituisce {@code null}
+     * @return l'entità persistente {@link TournamentJpaEntity} o {@code null} se il dominio è {@code null}
+     * @see #toDomain(TournamentJpaEntity)
+     */
     public TournamentJpaEntity toEntity(Tournament domain) {
         if (domain == null) {
             return null;

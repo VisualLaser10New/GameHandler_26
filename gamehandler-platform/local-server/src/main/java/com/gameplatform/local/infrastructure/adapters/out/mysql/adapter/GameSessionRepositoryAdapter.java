@@ -24,6 +24,17 @@ import com.gameplatform.local.infrastructure.adapters.out.mysql.repository.Outbo
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Adapter JPA per il port {@link GameSessionRepository}.
+ * Gestisce la persistenza delle sessioni di gioco, inclusa la logica
+ * di sincronizzazione che confronta le sessioni completate con gli
+ * eventi della outbox per determinare quali sessioni necessitano
+ * ancora di sincronizzazione verso il server centrale.
+ *
+ * @see GameSessionRepository
+ * @see GameSessionJpaRepository
+ * @see OutboxEventJpaRepository
+ */
 @Component
 public class GameSessionRepositoryAdapter implements GameSessionRepository {
 
@@ -32,6 +43,14 @@ public class GameSessionRepositoryAdapter implements GameSessionRepository {
     private final OutboxEventJpaRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Costruisce un nuovo adapter con le dipendenze necessarie.
+     *
+     * @param jpaRepository       repository JPA per le sessioni di gioco
+     * @param mapper              mapper per la conversione tra entity e dominio
+     * @param outboxEventRepository repository JPA per gli eventi della outbox
+     * @param objectMapper        mapper JSON per la lettura del payload degli eventi
+     */
     public GameSessionRepositoryAdapter(GameSessionJpaRepository jpaRepository, GameSessionMapper mapper, OutboxEventJpaRepository outboxEventRepository, ObjectMapper objectMapper) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
@@ -39,6 +58,14 @@ public class GameSessionRepositoryAdapter implements GameSessionRepository {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * Salva una sessione di gioco nel database con flush immediato.
+     * In caso di conflitto di versione, lancia una {@link ConcurrentStateException}.
+     *
+     * @param session la sessione di gioco da salvare
+     * @return la sessione di gioco persistita
+     * @throws com.gameplatform.local.domain.exception.ConcurrentStateException in caso di modifica concorrente
+     */
     @Override
     public GameSession save(GameSession session) {
         GameSessionJpaEntity entity = mapper.toEntity(session);
@@ -51,11 +78,23 @@ public class GameSessionRepositoryAdapter implements GameSessionRepository {
         }
     }
 
+    /**
+     * Recupera una sessione di gioco tramite il suo identificativo.
+     *
+     * @param id l'identificativo della sessione di gioco
+     * @return un {@code Optional} contenente la sessione, vuoto se non trovata
+     */
     @Override
     public Optional<GameSession> findById(GameSessionId id) {
         return jpaRepository.findById(id.value()).map(mapper::toDomain);
     }
 
+    /**
+     * Recupera tutte le sessioni di gioco per un dato edificio.
+     *
+     * @param buildingId l'identificativo dell'edificio
+     * @return una lista di sessioni di gioco per l'edificio specificato
+     */
     @Override
     public List<GameSession> findByBuildingId(BuildingId buildingId) {
         return jpaRepository.findByBuildingId(buildingId.id()).stream()
@@ -63,6 +102,12 @@ public class GameSessionRepositoryAdapter implements GameSessionRepository {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Recupera tutte le sessioni di gioco per un dato tipo di gioco.
+     *
+     * @param gameType il tipo di gioco
+     * @return una lista di sessioni di gioco per il tipo specificato
+     */
     @Override
     public List<GameSession> findByGameType(GameType gameType) {
         return jpaRepository.findByGameType(gameType.name()).stream()
@@ -70,6 +115,12 @@ public class GameSessionRepositoryAdapter implements GameSessionRepository {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Recupera tutte le sessioni di gioco con un dato stato.
+     *
+     * @param status lo stato della sessione di gioco
+     * @return una lista di sessioni con lo stato specificato
+     */
     @Override
     public List<GameSession> findByStatus(GameStatus status) {
         return jpaRepository.findByStatus(status.name()).stream()
@@ -77,6 +128,12 @@ public class GameSessionRepositoryAdapter implements GameSessionRepository {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Recupera le sessioni di gioco completate o abortite che non hanno ancora
+     * un corrispondente evento di completamento inviato nella outbox.
+     *
+     * @return una lista di sessioni in attesa di sincronizzazione
+     */
     @Override
     public List<GameSession> findPendingSync() {
         List<GameSessionJpaEntity> completedOrAbortedSessions = jpaRepository.findByStatusIn(
@@ -104,6 +161,13 @@ public class GameSessionRepositoryAdapter implements GameSessionRepository {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Recupera una sessione attiva per un dato gioco tra quelle in stato
+     * WAITING, IN_PROGRESS o PAUSED.
+     *
+     * @param gameId l'identificativo del gioco
+     * @return un {@code Optional} contenente la sessione attiva, vuoto se non trovata
+     */
     @Override
     public Optional<GameSession> findActiveByGameId(GameId gameId) {
         return jpaRepository.findFirstByGameIdAndStatusIn(
@@ -112,6 +176,12 @@ public class GameSessionRepositoryAdapter implements GameSessionRepository {
         ).map(mapper::toDomain);
     }
 
+    /**
+     * Recupera tutte le sessioni di gioco a cui un dato utente partecipa.
+     *
+     * @param userId l'identificativo dell'utente partecipante
+     * @return una lista di sessioni di cui l'utente è partecipante, vuota se l'utente è {@code null}
+     */
     @Override
     public List<GameSession> findByParticipant(UserId userId) {
         if (userId == null) {

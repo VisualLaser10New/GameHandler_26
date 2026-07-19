@@ -31,12 +31,27 @@ public class PlayerMatchHistoryController {
     private final ListPlayerMatchesUseCase listPlayerMatchesUseCase;
     private final CurrentUserService currentUserService;
 
+    /**
+     * Costruisce il controller con il caso d'uso per la cronologia partite
+     * e il servizio per l'utente corrente.
+     *
+     * @param listPlayerMatchesUseCase caso d'uso per la lista delle partite del giocatore
+     * @param currentUserService servizio per la risoluzione dell'utente autenticato
+     */
     public PlayerMatchHistoryController(ListPlayerMatchesUseCase listPlayerMatchesUseCase,
                                          CurrentUserService currentUserService) {
         this.listPlayerMatchesUseCase = listPlayerMatchesUseCase;
         this.currentUserService = currentUserService;
     }
 
+    /**
+     * Restituisce la cronologia delle partite completate per l'utente
+     * autenticato, opzionalmente filtrata per tipo di gioco.
+     *
+     * @param gameType filtro opzionale per tipo di gioco
+     * @return una {@link ResponseEntity} con la lista di {@link PlayerMatchDto}
+     * @throws IllegalArgumentException se il gameType fornito non è valido
+     */
     @GetMapping("/history")
     public ResponseEntity<List<PlayerMatchDto>> myMatchHistory(
             @RequestParam(name = "gameType", required = false) String gameType) {

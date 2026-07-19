@@ -18,6 +18,18 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 
+/**
+ * Configurazione dei bean per la gestione dei token JWT basata su chiavi RSA asimmetriche.
+ * <p>
+ * Carica la coppia di chiavi pubblica e privata da file PEM all'avvio e fornisce
+ * i bean {@link com.gameplatform.local.infrastructure.security.JwtTokenProvider} e
+ * {@link com.gameplatform.local.infrastructure.security.JwtTokenValidator} per la creazione
+ * e la validazione dei token.
+ * </p>
+ *
+ * @see com.gameplatform.local.infrastructure.security.JwtTokenProvider
+ * @see com.gameplatform.local.infrastructure.security.JwtTokenValidator
+ */
 @Configuration
 public class JwtConfig {
 
@@ -33,6 +45,16 @@ public class JwtConfig {
     @Autowired(required = false)
     private java.time.Clock clock = java.time.Clock.systemUTC();
 
+    /**
+     * Costruisce una nuova configurazione JWT, caricando immediatamente le chiavi RSA
+     * dai percorsi specificati.
+     *
+     * @param resourceLoader  il loader per la risoluzione dei percorsi delle risorse
+     * @param privateKeyPath  il percorso del file PEM contenente la chiave privata
+     * @param publicKeyPath   il percorso del file PEM contenente la chiave pubblica
+     * @throws IllegalStateException se uno dei file PEM non viene trovato
+     * @throws RuntimeException      se si verifica un errore durante il parsing delle chiavi
+     */
     public JwtConfig(
             ResourceLoader resourceLoader,
             @Value("${jwt.local-private-key-path}") String privateKeyPath,
@@ -44,6 +66,18 @@ public class JwtConfig {
         loadKeys();
     }
 
+    /**
+     * Carica e decodifica la coppia di chiavi RSA dai file PEM specificati nelle proprietà
+     * di configurazione.
+     * <p>
+     * I file PEM vengono letti, ripuliti dai marcatori di inizio/fine e dagli spazi bianchi,
+     * decodificati da Base64 e convertiti in oggetti {@link PrivateKey} e {@link PublicKey}
+     * tramite {@link KeyFactory} con algoritmo RSA.
+     * </p>
+     *
+     * @throws IllegalStateException se uno dei file PEM non viene trovato
+     * @throws RuntimeException      se si verifica un errore durante la decodifica o il parsing delle chiavi
+     */
     private void loadKeys() {
         log.info("Loading local private key from: {}", privateKeyPath);
         log.info("Loading local public key from: {}", publicKeyPath);
@@ -95,11 +129,23 @@ public class JwtConfig {
         }
     }
 
+    /**
+     * Crea e restituisce il bean {@link JwtTokenProvider} per la generazione di token JWT.
+     *
+     * @return un nuovo provider di token JWT configurato con la chiave privata e l'orologio di sistema
+     * @see JwtTokenProvider
+     */
     @Bean
     public JwtTokenProvider jwtTokenProvider() {
         return new JwtTokenProvider(privateKey, clock);
     }
 
+    /**
+     * Crea e restituisce il bean {@link JwtTokenValidator} per la validazione dei token JWT.
+     *
+     * @return un nuovo validatore di token JWT configurato con la chiave pubblica
+     * @see JwtTokenValidator
+     */
     @Bean
     public JwtTokenValidator jwtTokenValidator() {
         return new JwtTokenValidator(publicKey);

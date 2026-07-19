@@ -12,18 +12,45 @@ import java.util.Optional;
  */
 public interface RegisteredLocalServerLocalRepository {
 
+    /**
+     * Salva o aggiorna un server locale registrato. Operazione idempotente
+     * basata sulla chiave primaria {@code buildingId}.
+     *
+     * @param server il server locale registrato da persistere
+     * @return il server locale registrato persistito
+     */
     RegisteredLocalServerLocal save(RegisteredLocalServerLocal server);
 
+    /**
+     * Cerca un server locale registrato in base all'identificativo dell'edificio.
+     *
+     * @param buildingId l'identificativo dell'edificio
+     * @return un {@code Optional} contenente il server locale, vuoto se non trovato
+     */
     Optional<RegisteredLocalServerLocal> findById(String buildingId);
 
+    /**
+     * Restituisce tutti i server locali registrati.
+     *
+     * @return la lista completa dei server locali registrati
+     */
     List<RegisteredLocalServerLocal> findAll();
 
+    /**
+     * Elimina un server locale registrato in base all'identificativo dell'edificio.
+     *
+     * @param buildingId l'identificativo dell'edificio del server da eliminare
+     */
     void deleteById(String buildingId);
 
     /**
-     * Feature 3 — flips the {@code active} flag of the projection row keyed by
-     * {@code buildingId}. Returns the updated row, or {@link Optional#empty()}
-     * when no such building exists locally.
+     * Imposta il flag {@code active} per il server locale identificato da
+     * {@code buildingId}. Restituisce il server aggiornato, o vuoto se
+     * l'edificio non esiste nella replica locale.
+     *
+     * @param buildingId l'identificativo dell'edificio
+     * @param active     il nuovo valore del flag di attivazione
+     * @return un {@code Optional} contenente il server aggiornato, vuoto se non trovato
      */
     Optional<RegisteredLocalServerLocal> setActive(String buildingId, boolean active);
 }

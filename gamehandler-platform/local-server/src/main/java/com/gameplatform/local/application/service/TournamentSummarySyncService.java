@@ -13,46 +13,30 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * Receives {@code TOURNAMENT_SUMMARY_UPSERTED} events replicated from the
- * Central via outbox and applies them idempotently to the
- * {@code tournaments_summary_local} table. Mirror of
- * {@link TournamentMatchLocalSyncService} and {@code GameDefinitionSyncService};
- * idempotency is by PK {@code tournamentId} (upsert on the local repository's
- * {@code save}, physical {@code deleteById} for tombstones).
+ * Riceve eventi {@code TOURNAMENT_SUMMARY_UPSERTED} replicati dal Central
+ * tramite outbox e li applica idempotentemente alla tabella
+ * {@code tournaments_summary_local}. L'idempotenza e' garantita dalla
+ * chiave primaria {@code tournamentId} (upsert per save, deleteById per
+ * i tombstone).
  *
- * <p>For each event in the batch:
+ * <p>Per ogni evento nel batch:
  * <ul>
- *   <li>{@code deleted == true} (tombstone) → the projection row is physically
- *       removed via {@code tournamentSummaryLocalRepository.deleteById}. Safe
- *       on re-delivery: {@code deleteById} on a missing PK is a no-op.</li>
- *   <li>otherwise → a fresh {@link TournamentSummaryLocal} snapshot is built
- *       from the DTO and {@code save}-d (upsert by PK).</li>
+ *   <li>{@code deleted == true} (tombstone) → la riga di proiezione viene
+ *       rimossa fisicamente. Sicuro alla ri-consegna: deleteById su PK
+ *       assente e' un no-op.</li>
+ *   <li>altrimenti → viene costruito uno snapshot fresco
+ *       {@link TournamentSummaryLocal} dal DTO e salvato (upsert per PK).</li>
  * </ul>
  *
- * <p>When {@code originatingRequestId != null} (the Central return-event
- * closes an admin/PLAYER W use case from the Local §7.B), the matching
- * {@code admin_requests_local} row is transitioned to {@code COMPLETED} via
- * {@link AdminRequestRepository#markCompleted}. The transition is a
- * conditional {@code WHERE status = 'PENDING'} UPDATE — idempotent on
- * re-delivery of the same return-event (a second call against an
- * already-COMPLETED row is a no-op). The {2} return value is logged at
- * DEBUG.</p>
+ * <p>Quando {@code originatingRequestId != null} (evento di ritorno dal
+ * Central), la riga {@code admin_requests_local} corrispondente viene
+ * transizionata a COMPLETED o FAILED in base alla presenza di un
+ * {@code errorMessage} (BUG-CANCEL-PENDING).</p>
  *
- * <p><strong>BUG-CANCEL-PENDING closure (Local side):</strong> when the
- * replicated event carries a non-null {@code errorMessage} (set by the
- * Central use case when it refused the admin request — e.g.
- * {@code TOURNAMENT_CANCEL_REQUESTED} rejected because the tournament is in
- * a status that does not admit cancel), the row is transitioned to
- * {@code FAILED} via {@link AdminRequestRepository#markFailed} with the
- * readable reason embedded into {@code result_data} as
- * {@code {"reason":"...","applied":false,"tournamentId":"..."}}. Without
- * this branch, a rejected cancel would leave the
- * {@code admin_requests_local} row PENDING until the 30-min
- * {@code admin.request.timeout-ms} deadline surfaced it as a vague
- * "TIMEOUT" FAILED card on the client. With the branch the admin sees the
- * ACTUAL rejection reason ("Cannot cancel from status COMPLETED" / "Tournament
- * not found: ...") within a few seconds, via the same summary-replication
- * drainer.</p>
+ * @see TournamentSummaryLocalRepository
+ * @see AdminRequestRepository
+ * @see TournamentMatchLocalSyncService
+ * @see GameDefinitionSyncService
  */
 @Service
 @Transactional
@@ -71,6 +55,16 @@ public class TournamentSummarySyncService {
         this.adminRequestRepository = adminRequestRepository;
     }
 
+    /**
+     * Applica una lista di eventi di riepilogo torneo alla tabella locale.
+     * Per ogni evento TOURNAMENT_SUMMARY_UPSERTED, upserta o elimina la
+     * riga in base al flag deleted. Se l'evento trasporta un
+     * originatingRequestId, la richiesta admin corrispondente viene
+     * marcata come COMPLETED o FAILED in base alla presenza di
+     * errorMessage.
+     *
+     * @param events la lista di eventi da applicare (puo' essere null)
+     */
     public void applyEvents(List<TournamentSummaryEventDto> events) {
         if (events == null) {
             return;

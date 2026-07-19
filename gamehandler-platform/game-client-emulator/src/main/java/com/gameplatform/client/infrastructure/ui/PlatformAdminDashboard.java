@@ -28,38 +28,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * PLATFORM_ADMIN dashboard (PIANO §7.C line 747-754).
+ * Dashboard PLATFORM_ADMIN per la gestione della piattaforma.
  * <p>
- * The dashboard aggregates six sub-sections, each backed by its
- * dedicated Local endpoint:
+ * Aggrega sei sezioni, ciascuna supportata dal proprio endpoint locale:
  * <ol>
- *   <li><b>Users directory + role assignment</b> — {@code GET /api/admin/users}
- *       returns the replicated user directory (no hashedPassword) as
- *       {@link UsersDirectoryDto} rows. The "Assign roles" button sends a
- *       {@code POST /api/admin/users/{userId}/roles} with a
- *       {@code List<String>} body (raw JSON array of role strings) → the
- *       Local returns an {@link AdminRequestDto}(PENDING) (outbox
- *       {@code ROLE_ASSIGNMENT_REQUESTED}).</li>
- *   <li><b>Tournament lifecycle</b> — create ({@code POST /api/admin/tournaments}),
- *       open/cancel/schedule ({@code POST}/{id}/{action}), update ({@code PUT}),
- *       delete ({@code DELETE} — only DRAFT works server-side). Each returns
- *       the same {@link AdminRequestDto}(PENDING) (outbox
- *       {@code TOURNAMENT_*_REQUESTED}).</li>
- *   <li><b>Standings/bracket read-only</b> — re-uses the public
- *       {@code GET /api/tournaments/{id}/standings} and {@code /matches}
- *       endpoints (rendered through the {@link TournamentsView} submenu
- *       via the navbar — not duplicated here).</li>
- *   <li><b>Global statistics</b> — {@code GET /api/statistics}
- *       (Local aggregated per building).</li>
- *   <li><b>Local server monitor</b> — {@code GET /api/admin/servers/health}
- *       returns the {@link ServerHealthViewDto} aggregating pending outbox
- *       count + the registered local-server registry.</li>
- *   <li><b>Super-set read-only dashboards</b> — the navbar exposes
- *       Local/Game Admin entries to PLATFORM_ADMIN; landing on those
- *       views still shows the data, the buttons ordering writes are
- *       rendered disabled (they are guarded server-side by
- *       {@code @PreAuthorize("hasRole('LOCAL_ADMIN')")}/{@code 'GAME_ADMIN'})
- *       so the writes fail with 403, but the read-from-Local still happens.</li>
+ *   <li><b>Directory utenti + assegnazione ruoli</b> — {@code GET /api/admin/users}
+ *       e {@code POST /api/admin/users/{userId}/roles}.</li>
+ *   <li><b>Ciclo di vita tornei</b> — create, open, cancel, schedule,
+ *       update, delete con ritorno {@link AdminRequestDto}(PENDING).</li>
+ *   <li><b>Classifiche e bracket</b> — riutilizza gli endpoint pubblici
+ *       {@code GET /api/tournaments/{id}/standings} e {@code /matches}.</li>
+ *   <li><b>Statistiche globali</b> — {@code GET /api/statistics}.</li>
+ *   <li><b>Monitor server locale</b> — {@code GET /api/admin/servers/health}.</li>
+ *   <li><b>Dashboard in sola lettura</b> — le voci Local/Game Admin sono
+ *       accessibili ma le scritture sono bloccate lato server.</li>
  * </ol>
  */
 public class PlatformAdminDashboard {
@@ -77,6 +59,13 @@ public class PlatformAdminDashboard {
     private final LoadingIndicator loading = new LoadingIndicator();
     private Runnable onNavigateToRequests;
 
+    /**
+     * Costruisce la dashboard PLATFORM_ADMIN.
+     * <p>
+     * Inizializza le tabelle per utenti e server, l'editor del ciclo
+     * di vita dei tornei, l'area delle statistiche globali e i
+     * pulsanti per le operazioni admin.
+     */
     public PlatformAdminDashboard() {
         VBox content = new VBox(10);
         content.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
@@ -220,14 +209,31 @@ public class PlatformAdminDashboard {
         root.setStyle("-fx-padding: 0; -fx-background-color: #1e1e1e;");
     }
 
+    /**
+     * Restituisce il nodo radice JavaFX per questa vista.
+     *
+     * @return il nodo {@link Parent} radice
+     */
     public Parent getView() {
         return root;
     }
 
+    /**
+     * Registra il callback per la navigazione verso la vista delle richieste admin.
+     *
+     * @param onNavigateToRequests l'azione da eseguire per navigare verso
+     *                             {@link AdminRequestsView}; può essere null
+     */
     public void setOnNavigateToRequests(Runnable onNavigateToRequests) {
         this.onNavigateToRequests = onNavigateToRequests;
     }
 
+    /**
+     * Aggiorna tutti i dati della dashboard.
+     * <p>
+     * Carica la directory utenti tramite {@code GET /api/admin/users}
+     * e la salute dei server tramite {@code GET /api/admin/servers/health}.
+     */
     public void refreshAll() {
         loading.show();
         statusLabel.setText("Refreshing dashboard...");
@@ -251,6 +257,13 @@ public class PlatformAdminDashboard {
     }
 
     // ── role assignment ──
+    /**
+     * Assegna i ruoli all'utente selezionato.
+     * <p>
+     * Invia una POST asincrona a {@code /api/admin/users/{userId}/roles}
+     * con la lista dei ruoli inseriti. In caso di successo reindirizza
+     * alla vista delle richieste admin.
+     */
     private void assignRoles() {
         UsersDirectoryDto sel = usersTable.getSelectionModel().getSelectedItem();
         if (sel == null) { statusLabel.setText("Select a user before assigning roles"); return; }
@@ -268,6 +281,14 @@ public class PlatformAdminDashboard {
                 .exceptionally(this::error);
     }
 
+    /**
+     * Alterna lo stato attivo di un server.
+     * <p>
+     * Invia una PATCH asincrona a {@code /api/admin/servers/{buildingId}/active}
+     * con il nuovo stato e aggiorna la dashboard al completamento.
+     *
+     * @param server il server di cui alternare lo stato; se null non produce effetti
+     */
     private void toggleServerActive(ServerHealthDto server) {
         if (server == null) return;
         boolean newActive = !server.active();
@@ -284,6 +305,15 @@ public class PlatformAdminDashboard {
     }
 
     // ── tournament lifecycle ──
+    /**
+     * Crea un nuovo torneo.
+     * <p>
+     * Analizza il JSON inserito nell'area di testo come
+     * {@link CreateTournamentRequestDto}, valida che buildingIds
+     * contenga almeno 2 edifici e invia una POST asincrona a
+     * {@code /api/admin/tournaments}. In caso di successo
+     * reindirizza alla vista delle richieste admin.
+     */
     private void createTournament() {
         try {
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
@@ -318,6 +348,15 @@ public class PlatformAdminDashboard {
         }
     }
 
+    /**
+     * Esegue un'azione sul ciclo di vita di un torneo.
+     * <p>
+     * Invia una POST asincrona a {@code /api/admin/tournaments/{id}/{action}}
+     * per eseguire operazioni come open, cancel o schedule.
+     *
+     * @param id     l'identificativo del torneo; se null o vuoto non produce effetti
+     * @param action l'azione da eseguire (open, cancel, schedule); non null
+     */
     private void lifecycle(String id, String action) {
         if (id == null || id.isBlank()) { statusLabel.setText("Enter a tournamentId"); return; }
         loading.show();
@@ -331,6 +370,17 @@ public class PlatformAdminDashboard {
                 .exceptionally(this::error);
     }
 
+    /**
+     * Aggiorna un torneo esistente (solo DRAFT).
+     * <p>
+     * Invia una PUT asincrona a {@code /api/admin/tournaments/{id}}
+     * con i nuovi parametri (nome, data inizio, edifici).
+     *
+     * @param id           l'identificativo del torneo; se null o vuoto non produce effetti
+     * @param newName      il nuovo nome del torneo
+     * @param startsAtStr  la nuova data di inizio in formato ISO-8601
+     * @param buildingsCsv la lista di edifici separata da virgole
+     */
     private void updateTournament(String id, String newName, String startsAtStr, String buildingsCsv) {
         if (id == null || id.isBlank()) { statusLabel.setText("Enter a tournamentId"); return; }
         try {
@@ -354,6 +404,13 @@ public class PlatformAdminDashboard {
         }
     }
 
+    /**
+     * Elimina un torneo (solo DRAFT).
+     * <p>
+     * Invia una DELETE asincrona a {@code /api/admin/tournaments/{id}}.
+     *
+     * @param id l'identificativo del torneo; se null o vuoto non produce effetti
+     */
     private void deleteTournament(String id) {
         if (id == null || id.isBlank()) { statusLabel.setText("Enter a tournamentId"); return; }
         loading.show();
@@ -370,6 +427,12 @@ public class PlatformAdminDashboard {
     }
 
     // ── global stats ──
+    /**
+     * Carica le statistiche globali di gioco.
+     * <p>
+     * Effettua una chiamata asincrona {@code GET /api/statistics} e
+     * mostra i risultati JSON formattati nell'area di testo dedicata.
+     */
     private void loadStats() {
         loading.show();
         ApiClient.instance().get("/api/statistics", new TypeReference<List<JsonNode>>() {})
@@ -386,6 +449,14 @@ public class PlatformAdminDashboard {
     }
 
     // ── helpers ──
+    /**
+     * Crea un contenitore con titolo e nodo di contenuto.
+     *
+     * @param header     il titolo della sezione; non null
+     * @param content    il nodo di contenuto; non null
+     * @param prefHeight l'altezza preferita (applicata se il contenuto è un {@link Region})
+     * @return una {@link VBox} contenente titolo e contenuto
+     */
     private static VBox titled(String header, javafx.scene.Node content, int prefHeight) {
         Label h = new Label(header);
         h.setStyle("-fx-text-fill: #3498db; -fx-font-weight: bold;");
@@ -394,10 +465,23 @@ public class PlatformAdminDashboard {
         return box;
     }
 
+    /**
+     * Restituisce l'identificativo di una richiesta admin in forma sicura.
+     *
+     * @param req la richiesta admin; può essere null
+     * @return l'identificativo della richiesta, o "?" se null o senza ID
+     */
     private static String reqId(AdminRequestDto req) {
         return req == null || req.requestId() == null ? "?" : req.requestId();
     }
 
+    /**
+     * Crea un pulsante per un'azione sul ciclo di vita del torneo.
+     *
+     * @param tourIdField il campo di testo contenente l'ID del torneo; non null
+     * @param action      l'azione da eseguire (open, cancel, schedule); non null
+     * @return un {@link Button} configurato per l'azione specificata
+     */
     private Button lifecycleButton(TextField tourIdField, String action) {
         Button btn = new Button(action.substring(0, 1).toUpperCase() + action.substring(1));
         btn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 6 14;");

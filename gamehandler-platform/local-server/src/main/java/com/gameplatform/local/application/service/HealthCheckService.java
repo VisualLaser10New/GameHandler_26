@@ -27,17 +27,17 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * R3 (outbox atomicity) — the sweep no longer holds a single class-level tx
- * across ALL games. The class-level {@code @Transactional} was changed to
- * {@link Propagation#NEVER} so the per-game abort runs inside its OWN
- * {@link Propagation#REQUIRES_NEW} transaction on a separate bean
- * ({@link SessionAbortHelper#abortAndEmit}). If that bean throws (outbox save
- * failure, serialization failure, transition guard), the inner tx rolls back
- * entirely → session NOT aborted, game NOT released, NO outbox row — the
- * contract the previous inline {@code try { ... } catch (Exception e)
- * { log.error(...); }} silently violated (it swallowed the failure and let
- * the outer sweep tx commit the abort WITHOUT the outbox row). Each game's
- * abort is now logged-and-skipped; the next tick retries.
+ * Servizio schedulato che esegue il controllo periodico dello stato di
+ * salute delle macchine da gioco tramite heartbeat. Gestisce il rilevamento
+ * di macchine non raggiungibili dopo 3 cicli consecutivi di heartbeat mancati
+ * (default 15 minuti), eseguendo l'abort atomico della sessione attiva e la
+ * pubblicazione dell'evento GAME_SESSION_ABORTED su un bean separato con
+ * transazione REQUIRES_NEW. Ogni abort per macchina fallito viene
+ * loggato e saltato; il tick successivo ripettera' il tentativo.
+ *
+ * @see SessionAbortHelper
+ * @see PublishGameStatePort
+ * @see PublishAlertPort
  */
 @Service
 @Transactional(propagation = Propagation.NEVER)
@@ -73,6 +73,12 @@ public class HealthCheckService {
         this.sessionAbortHelper = sessionAbortHelper;
     }
 
+    /**
+     * Esegue la pubblicazione MQTT in modo differito dopo il commit
+     * della transazione Spring, se una transazione e' attiva.
+     *
+     * @param publishRunnable il codice di pubblicazione MQTT da eseguire
+     */
     private void deferMqttPublish(Runnable publishRunnable) {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
             TransactionSynchronizationManager.registerSynchronization(
@@ -96,6 +102,13 @@ public class HealthCheckService {
         }
     }
 
+    /**
+     * Esegue lo sweep di health check su tutte le macchine da gioco.
+     * Per ogni macchina, verifica se ha risposto all'heartbeat nel ciclo
+     * corrente. Dopo 3 cicli consecutivi senza risposta, esegue l'abort
+     * della sessione attiva (se presente) o rilascia la macchina bloccata,
+     * e pubblica un alert MQTT di UNREACHABLE.
+     */
     @Scheduled(fixedRateString = "${app.healthcheck-interval-ms:300000}")
     public void performHealthCheck() {
         List<Game> games = gameRepository.findAll();
@@ -168,6 +181,12 @@ public class HealthCheckService {
         }
     }
 
+    /**
+     * Registra la risposta a un heartbeat per una macchina da gioco,
+     * impedendo che venga dichiarata unreachable nel ciclo corrente.
+     *
+     * @param gameId l'identificativo della macchina da gioco che ha risposto
+     */
     public void registerHeartbeat(GameId gameId) {
         respondedInCycle.put(gameId, true);
     }

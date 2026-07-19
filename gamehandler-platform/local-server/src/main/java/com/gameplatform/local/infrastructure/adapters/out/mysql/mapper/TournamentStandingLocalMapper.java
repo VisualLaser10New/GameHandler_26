@@ -13,6 +13,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class TournamentStandingLocalMapper {
 
+    /**
+     * Converte un'entità JPA {@link TournamentStandingLocalJpaEntity} nel
+     * corrispondente modello di dominio {@link TournamentStandingLocal}.
+     *
+     * @param entity l'entità JPA da convertire, può essere {@code null}
+     * @return il modello di dominio, oppure {@code null} se l'input è {@code null}
+     */
     public TournamentStandingLocal toDomain(TournamentStandingLocalJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -29,6 +36,13 @@ public class TournamentStandingLocalMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link TournamentStandingLocal} nella
+     * corrispondente entità JPA {@link TournamentStandingLocalJpaEntity}.
+     *
+     * @param domain il modello di dominio da convertire, può essere {@code null}
+     * @return l'entità JPA, oppure {@code null} se l'input è {@code null}
+     */
     public TournamentStandingLocalJpaEntity toEntity(TournamentStandingLocal domain) {
         if (domain == null) {
             return null;

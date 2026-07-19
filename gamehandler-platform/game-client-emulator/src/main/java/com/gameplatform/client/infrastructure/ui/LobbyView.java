@@ -23,18 +23,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * JavaFX lobby screen shown between game selection and active gameplay.
+ * Schermata lobby JavaFX tra la selezione del gioco e l'avvio della partita.
  * <p>
- * Operates in two modes depending on the selected game machine status:
+ * Opera in due modalità in base allo stato della macchina da gioco selezionata:
  * <ul>
- *   <li><b>CREATOR</b> — the first player creates a lobby, then waits for
- *       others to join. When enough players have joined, the host can start
- *       the session.</li>
- *   <li><b>JOINER</b> — a second (or later) player sees the active lobby
- *       and joins it with one click.</li>
+ *   <li><b>CREATOR</b> — il primo giocatore crea la lobby e attende che
+ *       altri si uniscano. Quando ci sono abbastanza giocatori, l'host
+ *       può avviare la sessione.</li>
+ *   <li><b>JOINER</b> — un secondo (o successivo) giocatore vede la lobby
+ *       attiva e vi si unisce con un clic.</li>
  * </ul>
- * Real-time participant updates are received via MQTT by subscribing to
- * {@code building/.../game/.../session/lobby/+} topics.
+ * Gli aggiornamenti dei partecipanti in tempo reale sono ricevuti via MQTT
+ * sottoscrivendo i topic {@code building/.../game/.../session/lobby/+}.
  */
 public class LobbyView {
 
@@ -99,6 +99,18 @@ public class LobbyView {
         void accept(A a, B b, C c);
     }
 
+    /**
+     * Costruisce la vista lobby.
+     * <p>
+     * Inizializza i componenti UI, configura il listener per la
+     * riconnessione MQTT per ripristinare le sottoscrizioni ai topic
+     * della lobby e imposta i gestori per i pulsanti di azione,
+     * avvio e ritorno.
+     *
+     * @param sessionPublisher il publisher di sessione per i comandi lobby; non null
+     * @param mqttAdapter      l'adattatore MQTT per le sottoscrizioni; non null
+     * @param buildingId       l'identificativo dell'edificio; non null
+     */
     public LobbyView(SessionPublisher sessionPublisher, MqttClientAdapter mqttAdapter, String buildingId) {
         this.sessionPublisher = sessionPublisher;
         this.mqttAdapter = mqttAdapter;
@@ -160,10 +172,18 @@ public class LobbyView {
 
     // ─────────────────────────── Public API ───────────────────────────────────
 
-    /** Returns the root JavaFX node for this view. */
+    /**
+     * Restituisce il nodo radice JavaFX per questa vista.
+     *
+     * @return il nodo {@link Parent} radice
+     */
     public Parent getView() { return root; }
 
-    /** Sets the current user's username (used as creatorId / joinerId). */
+    /**
+     * Imposta il nome utente corrente (utilizzato come creatorId/joinerId).
+     *
+     * @param username il nome utente; se null o vuoto viene ignorato
+     */
     public void setCurrentUser(String username) {
         if (username != null && !username.isBlank()) this.currentUsername = username;
     }
@@ -182,10 +202,19 @@ public class LobbyView {
         this.currentUserId = userId;
     }
 
-    /** Called when the user cancels and wants to go back to game selection. */
+    /**
+     * Registra il callback per l'annullamento e il ritorno alla selezione giochi.
+     *
+     * @param callback l'azione da eseguire per tornare alla selezione; può essere null
+     */
     public void setOnCancel(Runnable callback) { this.onCancel = callback; }
 
-    /** Called when the lobby session is fully started by the host. */
+    /**
+     * Registra il callback per l'avvio della sessione lobby da parte dell'host.
+     *
+     * @param callback l'azione da eseguire con lo stato del gioco, l'ID di
+     *                 sessione e la lista dei partecipanti; può essere null
+     */
     public void setOnLobbyStarted(TriConsumer<GameStateDto, String, List<String>> callback) {
         this.onLobbyStarted = callback;
     }
@@ -567,10 +596,12 @@ public class LobbyView {
     }
 
     /**
-     * Falls back from joiner mode to creator mode. Used when the game
-     * machine is in a stale LOBBY status but no active lobby session
-     * exists (REST 404) — the user should be able to create a new
-     * lobby instead of being stuck with a disabled "Unisciti" button.
+     * Torna alla modalità creatore dalla modalità joiner.
+     * <p>
+     * Utilizzato quando la macchina da gioco è in uno stato LOBBY
+     * non valido ma non esiste una sessione lobby attiva (REST 404).
+     * L'utente può così creare una nuova lobby invece di rimanere
+     * bloccato con il pulsante "Unisciti" disabilitato.
      */
     private void fallbackToCreatorMode() {
         creatorMode = true;
@@ -645,8 +676,11 @@ public class LobbyView {
     }
 
     /**
-     * Switches the view from creator mode to joiner mode, refreshing
-     * labels and fetching the active lobby session id from the server.
+     * Passa dalla modalità creatore alla modalità joiner.
+     * <p>
+     * Aggiorna le etichette, reimposta i partecipanti, nasconde
+     * il pulsante di avvio e recupera l'ID della sessione lobby
+     * attiva dal server.
      */
     private void downgradeToJoiner() {
         creatorMode = false;
@@ -779,6 +813,14 @@ public class LobbyView {
         }
     }
 
+    /**
+     * Aggiorna la visualizzazione della lista dei partecipanti.
+     * <p>
+     * Mostra un messaggio "No players yet" se la lista è vuota,
+     * altrimenti elenca i partecipanti con un'icona corona per il
+     * primo giocatore e un'icona utente per gli altri, marcando
+     * l'utente corrente con "(you)".
+     */
     private void refreshParticipantsBox() {
         participantsBox.getChildren().clear();
         if (participants.isEmpty()) {

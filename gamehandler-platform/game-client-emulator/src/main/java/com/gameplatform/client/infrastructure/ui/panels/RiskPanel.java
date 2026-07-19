@@ -8,11 +8,12 @@ import javafx.scene.layout.*;
 import java.util.*;
 
 /**
- * Emulation panel for Risk.
+ * Pannello di emulazione per il gioco Risiko (Risk).
  * <p>
- * Tracks each player's army count. The current player selects an attacker,
- * a defender and the number of attacking dice (1–3). A simulated dice roll
- * determines casualties for both sides following the standard Risk rules.
+ * Traccia il numero di armate di ogni giocatore. Il giocatore corrente seleziona
+ * un attaccante, un difensore e il numero di dadi da attacco (1&ndash;3).
+ * Un tiro di dadi simulato determina le perdite per entrambi gli schieramenti
+ * seguendo le regole standard del Risiko.
  */
 public class RiskPanel implements GamePanel {
 
@@ -33,6 +34,10 @@ public class RiskPanel implements GamePanel {
     private TurnPublisher turnPublisher;
     private String currentUser = "";
 
+    /**
+     * Costruisce il pannello del Risiko inizializzando l'indicatore del turno,
+     * la lista delle armate, i controlli di attacco e il pulsante di fine turno.
+     */
     public RiskPanel() {
         root = new VBox(14);
         root.setAlignment(Pos.CENTER);
@@ -92,6 +97,14 @@ public class RiskPanel implements GamePanel {
     @Override
     public Parent getView() { return root; }
 
+    /**
+     * Avvia la partita inizializzando la lista dei partecipanti con un numero
+     * di armate iniziale calcolato come {@code 40 - (numeroPartecipanti * 5)}.
+     * Popola i menu a tendina per attaccante e difensore.
+     *
+     * @param participants lista dei nomi utente dei partecipanti in ordine di sessione;
+     *                     deve contenere almeno due giocatori per consentire attacchi
+     */
     @Override
     public void onGameStarted(List<String> participants) {
         this.players = new ArrayList<>(participants);
@@ -109,6 +122,14 @@ public class RiskPanel implements GamePanel {
         refreshArmiesBox();
     }
 
+    /**
+     * Imposta il contesto di turno per la sincronizzazione multiplayer.
+     *
+     * @param turnPublisher publisher per la trasmissione dei cambi di turno
+     * @param currentUser   nome utente del giocatore locale; {@code null} viene
+     *                      convertito in stringa vuota
+     * @see #onRemoteTurnUpdate(int, String)
+     */
     @Override
     public void setTurnContext(TurnPublisher turnPublisher, String currentUser) {
         this.turnPublisher = turnPublisher;
@@ -116,6 +137,14 @@ public class RiskPanel implements GamePanel {
         applyTurnControls();
     }
 
+    /**
+     * Applica l'aggiornamento del turno ricevuto da un emulatore remoto.
+     * Aggiorna l'indice del turno e lo stato dei controlli solo se il nuovo indice
+     * &egrave; valido (compreso tra 0 e la dimensione della lista dei partecipanti).
+     *
+     * @param newTurnIndex il nuovo indice del turno (base 0) nella lista dei partecipanti
+     * @param playerName   il nome utente del giocatore a cui spetta il turno
+     */
     @Override
     public void onRemoteTurnUpdate(int newTurnIndex, String playerName) {
         if (newTurnIndex >= 0 && newTurnIndex < players.size()) {
@@ -125,6 +154,10 @@ public class RiskPanel implements GamePanel {
         }
     }
 
+    /**
+     * Arresta la partita disabilitando tutti i controlli e aggiornando
+     * l'etichetta del turno con il messaggio di fine partita.
+     */
     @Override
     public void onGameStopped() {
         attackerCombo.setDisable(true);
@@ -136,17 +169,41 @@ public class RiskPanel implements GamePanel {
         turnLabel.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-text-fill: #f39c12;");
     }
 
+    /**
+     * Restituisce l'identificativo del vincitore della partita.
+     * Il vincitore &egrave; il giocatore con il maggior numero di armate rimanenti
+     * (escludendo i giocatori con zero armate).
+     *
+     * @return il nome utente del giocatore con il massimo di armate positive,
+     *         oppure {@code null} se non ci sono giocatori con armate residue
+     * @see #getResultData()
+     */
     public String getWinnerId() {
         return armies.entrySet().stream().filter(e -> e.getValue() > 0)
                 .max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null);
     }
 
+    /**
+     * Restituisce i dati di risultato della partita nel formato
+     * "giocatore1:armate1,giocatore2:armate2".
+     *
+     * @return stringa con coppie "giocatore:armate" separate da virgola;
+     *         restituisce stringa vuota se non ci sono partecipanti
+     * @see #getWinnerId()
+     */
     public String getResultData() {
         StringBuilder sb = new StringBuilder();
         armies.forEach((p, a) -> { if (sb.length() > 0) sb.append(','); sb.append(p).append(':').append(a); });
         return sb.toString();
     }
 
+    /**
+     * Esegue un attacco tra il giocatore attaccante e il difensore selezionati.
+     * Simula il tiro dei dadi per entrambi gli schieramenti seguendo le regole
+     * standard del Risiko e aggiorna il conteggio delle armate di conseguenza.
+     * Se attaccante e difensore coincidono o se uno dei due non &egrave;
+     * selezionato, l'attacco viene annullato.
+     */
     private void doAttack() {
         String attacker = attackerCombo.getValue();
         String defender = defenderCombo.getValue();
@@ -178,6 +235,14 @@ public class RiskPanel implements GamePanel {
         refreshArmiesBox();
     }
 
+    /**
+     * Simula il tiro del numero specificato di dadi a sei facce e restituisce
+     * i risultati ordinati in ordine decrescente.
+     *
+     * @param count numero di dadi da tirare (1&ndash;3 per l'attaccante,
+     *              1&ndash;2 per il difensore)
+     * @return lista dei risultati del tiro ordinata in ordine decrescente
+     */
     private List<Integer> rollDice(int count) {
         List<Integer> rolls = new ArrayList<>();
         for (int i = 0; i < count; i++) rolls.add(rng.nextInt(6) + 1);
@@ -185,6 +250,13 @@ public class RiskPanel implements GamePanel {
         return rolls;
     }
 
+    /**
+     * Termina il turno corrente e passa al giocatore successivo.
+     * Resetta il messaggio del risultato della battaglia, aggiorna
+     * l'indicatore del turno, lo stato dei controlli e trasmette
+     * il cambio di turno agli emulatori remoti. Se la lista dei
+     * partecipanti &egrave; vuota, non esegue alcuna operazione.
+     */
     private void endTurn() {
         if (players.isEmpty()) return;
         turnIndex = (turnIndex + 1) % players.size();
@@ -194,6 +266,11 @@ public class RiskPanel implements GamePanel {
         broadcastTurn();
     }
 
+    /**
+     * Trasmette il cambio di turno agli emulatori remoti tramite il
+     * {@link TurnPublisher} se presente e se la lista dei partecipanti
+     * non &egrave; vuota.
+     */
     private void broadcastTurn() {
         if (turnPublisher != null && !players.isEmpty()) {
             turnPublisher.publish(turnIndex, players.get(turnIndex));
@@ -201,8 +278,9 @@ public class RiskPanel implements GamePanel {
     }
 
     /**
-     * Enables attack / end-turn controls only when it is the local
-     * user's turn, so all emulators agree on the active player.
+     * Abilita i controlli di attacco e fine turno solo quando &egrave; il turno
+     * del giocatore locale, in modo che tutti gli emulatori concordino sul
+     * giocatore attivo.
      */
     private void applyTurnControls() {
         boolean myTurn = !players.isEmpty()
@@ -215,12 +293,20 @@ public class RiskPanel implements GamePanel {
         attackButton.setDisable(!myTurn);
     }
 
+    /**
+     * Aggiorna l'etichetta del turno con il nome del giocatore corrente.
+     * Se la lista dei partecipanti &egrave; vuota, non esegue alcuna operazione.
+     */
     private void updateTurnLabel() {
         if (players.isEmpty()) return;
         turnLabel.setText("Turn of: " + players.get(turnIndex));
         turnLabel.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-text-fill: #e67e22;");
     }
 
+    /**
+     * Aggiorna la visualizzazione della lista delle armate con i valori correnti.
+     * I giocatori con zero armate vengono evidenziati in rosso.
+     */
     private void refreshArmiesBox() {
         armiesBox.getChildren().clear();
         armies.forEach((p, a) -> {

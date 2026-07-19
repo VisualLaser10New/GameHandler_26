@@ -32,6 +32,21 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Servizio applicativo per la gestione degli utenti presso il sistema centrale
+ * (Source-of-Truth). Implementa la registrazione, l'aggiornamento, la lettura
+ * per replica e la creazione da evento di sincronizzazione, scrivendo in modo
+ * atomico l'evento outbox di replica ad ogni mutazione.
+ *
+ * <p>Le password sono sempre memorizzate in forma hash BCrypt. Ogni salvataggio
+ * emette un {@code USER_REGISTERED} o {@code USER_UPDATED} che verrà propagato
+ * ai Local Server dallo scheduler di replica.</p>
+ *
+ * @see RegisterUserUseCase
+ * @see UpdateUserUseCase
+ * @see GetAllUsersUseCase
+ * @see RegisterUserFromSyncUseCase
+ */
 @Service
 public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetAllUsersUseCase, RegisterUserFromSyncUseCase {
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
@@ -49,6 +64,14 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
         this.clock = clock;
     }
 
+    /**
+     * Restituisce lo snapshot completo degli utenti centrali per la replica ai
+     * Local Server.
+     *
+     * @return la lista dei DTO di sincronizzazione (con hash password, ruoli ed
+     *         email) di tutti gli utenti; lista vuota (mai {@code null}) se non
+     *         esiste alcun utente
+     */
     @Transactional
     @Override
     public List<UserSyncDto> getAllUsersForSync() {
@@ -57,6 +80,15 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
         ).collect(Collectors.toList());
     }
 
+    /**
+     * Registra un nuovo utente con ruolo PLAYER e ne emette l'evento di replica.
+     *
+     * @param username il nome utente (univoco, non vuoto)
+     * @param password la password in chiaro da hashare con BCrypt
+     * @param email l'email dell'utente (univoca, non vuota)
+     * @return l'utente appena creato e persistito
+     * @throws UserAlreadyExistsException se username o email sono già in uso
+     */
     @Transactional
     @Override
     public User register(String username, String password, String email) {
@@ -77,6 +109,18 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
         }
     }
 
+    /**
+     * Crea un utente centrale a partire da un evento di sincronizzazione, se non
+     * già presente per id, username o email.
+     *
+     * <p>L'operazione è idempotente: se l'utente esiste già (per id, username o
+     * email) viene saltata silenziosamente. In caso di violazione di vincolo
+     * univoco in concorrenza, l'eccezione è registrata e ignorata mantenendo
+     * l'utente esistente.</p>
+     *
+     * @param dto l'evento di registrazione ricevuto dal Local Server (non deve
+     *        essere {@code null})
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Override
     public void registerFromSync(UserRegisteredEventDto dto) {
@@ -104,6 +148,20 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
         }
     }
 
+    /**
+     * Aggiorna la password e/o i ruoli di un utente esistente, emettendo
+     * l'evento di replica {@code USER_UPDATED}.
+     *
+     * @param id l'id dell'utente da aggiornare (non deve essere {@code null})
+     * @param newPassword la nuova password in chiaro, o {@code null}/vuota per
+     *        non modificarla
+     * @param newRoles i nuovi ruoli (i duplicati sono rimossi); {@code null} o
+     *        vuoto per non modificarli
+     * @param originatingRequestId l'id della richiesta originaria, o
+     *        {@code null} sul path REST diretto
+     * @return l'utente aggiornato e persistito
+     * @throws UserNotFoundException se l'utente con l'id indicato non esiste
+     */
     @Transactional
     @Override
     public User updateUser(UserId id, String newPassword, List<String> newRoles, String originatingRequestId) {
@@ -126,10 +184,28 @@ public class UserService implements RegisterUserUseCase, UpdateUserUseCase, GetA
         return saveUserOnDB(user, "USER_UPDATED", originatingRequestId);
     }
 
+    /**
+     * Persiste un utente e scrive l'evento outbox di replica corrispondente.
+     *
+     * @param user l'utente da salvare (non deve essere {@code null})
+     * @param eventType il tipo di evento da emettere ({@code USER_REGISTERED}/
+     *        {@code USER_UPDATED})
+     * @return l'utente salvato
+     */
     private User saveUserOnDB(User user, String eventType) {
         return saveUserOnDB(user, eventType, null);
     }
 
+    /**
+     * Persiste un utente e scrive l'evento outbox di replica, propagando
+     * l'id della richiesta originaria nel DTO di sincronizzazione.
+     *
+     * @param user l'utente da salvare (non deve essere {@code null})
+     * @param eventType il tipo di evento da emettere
+     * @param originatingRequestId l'id della richiesta originaria, o {@code null}
+     * @return l'utente salvato
+     * @throws RuntimeException se la serializzazione JSON dell'utente fallisce
+     */
     private User saveUserOnDB(User user, String eventType, String originatingRequestId) {
         User savedUser = userRepository.save(user);
 

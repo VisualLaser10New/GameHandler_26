@@ -11,16 +11,16 @@ import java.security.KeyStore;
 import java.util.UUID;
 
 /**
- * Low-level wrapper around the Eclipse Paho {@link IMqttClient}.
+ * Wrapper di basso livello attorno a {@link IMqttClient} di Eclipse Paho.
  * <p>
- * Provides a simplified API for connecting, disconnecting, publishing,
- * and subscribing to an MQTT broker. Delegates lifecycle and reconnection
- * logic to {@link MqttConnectionManager}.
+ * Fornisce un'API semplificata per connettersi, disconnettersi, pubblicare
+ * e sottoscrivere topic su un broker MQTT. Delega la logica di lifecycle e
+ * riconnessione a {@link MqttConnectionManager}.
  * <p>
- * Supports both plain TCP ({@code tcp://}) and TLS ({@code ssl://}) broker URLs.
- * An external {@link MqttCallbackExtended} can be registered via
- * {@link #setCallback(MqttCallbackExtended)} to receive connection and
- * message delivery events.
+ * Supporta sia TCP semplice ({@code tcp://}) sia TLS ({@code ssl://}) per l'URL del broker.
+ * È possibile registrare un {@link MqttCallbackExtended} esterno tramite
+ * {@link #setCallback(MqttCallbackExtended)} per ricevere eventi di connessione
+ * e consegna dei messaggi.
  */
 public class MqttClientAdapter {
 
@@ -31,15 +31,13 @@ public class MqttClientAdapter {
     private MqttCallbackExtended callback;
     private boolean connected;
 
-    // Optional listeners notified on every (re)connect so subscribers can
-    // re-establish their topic subscriptions (Paho does not restore them).
     private final java.util.List<java.util.function.Consumer<Boolean>> connectionListeners =
             new java.util.concurrent.CopyOnWriteArrayList<>();
 
     /**
-     * Creates a new adapter for the given configuration.
+     * Costruisce un nuovo adapter per la configurazione data.
      *
-     * @param config the MQTT client configuration (broker URL, client ID, building ID, timeouts)
+     * @param config la configurazione del client MQTT (URL del broker, client ID, edificio, timeout)
      */
     public MqttClientAdapter(MqttClientConfig config) {
         this.config = config;
@@ -47,14 +45,14 @@ public class MqttClientAdapter {
     }
 
     /**
-     * Connects to the MQTT broker.
+     * Connette il client al broker MQTT.
      * <p>
-     * Creates a new {@link MqttClient} instance with a unique client ID
-     * (base client ID plus random suffix), configures automatic reconnect,
-     * clean session, and TLS if the broker URL starts with {@code ssl://},
-     * then establishes the connection.
+     * Crea una nuova istanza di {@link MqttClient} con un client ID univoco
+     * (client ID base pi&ugrave; suffisso casuale), configura la riconnessione automatica,
+     * la sessione pulita e TLS se l'URL del broker inizia con {@code ssl://},
+     * quindi stabilisce la connessione.
      *
-     * @throws MqttException if the connection fails
+     * @throws MqttException se la connessione fallisce
      */
     public void connect() throws MqttException {
         if (mqttClient != null && mqttClient.isConnected()) {
@@ -79,7 +77,6 @@ public class MqttClientAdapter {
                 File keystoreFile = new File("certs/" + gameId + "-keystore.p12");
                 File truststoreFile = new File("certs/local-truststore.p12");
 
-                // Truststore
                 KeyStore trustStore = KeyStore.getInstance("PKCS12");
                 try (java.io.InputStream in = new java.io.FileInputStream(truststoreFile)) {
                     trustStore.load(in, "changeit".toCharArray());
@@ -88,7 +85,6 @@ public class MqttClientAdapter {
                         javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
                 tmf.init(trustStore);
 
-                // Keystore
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
                 try (java.io.InputStream in = new java.io.FileInputStream(keystoreFile)) {
                     keyStore.load(in, "changeit".toCharArray());
@@ -150,9 +146,9 @@ public class MqttClientAdapter {
     }
 
     /**
-     * Disconnects from the MQTT broker.
+     * Disconnette il client dal broker MQTT.
      *
-     * @throws MqttException if the disconnect fails
+     * @throws MqttException se la disconnessione fallisce
      */
     public void disconnect() throws MqttException {
         if (mqttClient != null && mqttClient.isConnected()) {
@@ -163,14 +159,14 @@ public class MqttClientAdapter {
     }
 
     /**
-     * Publishes a message on the given topic.
+     * Pubblica un messaggio sul topic specificato.
      *
-     * @param topic    the MQTT topic to publish on
-     * @param payload  the message payload as a byte array
-     * @param qos      the Quality of Service level (0, 1, or 2)
-     * @param retained whether the broker should retain the message
-     * @throws MqttException          if the publication fails
-     * @throws IllegalStateException  if the client is not connected
+     * @param topic    il topic MQTT su cui pubblicare
+     * @param payload  il payload del messaggio come array di byte
+     * @param qos      il livello di Quality of Service (0, 1 o 2)
+     * @param retained se {@code true}, il broker mantiene il messaggio come ultimo valore valido
+     * @throws MqttException         se la pubblicazione fallisce
+     * @throws IllegalStateException se il client non è connesso
      */
     public void publish(String topic, byte[] payload, int qos, boolean retained) throws MqttException {
         if (mqttClient == null || !mqttClient.isConnected()) {
@@ -183,13 +179,14 @@ public class MqttClientAdapter {
     }
 
     /**
-     * Subscribes to a topic with a message listener.
+     * Sottoscrive un topic con un listener per i messaggi in arrivo.
      *
-     * @param topic    the topic filter to subscribe to (may contain wildcards)
-     * @param qos      the maximum QoS level for the subscription
-     * @param listener the listener that will receive incoming messages
-     * @throws MqttException          if the subscription fails
-     * @throws IllegalStateException  if the client is not connected
+     * @param topic    il filtro del topic da sottoscrivere (può contenere wildcard)
+     * @param qos      il livello QoS massimo per la sottoscrizione
+     * @param listener il listener che riceve i messaggi in arrivo
+     * @throws MqttException         se la sottoscrizione fallisce
+     * @throws IllegalStateException se il client non è connesso
+     * @see #subscribe(String, int)
      */
     public void subscribe(String topic, int qos, IMqttMessageListener listener) throws MqttException {
         if (mqttClient == null || !mqttClient.isConnected()) {
@@ -199,12 +196,13 @@ public class MqttClientAdapter {
     }
 
     /**
-     * Subscribes to a topic without a specific listener.
+     * Sottoscrive un topic senza un listener specifico.
      *
-     * @param topic  the topic filter to subscribe to
-     * @param qos    the maximum QoS level for the subscription
-     * @throws MqttException          if the subscription fails
-     * @throws IllegalStateException  if the client is not connected
+     * @param topic il filtro del topic da sottoscrivere
+     * @param qos   il livello QoS massimo per la sottoscrizione
+     * @throws MqttException         se la sottoscrizione fallisce
+     * @throws IllegalStateException se il client non è connesso
+     * @see #subscribe(String, int, IMqttMessageListener)
      */
     public void subscribe(String topic, int qos) throws MqttException {
         if (mqttClient == null || !mqttClient.isConnected()) {
@@ -214,10 +212,10 @@ public class MqttClientAdapter {
     }
 
     /**
-     * Unsubscribes from a topic.
+     * Annulla la sottoscrizione da un topic.
      *
-     * @param topic  the topic filter to unsubscribe from
-     * @throws MqttException if the unsubscribing fails
+     * @param topic il filtro del topic da cui cancellare la sottoscrizione
+     * @throws MqttException se l'annullamento della sottoscrizione fallisce
      */
     public void unsubscribe(String topic) throws MqttException {
         if (mqttClient != null && mqttClient.isConnected()) {
@@ -226,58 +224,59 @@ public class MqttClientAdapter {
     }
 
     /**
-     * Registers an external callback for connection events and message delivery.
+     * Registra un callback esterno per eventi di connessione e consegna messaggi.
      * <p>
-     * The internal {@link MqttCallbackExtended} delegates to this callback,
-     * allowing external components (e.g. {@link MqttConnectionManager}) to
-     * react to {@code connectComplete}, {@code connectionLost},
-     * {@code messageArrived}, and {@code deliveryComplete} events.
+     * Il {@link MqttCallbackExtended} interno delega a questo callback,
+     * consentendo a componenti esterni (es. {@link MqttConnectionManager}) di
+     * reagire agli eventi {@code connectComplete}, {@code connectionLost},
+     * {@code messageArrived} e {@code deliveryComplete}.
      *
-     * @param callback the callback to delegate to (it may be {@code null})
+     * @param callback il callback a cui delegare; pu&ograve; essere {@code null}
      */
     public void setCallback(MqttCallbackExtended callback) {
         this.callback = callback;
     }
 
     /**
-     * Registers a listener invoked on every successful (re)connection to the
-     * broker. Useful for re-establishing subscriptions that Paho drops on
-     * reconnect (clean sessions do not persist them).
+     * Registra un listener invocato a ogni (ri)connessione al broker.
+     * <p>
+     & utile per ripristinare le sottoscrizioni che Paho perde durante la
+     * riconnessione (le sessioni pulite non le persistono). Se il client è già
+     * connesso al momento della registrazione, il listener viene invocato
+     * immediatamente.
      *
-     * @param listener a consumer receiving {@code reconnect} (true if this was
-     *                 a reconnect rather than the initial connection)
+     * @param listener un consumer che riceve {@code true} se si tratta di una
+     *                 riconnessione, {@code false} per la connessione iniziale
      */
     public void addConnectionListener(java.util.function.Consumer<Boolean> listener) {
         connectionListeners.add(listener);
-        // If already connected at registration time, fire immediately so the
-        // listener can subscribe without waiting for the next (re)connect.
         if (isConnected()) {
             try { listener.accept(false); } catch (Exception ex) { log.warn("connection listener error", ex); }
         }
     }
 
     /**
-     * Returns whether the client is currently connected to the broker.
+     * Restituisce {@code true} se il client è attualmente connesso al broker.
      *
-     * @return {@code true} if connected, {@code false} otherwise
+     * @return {@code true} se connesso, {@code false} altrimenti
      */
     public boolean isConnected() {
         return connected && mqttClient != null && mqttClient.isConnected();
     }
 
     /**
-     * Returns the configuration used by this adapter.
+     * Restituisce la configurazione utilizzata da questo adapter.
      *
-     * @return the MQTT client configuration
+     * @return la configurazione del client MQTT
      */
     public MqttClientConfig getConfig() {
         return config;
     }
 
     /**
-     * Returns the underlying Paho MQTT client instance.
+     * Restituisce l'istanza del client Paho sottostante.
      *
-     * @return the {@link IMqttClient} instance, or {@code null} if not yet connected
+     * @return l'istanza {@link IMqttClient}, oppure {@code null} se non ancora connesso
      */
     public IMqttClient getMqttClient() {
         return mqttClient;

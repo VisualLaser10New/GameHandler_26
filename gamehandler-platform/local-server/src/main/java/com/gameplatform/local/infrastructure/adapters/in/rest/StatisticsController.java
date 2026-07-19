@@ -21,6 +21,13 @@ import java.util.List;
 
 import static com.gameplatform.local.infrastructure.adapters.in.rest.GameSessionController.getGameSessionDto;
 
+/**
+ * Controller REST per la consultazione delle statistiche di gioco e delle
+ * sessioni attive. Espone endpoint per le statistiche aggregate (per admin)
+ * e per la lista delle sessioni attive (per giocatori).
+ *
+ * @see GetStatisticsUseCase
+ */
 @RestController
 public class StatisticsController {
 
@@ -28,6 +35,14 @@ public class StatisticsController {
     private final ObjectMapper objectMapper;
     private final String buildingId;
 
+    /**
+     * Costruisce il controller con il caso d'uso per le statistiche e il
+     * mapper JSON.
+     *
+     * @param getStatisticsUseCase caso d'uso per il recupero delle statistiche
+     * @param objectMapper mapper JSON per la serializzazione
+     * @param buildingId identificativo dell'edificio
+     */
     public StatisticsController(
             GetStatisticsUseCase getStatisticsUseCase,
             ObjectMapper objectMapper,
@@ -37,6 +52,14 @@ public class StatisticsController {
         this.buildingId = buildingId;
     }
 
+    /**
+     * Restituisce le statistiche di gioco. Se viene specificato un
+     * {@code gameType}, restituisce le statistiche per quel tipo; altrimenti
+     * restituisce le statistiche aggregate per tutti i tipi di gioco.
+     *
+     * @param gameTypeStr filtro opzionale per tipo di gioco
+     * @return una {@link ResponseEntity} con le statistiche richieste
+     */
     @GetMapping("/api/statistics")
     @PreAuthorize("hasRole('LOCAL_ADMIN') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<?> getStats(@RequestParam(value = "gameType", required = false) String gameTypeStr) {
@@ -69,6 +92,11 @@ public class StatisticsController {
         return ResponseEntity.ok(statistics);
     }
 
+    /**
+     * Restituisce l'elenco delle sessioni di gioco attualmente attive.
+     *
+     * @return una {@link ResponseEntity} con la lista di {@link GameSessionDto}
+     */
     @GetMapping("/api/sessions/active")
     @PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<List<GameSessionDto>> getActiveSessions() {
@@ -79,6 +107,12 @@ public class StatisticsController {
         return ResponseEntity.ok(dtos);
     }
 
+    /**
+     * Converte una {@link GameSession} nel corrispondente {@link GameSessionDto}.
+     *
+     * @param session la sessione di gioco da convertire
+     * @return il DTO corrispondente
+     */
     private GameSessionDto toDto(GameSession session) {
 		return getGameSessionDto(session, objectMapper);
 	}

@@ -24,11 +24,16 @@ import java.util.Date;
 import java.util.List;
 
 /**
- * Provides JWT token generation and validation using RSA asymmetric keys.
+ * Provider per la generazione e la validazione di token JWT tramite chiavi
+ * asimmetriche RSA.
  *
- * <p>The token expiration duration is fully configurable via the
- * {@code jwt.expiration-ms} property (default: 86 400 000 ms = 24 hours),
- * eliminating any hard-coded expiration constants.</p>
+ * <p>La durata di validità del token è completamente configurabile tramite
+ * la proprietà {@code jwt.expiration-ms} (default: 86.400.000 ms = 24 ore).
+ * Implementa l'interfaccia {@link TokenProviderPort} per l'integrazione con
+ * il dominio dell'applicazione.</p>
+ *
+ * @see TokenProviderPort
+ * @see io.jsonwebtoken.Jwts
  */
 public class JwtTokenProvider implements TokenProviderPort {
 
@@ -45,12 +50,15 @@ public class JwtTokenProvider implements TokenProviderPort {
     private PublicKey publicKey;
 
     /**
-     * Constructs a {@code JwtTokenProvider}.
+     * Costruisce un {@code JwtTokenProvider}.
      *
-     * @param resourceLoader   Spring resource loader used to resolve the PEM file.
-     * @param clock            Clock instance for time synchronization.
-     * @param privateKeyPath   Classpath or filesystem path to the PKCS-8 RSA private key.
-     * @param tokenExpirationMs Token lifetime in milliseconds (from {@code jwt.expiration-ms}).
+     * @param resourceLoader   il caricatore di risorse Spring per risolvere il
+     *                         file PEM della chiave privata
+     * @param clock            l'orologio per la sincronizzazione temporale
+     * @param privateKeyPath   il percorso della chiave privata RSA in formato
+     *                         PKCS-8 (classpath o filesystem)
+     * @param tokenExpirationMs la durata di validità del token in millisecondi
+     *                         (dalla proprietà {@code jwt.expiration-ms})
      */
     public JwtTokenProvider(ResourceLoader resourceLoader, Clock clock, String privateKeyPath, long tokenExpirationMs) {
         this.resourceLoader = resourceLoader;
@@ -60,13 +68,34 @@ public class JwtTokenProvider implements TokenProviderPort {
     }
 
     /**
-     * Constructs a {@code JwtTokenProvider} using default UTC clock for backward compatibility.
+     * Costruisce un {@code JwtTokenProvider} utilizzando l'orologio UTC
+     * predefinito per compatibilità con le versioni precedenti.
+     *
+     * @param resourceLoader   il caricatore di risorse Spring per risolvere il
+     *                         file PEM della chiave privata
+     * @param privateKeyPath   il percorso della chiave privata RSA in formato
+     *                         PKCS-8 (classpath o filesystem)
+     * @param tokenExpirationMs la durata di validità del token in millisecondi
+     *
+     * @deprecated utilizzare {@link #JwtTokenProvider(ResourceLoader, Clock, String, long)}
+     *             specificando un orologio esplicito
      */
     @Deprecated
     public JwtTokenProvider(ResourceLoader resourceLoader, String privateKeyPath, long tokenExpirationMs) {
         this(resourceLoader, Clock.systemUTC(), privateKeyPath, tokenExpirationMs);
     }
 
+    /**
+     * Inizializza il provider caricando la chiave privata RSA dal percorso
+     * configurato e derivando la corrispondente chiave pubblica.
+     *
+     * <p>Il metodo viene invocato automaticamente dopo la costruzione del
+     * bean grazie all'annotazione {@link PostConstruct}.</p>
+     *
+     * @throws IllegalStateException se il file della chiave privata non viene
+     *                               trovato, non è in formato RSA valido o
+     *                               non è possibile derivare la chiave pubblica
+     */
     @PostConstruct
     public void init() {
         try {
@@ -103,12 +132,31 @@ public class JwtTokenProvider implements TokenProviderPort {
         }
     }
 
+    /**
+     * Genera un token JWT per l'utente specificato con il timestamp fornito.
+     *
+     * @param user l'utente per cui generare il token, non nullo
+     * @param now  l'istante di emissione del token
+     * @return il token JWT compatto
+     *
+     * @deprecated utilizzare {@link #generateTokenWithExpiry(User, Instant)}
+     *             che restituisce anche la data di scadenza
+     */
     @Override
     @Deprecated(since = "B11", forRemoval = true)
     public String generateToken(User user, Instant now) {
         return generateTokenWithExpiry(user, now).token();
     }
 
+    /**
+     * Genera un token JWT per l'utente specificato e restituisce sia il
+     * token sia la data di scadenza.
+     *
+     * @param user l'utente per cui generare il token, non nullo
+     * @param now  l'istante di emissione del token
+     * @return un {@link TokenWithExpiry} contenente il token JWT compatto
+     *         e l'istante di scadenza
+     */
     @Override
     public TokenWithExpiry generateTokenWithExpiry(User user, Instant now) {
         Instant expiresAt = now.plusMillis(tokenExpirationMs);
@@ -124,19 +172,27 @@ public class JwtTokenProvider implements TokenProviderPort {
         return new TokenWithExpiry(token, expiresAt);
     }
 
+    /**
+     * Genera un token JWT per l'utente specificato utilizzando l'orologio
+     * configurato per determinare l'istante di emissione.
+     *
+     * @param user l'utente per cui generare il token, non nullo
+     * @return il token JWT compatto
+     */
     public String generateToken(User user) {
         return generateToken(user, Instant.now(clock));
     }
 
     /**
-     * Validates the given JWT token.
+     * Verifica la validità del token JWT specificato.
      *
-     * <p>Returns {@code true} if the token is correctly signed and not expired;
-     * {@code false} otherwise. This method never throws.</p>
+     * <p>Restituisce {@code true} se il token è correttamente firmato e non
+     * è scaduto; {@code false} altrimenti. Questo metodo non lancia mai
+     * eccezioni.</p>
      *
-     * @param token the compact JWT string to validate
-     * @return {@code true} if the token is valid, {@code false} if it is
-     *         malformed, expired, or has an invalid signature
+     * @param token la stringa JWT compatta da validare
+     * @return {@code true} se il token è valido, {@code false} se è
+     *         malformato, scaduto o ha una firma non valida
      */
     public boolean validateToken(String token) {
         try {
@@ -149,11 +205,13 @@ public class JwtTokenProvider implements TokenProviderPort {
     }
 
     /**
-     * Parses and returns the claims from a valid JWT token.
+     * Analizza e restituisce i claims dal token JWT specificato.
      *
-     * @param token the compact JWT string
-     * @return the {@link Claims} payload
-     * @throws io.jsonwebtoken.JwtException if the token is invalid or expired
+     * @param token la stringa JWT compatta
+     * @return il payload dei {@link Claims}
+     * @throws io.jsonwebtoken.JwtException se il token non è valido o è
+     *                                      scaduto
+     * @see #validateToken(String)
      */
     public Claims getClaims(String token) {
         return Jwts.parser()
@@ -165,7 +223,11 @@ public class JwtTokenProvider implements TokenProviderPort {
 
     // ── package-private accessor for tests ───────────────────────────────────
 
-    /** Returns the configured token expiration in milliseconds. */
+    /**
+     * Restituisce la durata di validità configurata per i token.
+     *
+     * @return la durata di validità in millisecondi
+     */
     @Override
     public long getTokenExpirationMs() {
         return tokenExpirationMs;

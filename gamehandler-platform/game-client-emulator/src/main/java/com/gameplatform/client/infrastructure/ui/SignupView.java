@@ -14,11 +14,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
 /**
- * JavaFX view for user registration.
+ * Vista JavaFX per la registrazione di un nuovo utente.
  * <p>
- * Displays a signup form with username, email, and password fields. Inputs are
- * validated and sent to the Local Server via an HTTP POST request to
- * {@code /api/auth/signup}.
+ * Mostra un form di registrazione con campi per username, email e password.
+ * I dati vengono validati e inviati al server locale tramite una richiesta
+ * HTTP POST a {@code /api/auth/signup}.
  */
 public class SignupView {
     private final VBox root;
@@ -31,6 +31,12 @@ public class SignupView {
     private Runnable onCancel;
     private final String inputFieldStyle;
 
+    /**
+     * Costruisce la vista di registrazione.
+     * <p>
+     * Inizializza i campi per username, email e password, il pulsante
+     * di registrazione, il link per il login e l'etichetta per gli errori.
+     */
     public SignupView() {
         inputFieldStyle = "-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;";
 
@@ -76,23 +82,52 @@ public class SignupView {
         });
     }
 
+    /**
+     * Restituisce lo stile CSS per i campi di input.
+     *
+     * @return una stringa con lo stile CSS per i campi di input
+     * @deprecated il valore è disponibile come costante {@link #inputFieldStyle}
+     */
     @Deprecated
     private String inputFieldStyle() {
         return "-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4;";
     }
 
+    /**
+     * Restituisce il nodo radice JavaFX per questa vista.
+     *
+     * @return il nodo {@link Parent} radice
+     */
     public Parent getView() {
         return root;
     }
 
+    /**
+     * Registra il callback per la registrazione riuscita.
+     *
+     * @param callback l'azione da eseguire dopo il signup; può essere null
+     */
     public void setOnSignupSuccess(Runnable callback) {
         this.onSignupSuccess = callback;
     }
 
+    /**
+     * Registra il callback per l'annullamento e il ritorno al login.
+     *
+     * @param callback l'azione da eseguire per tornare al login; può essere null
+     */
     public void setOnCancel(Runnable callback) {
         this.onCancel = callback;
     }
 
+    /**
+     * Esegue la registrazione con i dati inseriti.
+     * <p>
+     * Valida che tutti i campi siano compilati, costruisce una
+     * richiesta {@link SignupRequestDto} e la invia in modo asincrono
+     * a {@code /api/auth/signup}. Gestisce i codici di risposta
+     * 201 (successo), 409 (conflitto) e 400 (errore di validazione).
+     */
     public void performSignup() {
         String username = usernameField.getText().strip();
         String email = emailField.getText().strip();
@@ -159,6 +194,12 @@ public class SignupView {
         }
     }
 
+    /**
+     * Resetta il form di registrazione allo stato iniziale.
+     * <p>
+     * Pulisce i campi username, email e password e reimposta
+     * l'etichetta di errore al colore e testo predefiniti.
+     */
     public void reset() {
         usernameField.clear();
         emailField.clear();

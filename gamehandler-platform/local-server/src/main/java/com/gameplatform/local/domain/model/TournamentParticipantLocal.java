@@ -24,6 +24,18 @@ public class TournamentParticipantLocal {
     private final Instant registeredAt;
     private final Instant updatedAt;
 
+    /**
+     * Costruisce una nuova replica locale di un partecipante a un torneo.
+     *
+     * @param tournamentId  identificatore del torneo (non null)
+     * @param participantId identificatore del partecipante (non blank)
+     * @param isTeam        true se il partecipante è una squadra
+     * @param displayName   nome visualizzato del partecipante (non blank)
+     * @param registeredAt  istante di registrazione (non null)
+     * @param updatedAt     istante dell'ultimo aggiornamento (non null)
+     * @throws IllegalArgumentException se tournamentId, participantId o displayName sono null/blank,
+     *                                  o se registeredAt o updatedAt sono null
+     */
     public TournamentParticipantLocal(TournamentId tournamentId, String participantId, boolean isTeam,
                                       String displayName, Instant registeredAt, Instant updatedAt) {
         if (tournamentId == null) {
@@ -49,30 +61,67 @@ public class TournamentParticipantLocal {
         this.updatedAt = updatedAt;
     }
 
+    /**
+     * Restituisce l'identificatore del torneo.
+     *
+     * @return tournamentId
+     */
     public TournamentId getTournamentId() {
         return tournamentId;
     }
 
+    /**
+     * Restituisce l'identificatore del partecipante.
+     *
+     * @return participantId
+     */
     public String getParticipantId() {
         return participantId;
     }
 
+    /**
+     * Indica se il partecipante è una squadra.
+     *
+     * @return true se è una squadra
+     */
     public boolean isTeam() {
         return isTeam;
     }
 
+    /**
+     * Restituisce il nome visualizzato del partecipante.
+     *
+     * @return displayName
+     */
     public String getDisplayName() {
         return displayName;
     }
 
+    /**
+     * Restituisce l'istante di registrazione al torneo.
+     *
+     * @return registeredAt
+     */
     public Instant getRegisteredAt() {
         return registeredAt;
     }
 
+    /**
+     * Restituisce l'istante dell'ultimo aggiornamento.
+     *
+     * @return updatedAt
+     */
     public Instant getUpdatedAt() {
         return updatedAt;
     }
 
+    /**
+     * Confronta questo partecipante con un altro oggetto per uguaglianza
+     * basata su tournamentId e participantId.
+     *
+     * @param o l'oggetto da confrontare
+     * @return true se gli oggetti sono uguali
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -82,6 +131,11 @@ public class TournamentParticipantLocal {
                 && Objects.equals(participantId, that.participantId);
     }
 
+    /**
+     * Restituisce l'hash code basato su tournamentId e participantId.
+     *
+     * @return hash code
+     */
     @Override
     public int hashCode() {
         return Objects.hash(tournamentId, participantId);

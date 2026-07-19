@@ -16,17 +16,18 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Receives {@code TOURNAMENT_PARTICIPANTS_UPSERTED} events replicated from
- * the Central via outbox and applies them idempotently to the
- * {@code tournament_participants_local} table. The event carries a full
- * per-tournament participant snapshot; the sync service replaces the local
- * projection atomically (delete by {@code tournamentId} + insert of every
- * participant of the snapshot) so that re-delivery of the same event yields
- * the same end state. When {@code originatingRequestId != null} (the
- * Central return-event closes a Local admin/PLAYER request — W6 for
- * {@code PARTICIPANT_REGISTER_REQUESTED}), the matching
- * {@code admin_requests_local} row is transitioned to {@code COMPLETED}
- * via {@link AdminRequestRepository#markCompleted}.
+ * Riceve eventi {@code TOURNAMENT_PARTICIPANTS_UPSERTED} replicati dal
+ * Central tramite outbox e li applica idempotentemente alla tabella
+ * {@code tournament_participants_local}. L'evento trasporta uno snapshot
+ * completo dei partecipanti per torneo; il servizio sostituisce la
+ * proiezione locale atomicamente (delete by tournamentId + insert di
+ * ogni partecipante). Quando {@code originatingRequestId != null}
+ * (evento di ritorno dal Central che chiude una richiesta W6), la riga
+ * {@code admin_requests_local} corrispondente viene transizionata a
+ * COMPLETED via {@link AdminRequestRepository#markCompleted}.
+ *
+ * @see TournamentParticipantsLocalRepository
+ * @see AdminRequestRepository
  */
 @Service
 @Transactional
@@ -40,6 +41,14 @@ public class TournamentParticipantsLocalSyncService {
     private final AdminRequestRepository adminRequestRepository;
     private final Clock clock;
 
+    /**
+     * Costruisce il servizio con i repository necessari per la replica
+     * dei partecipanti torneo e la chiusura delle richieste admin.
+     *
+     * @param tournamentParticipantsLocalRepository il repository locale dei partecipanti torneo
+     * @param adminRequestRepository                il repository per la chiusura delle richieste admin
+     * @param clock                                 l'orologio per la generazione dei timestamp
+     */
     public TournamentParticipantsLocalSyncService(TournamentParticipantsLocalRepository tournamentParticipantsLocalRepository,
                                                     AdminRequestRepository adminRequestRepository,
                                                     Clock clock) {
@@ -48,6 +57,15 @@ public class TournamentParticipantsLocalSyncService {
         this.clock = clock;
     }
 
+    /**
+     * Applica una lista di eventi di partecipanti torneo alla tabella
+     * locale. Per ogni evento TOURNAMENT_PARTICIPANTS_UPSERTED, sostituisce
+     * atomicamente la proiezione locale (delete + insert). Se l'evento
+     * trasporta un originatingRequestId, la richiesta admin corrispondente
+     * viene marcata come COMPLETED.
+     *
+     * @param events la lista di eventi da applicare (puo' essere null)
+     */
     public void applyEvents(List<TournamentParticipantsEventDto> events) {
         if (events == null) {
             return;
@@ -93,6 +111,14 @@ public class TournamentParticipantsLocalSyncService {
         }
     }
 
+    /**
+     * Se l'evento trasporta un {@code originatingRequestId} non blank,
+     * marca la corrispondente richiesta admin come COMPLETED tramite
+     * {@link AdminRequestRepository#markCompleted}, includendo nel
+     * resultData il conteggio dei partecipanti applicati.
+     *
+     * @param event l'evento DTO da cui estrarre l'originatingRequestId (non null)
+     */
     private void markCompletedIfRequested(TournamentParticipantsEventDto event) {
         String originatingRequestId = event.originatingRequestId();
         if (originatingRequestId == null || originatingRequestId.isBlank()) {

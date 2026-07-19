@@ -12,11 +12,11 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 /**
- * Emulation panel for Darts (Freccette).
+ * Pannello di emulazione per il gioco delle Freccette (Darts).
  * <p>
- * Players take turns entering a score per throw (0–180).
- * Pressing "Registra Tiro" records the score and "Fine Turno" advances
- * to the next player. The scoreboard updates in real time.
+ * I giocatori, a turno, inseriscono un punteggio per tiro (0&ndash;180).
+ * Il pulsante "Registra Tiro" registra il punteggio e "Fine Turno" passa
+ * al giocatore successivo. Il tabellone dei punteggi si aggiorna in tempo reale.
  */
 public class DartsPanel implements GamePanel {
 
@@ -35,6 +35,10 @@ public class DartsPanel implements GamePanel {
     private ScorePublisher scorePublisher;
     private String currentUser = "";
 
+    /**
+     * Costruisce il pannello delle freccette inizializzando l'indicatore del turno,
+     * lo spinner del punteggio, i pulsanti di registrazione e fine turno e il tabellone.
+     */
     public DartsPanel() {
         root = new VBox(14);
         root.setAlignment(Pos.CENTER);
@@ -78,6 +82,13 @@ public class DartsPanel implements GamePanel {
     @Override
     public Parent getView() { return root; }
 
+    /**
+     * Avvia la partita inizializzando la lista dei partecipanti e il tabellone
+     * dei punteggi con valore iniziale zero per ogni giocatore.
+     *
+     * @param participants lista dei nomi utente dei partecipanti in ordine di sessione;
+     *                     se vuota, non viene registrato alcun punteggio
+     */
     @Override
     public void onGameStarted(List<String> participants) {
         this.players = new ArrayList<>(participants);
@@ -90,16 +101,41 @@ public class DartsPanel implements GamePanel {
         refreshScoreboard();
     }
 
+    /**
+     * Imposta il callback per la notifica delle variazioni di punteggio
+     * alla vista padre.
+     *
+     * @param scoreConsumer accetta una mappa di partecipante/nome {@literal ->} punteggio
+     * @see #setScorePublisher(ScorePublisher)
+     * @see #onRemoteScore(Map)
+     */
     @Override
     public void setScoreConsumer(Consumer<Map<String, Integer>> scoreConsumer) {
         this.scoreConsumer = scoreConsumer;
     }
 
+    /**
+     * Imposta il publisher per la trasmissione delle istantanee del punteggio
+     * agli emulatori remoti.
+     *
+     * @param scorePublisher publisher per le istantanee del punteggio in uscita
+     * @see #onRemoteScore(Map)
+     * @see #setScoreConsumer(Consumer)
+     */
     @Override
     public void setScorePublisher(ScorePublisher scorePublisher) {
         this.scorePublisher = scorePublisher;
     }
 
+    /**
+     * Applica un'istantanea del punteggio ricevuta da un emulatore remoto,
+     * sostituendo completamente la mappa locale dei punteggi e aggiornando
+     * il tabellone. Se la mappa ricevuta &egrave; {@code null}, i punteggi
+     * vengono azzerati.
+     *
+     * @param remoteScores mappa completa dei punteggi giocatore {@literal ->} punteggio,
+     *                     oppure {@code null} per azzerare
+     */
     @Override
     public void onRemoteScore(Map<String, Integer> remoteScores) {
         // Apply a score snapshot from a remote player so the local
@@ -112,6 +148,10 @@ public class DartsPanel implements GamePanel {
         refreshScoreboard();
     }
 
+    /**
+     * Arresta la partita disabilitando tutti i controlli e aggiornando
+     * l'etichetta del turno con il messaggio di fine partita.
+     */
     @Override
     public void onGameStopped() {
         scoreSpinner.setDisable(true);
@@ -121,6 +161,14 @@ public class DartsPanel implements GamePanel {
         turnLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold; -fx-text-fill: #f39c12;");
     }
 
+    /**
+     * Imposta il contesto di turno per la sincronizzazione multiplayer.
+     *
+     * @param turnPublisher publisher per la trasmissione dei cambi di turno
+     * @param currentUser   nome utente del giocatore locale; {@code null} viene
+     *                      convertito in stringa vuota
+     * @see #onRemoteTurnUpdate(int, String)
+     */
     @Override
     public void setTurnContext(TurnPublisher turnPublisher, String currentUser) {
         this.turnPublisher = turnPublisher;
@@ -128,6 +176,14 @@ public class DartsPanel implements GamePanel {
         applyTurnControls();
     }
 
+    /**
+     * Applica l'aggiornamento del turno ricevuto da un emulatore remoto.
+     * Aggiorna l'indice del turno e lo stato dei controlli solo se il nuovo indice
+     * &egrave; valido (compreso tra 0 e la dimensione della lista dei partecipanti).
+     *
+     * @param newTurnIndex il nuovo indice del turno (base 0) nella lista dei partecipanti
+     * @param playerName   il nome utente del giocatore a cui spetta il turno
+     */
     @Override
     public void onRemoteTurnUpdate(int newTurnIndex, String playerName) {
         if (newTurnIndex >= 0 && newTurnIndex < players.size()) {
@@ -137,13 +193,24 @@ public class DartsPanel implements GamePanel {
         }
     }
 
+    /**
+     * Trasmette l'istantanea corrente dei punteggi alla vista padre tramite
+     * il {@code scoreConsumer} se presente.
+     */
     private void publishScore() {
         if (scoreConsumer != null) {
             scoreConsumer.accept(new LinkedHashMap<>(scores));
         }
     }
 
-    /** Returns the player with the highest score, or null on tie. */
+    /**
+     * Restituisce l'identificativo del vincitore della partita.
+     * Il vincitore &egrave; il giocatore con il punteggio pi&ugrave; alto.
+     *
+     * @return il nome utente del giocatore con il punteggio massimo, oppure {@code null}
+     *         in caso di parit&agrave; o se non ci sono giocatori
+     * @see #getResultData()
+     */
     public String getWinnerId() {
         return scores.entrySet().stream()
                 .max(Map.Entry.comparingByValue())
@@ -151,13 +218,26 @@ public class DartsPanel implements GamePanel {
                 .orElse(null);
     }
 
-    /** Returns comma-separated "player:score" pairs. */
+    /**
+     * Restituisce i dati di risultato della partita nel formato
+     * "giocatore1:punteggio1,giocatore2:punteggio2".
+     *
+     * @return stringa con coppie "giocatore:punteggio" separate da virgola;
+     *         restituisce stringa vuota se non ci sono partecipanti
+     * @see #getWinnerId()
+     */
     public String getResultData() {
         StringBuilder sb = new StringBuilder();
         scores.forEach((p, s) -> { if (sb.length() > 0) sb.append(','); sb.append(p).append(':').append(s); });
         return sb.toString();
     }
 
+    /**
+     * Registra il punteggio del tiro per il giocatore corrente, sommandolo
+     * al suo punteggio totale. Reimposta lo spinner a zero e aggiorna il
+     * tabellone. Se la lista dei partecipanti &egrave; vuota, non esegue
+     * alcuna operazione.
+     */
     private void recordThrow() {
         if (players.isEmpty()) return;
         String current = players.get(turnIndex);
@@ -169,9 +249,9 @@ public class DartsPanel implements GamePanel {
     }
 
     /**
-     * Broadcasts the current score snapshot to the other emulators so
-     * every client shows the same scoreboard.  Called after a local
-     * throw is recorded.
+     * Trasmette l'istantanea corrente dei punteggi agli emulatori remoti
+     * tramite il {@link ScorePublisher} se presente. Invocato dopo la
+     * registrazione di un tiro locale.
      */
     private void broadcastScore() {
         if (scorePublisher != null) {
@@ -179,6 +259,13 @@ public class DartsPanel implements GamePanel {
         }
     }
 
+    /**
+     * Termina il turno corrente e passa al giocatore successivo.
+     * Reimposta lo spinner a zero, aggiorna l'indicatore del turno,
+     * lo stato dei controlli e trasmette il cambio di turno agli
+     * emulatori remoti. Se la lista dei partecipanti &egrave; vuota,
+     * non esegue alcuna operazione.
+     */
     private void endTurn() {
         if (players.isEmpty()) return;
         turnIndex = (turnIndex + 1) % players.size();
@@ -188,6 +275,11 @@ public class DartsPanel implements GamePanel {
         broadcastTurn();
     }
 
+    /**
+     * Trasmette il cambio di turno agli emulatori remoti tramite il
+     * {@link TurnPublisher} se presente e se la lista dei partecipanti
+     * non &egrave; vuota.
+     */
     private void broadcastTurn() {
         if (turnPublisher != null && !players.isEmpty()) {
             turnPublisher.publish(turnIndex, players.get(turnIndex));
@@ -195,9 +287,9 @@ public class DartsPanel implements GamePanel {
     }
 
     /**
-     * Enables the throw controls only when it is the local user's turn,
-     * so every emulator reflects the same active player and only that
-     * player's client can record throws / end the turn.
+     * Abilita i controlli di tiro solo quando &egrave; il turno del giocatore
+     * locale, in modo che ogni emulatore rifletta lo stesso giocatore attivo
+     * e solo quel client possa registrare tiri o terminare il turno.
      */
     private void applyTurnControls() {
         boolean myTurn = !players.isEmpty()
@@ -208,12 +300,20 @@ public class DartsPanel implements GamePanel {
         endTurnButton.setDisable(!myTurn);
     }
 
+    /**
+     * Aggiorna l'etichetta del turno con il nome del giocatore corrente.
+     * Se la lista dei partecipanti &egrave; vuota, non esegue alcuna operazione.
+     */
     private void updateTurnLabel() {
         if (players.isEmpty()) return;
         turnLabel.setText("Turn of: " + players.get(turnIndex));
         turnLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold; -fx-text-fill: #f39c12;");
     }
 
+    /**
+     * Aggiorna il tabellone dei punteggi ordinando i giocatori per punteggio
+     * decrescente e notificando la vista padre tramite il {@code scoreConsumer}.
+     */
     private void refreshScoreboard() {
         scoreboardBox.getChildren().clear();
         scores.entrySet().stream()

@@ -7,56 +7,88 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Out-port for the {@code admin_requests_local} Local persistence of
- * async admin/PLAYER requests (PIANO §7.B). A new request is persisted
- * in {@link AdminRequestStatus#PENDING PENDING} status atomically with
- * the outbox row by the W use case; lifecycle is closed by the matching
- * {@code *SyncService} (the Central return-event carries the original
- * {@code outboxEventId} back as {@code originatingRequestId}) via
- * {@link #markCompleted}, or by the {@code AdminRequestTimeoutService}
- * via {@link #markFailed} when no return-event is observed within the
- * configured timeout.
+ * Repository out-port per la persistenza locale delle richieste amministrative
+ * asincrone verso il sistema centrale.
+ * <p>
+ * Una nuova richiesta viene persistita con stato {@code PENDING} atomicamente
+ * assieme all'evento outbox. Il ciclo di vita si conclude con la transizione
+ * a {@code COMPLETED} tramite {@link #markCompleted}, oppure a {@code FAILED}
+ * tramite {@link #markFailed} quando non si riceve risposta entro il timeout
+ * configurato. Entrambe le operazioni sono aggiornamenti condizionali che
+ * modificano solo righe in stato {@code PENDING}, garantendo idempotenza in
+ * caso di consegna duplicata dello stesso evento di ritorno.
+ * </p>
  *
- * <p>{@link #markCompleted} and {@link #markFailed} are conditional
- * updates that only mutate rows currently in {@code PENDING} status —
- * idempotent on re-delivery of the same return-event (a second call is
- * a no-op because the row is already {@code COMPLETED}).</p>
+ * @see AdminRequestLocal
  */
 public interface AdminRequestRepository {
 
+    /**
+     * Salva una nuova richiesta amministrativa.
+     *
+     * @param request la richiesta amministrativa da persistere
+     * @return la richiesta amministrativa persistita
+     */
     AdminRequestLocal save(AdminRequestLocal request);
 
+    /**
+     * Cerca una richiesta amministrativa in base al suo identificativo.
+     *
+     * @param requestId l'identificativo della richiesta
+     * @return un {@code Optional} contenente la richiesta, vuoto se non trovata
+     */
     Optional<AdminRequestLocal> findByRequestId(String requestId);
 
+    /**
+     * Restituisce tutte le richieste amministrative effettuate da un determinato utente.
+     *
+     * @param actingUserId l'identificativo dell'utente che ha effettuato la richiesta
+     * @return la lista delle richieste dell'utente specificato
+     */
     List<AdminRequestLocal> findByActingUserId(String actingUserId);
 
+    /**
+     * Restituisce tutte le richieste amministrative di un determinato utente
+     * filtrate per stato.
+     *
+     * @param actingUserId l'identificativo dell'utente che ha effettuato la richiesta
+     * @param status       lo stato delle richieste da filtrare
+     * @return la lista delle richieste corrispondenti ai criteri specificati
+     */
     List<AdminRequestLocal> findByActingUserIdAndStatus(String actingUserId, String status);
 
     /**
-     * Atomically transitions a {@code PENDING} admin-request to
-     * {@code COMPLETED} and stores the result-data JSON. Idempotent on
-     * re-delivery: a second call against an already-{@code COMPLETED} row
-     * is a no-op (zero rows updated) because of the conditional
-     * {@code WHERE status = 'PENDING'} clause.
+     * Transita atomicamente una richiesta amministrativa dallo stato
+     * {@code PENDING} a {@code COMPLETED}, memorizzando il JSON dei dati
+     * risultato. Operazione idempotente: una seconda chiamata su una riga
+     * gi&agrave; in stato {@code COMPLETED} non ha effetto.
      *
-     * @return the number of rows actually mutated (0 if the row was
-     *         already resolved or does not exist)
+     * @param requestId  l'identificativo della richiesta da completare
+     * @param resultData il JSON contenente i dati risultato
+     * @param now        il timestamp corrente per l'aggiornamento
+     * @return il numero di righe effettivamente modificate (0 se la riga era
+     *         gi&agrave; risolta o non esiste)
      */
     int markCompleted(String requestId, String resultData, Instant now);
 
     /**
-     * Atomically transitions a {@code PENDING} admin-request to
-     * {@code FAILED} and stores the reason JSON. Idempotent on re-delivery.
+     * Transita atomicamente una richiesta amministrativa dallo stato
+     * {@code PENDING} a {@code FAILED}, memorizzando il JSON con il motivo
+     * del fallimento. Operazione idempotente.
      *
-     * @return the number of rows actually mutated
+     * @param requestId l'identificativo della richiesta da marcare come fallita
+     * @param reason    il JSON contenente il motivo del fallimento
+     * @param now       il timestamp corrente per l'aggiornamento
+     * @return il numero di righe effettivamente modificate
      */
     int markFailed(String requestId, String reason, Instant now);
 
     /**
-     * Returns the PENDING admin-requests whose {@code createdAt} is
-     * strictly before the given threshold — used by the
-     * {@code AdminRequestTimeoutService} scheduler to time out stale
-     * requests.
+     * Restituisce le richieste amministrative in stato {@code PENDING} la cui
+     * data di creazione &egrave; precedente alla soglia specificata.
+     *
+     * @param threshold il timestamp limite per la selezione delle richieste scadute
+     * @return la lista delle richieste pending pi&ugrave; vecchie della soglia
      */
     List<AdminRequestLocal> findPendingOlderThan(Instant threshold);
 }

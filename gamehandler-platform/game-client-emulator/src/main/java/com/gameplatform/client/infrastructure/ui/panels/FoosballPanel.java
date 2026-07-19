@@ -13,10 +13,11 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 /**
- * Emulation panel for Foosball (Calciobalilla).
+ * Pannello di emulazione per il Calciobalilla (Foosball).
  * <p>
- * Displays two large goal buttons (one per team) and keeps a local
- * score that the caller can read at session-end to build the result payload.
+ * Visualizza due pulsanti goal (uno per squadra) e mantiene il punteggio locale
+ * che pu&ograve; essere letto al termine della sessione per costruire il payload
+ * del risultato.
  */
 public class FoosballPanel implements GamePanel {
 
@@ -36,6 +37,10 @@ public class FoosballPanel implements GamePanel {
     private Consumer<Map<String, Integer>> scoreConsumer;
     private ScorePublisher scorePublisher;
 
+    /**
+     * Costruisce il pannello del calciobalilla inizializzando i punteggi,
+     * i pulsanti goal e i pulsanti di annullamento.
+     */
     public FoosballPanel() {
         root = new VBox(16);
         root.setAlignment(Pos.CENTER);
@@ -92,6 +97,14 @@ public class FoosballPanel implements GamePanel {
         return root;
     }
 
+    /**
+     * Avvia la partita azzerando i punteggi, assegnando i nomi delle squadre
+     * in base ai partecipanti (primo partecipante alla squadra 1, secondo alla
+     * squadra 2) e abilitando tutti i controlli.
+     *
+     * @param participants lista dei nomi utente dei partecipanti; la dimensione
+     *                     determina quante squadre vengono assegnate (minimo 1)
+     */
     @Override
     public void onGameStarted(List<String> participants) {
         score1 = 0;
@@ -119,6 +132,10 @@ public class FoosballPanel implements GamePanel {
         turnLabel.setStyle("-fx-font-size: 13; -fx-text-fill: #2ecc71;");
     }
 
+    /**
+     * Arresta la partita disabilitando tutti i controlli e mostrando il
+     * risultato finale nell'etichetta del turno.
+     */
     @Override
     public void onGameStopped() {
         goalTeam1Button.setDisable(true);
@@ -129,16 +146,41 @@ public class FoosballPanel implements GamePanel {
         turnLabel.setStyle("-fx-font-size: 13; -fx-text-fill: #f39c12;");
     }
 
+    /**
+     * Imposta il callback per la notifica delle variazioni di punteggio
+     * alla vista padre.
+     *
+     * @param scoreConsumer accetta una mappa di nome squadra {@literal ->} punteggio
+     * @see #setScorePublisher(ScorePublisher)
+     * @see #onRemoteScore(Map)
+     */
     @Override
     public void setScoreConsumer(Consumer<Map<String, Integer>> scoreConsumer) {
         this.scoreConsumer = scoreConsumer;
     }
 
+    /**
+     * Imposta il publisher per la trasmissione delle istantanee del punteggio
+     * agli emulatori remoti.
+     *
+     * @param scorePublisher publisher per le istantanee del punteggio in uscita
+     * @see #onRemoteScore(Map)
+     * @see #setScoreConsumer(Consumer)
+     */
     @Override
     public void setScorePublisher(ScorePublisher scorePublisher) {
         this.scorePublisher = scorePublisher;
     }
 
+    /**
+     * Applica un'istantanea del punteggio ricevuta da un emulatore remoto.
+     * Cerca i punteggi per nome squadra; se il nome non viene trovato,
+     * utilizza un fallback posizionale. Se la mappa ricevuta &egrave;
+     * {@code null}, non applica alcuna modifica.
+     *
+     * @param remoteScores mappa completa dei punteggi squadra {@literal ->} punteggio,
+     *                     oppure {@code null} per ignorare
+     */
     @Override
     public void onRemoteScore(Map<String, Integer> remoteScores) {
         // Apply a score snapshot from a remote client so both emulators
@@ -160,6 +202,10 @@ public class FoosballPanel implements GamePanel {
         }
     }
 
+    /**
+     * Trasmette l'istantanea corrente dei punteggi alla vista padre tramite
+     * il {@code scoreConsumer} se presente.
+     */
     private void publishScore() {
         if (scoreConsumer != null) {
             Map<String, Integer> snapshot = new LinkedHashMap<>();
@@ -170,9 +216,9 @@ public class FoosballPanel implements GamePanel {
     }
 
     /**
-     * Broadcasts the current score snapshot to the other emulators so
-     * every client shows the same score.  Called after a local goal /
-     * undo.
+     * Trasmette l'istantanea corrente dei punteggi agli emulatori remoti
+     * tramite il {@link ScorePublisher} se presente. Invocato dopo un goal
+     * o un annullamento locale.
      */
     private void broadcastScore() {
         if (scorePublisher != null) {
@@ -183,18 +229,36 @@ public class FoosballPanel implements GamePanel {
         }
     }
 
-    /** Returns the current score as "team1Name:score1,team2Name:score2" for the result payload. */
+    /**
+     * Restituisce i dati di risultato della partita nel formato
+     * "squadra1:punteggio1,squadra2:punteggio2".
+     *
+     * @return stringa con le coppie squadra-punteggio separate da virgola
+     * @see #getWinnerId()
+     */
     public String getResultData() {
         return team1Name + ":" + score1 + "," + team2Name + ":" + score2;
     }
 
-    /** Returns the name of the winning team, or null on draw. */
+    /**
+     * Restituisce il nome della squadra vincente.
+     *
+     * @return il nome della squadra con il punteggio pi&ugrave; alto, oppure
+     *         {@code null} in caso di pareggio
+     * @see #getResultData()
+     */
     public String getWinnerId() {
         if (score1 > score2) return team1Name;
         if (score2 > score1) return team2Name;
         return null;
     }
 
+    /**
+     * Registra un goal per la squadra specificata, incrementando il punteggio
+     * e aggiornando le etichette e la trasmissione remota.
+     *
+     * @param team 1 per la squadra 1, 2 per la squadra 2
+     */
     private void recordGoal(int team) {
         if (team == 1) score1++;
         else score2++;
@@ -202,6 +266,12 @@ public class FoosballPanel implements GamePanel {
         broadcastScore();
     }
 
+    /**
+     * Annulla l'ultimo goal registrato per la squadra specificata, decrementando
+     * il punteggio solo se &egrave; maggiore di zero.
+     *
+     * @param team 1 per la squadra 1, 2 per la squadra 2
+     */
     private void undoGoal(int team) {
         if (team == 1 && score1 > 0) score1--;
         else if (team == 2 && score2 > 0) score2--;
@@ -209,6 +279,10 @@ public class FoosballPanel implements GamePanel {
         broadcastScore();
     }
 
+    /**
+     * Aggiorna le etichette dei punteggi con i valori correnti e notifica
+     * la vista padre tramite il {@code scoreConsumer}.
+     */
     private void updateScoreLabels() {
         team1ScoreLabel.setText(String.valueOf(score1));
         team2ScoreLabel.setText(String.valueOf(score2));

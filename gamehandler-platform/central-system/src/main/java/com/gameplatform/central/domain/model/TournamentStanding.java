@@ -5,18 +5,15 @@ import com.gameplatform.shared.domain.model.TournamentId;
 import java.util.Objects;
 
 /**
- * Domain read-model representing a single participant's cumulative standings
- * row within a tournament, owned by the Central Source-of-Truth
- * ({@code tournament_standings} table, FASE 4 PIANO &sect;3.5). Recomputed
- * incrementally by FASE 5/6 event projections on each
- * {@code TOURNAMENT_MATCH_COMPLETED} event.
+ * Modello di lettura di dominio che rappresenta la riga di classifica cumulativa
+ * di un singolo partecipante all'interno di un torneo, con il conteggio di
+ * vittorie, sconfitte, punti e la posizione in graduatoria. L'identità è
+ * determinata dalla coppia (identificativo torneo, identificativo partecipante);
+ * la posizione è opzionale finché non viene assegnata la graduatoria definitiva.
  *
- * <p>Pure Java (no framework annotations), mirroring the
- * {@code GameDefinition}/{@code PlayerStatistics} POJO convention. Identity
- * is the composite ({@code tournamentId}, {@code participantId}) pair.
- * {@code rank} is nullable (boxed {@link Integer}) until the closing
- * recalculation assigns final rankings. Fully immutable in FASE 4; mutation
- * methods for incremental re-scoring will be added in FASE 5/6.</p>
+ * @see TournamentId
+ * @see Tournament
+ * @see TournamentParticipant
  */
 public class TournamentStanding {
     private final TournamentId tournamentId;
@@ -26,6 +23,17 @@ public class TournamentStanding {
     private final int points;
     private final Integer rank;
 
+    /**
+     * Costruisce una riga di classifica con i valori specificati.
+     *
+     * @param tournamentId identificativo del torneo a cui la classifica si riferisce; non può essere {@code null}
+     * @param participantId identificativo del partecipante; non può essere {@code null} né vuoto
+     * @param wins numero di vittorie; non può essere negativo
+     * @param losses numero di sconfitte; non può essere negativo
+     * @param points punteggio accumulato; non può essere negativo
+     * @param rank posizione in graduatoria; può essere {@code null} se non ancora assegnata
+     * @throws IllegalArgumentException se uno dei vincoli sui parametri non è rispettato
+     */
     public TournamentStanding(TournamentId tournamentId, String participantId, int wins, int losses,
                               int points, Integer rank) {
         if (tournamentId == null) throw new IllegalArgumentException("tournamentId cannot be null");
@@ -41,30 +49,68 @@ public class TournamentStanding {
         this.rank = rank;
     }
 
+    /**
+     * Restituisce l'identificativo del torneo a cui la classifica si riferisce.
+     *
+     * @return l'identificativo del torneo, mai {@code null}
+     */
     public TournamentId getTournamentId() {
         return tournamentId;
     }
 
+    /**
+     * Restituisce l'identificativo del partecipante.
+     *
+     * @return l'identificativo del partecipante, mai {@code null} né vuoto
+     */
     public String getParticipantId() {
         return participantId;
     }
 
+    /**
+     * Restituisce il numero di vittorie del partecipante.
+     *
+     * @return il numero di vittorie, sempre maggiore o uguale a zero
+     */
     public int getWins() {
         return wins;
     }
 
+    /**
+     * Restituisce il numero di sconfitte del partecipante.
+     *
+     * @return il numero di sconfitte, sempre maggiore o uguale a zero
+     */
     public int getLosses() {
         return losses;
     }
 
+    /**
+     * Restituisce il punteggio accumulato dal partecipante.
+     *
+     * @return il punteggio, sempre maggiore o uguale a zero
+     */
     public int getPoints() {
         return points;
     }
 
+    /**
+     * Restituisce la posizione del partecipante in graduatoria.
+     *
+     * @return la posizione in graduatoria, oppure {@code null} se non ancora assegnata
+     */
     public Integer getRank() {
         return rank;
     }
 
+    /**
+     * Confronta questa riga di classifica con un altro oggetto verificandone
+     * l'uguaglianza sulla base della coppia torneo e identificativo del
+     * partecipante.
+     *
+     * @param o oggetto da confrontare; può essere {@code null}
+     * @return {@code true} se l'oggetto è un {@code TournamentStanding} con lo stesso torneo e lo stesso partecipante, {@code false} altrimenti
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -73,6 +119,12 @@ public class TournamentStanding {
         return Objects.equals(tournamentId, that.tournamentId) && Objects.equals(participantId, that.participantId);
     }
 
+    /**
+     * Restituisce il codice hash calcolato sulla coppia torneo e identificativo
+     * del partecipante.
+     *
+     * @return il codice hash della riga di classifica
+     */
     @Override
     public int hashCode() {
         return Objects.hash(tournamentId, participantId);

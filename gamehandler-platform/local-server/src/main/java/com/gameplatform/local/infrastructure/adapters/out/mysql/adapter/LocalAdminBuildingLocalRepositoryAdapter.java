@@ -14,12 +14,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * JPA adapter for the {@link LocalAdminBuildingLocalRepository} port. Matches the
- * central-side {@code LocalAdminBuildingRepositoryAdapter} shape: constructor-
- * injects the JPA repository + mapper; {@code save} is an upsert by composite
- * PK (the underlying {@link LocalAdminBuildingJpaRepository#save} merges an
- * existing row if the (user_id, building_id) PK is already present — idempotent
- * on re-application of the same LOCAL_ADMIN_BUILDING_ASSIGNED event).
+ * Adapter JPA per il port {@link LocalAdminBuildingLocalRepository}.
+ * Gestisce la persistenza delle associazioni tra amministratori locali
+ * e edifici, con operazioni di upsert per chiave primaria composta
+ * (user_id, building_id) che garantiscono idempotenza in caso di
+ * riapplicazione dello stesso evento di assegnazione.
+ *
+ * @see LocalAdminBuildingLocalRepository
+ * @see LocalAdminBuildingJpaRepository
  */
 @Component
 public class LocalAdminBuildingLocalRepositoryAdapter implements LocalAdminBuildingLocalRepository {
@@ -27,12 +29,24 @@ public class LocalAdminBuildingLocalRepositoryAdapter implements LocalAdminBuild
     private final LocalAdminBuildingJpaRepository jpaRepository;
     private final LocalAdminBuildingMapper mapper;
 
+    /**
+     * Costruisce un nuovo adapter con le dipendenze necessarie.
+     *
+     * @param jpaRepository repository JPA per le associazioni amministratore-edificio
+     * @param mapper        mapper per la conversione tra entity e dominio
+     */
     public LocalAdminBuildingLocalRepositoryAdapter(LocalAdminBuildingJpaRepository jpaRepository,
                                                      LocalAdminBuildingMapper mapper) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
     }
 
+    /**
+     * Salva un'associazione amministratore-edificio nel database (upsert per chiave composta).
+     *
+     * @param binding l'associazione da salvare
+     * @return l'associazione persistita
+     */
     @Override
     @Transactional
     public LocalAdminBuilding save(LocalAdminBuilding binding) {
@@ -41,6 +55,13 @@ public class LocalAdminBuildingLocalRepositoryAdapter implements LocalAdminBuild
         return mapper.toDomain(savedEntity);
     }
 
+    /**
+     * Verifica se esiste un'associazione tra un utente e un edificio.
+     *
+     * @param userId      l'identificativo dell'utente
+     * @param buildingId  l'identificativo dell'edificio
+     * @return {@code true} se l'associazione esiste, {@code false} altrimenti o se uno dei parametri è {@code null}
+     */
     @Override
     @Transactional(readOnly = true)
     public boolean existsByUserIdAndBuildingId(UserId userId, BuildingId buildingId) {
@@ -50,6 +71,12 @@ public class LocalAdminBuildingLocalRepositoryAdapter implements LocalAdminBuild
         return jpaRepository.existsByUserIdAndBuildingId(userId.value(), buildingId.id());
     }
 
+    /**
+     * Elimina un'associazione amministratore-edificio.
+     *
+     * @param userId      l'identificativo dell'utente
+     * @param buildingId  l'identificativo dell'edificio; se uno dei parametri è {@code null} l'operazione non viene eseguita
+     */
     @Override
     @Transactional
     public void deleteByUserIdAndBuildingId(UserId userId, BuildingId buildingId) {
@@ -59,6 +86,12 @@ public class LocalAdminBuildingLocalRepositoryAdapter implements LocalAdminBuild
         jpaRepository.deleteByUserIdAndBuildingId(userId.value(), buildingId.id());
     }
 
+    /**
+     * Recupera tutte le associazioni edificio per un dato utente.
+     *
+     * @param userId l'identificativo dell'utente
+     * @return una lista di associazioni per l'utente, vuota se l'utente è {@code null}
+     */
     @Override
     @Transactional(readOnly = true)
     public List<LocalAdminBuilding> findByUserId(UserId userId) {

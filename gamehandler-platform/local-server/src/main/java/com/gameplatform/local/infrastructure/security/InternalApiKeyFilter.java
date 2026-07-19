@@ -16,6 +16,22 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+/**
+ * Filtro che protegge gli endpoint interni (prefisso {@code /internal/})
+ * richiedendo una chiave API condivisa trasmessa nell'header
+ * {@code X-Internal-Api-Key}.
+ *
+ * <p>Esteende {@link OncePerRequestFilter} per garantire un'esecuzione
+ * singola per ogni richiesta. La chiave configurata è letta dalla proprietà
+ * {@code internal.api-key}. Il filtro confronta il valore dell'header con la
+ * chiave configurata utilizzando un confronto time-constant
+ * ({@link java.security.MessageDigest#isEqual}) per prevenire attacchi
+ * timing side-channel.</p>
+ *
+ * <p>All'avvio, {@link #validateConfiguration()} controlla che la chiave
+ * non sia vuota e segnala un avviso se è ancora impostata al valore
+ * predefinito {@code "secret"} in ambienti non di sviluppo.</p>
+ */
 @Component
 public class InternalApiKeyFilter extends OncePerRequestFilter {
 
@@ -24,21 +40,32 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
     private final String configuredApiKey;
     private final Environment environment;
 
+    /**
+     * Costruisce il filtro con la chiave API interna configurata e
+     * l'ambiente Spring.
+     *
+     * @param configuredApiKey valore della proprietà {@code internal.api-key}
+     * @param environment      ambiente Spring per la verifica dei profili
+     *                         attivi
+     */
     public InternalApiKeyFilter(@Value("${internal.api-key}") String configuredApiKey, Environment environment) {
         this.configuredApiKey = configuredApiKey;
         this.environment = environment;
     }
 
     /**
-     * Validates the configured API key at startup (mirrors the central-system
-     * filter). A blank/null key fails fast with {@link IllegalStateException}.
-     * A non-blank key equal to the default {@code "secret"} is accepted (so
-     * local dev without {@code INTERNAL_API_KEY} still works) but emits a
-     * WARNING when the active profile is not {@code dev}, {@code test} or
-     * {@code e2e}, to surface the misconfiguration in production-like
-     * environments without breaking startup.
+     * Valida la configurazione della chiave API interna all'avvio
+     * dell'applicazione.
      *
-     * @throws IllegalStateException if {@code internal.api-key} is blank or null
+     * <p>Se la chiave è vuota o nulla, viene sollevata un'eccezione
+     * {@link IllegalStateException} per un fail-fast. Se la chiave è
+     * impostata al valore predefinito {@code "secret"} ma il profilo
+     * attivo non è {@code dev}, {@code test} o {@code e2e}, viene
+     * emesso un avviso nei log per segnalare la potenziale
+     * misconfigurazione in ambienti production-like.</p>
+     *
+     * @throws IllegalStateException se {@code internal.api-key} è vuota
+     *                               o nulla
      */
     @PostConstruct
     public void validateConfiguration() {
@@ -57,6 +84,24 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
         log.info("InternalApiKeyFilter initialized — internal API key is configured.");
     }
 
+    /**
+     * Applica il filtro di autenticazione interna per le richieste dirette
+     * a percorsi con prefisso {@code /internal/}.
+     *
+     * <p>Per le richieste che non iniziano con {@code /internal/}, il
+     * filtro passa la richiesta inalterata alla catena successiva. Per
+     * le richieste interne, estrae l'header {@code X-Internal-Api-Key} e
+     * lo confronta con la chiave configurata tramite
+     * {@link java.security.MessageDigest#isEqual}. Se il confronto
+     * fallisce, restituisce uno status 401 (Unauthorized).</p>
+     *
+     * @param request     richiesta HTTP in ingresso
+     * @param response    risposta HTTP in uscita
+     * @param filterChain catena dei filtri successivi
+     * @throws ServletException in caso di errore nella gestione della
+     *                          richiesta
+     * @throws IOException      in caso di errore di I/O
+     */
     @Override
     protected void doFilterInternal(HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain)
             throws ServletException, IOException {

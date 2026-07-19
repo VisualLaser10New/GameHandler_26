@@ -32,6 +32,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Controller REST per la consultazione e l'avvio delle partite torneo
+ * da parte del giocatore autenticato. Gestisce la logica di risoluzione
+ * della macchina di gioco e l'avvio della sessione legata al torneo.
+ *
+ * @see TournamentMatchLocalRepository
+ * @see GameSessionService
+ */
 @RestController
 @RequestMapping("/api/players/tournaments")
 public class PlayerTournamentController {
@@ -43,6 +51,17 @@ public class PlayerTournamentController {
     private final GameRepository gameRepository;
     private final String buildingId;
 
+    /**
+     * Costruisce il controller con i repository e i servizi necessari per
+     * la gestione delle partite torneo.
+     *
+     * @param tournamentMatchLocalRepository repository locale delle partite torneo
+     * @param currentUserService servizio per la risoluzione dell'utente autenticato
+     * @param gameSessionService servizio per l'avvio delle sessioni di gioco
+     * @param objectMapper mapper JSON per la serializzazione
+     * @param gameRepository repository dei giochi per la risoluzione delle macchine
+     * @param buildingId identificativo dell'edificio
+     */
     public PlayerTournamentController(TournamentMatchLocalRepository tournamentMatchLocalRepository,
                                       CurrentUserService currentUserService,
                                       GameSessionService gameSessionService,

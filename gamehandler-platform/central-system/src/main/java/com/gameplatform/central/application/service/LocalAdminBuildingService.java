@@ -66,6 +66,25 @@ public class LocalAdminBuildingService implements AssignLocalAdminBuildingsUseCa
         this.clock = clock;
     }
 
+    /**
+     * Associa un utente LOCAL_ADMIN agli edifici indicati, replicando ogni
+     * nuova associazione ai Local Server tramite l'outbox.
+     *
+     * <p>L'operazione è idempotente: una riassegnazione di un binding già
+     * presente è ignorata silenziosamente. Per ogni binding effettivamente
+     * creato viene scritto un singolo evento outbox atomico alla mutazione di
+     * persistenza.</p>
+     *
+     * @param userId l'identificativo dell'utente LOCAL_ADMIN (non deve essere
+     *        {@code null} o vuoto)
+     * @param buildingIds gli identificativi degli edifici da associare (non deve
+     *        essere {@code null} o vuoto; ogni elemento non deve essere
+     *        {@code null} o vuoto)
+     * @throws UserNotFoundException se non esiste alcun utente con l'id fornito
+     * @throws IllegalArgumentException se {@code userId} o {@code buildingIds}
+     *         non sono validi (vuoti, {@code null} o contenenti elementi vuoti)
+     * @see #revokeBuildings(String, List)
+     */
     @Override
     public void assignBuildings(String userId, List<String> buildingIds) {
         validateRequest(userId, buildingIds);
@@ -88,6 +107,24 @@ public class LocalAdminBuildingService implements AssignLocalAdminBuildingsUseCa
         }
     }
 
+    /**
+     * Revoca le associazioni di un utente LOCAL_ADMIN con gli edifici indicati,
+     * replicando ogni revoca ai Local Server tramite l'outbox.
+     *
+     * <p>L'operazione è idempotente: la revoca di un binding inesistente è
+     * ignorata silenziosamente. Per ogni binding effettivamente rimosso viene
+     * scritto un singolo evento outbox atomico alla mutazione di persistenza.</p>
+     *
+     * @param userId l'identificativo dell'utente LOCAL_ADMIN (non deve essere
+     *        {@code null} o vuoto)
+     * @param buildingIds gli identificativi degli edifici da revocare (non deve
+     *        essere {@code null} o vuoto; ogni elemento non deve essere
+     *        {@code null} o vuoto)
+     * @throws UserNotFoundException se non esiste alcun utente con l'id fornito
+     * @throws IllegalArgumentException se {@code userId} o {@code buildingIds}
+     *         non sono validi (vuoti, {@code null} o contenenti elementi vuoti)
+     * @see #assignBuildings(String, List)
+     */
     @Override
     public void revokeBuildings(String userId, List<String> buildingIds) {
         validateRequest(userId, buildingIds);
@@ -109,6 +146,15 @@ public class LocalAdminBuildingService implements AssignLocalAdminBuildingsUseCa
         }
     }
 
+    /**
+     * Restituisce gli identificativi degli edifici associati a un utente.
+     *
+     * @param userId l'identificativo dell'utente di cui recuperare gli edifici
+     *        (non deve essere {@code null} o vuoto)
+     * @return la lista degli id edificio associati; lista vuota (mai
+     *         {@code null}) se l'utente non ha associazioni
+     * @throws IllegalArgumentException se {@code userId} è {@code null} o vuoto
+     */
     @Override
     @Transactional(readOnly = true)
     public List<String> getBuildingsForUser(String userId) {
@@ -127,6 +173,19 @@ public class LocalAdminBuildingService implements AssignLocalAdminBuildingsUseCa
      * the local side can dedupe and the central {@code replication_progress}
      * (which always tracks the outbox event id) is consistent across flows.
      */
+    /**
+     * Serializza un evento di metadati di binding e lo scrive nell'outbox.
+     *
+     * <p>Condivide un singolo UUID fra l'id dell'evento outbox e il
+     * {@code eventId} del DTO così che il lato Locale possa dedupplicare e il
+     * libro {@code replication_progress} centrale resti coerente.</p>
+     *
+     * @param eventType il tipo di evento da emettere (es.
+     *        {@code LOCAL_ADMIN_BUILDING_ASSIGNED})
+     * @param userId l'identificativo dell'utente interessato
+     * @param buildingId l'identificativo dell'edificio interessato
+     * @param assignedAt l'istante di assegnazione, o {@code null} per le revoche
+     */
     private void writeOutboxEvent(String eventType, String userId, String buildingId, Instant assignedAt) {
         String eventId = UUID.randomUUID().toString();
         LocalAdminBuildingEventDto dto = new LocalAdminBuildingEventDto(
@@ -144,6 +203,14 @@ public class LocalAdminBuildingService implements AssignLocalAdminBuildingsUseCa
         outboxEventRepository.save(event);
     }
 
+    /**
+     * Valida i parametri di una richiesta di assegnazione o revoca.
+     *
+     * @param userId l'identificativo utente da validare
+     * @param buildingIds la lista degli edifici da validare
+     * @throws IllegalArgumentException se {@code userId} è {@code null} o vuoto,
+     *         o se {@code buildingIds} è {@code null} o vuoto
+     */
     private static void validateRequest(String userId, List<String> buildingIds) {
         if (userId == null || userId.isBlank()) {
             throw new IllegalArgumentException("userId cannot be null or blank");

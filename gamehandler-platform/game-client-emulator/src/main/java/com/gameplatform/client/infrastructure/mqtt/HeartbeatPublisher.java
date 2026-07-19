@@ -11,12 +11,12 @@ import org.slf4j.LoggerFactory;
 import java.time.Instant;
 
 /**
- * Publishes periodic heartbeat messages to the MQTT broker.
+ * Pubblica messaggi heartbeat periodici sul broker MQTT.
  * <p>
- * Each heartbeat contains the game machine identifier and the current
- * timestamp. Messages are sent on the topic
- * {@code building/{buildingId}/game/{gameId}/heartbeat} with QoS 0
- * (fire-and-forget) and no retention.
+ * Ogni heartbeat contiene l'identificativo della macchina da gioco e il
+ * timestamp corrente. I messaggi vengono inviati sul topic
+ * {@code building/{buildingId}/game/{gameId}/heartbeat} con QoS 0
+ * (fire-and-forget) e senza retention.
  */
 public class HeartbeatPublisher {
 
@@ -26,10 +26,10 @@ public class HeartbeatPublisher {
     private final String buildingId;
 
     /**
-     * Creates a heartbeat publisher for the given adapter and building.
+     * Costruisce un publisher di heartbeat per l'adapter e l'edificio specificati.
      *
-     * @param adapter    the MQTT client adapter used for publishing
-     * @param buildingId the building identifier for topic construction
+     * @param adapter    l'adapter MQTT utilizzato per la pubblicazione
+     * @param buildingId l'identificativo dell'edificio per la costruzione del topic
      */
     public HeartbeatPublisher(MqttClientAdapter adapter, String buildingId) {
         this.adapter = adapter;
@@ -37,9 +37,9 @@ public class HeartbeatPublisher {
     }
 
     /**
-     * Publishes a heartbeat for the specified game machine.
+     * Pubblica un heartbeat per la macchina da gioco specificata.
      *
-     * @param gameId the game machine identifier
+     * @param gameId l'identificativo della macchina da gioco
      */
     public void publishHeartbeat(String gameId) {
         try {

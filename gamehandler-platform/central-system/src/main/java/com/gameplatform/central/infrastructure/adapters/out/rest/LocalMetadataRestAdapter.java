@@ -25,15 +25,19 @@ import java.net.HttpURLConnection;
 import java.util.List;
 
 /**
- * Pushes LOCAL_ADMIN&harr;building metadata events to a single local server's
- * {@code PUT /internal/metadata/sync} endpoint.
+ * Adapter REST che invia eventi di metadata LOCAL_ADMIN&harr;building al local
+ * server tramite l'endpoint {@code PUT /internal/metadata/sync}.
  *
- * <p>Structural twin of {@link LocalRestAdapter} (same SSLContext wiring,
- * timeouts, {@code X-Internal-Api-Key} header and {@link RetryTemplate}) but
- * for the metadata replication flow. Returns {@code void}: there is no ack /
- * poison-isolation contract because the local upsert/delete is idempotent by
- * composite PK, so a transient transport failure is simply retried via the
- * outbox on the next scheduler tick.</p>
+ * <p>Gemello strutturale di {@link LocalRestAdapter} (stesso wiring SSLContext,
+ * timeout, header {@code X-Internal-Api-Key} e {@link RetryTemplate}) ma per il
+ * flusso di replica dei metadata. Restituisce {@code void}: non esiste un
+ * contratto di ack/poison-isolation poich&eacute; l'upsert/delete lato
+ * ricevente &egrave; idempotente per chiave composita, quindi un errore di
+ * trasporto transiente viene ritentato tramite outbox al successivo ciclo dello
+ * scheduler.</p>
+ *
+ * @see LocalRestAdapter
+ * @see PushMetadataToLocalServersPort
  */
 @Component
 public class LocalMetadataRestAdapter implements PushMetadataToLocalServersPort {
@@ -44,6 +48,15 @@ public class LocalMetadataRestAdapter implements PushMetadataToLocalServersPort 
     private final String apiKey;
     private final RetryTemplate retryTemplate;
 
+    /**
+     * Costruisce l'adapter configurando il client HTTP con il contesto SSL, la
+     * chiave API interna e i timeout di connessione e lettura.
+     *
+     * @param sslContext       contesto SSL utilizzato per le connessioni HTTPS; non deve essere {@code null}
+     * @param apiKey           chiave API interna inviata nell'header {@code X-Internal-Api-Key}; non deve essere {@code null}
+     * @param connectTimeoutMs timeout di connessione in millisecondi; se non configurato assume il valore predefinito 5000
+     * @param readTimeoutMs    timeout di lettura in millisecondi; se non configurato assume il valore predefinito 5000
+     */
     @org.springframework.beans.factory.annotation.Autowired
     public LocalMetadataRestAdapter(
             SSLContext sslContext,
@@ -66,13 +79,26 @@ public class LocalMetadataRestAdapter implements PushMetadataToLocalServersPort 
         this.retryTemplate = buildDefaultRetryTemplate();
     }
 
-    // Package-private constructor for testing
+    /**
+     * Costruisce l'adapter con un {@link RestTemplate} fornito esternamente,
+     * utile per i test unitari.
+     *
+     * @param restTemplate il template REST da utilizzare per le chiamate HTTP; non deve essere {@code null}
+     * @param apiKey       chiave API interna inviata nell'header {@code X-Internal-Api-Key}; non deve essere {@code null}
+     */
     LocalMetadataRestAdapter(RestTemplate restTemplate, String apiKey) {
         this.restTemplate = restTemplate;
         this.apiKey = apiKey;
         this.retryTemplate = buildDefaultRetryTemplate();
     }
 
+    /**
+     * Costruisce il template di retry predefinito con 3 tentativi, backoff
+     * esponenziale da 100 ms a 10 s e ripetizione solo su
+     * {@link TransientPushException}.
+     *
+     * @return il template di retry configurato; mai {@code null}
+     */
     private static RetryTemplate buildDefaultRetryTemplate() {
         return RetryTemplate.builder()
                 .maxAttempts(3)
@@ -81,6 +107,21 @@ public class LocalMetadataRestAdapter implements PushMetadataToLocalServersPort 
                 .build();
     }
 
+    /**
+     * Invia una lista di eventi di metadata LOCAL_ADMIN&harr;building al local
+     * server specificato tramite una richiesta {@code PUT} all'endpoint di
+     * sincronizzazione.
+     * <p>
+     * In caso di errore transiente dopo aver esaurito i tentativi di retry,
+     * rilancia un'eccezione {@link RuntimeException} contenente la causa
+     * originale.
+     *
+     * @param events la lista degli eventi di metadata da inviare; non deve essere {@code null}
+     * @param server il local server di destinazione; non deve essere {@code null}
+     * @throws RuntimeException se la richiesta fallisce dopo aver esaurito tutti i tentativi di retry
+     * @see #isTransient(Exception)
+     * @see #isConnectionRefusedRoot(Throwable)
+     */
     @Override
     public void pushMetadata(List<LocalAdminBuildingEventDto> events, RegisteredLocalServer server) {
         String url = server.getBaseUrl() + "/internal/metadata/sync";
@@ -122,6 +163,17 @@ public class LocalMetadataRestAdapter implements PushMetadataToLocalServersPort 
         }
     }
 
+    /**
+     * Verifica se un'eccezione rappresenta un errore transiente che pu&ograve;
+     * essere ritentato.
+     * <p>
+     * Sono considerati transienti: {@link ResourceAccessException}, errori HTTP
+     * 5xx, {@code 429 Too Many Requests} e {@code 408 Request Timeout}.
+     *
+     * @param e l'eccezione da classificare; non deve essere {@code null}
+     * @return {@code true} se l'eccezione &egrave; di tipo transiente,
+     *         {@code false} altrimenti
+     */
     static boolean isTransient(Exception e) {
         if (e instanceof ResourceAccessException) {
             return true;
@@ -133,6 +185,15 @@ public class LocalMetadataRestAdapter implements PushMetadataToLocalServersPort 
         return false;
     }
 
+    /**
+     * Verifica se la causa radice di un'eccezione (o dell'intera catena di
+     * cause) &egrave; un {@link java.net.ConnectException}, indicando che il
+     * server di destinazione non &egrave; raggiungibile.
+     *
+     * @param t l'eccezione o throwable da ispezionare; non deve essere {@code null}
+     * @return {@code true} se nella catena delle cause &egrave; presente un
+     *         {@code ConnectException}, {@code false} altrimenti
+     */
     static boolean isConnectionRefusedRoot(Throwable t) {
         Throwable cur = t;
         while (cur != null) {

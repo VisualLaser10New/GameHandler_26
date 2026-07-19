@@ -22,12 +22,12 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Player-scoped match-history view (PIANO §7.C line 737).
+ * Vista della cronologia partite del giocatore.
  * <p>
- * Polls {@code GET /api/players/me/matches/history[?gameType=]} (the
- * Local {@code PlayerMatchHistoryController}). The COMPLETED filter is
- * applied server-side by the Local server. The view exposes a GameType
- * filter (ComboBox) and a manual Refresh button.
+ * Recupera i dati tramite {@code GET /api/players/me/matches/history[?gameType=]}
+ * dal {@code PlayerMatchHistoryController} locale. Il filtro COMPLETED è
+ * applicato lato server. La vista espone un filtro per tipo di gioco
+ * (ComboBox) e un pulsante di refresh manuale.
  */
 public class MyMatchesView {
 
@@ -43,6 +43,12 @@ public class MyMatchesView {
     private final StalenessBadge staleness;
     private volatile Instant latestUpdatedAt;
 
+    /**
+     * Costruisce la vista della cronologia partite.
+     * <p>
+     * Inizializza la tabella, il filtro per tipo di gioco, il
+     * pulsante di refresh e l'indicatore di obsolescenza dei dati.
+     */
     public MyMatchesView() {
         VBox content = new VBox(10);
         content.setStyle("-fx-padding: 20; -fx-background-color: #1e1e1e;");
@@ -113,10 +119,22 @@ public class MyMatchesView {
         gameTypeFilter.setOnAction(e -> refresh());
     }
 
+    /**
+     * Restituisce il nodo radice JavaFX per questa vista.
+     *
+     * @return il nodo {@link Parent} radice
+     */
     public Parent getView() {
         return root;
     }
 
+    /**
+     * Aggiorna la cronologia partite dal server.
+     * <p>
+     * Effettua una chiamata asincrona {@code GET /api/players/me/matches/history}
+     * con il filtro gameType opzionale. Aggiorna la tabella con i risultati
+     * e l'indicatore di obsolescenza.
+     */
     public void refresh() {
         loading.show();
         statusLabel.setText("Loading match history...");
@@ -139,6 +157,16 @@ public class MyMatchesView {
                 .exceptionally(ex -> { Platform.runLater(() -> handleError(ex)); return null; });
     }
 
+    /**
+     * Gestisce un errore asincrono delle chiamate API.
+     * <p>
+     * Nasconde l'indicatore di caricamento, risale la catena delle
+     * eccezioni fino alla causa radice e aggiorna l'etichetta di
+     * stato con il messaggio di errore.
+     *
+     * @param ex l'eccezione da gestire; può essere null
+     * @return sempre null
+     */
     private Void handleError(Throwable ex) {
         loading.hide();
         Throwable t = ex;

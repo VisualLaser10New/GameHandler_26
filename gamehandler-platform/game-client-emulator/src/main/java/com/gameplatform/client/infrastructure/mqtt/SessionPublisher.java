@@ -16,12 +16,14 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 /**
- * Publishes game session lifecycle events to the MQTT broker.
+ * Pubblica gli eventi del ciclo di vita delle sessioni di gioco sul broker MQTT.
  * <p>
- * Supports four session event types: start, end, pause, and resume.
- * Each method constructs the appropriate payload and topic using
- * {@link MqttTopics} helper methods and publishes with QoS 1
- * (non-retained) via the underlying {@link MqttClientAdapter}.
+ * Supporta quattro tipi di eventi di sessione: avvio, termine, pausa e ripresa,
+ * oltre a eventi di lobby (creazione, partecipazione, avvio, cancellazione,
+ * abbandono) ed eventi di gioco multiplayer (turno, mossa, punteggio).
+ * Ogni metodo costruisce il payload e il topic appropriato utilizzando i metodi
+ * di supporto di {@link MqttTopics} e pubblica con QoS 1 (non retained)
+ * tramite {@link MqttClientAdapter}.
  */
 public class SessionPublisher {
 
@@ -31,10 +33,10 @@ public class SessionPublisher {
     private final String buildingId;
 
     /**
-     * Creates a session publisher for the given adapter and building.
+     * Costruisce un publisher di sessione per l'adapter e l'edificio specificati.
      *
-     * @param adapter    the MQTT client adapter used for publishing
-     * @param buildingId the building identifier for topic construction
+     * @param adapter    l'adapter MQTT utilizzato per la pubblicazione
+     * @param buildingId l'identificativo dell'edificio per la costruzione del topic
      */
     public SessionPublisher(MqttClientAdapter adapter, String buildingId) {
         this.adapter = adapter;
@@ -42,12 +44,12 @@ public class SessionPublisher {
     }
 
     /**
-     * Publishes a session start event.
+     * Pubblica un evento di avvio sessione.
      *
-     * @param gameId       the game machine identifier
-     * @param sessionId    the session identifier
-     * @param gameType     the type of game being played
-     * @param participants the list of participant user IDs
+     * @param gameId       l'identificativo della macchina da gioco
+     * @param sessionId    l'identificativo della sessione
+     * @param gameType     il tipo di gioco avviato
+     * @param participants la lista degli identificativi dei partecipanti
      */
     public void publishStart(String gameId, String sessionId, GameType gameType, List<String> participants) {
         try {
@@ -63,13 +65,13 @@ public class SessionPublisher {
     }
 
     /**
-     * Publishes a session end event with results.
+     * Pubblica un evento di termine sessione con i risultati.
      *
-     * @param gameId      the game machine identifier
-     * @param sessionId   the session identifier
-     * @param winnerId    the winner's user ID, or {@code null} for draws
-     * @param winCondition how the session ended (e.g. WIN, DRAW, TIMEOUT)
-     * @param resultData  optional JSON string with detailed results
+     * @param gameId       l'identificativo della macchina da gioco
+     * @param sessionId    l'identificativo della sessione
+     * @param winnerId     l'identificativo del vincitore, oppure {@code null} in caso di pareggio
+     * @param winCondition la modalit&agrave; di conclusione della sessione (es. WIN, DRAW, TIMEOUT)
+     * @param resultData   stringa JSON opzionale con risultati dettagliati; pu&ograve; essere {@code null}
      */
     public void publishEnd(String gameId, String sessionId, String winnerId,
                            WinCondition winCondition, String resultData) {
@@ -86,11 +88,11 @@ public class SessionPublisher {
     }
 
     /**
-     * Publishes a session pause event.
+     * Pubblica un evento di pausa sessione.
      *
-     * @param gameId    the game machine identifier
-     * @param sessionId the session identifier
-     * @param pausedBy  the user who paused the session, or {@code null}
+     * @param gameId    l'identificativo della macchina da gioco
+     * @param sessionId l'identificativo della sessione
+     * @param pausedBy  l'utente che ha messo in pausa la sessione, oppure {@code null}
      */
     public void publishPause(String gameId, String sessionId, String pausedBy) {
         try {
@@ -106,10 +108,10 @@ public class SessionPublisher {
     }
 
     /**
-     * Publishes a session resume event.
+     * Pubblica un evento di ripresa sessione.
      *
-     * @param gameId    the game machine identifier
-     * @param sessionId the session identifier
+     * @param gameId    l'identificativo della macchina da gioco
+     * @param sessionId l'identificativo della sessione
      */
     public void publishResume(String gameId, String sessionId) {
         try {
@@ -124,6 +126,13 @@ public class SessionPublisher {
         }
     }
 
+    /**
+     * Pubblica un evento di creazione lobby.
+     *
+     * @param gameId    l'identificativo della macchina da gioco
+     * @param gameType  il tipo di gioco della lobby
+     * @param creatorId l'identificativo dell'utente che ha creato la lobby
+     */
     public void publishLobbyCreate(String gameId, GameType gameType, String creatorId) {
         try {
             String topic = "building/" + buildingId + "/game/" + gameId + "/session/lobby/create";
@@ -136,6 +145,13 @@ public class SessionPublisher {
         }
     }
 
+    /**
+     * Pubblica un evento di partecipazione alla lobby.
+     *
+     * @param gameId    l'identificativo della macchina da gioco
+     * @param sessionId l'identificativo della sessione
+     * @param userId    l'identificativo dell'utente che si unisce alla lobby
+     */
     public void publishLobbyJoin(String gameId, String sessionId, String userId) {
         try {
             String topic = "building/" + buildingId + "/game/" + gameId + "/session/lobby/join";
@@ -148,6 +164,12 @@ public class SessionPublisher {
         }
     }
 
+    /**
+     * Pubblica un evento di avvio della partita dalla lobby.
+     *
+     * @param gameId    l'identificativo della macchina da gioco
+     * @param sessionId l'identificativo della sessione
+     */
     public void publishLobbyStart(String gameId, String sessionId) {
         try {
             String topic = "building/" + buildingId + "/game/" + gameId + "/session/lobby/start";
@@ -160,6 +182,13 @@ public class SessionPublisher {
         }
     }
 
+    /**
+     * Pubblica un evento di cancellazione della lobby.
+     *
+     * @param gameId    l'identificativo della macchina da gioco
+     * @param sessionId l'identificativo della sessione
+     * @param userId    l'identificativo dell'utente che ha cancellato la lobby
+     */
     public void publishLobbyCancel(String gameId, String sessionId, String userId) {
         try {
             String topic = "building/" + buildingId + "/game/" + gameId + "/session/lobby/cancel";
@@ -172,6 +201,13 @@ public class SessionPublisher {
         }
     }
 
+    /**
+     * Pubblica un evento di abbandono della lobby.
+     *
+     * @param gameId    l'identificativo della macchina da gioco
+     * @param sessionId l'identificativo della sessione
+     * @param userId    l'identificativo dell'utente che abbandona la lobby
+     */
     public void publishLobbyLeave(String gameId, String sessionId, String userId) {
         try {
             String topic = "building/" + buildingId + "/game/" + gameId + "/session/lobby/leave";
@@ -185,15 +221,16 @@ public class SessionPublisher {
     }
 
     /**
-     * Publishes a turn-change event so that all emulators participating
-     * in a turn-based multiplayer game stay in sync on whose turn it is.
-     * Sent peer-to-peer between clients (the local server does not handle
-     * turn logic); published on {@link MqttTopics#sessionTurn} with QoS 1.
+     * Pubblica un evento di cambio turno per mantenere sincronizzati tutti
+     * gli emulatori partecipanti a un gioco multiplayer a turni.
+     * <p>
+     * Inviato peer-to-peer tra i client (il server locale non gestisce la
+     * logica del turno); pubblicato su {@link MqttTopics#sessionTurn} con QoS 1.
      *
-     * @param gameId     the game machine identifier
-     * @param sessionId the session identifier
-     * @param turnIndex the new turn index (0-based) into the participants list
-     * @param playerName the username of the player whose turn it now is
+     * @param gameId     l'identificativo della macchina da gioco
+     * @param sessionId  l'identificativo della sessione
+     * @param turnIndex  l'indice del nuovo turno (base 0) nella lista dei partecipanti
+     * @param playerName il nome dell'utente di cui è il turno
      */
     public void publishTurn(String gameId, String sessionId, int turnIndex, String playerName) {
         try {
@@ -209,19 +246,20 @@ public class SessionPublisher {
     }
 
     /**
-     * Publishes a board-move event so that all emulators participating
-     * in a board-style multiplayer game (currently Chess) show the same
-     * board state. Sent peer-to-peer between clients on
-     * {@link MqttTopics#sessionMove} with QoS 1.
+     * Pubblica un evento di mossa sulla scacchiera per sincronizzare lo stato
+     * del gioco tra tutti gli emulatori partecipanti a un gioco multiplayer
+     * a scacchiera (attualmente Chess).
+     * <p>
+     * Inviato peer-to-peer tra i client su {@link MqttTopics#sessionMove} con QoS 1.
      *
-     * @param gameId        the game machine identifier
-     * @param sessionId     the session identifier
-     * @param fromRow       source row (0-based)
-     * @param fromCol       source column (0-based)
-     * @param toRow         target row (0-based)
-     * @param toCol         target column (0-based)
-     * @param capturedPiece Unicode glyph of the piece captured on the
-     *                      target cell, or {@code null} if the cell was empty
+     * @param gameId        l'identificativo della macchina da gioco
+     * @param sessionId     l'identificativo della sessione
+     * @param fromRow       riga di origine (base 0)
+     * @param fromCol       colonna di origine (base 0)
+     * @param toRow         riga di destinazione (base 0)
+     * @param toCol         colonna di destinazione (base 0)
+     * @param capturedPiece glifo Unicode del pezzo catturato sulla cella di
+     *                      destinazione, oppure {@code null} se la cella era vuota
      */
     public void publishMove(String gameId, String sessionId,
                             int fromRow, int fromCol, int toRow, int toCol,
@@ -240,13 +278,14 @@ public class SessionPublisher {
     }
 
     /**
-     * Publishes a score snapshot so that all emulators participating
-     * in a multiplayer game show the same scoreboard. Sent peer-to-peer
-     * between clients on {@link MqttTopics#sessionScore} with QoS 1.
+     * Pubblica un'istantanea dei punteggi per sincronizzare la classifica tra
+     * tutti gli emulatori partecipanti a un gioco multiplayer.
+     * <p>
+     * Inviato peer-to-peer tra i client su {@link MqttTopics#sessionScore} con QoS 1.
      *
-     * @param gameId   the game machine identifier
-     * @param sessionId the session identifier
-     * @param scores  a full snapshot of player -> score entries
+     * @param gameId    l'identificativo della macchina da gioco
+     * @param sessionId l'identificativo della sessione
+     * @param scores    mappa completa delle voci giocatore-punteggio
      */
     public void publishScore(String gameId, String sessionId,
                              java.util.Map<String, Integer> scores) {

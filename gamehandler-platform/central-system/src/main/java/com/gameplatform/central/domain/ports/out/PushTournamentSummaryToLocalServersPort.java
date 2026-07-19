@@ -6,28 +6,35 @@ import com.gameplatform.shared.dto.TournamentSummaryEventDto;
 import java.util.List;
 
 /**
- * Outbound port for pushing a batch of {@code TOURNAMENT_SUMMARY_UPSERTED}
- * events to a single Local Server's
- * {@code PUT /internal/tournaments/summaries/sync} endpoint. Structural twin
- * of {@link PushTournamentMatchToLocalServersPort} and
+ * Porta di uscita per l'invio di un batch di eventi
+ * {@code TOURNAMENT_SUMMARY_UPSERTED} all'endpoint
+ * {@code PUT /internal/tournaments/summaries/sync} di un singolo server locale.
+ * Gemello strutturale di {@link PushTournamentMatchToLocalServersPort} e
  * {@link PushGameDefinitionToLocalServersPort}.
  *
- * <p>No ack / poison-isolation: the local upsert is idempotent by PK
- * ({@code tournamentId}), so a transient transport failure just retries via
- * the outbox on the next scheduler tick. A {@code deleted=true} tombstone is
- * handled by the local side as a {@code deleteById} (projection removal).</p>
+ * <p>Non è previsto alcun contratto di ack o di isolamento dei messaggi
+ * avvelenati: l'upsert locale è idempotente per chiave primaria
+ * {@code (tournamentId)}, pertanto un fallimento transitorio di trasporto viene
+ * semplicemente ritentato tramite l'outbox al ciclo successivo dello
+ * scheduler. Una tombstone con {@code deleted=true} è gestita lato locale come
+ * una cancellazione per identificativo (rimozione della proiezione).</p>
  *
  * @throws com.gameplatform.central.domain.exception.TransientPushException
- *         on transient transport failure (caller retries via the outbox)
+ *         in caso di fallimento transitorio di trasporto (il chiamante ritenta tramite l'outbox)
+ * @see PushTournamentMatchToLocalServersPort
+ * @see PushGameDefinitionToLocalServersPort
+ * @see TournamentSummaryEventDto
  */
 public interface PushTournamentSummaryToLocalServersPort {
 
     /**
-     * Pushes a batch of tournament-summary upsert events to a single local
-     * server.
+     * Invia un batch di eventi di riepilogo di torneo al server locale indicato.
      *
-     * @param events the summary DTO batch to push
-     * @param server the single target active local server
+     * @param events il batch di DTO dei riepiloghi da inviare; non deve essere {@code null}
+     * @param server il singolo server locale attivo di destinazione; non deve essere {@code null}
+     * @throws IllegalArgumentException in caso di parametri {@code null}
+     * @throws com.gameplatform.central.domain.exception.TransientPushException
+     *         in caso di fallimento transitorio di trasporto
      */
     void push(List<TournamentSummaryEventDto> events, RegisteredLocalServer server);
 }

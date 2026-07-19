@@ -12,12 +12,15 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Implementation of the W6 use case (PIANO §7.B): a PLAYER registers as a
- * tournament participant (individual or team captain). Pre-controls the
- * {@code PLAYER} role on {@code replicated_users}, then atomically writes a
- * {@code admin_requests_local} PENDING row and the matching outbox
- * {@code PARTICIPANT_REGISTER_REQUESTED} event (the {@code requestId} equals
- * the {@code eventId}).
+ * Implementazione del caso d'uso W6 (PIANO §7.B): un PLAYER si registra
+ * come partecipante a un torneo (individuale o capitano di squadra).
+ * Esegue il pre-controllo del ruolo {@code PLAYER} su {@code replicated_users},
+ * poi scrive atomicamente una riga {@code admin_requests_local} PENDING e
+ * l'evento outbox {@code PARTICIPANT_REGISTER_REQUESTED}.
+ *
+ * @see RegisterTournamentParticipantRequestedUseCase
+ * @see AdminRequestOutboxWriter
+ * @see RolePreCheck
  */
 @Service
 public class RegisterTournamentParticipantRequestedService
@@ -38,6 +41,21 @@ public class RegisterTournamentParticipantRequestedService
         this.clock = clock;
     }
 
+    /**
+     * Registra un partecipante a un torneo. Verifica il ruolo PLAYER
+     * e la validita' del tournamentId, poi scrive la richiesta admin
+     * PENDING e l'evento outbox.
+     *
+     * @param tournamentId  l'identificativo del torneo (non blank)
+     * @param actingUserId  l'identificativo dell'utente richiedente
+     * @param actingRole    il ruolo con cui l'utente agisce
+     * @param buildingId    l'identificativo del building di competenza
+     * @param teamName      il nome della squadra (opzionale, per registrazione di squadra)
+     * @param teamMemberIds la lista degli ID dei membri della squadra (opzionale)
+     * @return il DTO della richiesta admin creata
+     * @throws IllegalArgumentException se tournamentId e' blank
+     * @throws org.springframework.security.access.AccessDeniedException se l'utente non ha il ruolo PLAYER
+     */
     @Override
     @Transactional
     public AdminRequestDto register(String tournamentId,

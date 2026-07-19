@@ -25,10 +25,27 @@ public class UserController {
 
     private final RegisterUserUseCase registerUserUseCase;
 
+    /**
+     * Costruisce il controller iniettando il caso d'uso di registrazione utente.
+     *
+     * @param registerUserUseCase caso d'uso per la registrazione degli utenti, non {@code null}
+     */
     public UserController(RegisterUserUseCase registerUserUseCase) {
         this.registerUserUseCase = registerUserUseCase;
     }
 
+    /**
+     * Registra un nuovo utente nel sistema a partire dai dati forniti.
+     *
+     * <p>Delega la creazione al caso d'uso di dominio e restituisce il DTO
+     * rappresentante l'utente appena creato.</p>
+     *
+     * @param request dto di richiesta con username, password ed email, validato tramite {@code @Valid}; non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 201 Created} e il {@link UserDto} dell'utente registrato
+     * @throws com.gameplatform.central.domain.exception.UserAlreadyExistsException se lo username è già in uso (mappato a {@code 409})
+     * @throws jakarta.validation.ValidationException se il body non supera i vincoli di validazione (mappato a {@code 400})
+     * @see GlobalExceptionHandler
+     */
     @PostMapping
     public ResponseEntity<UserDto> registerUser(@Valid @RequestBody CreateUserRequestDto request) {
         User registeredUser = registerUserUseCase.register(

@@ -11,26 +11,17 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Domain entity representing a tournament in the Central Source-of-Truth,
- * embodying the immutable state-machine lifecycle defined in PIANO FASE 4
- * &sect;3.1 ({@code DRAFT} &rarr; {@code OPEN_REGISTRATION} &rarr;
- * {@code IN_PROGRESS} &rarr; {@code COMPLETED}, with {@code CANCELLED} as a
- * terminal side-state reachable from {@code DRAFT} or
- * {@code OPEN_REGISTRATION}).
+ * Entità di dominio che rappresenta un torneo e ne incarna il ciclo di vita
+ * come macchina a stati immutabile, dalla bozza fino al completamento, con la
+ * possibilità di annullamento nelle fasi iniziali. L'identità è determinata
+ * dall'identificativo del torneo. I metodi di transizione restituiscono una
+ * nuova istanza con lo stato aggiornato senza modificare quella corrente e
+ * segnalano gli stati di partenza non validi tramite eccezione.
  *
- * <p>Pure Java (no framework annotations), mirroring the
- * {@code GameDefinition}/{@code PlayerStatistics} POJO convention. Identity is
- * the {@code tournamentId} (primary key). Transition methods
- * ({@link #openRegistration()}, {@link #cancel()}, {@link #startProgress()},
- * {@link #complete(Instant)}) return a NEW immutable instance with the updated
- * {@link TournamentStatus}; the receiver is never mutated. Illegal source
- * states raise {@link InvalidTournamentStateException}.</p>
- *
- * <p>{@link #startProgress()} and {@link #complete(Instant)} are
- * <em>forward-declared</em> for FASE 5 (match execution) and FASE 6
- * (tournament completion) respectively; they are not invoked by any FASE 4
- * code path but are placed here to keep the state machine cohesive and to
- * localise the transition invariants in one type.</p>
+ * @see TournamentId
+ * @see TournamentStatus
+ * @see TournamentFormat
+ * @see InvalidTournamentStateException
  */
 public class Tournament {
     private final TournamentId tournamentId;
@@ -45,6 +36,22 @@ public class Tournament {
     private final UserId createdBy;
     private final Instant createdAt;
 
+    /**
+     * Costruisce un torneo con i valori specificati.
+     *
+     * @param tournamentId identificativo univoco del torneo; non può essere {@code null}
+     * @param name nome del torneo; non può essere {@code null} né vuoto
+     * @param gameType tipo di gioco del torneo; non può essere {@code null}
+     * @param teamBased indica se il torneo è a squadre
+     * @param teamSize dimensione delle squadre; deve essere maggiore o uguale a 1 e pari a 1 per i tornei individuali
+     * @param format formato del torneo; non può essere {@code null}
+     * @param status stato iniziale del torneo; non può essere {@code null}
+     * @param startsAt istante di inizio previsto; non può essere {@code null}
+     * @param endsAt istante di fine; può essere {@code null} se il torneo non è ancora concluso
+     * @param createdBy identificativo dell'utente che ha creato il torneo; non può essere {@code null}
+     * @param createdAt istante di creazione del torneo; non può essere {@code null}
+     * @throws IllegalArgumentException se uno dei vincoli sui parametri non è rispettato
+     */
     public Tournament(TournamentId tournamentId, String name, GameType gameType, boolean teamBased,
                       int teamSize, TournamentFormat format, TournamentStatus status, Instant startsAt,
                       Instant endsAt, UserId createdBy, Instant createdAt) {
@@ -72,14 +79,15 @@ public class Tournament {
     }
 
     /**
-     * Returns a new {@code Tournament} with status
-     * {@link TournamentStatus#OPEN_REGISTRATION}. Legal only when the current
-     * status is {@link TournamentStatus#DRAFT}; the receiver is left unchanged
-     * (immutable transition).
+     * Restituisce un nuovo torneo con stato
+     * {@link TournamentStatus#OPEN_REGISTRATION}. La transizione è consentita
+     * solo se lo stato corrente è {@link TournamentStatus#DRAFT}; l'istanza
+     * corrente non viene modificata.
      *
-     * @return a new immutable {@code Tournament} in
-     *         {@code OPEN_REGISTRATION} state
-     * @throws InvalidTournamentStateException if {@code status != DRAFT}
+     * @return una nuova istanza immutabile di {@code Tournament} nello stato {@code OPEN_REGISTRATION}
+     * @throws InvalidTournamentStateException se lo stato corrente non è {@code DRAFT}
+     * @see #cancel()
+     * @see #startProgress()
      */
     public Tournament openRegistration() {
         if (status != TournamentStatus.DRAFT) {
@@ -90,15 +98,14 @@ public class Tournament {
     }
 
     /**
-     * Returns a new {@code Tournament} with status
-     * {@link TournamentStatus#CANCELLED}. Legal only when the current status
-     * is {@link TournamentStatus#DRAFT} or
-     * {@link TournamentStatus#OPEN_REGISTRATION}; the receiver is left
-     * unchanged (immutable transition).
+     * Restituisce un nuovo torneo con stato
+     * {@link TournamentStatus#CANCELLED}. La transizione è consentita solo se
+     * lo stato corrente è {@link TournamentStatus#DRAFT} oppure
+     * {@link TournamentStatus#OPEN_REGISTRATION}; l'istanza corrente non viene
+     * modificata.
      *
-     * @return a new immutable {@code Tournament} in {@code CANCELLED} state
-     * @throws InvalidTournamentStateException if {@code status} is neither
-     *         {@code DRAFT} nor {@code OPEN_REGISTRATION}
+     * @return una nuova istanza immutabile di {@code Tournament} nello stato {@code CANCELLED}
+     * @throws InvalidTournamentStateException se lo stato corrente non è né {@code DRAFT} né {@code OPEN_REGISTRATION}
      */
     public Tournament cancel() {
         if (status != TournamentStatus.DRAFT && status != TournamentStatus.OPEN_REGISTRATION) {
@@ -109,17 +116,14 @@ public class Tournament {
     }
 
     /**
-     * Returns a new {@code Tournament} with status
-     * {@link TournamentStatus#IN_PROGRESS}. Legal only when the current
-     * status is {@link TournamentStatus#OPEN_REGISTRATION}; the receiver is
-     * left unchanged (immutable transition).
+     * Restituisce un nuovo torneo con stato
+     * {@link TournamentStatus#IN_PROGRESS}. La transizione è consentita solo se
+     * lo stato corrente è {@link TournamentStatus#OPEN_REGISTRATION}; l'istanza
+     * corrente non viene modificata.
      *
-     * <p><em>Forward-declared for FASE 5</em>: not invoked by any FASE 4 code
-     * path; bracket generation in {@code TournamentMatchSetupService} (FASE 5)
-     * will be its first caller.</p>
-     *
-     * @return a new immutable {@code Tournament} in {@code IN_PROGRESS} state
-     * @throws InvalidTournamentStateException if {@code status != OPEN_REGISTRATION}
+     * @return una nuova istanza immutabile di {@code Tournament} nello stato {@code IN_PROGRESS}
+     * @throws InvalidTournamentStateException se lo stato corrente non è {@code OPEN_REGISTRATION}
+     * @see #complete(Instant)
      */
     public Tournament startProgress() {
         if (status != TournamentStatus.OPEN_REGISTRATION) {
@@ -130,22 +134,16 @@ public class Tournament {
     }
 
     /**
-     * Returns a new {@code Tournament} with status
-     * {@link TournamentStatus#COMPLETED} and {@code endsAt} set to
-     * {@code endedAt}. Legal only when the current status is
-     * {@link TournamentStatus#IN_PROGRESS} and {@code endedAt} is non-null;
-     * the receiver is left unchanged (immutable transition).
+     * Restituisce un nuovo torneo con stato
+     * {@link TournamentStatus#COMPLETED} e istante di fine impostato a
+     * {@code endedAt}. La transizione è consentita solo se lo stato corrente è
+     * {@link TournamentStatus#IN_PROGRESS} e {@code endedAt} non è {@code null};
+     * l'istanza corrente non viene modificata.
      *
-     * <p><em>Forward-declared for FASE 6</em>: not invoked by any FASE 4 code
-     * path; tournament finalisation in {@code TournamentCompletionService}
-     * (FASE 6) will be its first caller.</p>
-     *
-     * @param endedAt the instant at which the tournament actually ended
-     *                (must not be {@code null})
-     * @return a new immutable {@code Tournament} in {@code COMPLETED} state
-     *         with {@code endsAt = endedAt}
-     * @throws InvalidTournamentStateException if {@code status != IN_PROGRESS}
-     *         or {@code endedAt == null}
+     * @param endedAt istante di effettiva conclusione del torneo; non può essere {@code null}
+     * @return una nuova istanza immutabile di {@code Tournament} nello stato {@code COMPLETED} con istante di fine pari a {@code endedAt}
+     * @throws InvalidTournamentStateException se lo stato corrente non è {@code IN_PROGRESS} oppure se {@code endedAt} è {@code null}
+     * @see #startProgress()
      */
     public Tournament complete(Instant endedAt) {
         if (status != TournamentStatus.IN_PROGRESS || endedAt == null) {
@@ -156,17 +154,15 @@ public class Tournament {
     }
 
     /**
-     * Returns a new {@code Tournament} with the mutated mutable fields
-     * ({@code name}, {@code startsAt}) and {@code endsAt = null}. Legal only
-     * when the current status is {@link TournamentStatus#DRAFT}; the receiver
-     * is left unchanged (immutable transition). Used by use case §7.A.1
-     * (UpdateTournamentService).
+     * Restituisce un nuovo torneo con il nome e l'istante di inizio aggiornati e
+     * l'istante di fine azzerato. La transizione è consentita solo se lo stato
+     * corrente è {@link TournamentStatus#DRAFT}; l'istanza corrente non viene
+     * modificata.
      *
-     * @param name     the new tournament name
-     * @param startsAt the new scheduled start instant
-     * @return a new immutable {@code Tournament} in {@code DRAFT} state with
-     *         updated {@code name}/{@code startsAt} and {@code endsAt = null}
-     * @throws InvalidTournamentStateException if {@code status != DRAFT}
+     * @param name nuovo nome del torneo
+     * @param startsAt nuovo istante di inizio previsto
+     * @return una nuova istanza immutabile di {@code Tournament} nello stato {@code DRAFT} con nome e istante di inizio aggiornati e istante di fine pari a {@code null}
+     * @throws InvalidTournamentStateException se lo stato corrente non è {@code DRAFT}
      */
     public Tournament update(String name, Instant startsAt) {
         if (status != TournamentStatus.DRAFT) {
@@ -176,50 +172,112 @@ public class Tournament {
                 status, startsAt, null, createdBy, createdAt);
     }
 
+    /**
+     * Restituisce l'identificativo univoco del torneo.
+     *
+     * @return l'identificativo del torneo, mai {@code null}
+     */
     public TournamentId getTournamentId() {
         return tournamentId;
     }
 
+    /**
+     * Restituisce il nome del torneo.
+     *
+     * @return il nome del torneo, mai {@code null} né vuoto
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * Restituisce il tipo di gioco del torneo.
+     *
+     * @return il tipo di gioco, mai {@code null}
+     */
     public GameType getGameType() {
         return gameType;
     }
 
+    /**
+     * Indica se il torneo è organizzato a squadre.
+     *
+     * @return {@code true} se il torneo è a squadre, {@code false} se è individuale
+     */
     public boolean isTeamBased() {
         return teamBased;
     }
 
+    /**
+     * Restituisce la dimensione delle squadre partecipanti.
+     *
+     * @return la dimensione delle squadre, sempre maggiore o uguale a 1
+     */
     public int getTeamSize() {
         return teamSize;
     }
 
+    /**
+     * Restituisce il formato del torneo.
+     *
+     * @return il formato del torneo, mai {@code null}
+     */
     public TournamentFormat getFormat() {
         return format;
     }
 
+    /**
+     * Restituisce lo stato corrente del torneo.
+     *
+     * @return lo stato del torneo, mai {@code null}
+     */
     public TournamentStatus getStatus() {
         return status;
     }
 
+    /**
+     * Restituisce l'istante di inizio previsto del torneo.
+     *
+     * @return l'istante di inizio, mai {@code null}
+     */
     public Instant getStartsAt() {
         return startsAt;
     }
 
+    /**
+     * Restituisce l'istante di fine del torneo.
+     *
+     * @return l'istante di fine, oppure {@code null} se il torneo non è ancora concluso
+     */
     public Instant getEndsAt() {
         return endsAt;
     }
 
+    /**
+     * Restituisce l'identificativo dell'utente che ha creato il torneo.
+     *
+     * @return l'identificativo del creatore, mai {@code null}
+     */
     public UserId getCreatedBy() {
         return createdBy;
     }
 
+    /**
+     * Restituisce l'istante di creazione del torneo.
+     *
+     * @return l'istante di creazione, mai {@code null}
+     */
     public Instant getCreatedAt() {
         return createdAt;
     }
 
+    /**
+     * Confronta questo torneo con un altro oggetto verificandone l'uguaglianza
+     * sulla base dell'identificativo del torneo.
+     *
+     * @param o oggetto da confrontare; può essere {@code null}
+     * @return {@code true} se l'oggetto è un {@code Tournament} con lo stesso identificativo, {@code false} altrimenti
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -228,6 +286,11 @@ public class Tournament {
         return Objects.equals(tournamentId, that.tournamentId);
     }
 
+    /**
+     * Restituisce il codice hash calcolato sull'identificativo del torneo.
+     *
+     * @return il codice hash del torneo
+     */
     @Override
     public int hashCode() {
         return Objects.hash(tournamentId);

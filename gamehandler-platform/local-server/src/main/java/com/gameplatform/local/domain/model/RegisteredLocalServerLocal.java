@@ -22,6 +22,16 @@ public class RegisteredLocalServerLocal {
     private final boolean active;
     private final Instant updatedAt;
 
+    /**
+     * Costruisce una nuova replica locale di un server registrato.
+     *
+     * @param buildingId identificatore dell'edificio associato (non null)
+     * @param baseUrl    URL di base del server (non blank)
+     * @param lastSeenAt istante dell'ultimo contatto (può essere null)
+     * @param active     true se il server è attivo
+     * @param updatedAt  istante dell'ultimo aggiornamento (non null)
+     * @throws IllegalArgumentException se buildingId è null, baseUrl è blank o updatedAt è null
+     */
     public RegisteredLocalServerLocal(BuildingId buildingId, String baseUrl, Instant lastSeenAt,
                                       boolean active, Instant updatedAt) {
         if (buildingId == null) {
@@ -40,26 +50,57 @@ public class RegisteredLocalServerLocal {
         this.updatedAt = updatedAt;
     }
 
+    /**
+     * Restituisce l'identificatore dell'edificio associato.
+     *
+     * @return buildingId
+     */
     public BuildingId getBuildingId() {
         return buildingId;
     }
 
+    /**
+     * Restituisce l'URL di base del server.
+     *
+     * @return baseUrl
+     */
     public String getBaseUrl() {
         return baseUrl;
     }
 
+    /**
+     * Restituisce l'istante dell'ultimo contatto con il server.
+     *
+     * @return lastSeenAt, o null se mai contattato
+     */
     public Instant getLastSeenAt() {
         return lastSeenAt;
     }
 
+    /**
+     * Indica se il server è attualmente attivo.
+     *
+     * @return true se attivo
+     */
     public boolean isActive() {
         return active;
     }
 
+    /**
+     * Restituisce l'istante dell'ultimo aggiornamento.
+     *
+     * @return updatedAt
+     */
     public Instant getUpdatedAt() {
         return updatedAt;
     }
 
+    /**
+     * Confronta questo server registrato con un altro oggetto per uguaglianza basata su buildingId.
+     *
+     * @param o l'oggetto da confrontare
+     * @return true se gli oggetti sono uguali
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -68,6 +109,11 @@ public class RegisteredLocalServerLocal {
         return Objects.equals(buildingId, that.buildingId);
     }
 
+    /**
+     * Restituisce l'hash code basato su buildingId.
+     *
+     * @return hash code
+     */
     @Override
     public int hashCode() {
         return Objects.hash(buildingId);

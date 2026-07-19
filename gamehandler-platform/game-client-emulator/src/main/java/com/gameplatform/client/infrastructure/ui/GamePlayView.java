@@ -30,14 +30,15 @@ import javafx.scene.layout.VBox;
 import java.util.List;
 
 /**
- * JavaFX view displayed during an active game session.
+ * Vista JavaFX per la sessione di gioco attiva.
  * <p>
- * Shows the game name and type at the top, a {@link ScoreboardComponent}
- * and {@link TimerComponent} on the left, a game-specific emulation panel
- * in the centre, and lifecycle control buttons (Start, Pause, Resume, Stop)
- * at the bottom. Session management is delegated to
- * {@link GameOrchestrationService} via MQTT; the game-specific UI panel is
- * built by {@link #buildGamePanel()} after the session starts.
+ * Mostra il nome e il tipo del gioco nella parte superiore, un
+ * {@link ScoreboardComponent} e un {@link TimerComponent} a sinistra,
+ * un pannello di emulazione specifico per il gioco al centro e pulsanti
+ * di controllo del ciclo di vita (Start, Pause, Resume, Stop) in basso.
+ * La gestione della sessione è delegata a {@link GameOrchestrationService}
+ * tramite MQTT; il pannello UI specifico del gioco viene costruito da
+ * {@link #buildGamePanel()} all'avvio della sessione.
  */
 public class GamePlayView {
 
@@ -88,6 +89,13 @@ public class GamePlayView {
     // Callback to navigate back to game selection after the match ends
     private Runnable onBackToHome;
 
+    /**
+     * Costruisce la vista di gioco.
+     * <p>
+     * Inizializza il layout con le aree per le informazioni di gioco,
+     * il punteggio, il timer, il pannello di gioco centrale e i pulsanti
+     * di controllo. All'avvio imposta lo stato di attesa nella lobby.
+     */
     public GamePlayView() {
         root = new BorderPane();
         root.setStyle("-fx-background-color: #1a1a1a;");
@@ -136,22 +144,25 @@ public class GamePlayView {
 
     // ─────────────────────────── Public API ───────────────────────────────────
 
-    /** Returns the root JavaFX node for this view. */
+    /**
+     * Restituisce il nodo radice JavaFX per questa vista.
+     *
+     * @return il nodo {@link Parent} radice
+     */
     public Parent getView() {
         return root;
     }
 
     /**
-     * Wraps the given content in a {@link ScrollPane} bounded to the
-     * centre's available width/height (fit-to-width + fit-to-height),
-     * never showing horizontal scrollbars and showing a vertical bar
-     * only when the content is taller than the viewport.
+     * Avvolge il contenuto in uno {@link ScrollPane} con adattamento a larghezza
+     * e altezza, senza barra di scorrimento orizzontale.
      * <p>
-     * Because the returned ScrollPane is placed in {@code root}'s centre
-     * (a BorderPane), {@code root}'s bottom — the {@code buttonBar} — is
-     * always laid out below it and stays fully visible/clickable no
-     * matter how tall the wrapped game panel turns out to be. This fixes
-     * the overflow that pushed the button bar out of the window.
+     * La barra verticale appare solo quando il contenuto supera l'altezza
+     * del viewport. Impedisce che la barra dei pulsanti venga spinta fuori
+     * dalla finestra grazie al layout {@link BorderPane}.
+     *
+     * @param content il contenuto da avvolgere; non null
+     * @return uno {@link ScrollPane} contenente il contenuto
      */
     private ScrollPane wrapScroll(Parent content) {
         ScrollPane scroll = new ScrollPane(content);
@@ -164,62 +175,103 @@ public class GamePlayView {
         return scroll;
     }
 
-    /** Sets the centre region of this view, wrapping the content in a
-     *  bounded ScrollPane so the bottom buttonBar is never pushed off-screen. */
+    /**
+     * Imposta il contenuto nella regione centrale della vista.
+     * <p>
+     * Avvolge il contenuto in uno {@link ScrollPane} per garantire che
+     * la barra dei pulsanti inferiore rimanga sempre visibile.
+     *
+     * @param content il contenuto da posizionare al centro; non null
+     */
     private void setCenterContent(Parent content) {
         root.setCenter(wrapScroll(content));
     }
 
-    /** Injects the orchestration service. Must be called before showing this view. */
+    /**
+     * Inietta il servizio di orchestrazione del gioco.
+     * <p>
+     * Deve essere chiamato prima di mostrare questa vista.
+     *
+     * @param service il servizio di orchestrazione; non null
+     */
     public void setOrchestrationService(GameOrchestrationService service) {
         this.orchestrationService = service;
     }
 
-    /** Injects the session publisher (used for pause/resume topics). */
+    /**
+     * Inietta il publisher di sessione per i topic MQTT pausa/ripresa.
+     *
+     * @param publisher il publisher di sessione; può essere null in
+     *                  modalità solo locale
+     */
     public void setSessionPublisher(SessionPublisher publisher) {
         this.sessionPublisher = publisher;
     }
 
-    /** Sets the username of the logged-in user (used as participant). */
+    /**
+     * Imposta il nome utente dell'utente autenticato.
+     * <p>
+     * Utilizzato come identificativo del partecipante nelle partite
+     * e per la visualizzazione nei pannelli di gioco.
+     *
+     * @param username il nome utente; se null o vuoto viene ignorato
+     */
     public void setCurrentUser(String username) {
         if (username != null && !username.isBlank()) this.currentUsername = username;
     }
 
     /**
-     * Sets the authenticated user's stable id (UUID resolved from
-     * {@code /api/auth/me}). Used as the server-facing participant identity
-     * for single-player games so the Central {@code player_statistics} /
-     * {@code player_match_facts} read-models key the player's matches on the
-     * user id (matching {@code /api/players/me/statistics}); the username is
-     * still used purely for in-panel display. May be {@code null}, in which
-     * case the username fallback preserves the historical behaviour.
+     * Imposta l'identificativo stabile dell'utente autenticato.
+     * <p>
+     * Utilizzato come identità lato server per le partite single-player,
+     * in modo che le statistiche e i match fact siano associati all'ID
+     * utente. Il nome utente rimane per la visualizzazione nei pannelli.
+     * Può essere null per mantenere il comportamento storico basato sul nome utente.
+     *
+     * @param userId l'UUID dell'utente; può essere null
      */
     public void setCurrentUserId(String userId) {
         this.currentUserId = userId;
     }
 
-    /** Sets the game machine ID (from env GAME_ID). */
+    /**
+     * Imposta l'identificativo della macchina da gioco.
+     *
+     * @param id l'ID della macchina da gioco; se null o vuoto viene ignorato
+     */
     public void setGameId(String id) {
         if (id != null && !id.isBlank()) this.gameId = id;
     }
 
     /**
-     * Injects the MQTT adapter and building id used to subscribe to
-     * turn-update topics during a multiplayer match. Both may be
-     * {@code null} in local-only mode (turn sync is simply disabled).
+     * Inietta l'adattatore MQTT e l'identificativo dell'edificio.
+     * <p>
+     * Utilizzati per sottoscrivere i topic di aggiornamento turno durante
+     * le partite multiplayer. Entrambi possono essere null in modalità
+     * solo locale, disabilitando la sincronizzazione dei turni.
+     *
+     * @param adapter    l'adattatore MQTT; può essere null
+     * @param buildingId l'identificativo dell'edificio; può essere null
      */
     public void setMqttContext(MqttClientAdapter adapter, String buildingId) {
         this.mqttAdapter = adapter;
         this.buildingId = buildingId;
     }
 
-    /** Called when the user wants to go back to game selection after the match ends. */
+    /**
+     * Registra il callback per tornare alla selezione del gioco dopo la partita.
+     *
+     * @param callback l'azione da eseguire per tornare alla home; può essere null
+     */
     public void setOnBackToHome(Runnable callback) { this.onBackToHome = callback; }
 
     /**
-     * Configures the view for a specific game machine.
+     * Configura la vista per una specifica macchina da gioco.
+     * <p>
+     * Resetta lo stato della partita, i partecipanti della lobby e
+     * l'indicatore di fine partita, quindi imposta lo stato di attesa.
      *
-     * @param state the selected game's state DTO
+     * @param state il DTO dello stato del gioco selezionato; non null
      */
     public void setGameState(GameStateDto state) {
         this.currentGameState = state;
@@ -232,33 +284,47 @@ public class GamePlayView {
     }
 
     /**
-     * Configures the view when entering from a lobby session that is already
-     * started by the server (lobby flow).
+     * Configura la vista quando si entra da una sessione lobby già avviata.
+     * <p>
+     * Imposta lo stato della partita, l'ID di sessione e i partecipanti,
+     * quindi avvia il pannello di gioco e il timer.
      *
-     * @param state        the game state DTO
-     * @param sessionId    the session ID assigned by the server
-     * @param participants the confirmed participant list
+     * @param state        il DTO dello stato del gioco; non null
+     * @param sessionId    l'ID di sessione assegnato dal server; non null
+     * @param participants la lista dei partecipanti confermati; non null
      */
     public void setFromLobby(GameStateDto state, String sessionId, List<String> participants) {
         configureActiveSession(state, sessionId, participants, "Lobby started — match in progress");
     }
 
     /**
-     * Configures the view when entering from a tournament match that is
-     * already started by the server (tournament flow — the match start
-     * happens synchronously via REST and does NOT go through the lobby,
-     * see {@link TournamentsView}). Same internal setup as
-     * {@link #setFromLobby} but with a tournament-appropriate status message.
+     * Configura la vista quando si entra da una partita torneo già avviata.
+     * <p>
+     * Segue la stessa logica di {@link #setFromLobby} ma con un messaggio
+     * di stato appropriato per il torneo. L'avvio della partita avviene
+     * in modo sincrono via REST e salta la fase lobby.
      *
-     * @param state        the game state DTO synthesised from the session
-     * @param sessionId    the session ID assigned by the server
-     * @param participants the confirmed participant list (usually participantA
-     *                     and participantB of the tournament match)
+     * @param state        il DTO dello stato del gioco sintetizzato dalla sessione; non null
+     * @param sessionId    l'ID di sessione assegnato dal server; non null
+     * @param participants la lista dei partecipanti confermati (tipicamente
+     *                     participantA e participantB della partita torneo); non null
      */
     public void setFromTournamentMatch(GameStateDto state, String sessionId, List<String> participants) {
         configureActiveSession(state, sessionId, participants, "Tournament match in progress");
     }
 
+    /**
+     * Configura internamente una sessione attiva con i parametri forniti.
+     * <p>
+     * Imposta lo stato del gioco, l'ID di sessione e i partecipanti,
+     * costruisce il pannello di gioco, avvia il timer e imposta lo
+     * stato di esecuzione.
+     *
+     * @param state          il DTO dello stato del gioco; non null
+     * @param sessionId      l'ID di sessione; può essere null
+     * @param participants   la lista dei partecipanti; non null
+     * @param statusMessage  il messaggio di stato da visualizzare; non null
+     */
     private void configureActiveSession(GameStateDto state, String sessionId,
                                        List<String> participants, String statusMessage) {
         this.currentGameState = state;
@@ -274,6 +340,14 @@ public class GamePlayView {
 
     // ─────────────────────────── Button handlers ──────────────────────────────
 
+    /**
+     * Avvia la partita sul server o in modalità locale.
+     * <p>
+     * Utilizza i partecipanti della lobby se disponibili, altrimenti
+     * il singolo utente corrente. Se il servizio di orchestrazione è
+     * presente, avvia la partita su un thread separato; altrimenti
+     * avvia in modalità solo locale.
+     */
     private void startGame() {
         if (currentGameState == null) return;
         setStatus("Starting...");
@@ -313,6 +387,13 @@ public class GamePlayView {
         }
     }
 
+    /**
+     * Mette in pausa la partita in corso.
+     * <p>
+     * Pubblica un evento di pausa sul topic MQTT {@code session/pause}
+     * e notifica il servizio di orchestrazione. Applica localmente
+     * l'effetto di pausa (timer, pulsanti, messaggio di stato).
+     */
     private void pauseGame() {
         String effectiveGameId = currentGameState != null ? currentGameState.gameId() : gameId;
         String effectiveSessionId = lobbySessionId;
@@ -329,6 +410,13 @@ public class GamePlayView {
         applyLocalPause(currentUsername);
     }
 
+    /**
+     * Riprende la partita dopo una pausa.
+     * <p>
+     * Pubblica un evento di ripresa sul topic MQTT {@code session/resume}
+     * e notifica il servizio di orchestrazione. Applica localmente
+     * l'effetto di ripresa (timer, pulsanti, messaggio di stato).
+     */
     private void resumeGame() {
         String effectiveGameId = currentGameState != null ? currentGameState.gameId() : gameId;
         String effectiveSessionId = lobbySessionId;
@@ -346,15 +434,14 @@ public class GamePlayView {
     }
 
     /**
-     * Applies the pause effect locally (timer + button state + status) only,
-     * without publishing and without contacting the orchestration service.
-     * Called both by {@link #pauseGame()} (after it has published the pause
-     * event) and by the MQTT {@code session/pause} handler when a remote
-     * peer (or the server echo) pauses the session. Idempotent: the first
-     * invocation flips {@code localPaused} to true and subsequent echoes or
-     * QoS-1 redeliveries are skipped, so the originating "Match paused by X"
-     * status is preserved even if a later server echo arrives with a null
-     * pausedBy.
+     * Applica localmente l'effetto di pausa senza pubblicare eventi MQTT.
+     * <p>
+     * Ferma il timer, aggiorna i pulsanti e imposta il messaggio di stato.
+     * Metodo idempotente: la prima invocazione imposta {@code localPaused}
+     * a true; invocazioni successive (echo MQTT o ridelivery QoS-1) non
+     * producono effetti, preservando lo stato originale.
+     *
+     * @param pausedBy il nome di chi ha messo in pausa; può essere null
      */
     private void applyLocalPause(String pausedBy) {
         if (localPaused) return;
@@ -364,10 +451,11 @@ public class GamePlayView {
     }
 
     /**
-     * Applies the resume effect locally, symmetric to {@link #applyLocalPause}.
-     * Called by {@link #resumeGame()} (after publishing) and by the MQTT
-     * {@code session/resume} handler. Idempotent: a no-op when the match is
-     * not currently paused locally, so repeated echoes/redeliveries do nothing.
+     * Applica localmente l'effetto di ripresa senza pubblicare eventi MQTT.
+     * <p>
+     * Riprende il timer, aggiorna i pulsanti e imposta il messaggio di stato.
+     * Metodo idempotente: non produce effetti se la partita non era
+     * localmente in pausa.
      */
     private void applyLocalResume() {
         if (!localPaused) return;
@@ -460,11 +548,15 @@ public class GamePlayView {
     }
 
     /**
-     * Called when the remote player ends the match (a
-     * {@code session/end} MQTT message arrives). Terminates the local
-     * match UI without re-publishing the end event, so both emulators
-     * end up in the "game ended" state. The orchestration service is
-     * force-cleared so a new game can be started later.
+     * Gestisce la conclusione remota della partita ricevuta via MQTT.
+     * <p>
+     * Termina l'interfaccia utente locale senza ripubblicare l'evento
+     * di fine partita, evitando echo sul server. Entrambi gli emulatori
+     * terminano nello stato "partita conclusa". Il servizio di
+     * orchestrazione viene forzatamente resettato per consentire una
+     * nuova partita.
+     *
+     * @param endPayload il payload MQTT di fine sessione; può essere null
      */
     private void onRemoteGameEnded(
             com.gameplatform.shared.mqtt.payload.SessionEndPayload endPayload) {
@@ -497,8 +589,11 @@ public class GamePlayView {
     // ─────────────────────────── Helpers ──────────────────────────────────────
 
     /**
-     * Builds and displays the game-specific emulation panel based on
-     * the currently selected game type.
+     * Costruisce e mostra il pannello di emulazione specifico per il gioco.
+     * <p>
+     * Seleziona il pannello appropriato in base al tipo di gioco corrente,
+     * avvia la partita con i partecipanti, collega il consumer del punteggio
+     * e attiva la sincronizzazione dei turni via MQTT.
      */
     private void buildGamePanel() {
         if (currentGameState == null) return;
@@ -528,17 +623,13 @@ public class GamePlayView {
     }
 
     /**
-     * Wires turn-based multiplayer sync for the current match:
-     * <ul>
-     *   <li>Injects a {@link com.gameplatform.client.infrastructure.ui.panels.GamePanel.TurnPublisher}
-     *       into the active panel so its {@code endTurn()} can broadcast
-     *       the new turn index/player to the other emulators.</li>
-     *   <li>Subscribes (via MQTT) to the per-game {@code session/turn}
-     *       topic; when a remote update arrives, it is applied to the
-     *       active panel through {@link GamePanel#onRemoteTurnUpdate}.</li>
-     * </ul>
-     * Single-player or non-turn-based panels ignore both via the
-     * default no-op implementations in {@link GamePanel}.
+     * Collega la sincronizzazione multiplayer basata sui turni per la partita corrente.
+     * <p>
+     * Inietta un {@link com.gameplatform.client.infrastructure.ui.panels.GamePanel.TurnPublisher}
+     * nel pannello attivo per la trasmissione dei turni e sottoscrive il topic MQTT
+     * {@code session/turn} per ricevere aggiornamenti remoti. I pannelli single-player
+     * o non basati su turni ignorano entrambi tramite le implementazioni predefinite
+     * in {@link GamePanel}. Collega anche i publisher per le mosse e i punteggi.
      */
     private void wireTurnSynchronization() {
         unsubscribeTurnTopic();
@@ -645,6 +736,13 @@ public class GamePlayView {
         }
     }
 
+    /**
+     * Annulla la sottoscrizione al topic MQTT dei turni.
+     * <p>
+     * Rimuove la sottoscrizione per il topic di turno corrente e
+     * resetta i riferimenti al subscriber e al topic. Non produce
+     * effetti se non ci sono sottoscrizioni attive.
+     */
     private void unsubscribeTurnTopic() {
         if (turnSubscriber != null && currentTurnTopic != null && mqttAdapter != null) {
             try {
@@ -657,6 +755,12 @@ public class GamePlayView {
         currentTurnTopic = null;
     }
 
+    /**
+     * Imposta lo stato di attesa nella lobby.
+     * <p>
+     * Abilita solo il pulsante di avvio e mostra un messaggio informativo
+     * nell'area centrale.
+     */
     private void setInLobbyState() {
         startButton.setDisable(false);
         pauseButton.setDisable(true);
@@ -671,6 +775,13 @@ public class GamePlayView {
         setCenterContent(controlsArea);
     }
 
+    /**
+     * Imposta lo stato di partita in esecuzione.
+     * <p>
+     * Abilita i pulsanti di pausa e stop, disabilita start e resume,
+     * nasconde il pulsante di ritorno alla home e resetta il flag
+     * di pausa locale a false.
+     */
     private void setGameRunningState() {
         startButton.setDisable(true);
         pauseButton.setDisable(false);
@@ -681,6 +792,13 @@ public class GamePlayView {
         this.localPaused = false;
     }
 
+    /**
+     * Imposta lo stato di partita in pausa.
+     * <p>
+     * Abilita i pulsanti di stop e resume, disabilita start e pausa,
+     * nasconde il pulsante di ritorno alla home e imposta il flag
+     * di pausa locale a true.
+     */
     private void setGamePausedState() {
         startButton.setDisable(true);
         pauseButton.setDisable(true);
@@ -691,7 +809,12 @@ public class GamePlayView {
         this.localPaused = true;
     }
 
-    /** State shown after the match ends: only the "back to home" button is enabled. */
+    /**
+     * Imposta lo stato di partita conclusa.
+     * <p>
+     * Abilita solo il pulsante di ritorno alla home, disabilita tutti
+     * gli altri e mostra il messaggio "Match ended" nell'area centrale.
+     */
     private void setGameEndedState() {
         startButton.setDisable(true);
         pauseButton.setDisable(true);
@@ -706,10 +829,20 @@ public class GamePlayView {
         setCenterContent(controlsArea);
     }
 
+    /**
+     * Imposta il testo dell'etichetta di stato.
+     *
+     * @param msg il messaggio di stato da visualizzare; non null
+     */
     private void setStatus(String msg) {
         statusLabel.setText(msg);
     }
 
+    /**
+     * Mostra un dialogo di errore modale.
+     *
+     * @param msg il messaggio di errore da visualizzare; non null
+     */
     private void showError(String msg) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle("Error");
@@ -718,6 +851,13 @@ public class GamePlayView {
         alert.showAndWait();
     }
 
+    /**
+     * Crea un pulsante con testo e colore di sfondo personalizzati.
+     *
+     * @param text  il testo del pulsante; non null
+     * @param color il colore di sfondo in formato CSS (es. "#27ae60"); non null
+     * @return un {@link Button} con lo stile applicato
+     */
     private Button createButton(String text, String color) {
         Button b = new Button(text);
         b.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; -fx-font-size: 13; -fx-padding: 8 18; -fx-background-radius: 6;");

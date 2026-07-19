@@ -16,6 +16,12 @@ public enum AdminRequestStatus {
     COMPLETED,
     FAILED;
 
+    /**
+     * Converte una stringa nel corrispondente valore enum, ignorando le maiuscole/minuscole.
+     *
+     * @param value la stringa da convertire (può essere null)
+     * @return l'enum corrispondente, o null se la stringa è null o non riconosciuta
+     */
     public static AdminRequestStatus fromString(String value) {
         if (value == null) {
             return null;

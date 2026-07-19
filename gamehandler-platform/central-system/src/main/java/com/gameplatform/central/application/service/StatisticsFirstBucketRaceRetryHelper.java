@@ -47,6 +47,24 @@ public class StatisticsFirstBucketRaceRetryHelper {
         this.clock = clock;
     }
 
+    /**
+     * Esegue il merge del delta statistico e marca l'evento come processato in
+     * una transazione {@code REQUIRES_NEW} separata (TX2).
+     *
+     * <p>Viene invocato quando la transazione originale (TX1) è stata
+     * "avvelenata" da una violazione di chiave univoca sul primo bucket. TX2
+     * parte con un persistence context pulito e committa sia le statistiche
+     * unite sia il record {@code processed_events}, così che l'evento risulti
+     * processato anche se TX1 andrà in rollback.</p>
+     *
+     * @param buildingId l'edificio di riferimento (non deve essere {@code null})
+     * @param gameType il tipo di gioco (non deve essere {@code null})
+     * @param period il periodo (giorno) di riferimento (non deve essere {@code null})
+     * @param delta il delta statistico da unire alla riga esistente
+     * @param eventId l'identificativo dell'evento da marcare come processato
+     * @throws IllegalStateException se la riga del primo bucket è scomparsa tra
+     *         la violazione e il retry
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void retryMergeAndMarkProcessed(BuildingId buildingId, GameType gameType,
                                            LocalDate period, AggregatedStatistics delta,

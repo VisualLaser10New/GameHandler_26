@@ -18,11 +18,15 @@ import java.net.HttpURLConnection;
 import java.util.Map;
 
 /**
- * REST adapter that registers the local server against the central system by calling
- * {@code POST /internal/servers/register}.
+ * Adattatore REST per la registrazione del server locale presso il sistema centrale.
+ * <p>
+ * Implementa {@link RegisterLocalServerPort} inviando una richiesta POST all'endpoint
+ * {@code /internal/servers/register} del sistema centrale. Utilizza la stessa configurazione
+ * di {@link SSLContext} e {@link RestTemplate} di {@link CentralSystemRestAdapter}.
+ * </p>
  *
- * <p>Uses the same {@link SSLContext} and {@link RestTemplate} configuration as
- * {@link CentralSystemRestAdapter} (truststore-based trust of the central system's TLS cert).</p>
+ * @see RegisterLocalServerPort
+ * @see CentralSystemRestAdapter
  */
 @Component
 public class RegisterLocalServerAdapter implements RegisterLocalServerPort {
@@ -35,6 +39,16 @@ public class RegisterLocalServerAdapter implements RegisterLocalServerPort {
     private final String buildingId;
     private final String localBaseUrl;
 
+    /**
+     * Costruisce un nuovo adattatore per la registrazione con il contesto SSL
+     * e le configurazioni specificate.
+     *
+     * @param sslContext       contesto SSL per le connessioni HTTPS verso il sistema centrale
+     * @param centralSystemUrl URL di base del sistema centrale
+     * @param internalApiKey   chiave API interna per l'autenticazione delle richieste
+     * @param buildingId       identificativo dell'edificio gestito dal server locale
+     * @param localBaseUrl     URL di base del server locale esposto al sistema centrale
+     */
     public RegisterLocalServerAdapter(
             SSLContext sslContext,
             @Value("${app.central-system-url}") String centralSystemUrl,
@@ -60,6 +74,13 @@ public class RegisterLocalServerAdapter implements RegisterLocalServerPort {
         this.restTemplate = new RestTemplate(requestFactory);
     }
 
+    /**
+     * Registra il server locale presso il sistema centrale inviando una richiesta POST
+     * con l'identificativo dell'edificio e l'URL di base del server locale.
+     *
+     * @return {@code true} se la registrazione è avvenuta con successo (risposta 2xx),
+     *         {@code false} altrimenti
+     */
     @Override
     public boolean register() {
         try {

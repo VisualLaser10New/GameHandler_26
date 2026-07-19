@@ -19,14 +19,18 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Receives user-replication events ({@code USER_REGISTERED} /
- * {@code USER_UPDATED}) from the Central via outbox and applies them
- * idempotently to the local {@code replicated_users} table. When the
- * upstream event carries a non-null {@code originatingRequestId}
- * (the Central return-event closes a Local-admin
- * {@code ROLE_ASSIGNMENT_REQUESTED} request, PIANO §7.A.7 / §7.B W10),
- * the matching {@code admin_requests_local} row is transitioned to
- * {@code COMPLETED} via {@link AdminRequestRepository#markCompleted}.
+ * Riceve eventi di replica utente ({@code USER_REGISTERED} /
+ * {@code USER_UPDATED}) dal Central tramite outbox e li applica
+ * idempotentemente alla tabella locale {@code replicated_users}.
+ * Gestisce la protezione da eventi stale tramite confronto timestamp
+ * e utenti poison senza far rollbackare l'intero batch. Quando
+ * l'evento trasporta un {@code originatingRequestId}, la riga
+ * {@code admin_requests_local} corrispondente viene transizionata
+ * a COMPLETED.
+ *
+ * @see SyncUsersUseCase
+ * @see UserRepository
+ * @see AdminRequestRepository
  */
 @Service
 public class UserSyncService implements SyncUsersUseCase {
@@ -39,6 +43,14 @@ public class UserSyncService implements SyncUsersUseCase {
     private final AdminRequestRepository adminRequestRepository;
     private final Clock clock;
 
+    /**
+     * Costruisce il servizio con i repository necessari per la replica
+     * degli utenti e la chiusura delle richieste admin.
+     *
+     * @param userRepository           il repository locale degli utenti replicati
+     * @param adminRequestRepository   il repository per la chiusura delle richieste admin
+     * @param clock                    l'orologio per la generazione dei timestamp
+     */
     public UserSyncService(UserRepository userRepository,
                            AdminRequestRepository adminRequestRepository,
                            Clock clock) {
@@ -47,6 +59,17 @@ public class UserSyncService implements SyncUsersUseCase {
         this.clock = clock;
     }
 
+    /**
+     * Sincronizza una lista di utenti replicati dal Central. Per ogni
+     * utente, verifica se l'evento e' stale (timestamp piu' vecchio
+     * dell'esistente), applica la replica o scarta l'evento. Gestisce
+     * utenti poison catturando eccezioni per-evento senza interrompere
+     * il batch. Se l'evento trasporta un originatingRequestId, la
+     * richiesta admin corrispondente viene marcata come COMPLETED.
+     *
+     * @param users la lista di DTO utente da replicare (puo' essere null o vuota)
+     * @return la lista degli acknowledgement per ogni utente processato
+     */
     @Override
     public List<UserSyncAckDto> syncUsers(List<UserSyncDto> users) {
         if (users == null || users.isEmpty()) {
@@ -93,6 +116,13 @@ public class UserSyncService implements SyncUsersUseCase {
         return acks;
     }
 
+    /**
+     * Se il DTO utente trasporta un {@code originatingRequestId} non blank,
+     * marca la corrispondente richiesta admin come COMPLETED tramite
+     * {@link AdminRequestRepository#markCompleted}.
+     *
+     * @param dto il DTO utente da cui estrarre l'originatingRequestId (non null)
+     */
     private void markCompletedIfRequested(UserSyncDto dto) {
         String originatingRequestId = dto.originatingRequestId();
         if (originatingRequestId == null || originatingRequestId.isBlank()) {

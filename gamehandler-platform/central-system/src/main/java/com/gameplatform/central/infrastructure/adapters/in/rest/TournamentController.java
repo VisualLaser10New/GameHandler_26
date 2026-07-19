@@ -111,6 +111,19 @@ public class TournamentController {
                 currentUserService, clock, scheduleUseCase, standingsUseCase, matchesUseCase, null, null);
     }
 
+    /**
+     * Crea un nuovo torneo a partire dai dati forniti.
+     *
+     * <p>L'operazione richiede il ruolo {@code PLATFORM_ADMIN}. Il creatore del torneo
+     * corrisponde all'utente autenticato e il torneo viene creato nello stato {@code DRAFT}
+     * con formato a eliminazione singola.</p>
+     *
+     * @param request dto di richiesta con i dati del torneo, validato tramite {@code @Valid}; non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e il {@link TournamentDto} del torneo creato
+     * @throws InvalidTournamentException se l'utente autenticato non è risolvibile (mappato a {@code 400})
+     * @throws jakarta.validation.ValidationException se il body non supera i vincoli di validazione (mappato a {@code 400})
+     * @see GlobalExceptionHandler
+     */
     @PostMapping
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<TournamentDto> create(@Valid @RequestBody CreateTournamentRequestDto request) {
@@ -131,18 +144,55 @@ public class TournamentController {
         return ResponseEntity.ok(createUseCase.create(tournament, request.buildingIds()));
     }
 
+    /**
+     * Apre le iscrizioni per il torneo identificato dall'identificativo fornito.
+     *
+     * <p>L'operazione richiede il ruolo {@code PLATFORM_ADMIN} e transita lo stato del
+     * torneo in {@code OPEN_REGISTRATION}.</p>
+     *
+     * @param id identificativo del torneo da aprire, non {@code null} né vuoto
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e il {@link TournamentDto} aggiornato
+     * @throws com.gameplatform.central.domain.exception.TournamentNotFoundException se il torneo non esiste (mappato a {@code 404})
+     * @throws com.gameplatform.central.domain.exception.InvalidTournamentStateException se lo stato attuale non consente l'apertura (mappato a {@code 400})
+     * @see GlobalExceptionHandler
+     */
     @PostMapping("/{id}/open")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<TournamentDto> open(@PathVariable String id) {
         return ResponseEntity.ok(openUseCase.open(new TournamentId(id)));
     }
 
+    /**
+     * Annulla il torneo identificato dall'identificativo fornito.
+     *
+     * <p>L'operazione richiede il ruolo {@code PLATFORM_ADMIN} e transita lo stato del
+     * torneo in {@code CANCELLED}.</p>
+     *
+     * @param id identificativo del torneo da annullare, non {@code null} né vuoto
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e il {@link TournamentDto} aggiornato
+     * @throws com.gameplatform.central.domain.exception.TournamentNotFoundException se il torneo non esiste (mappato a {@code 404})
+     * @throws com.gameplatform.central.domain.exception.InvalidTournamentStateException se lo stato attuale non consente l'annullamento (mappato a {@code 400})
+     * @see GlobalExceptionHandler
+     */
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<TournamentDto> cancel(@PathVariable String id) {
         return ResponseEntity.ok(cancelUseCase.cancel(new TournamentId(id)));
     }
 
+    /**
+     * Aggiorna i dati del torneo identificato dall'identificativo fornito.
+     *
+     * <p>L'operazione richiede il ruolo {@code PLATFORM_ADMIN}.</p>
+     *
+     * @param id      identificativo del torneo da aggiornare, non {@code null} né vuoto
+     * @param request dto di richiesta con i nuovi dati del torneo, validato tramite {@code @Valid}; non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e il {@link TournamentDto} aggiornato
+     * @throws com.gameplatform.central.domain.exception.TournamentNotFoundException se il torneo non esiste (mappato a {@code 404})
+     * @throws com.gameplatform.central.domain.exception.InvalidTournamentStateException se lo stato attuale non consente l'aggiornamento (mappato a {@code 400})
+     * @throws jakarta.validation.ValidationException se il body non supera i vincoli di validazione (mappato a {@code 400})
+     * @see GlobalExceptionHandler
+     */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<TournamentDto> update(@PathVariable String id,
@@ -152,6 +202,17 @@ public class TournamentController {
         return ResponseEntity.ok(dto);
     }
 
+    /**
+     * Elimina il torneo identificato dall'identificativo fornito.
+     *
+     * <p>L'operazione richiede il ruolo {@code PLATFORM_ADMIN}.</p>
+     *
+     * @param id identificativo del torneo da eliminare, non {@code null} né vuoto
+     * @return {@link ResponseEntity} con stato {@code 204 No Content} e corpo vuoto
+     * @throws com.gameplatform.central.domain.exception.TournamentNotFoundException se il torneo non esiste (mappato a {@code 404})
+     * @throws com.gameplatform.central.domain.exception.InvalidTournamentStateException se lo stato attuale non consente l'eliminazione (mappato a {@code 400})
+     * @see GlobalExceptionHandler
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable String id) {
@@ -159,6 +220,17 @@ public class TournamentController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Restituisce l'elenco dei tornei, eventualmente filtrato per stato.
+     *
+     * <p>L'operazione è disponibile a qualsiasi principal autenticato. Se il filtro
+     * {@code status} non è fornito restituisce tutti i tornei.</p>
+     *
+     * @param status stato opzionale per filtrare i tornei; se {@code null} o vuoto restituisce tutti i tornei
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e la lista di {@link TournamentDto};
+     *         la lista è vuota se nessun torneo soddisfa il filtro
+     * @throws IllegalArgumentException se {@code status} non corrisponde a un valore valido di {@link TournamentStatus}
+     */
     @GetMapping
     public ResponseEntity<List<TournamentDto>> list(@RequestParam(value = "status", required = false) String status) {
         if (status == null || status.isBlank()) {
@@ -168,6 +240,16 @@ public class TournamentController {
         return ResponseEntity.ok(listTournamentsUseCase.findByStatus(parsedStatus));
     }
 
+    /**
+     * Restituisce il torneo identificato dall'identificativo fornito.
+     *
+     * <p>L'operazione è disponibile a qualsiasi principal autenticato.</p>
+     *
+     * @param id identificativo del torneo da recuperare, non {@code null} né vuoto
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e il {@link TournamentDto} corrispondente
+     * @throws TournamentNotFoundException se il torneo con l'identificativo indicato non esiste (mappato a {@code 404})
+     * @see GlobalExceptionHandler
+     */
     @GetMapping("/{id}")
     public ResponseEntity<TournamentDto> getById(@PathVariable String id) {
         return getUseCase.getById(new TournamentId(id))
@@ -175,17 +257,53 @@ public class TournamentController {
                 .orElseThrow(() -> new TournamentNotFoundException("Tournament not found: " + id));
     }
 
+    /**
+     * Genera il calendario degli incontri per il torneo identificato dall'identificativo fornito.
+     *
+     * <p>L'operazione richiede il ruolo {@code PLATFORM_ADMIN}. Transita lo stato del torneo
+     * da {@code OPEN_REGISTRATION} a {@code IN_PROGRESS} applicando l'accoppiamento a
+     * eliminazione singola (con bye se necessari) e genera gli incontri.</p>
+     *
+     * @param id identificativo del torneo da programmare, non {@code null} né vuoto
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e la lista di {@link TournamentMatchDto} generati
+     * @throws TournamentNotFoundException se il torneo non esiste (mappato a {@code 404})
+     * @throws InvalidTournamentStateException se lo stato attuale non consente la programmazione (mappato a {@code 400})
+     * @throws com.gameplatform.central.domain.exception.TournamentRegistrationClosedException se l'iscrizione non è aperta (mappato a {@code 409})
+     * @see GlobalExceptionHandler
+     */
     @PostMapping("/{id}/schedule")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<List<TournamentMatchDto>> schedule(@PathVariable String id) {
         return ResponseEntity.ok(scheduleUseCase.schedule(new TournamentId(id)));
     }
 
+    /**
+     * Restituisce la classifica del torneo identificato dall'identificativo fornito.
+     *
+     * <p>L'operazione è disponibile a qualsiasi principal autenticato.</p>
+     *
+     * @param id identificativo del torneo di cui leggere la classifica, non {@code null} né vuoto
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e la lista di {@link TournamentStandingDto};
+     *         la lista è vuota se non vi sono ancora posizioni in classifica
+     * @throws TournamentNotFoundException se il torneo non esiste (mappato a {@code 404})
+     * @see GlobalExceptionHandler
+     */
     @GetMapping("/{id}/standings")
     public ResponseEntity<List<TournamentStandingDto>> standings(@PathVariable String id) {
         return ResponseEntity.ok(standingsUseCase.getStandings(new TournamentId(id)));
     }
 
+    /**
+     * Restituisce gli incontri del torneo identificato dall'identificativo fornito.
+     *
+     * <p>L'operazione è disponibile a qualsiasi principal autenticato.</p>
+     *
+     * @param id identificativo del torneo di cui leggere gli incontri, non {@code null} né vuoto
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e la lista di {@link TournamentMatchDto};
+     *         la lista è vuota se non vi sono ancora incontri programmati
+     * @throws TournamentNotFoundException se il torneo non esiste (mappato a {@code 404})
+     * @see GlobalExceptionHandler
+     */
     @GetMapping("/{id}/matches")
     public ResponseEntity<List<TournamentMatchDto>> matches(@PathVariable String id) {
         return ResponseEntity.ok(matchesUseCase.findByTournament(new TournamentId(id)));

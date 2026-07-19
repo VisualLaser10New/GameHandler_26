@@ -37,17 +37,39 @@ public class PlatformAdminServerController {
     private final GetLocalServerHealthViewUseCase getLocalServerHealthViewUseCase;
     private final ToggleLocalServerActiveUseCase toggleLocalServerActiveUseCase;
 
+    /**
+     * Costruisce il controller con i casi d'uso per la visualizzazione dello
+     * stato di salute e l'attivazione/disattivazione dei server locali.
+     *
+     * @param getLocalServerHealthViewUseCase caso d'uso per la vista salute server
+     * @param toggleLocalServerActiveUseCase caso d'uso per l'attivazione server
+     */
     public PlatformAdminServerController(GetLocalServerHealthViewUseCase getLocalServerHealthViewUseCase,
                                          ToggleLocalServerActiveUseCase toggleLocalServerActiveUseCase) {
         this.getLocalServerHealthViewUseCase = getLocalServerHealthViewUseCase;
         this.toggleLocalServerActiveUseCase = toggleLocalServerActiveUseCase;
     }
 
+    /**
+     * Restituisce la vista dello stato di salute del server locale,
+     * aggregando il conteggio delle richieste in uscita in attesa con
+     * il registro completo dei server locali conosciuti.
+     *
+     * @return una {@link ResponseEntity} contenente il {@link ServerHealthViewDto}
+     */
     @GetMapping("/health")
     public ResponseEntity<ServerHealthViewDto> getHealth() {
         return ResponseEntity.ok(getLocalServerHealthViewUseCase.getHealthView());
     }
 
+    /**
+     * Attiva o disattiva un server locale identificato dall'edificio.
+     *
+     * @param buildingId l'identificativo dell'edificio
+     * @param req la richiesta contenente il nuovo stato di attivazione
+     * @return una {@link ResponseEntity} con il {@link ServerHealthDto} aggiornato,
+     *         o status 404 se l'edificio non è trovato
+     */
     @PatchMapping("/{buildingId}/active")
     public ResponseEntity<ServerHealthDto> toggleActive(@PathVariable String buildingId,
                                                         @RequestBody ToggleServerActiveRequestDto req) {
@@ -57,6 +79,13 @@ public class PlatformAdminServerController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * Converte un'istanza di {@link RegisteredLocalServerLocal} in un
+     * {@link ServerHealthDto}.
+     *
+     * @param s il server locale registrato
+     * @return il DTO corrispondente
+     */
     private static ServerHealthDto toDto(RegisteredLocalServerLocal s) {
         return new ServerHealthDto(
                 s.getBuildingId().id(),

@@ -25,10 +25,23 @@ public class InternalTournamentStandingsController {
 
     private final TournamentStandingsLocalSyncService syncService;
 
+    /**
+     * Costruisce il controller con il servizio di sincronizzazione delle
+     * classifiche dei tornei.
+     *
+     * @param syncService servizio per l'applicazione degli eventi di classifica
+     */
     public InternalTournamentStandingsController(TournamentStandingsLocalSyncService syncService) {
         this.syncService = syncService;
     }
 
+    /**
+     * Riceve un batch di eventi di classifiche torneo replicati dal sistema
+     * centrale e li applica al database locale.
+     *
+     * @param events la lista degli eventi di classifica
+     * @return una {@link ResponseEntity} con status 200
+     */
     @PutMapping("/sync")
     public ResponseEntity<Void> syncTournamentStandings(@RequestBody List<TournamentStandingsEventDto> events) {
         syncService.applyEvents(events);

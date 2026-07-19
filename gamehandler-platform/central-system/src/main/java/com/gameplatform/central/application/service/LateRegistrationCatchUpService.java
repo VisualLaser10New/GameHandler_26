@@ -197,6 +197,23 @@ private final OutboxEventJpaRepository outboxEventJpaRepository;
      * registration tx to either join or conflict with — hence no
      * {@code @Transactional(propagation = REQUIRES_NEW)} is required here.</p>
      */
+    /**
+     * Replica al server locale appena registrato tutti gli eventi di replica
+     * (stato {@code SENT} e {@code PENDING}) non ancora presenti nella sua
+     * {@code replication_progress}.
+     *
+     * <p>Chiude il gap di replicazione per i server che si registrano dopo che
+     * gli eventi utente sono già stati processati e mai inviati loro dal
+     * scheduler periodico. Ogni evento è propagato singolarmente per isolare
+     * eventuali eventi "avvelenati" e il relativo progresso è registrato per
+     * evitare repliche duplicate. In caso di errore di push il fallimento è
+     * registrato e ignorato (best-effort) così che la registrazione abbia
+     * comunque successo.</p>
+     *
+     * @param server il server locale appena registrato (non deve essere {@code null})
+     * @see #isMetadataEvent(String)
+     * @see #isGameDefinitionEvent(String)
+     */
     public void catchUpNewlyRegisteredServer(RegisteredLocalServer server) {
         String serverId = server.getBuildingId().id();
 
@@ -603,35 +620,99 @@ private final OutboxEventJpaRepository outboxEventJpaRepository;
         }
     }
 
+    /**
+     * Verifica se il tipo di evento indicato appartiene agli eventi di
+     * metadati di binding LOCAL_ADMIN↔building.
+     *
+     * @param eventType il tipo di evento da valutare (può essere {@code null})
+     * @return {@code true} se l'evento è {@code LOCAL_ADMIN_BUILDING_ASSIGNED}
+     *         o {@code LOCAL_ADMIN_BUILDING_REVOKED}, {@code false} altrimenti
+     */
     private static boolean isMetadataEvent(String eventType) {
         return "LOCAL_ADMIN_BUILDING_ASSIGNED".equals(eventType)
                 || "LOCAL_ADMIN_BUILDING_REVOKED".equals(eventType);
     }
 
+    /**
+     * Verifica se il tipo di evento indicato corrisponde a un evento di
+     * upsert di una definizione di gioco.
+     *
+     * @param eventType il tipo di evento da valutare (può essere {@code null})
+     * @return {@code true} se l'evento è {@code GAME_DEFINITION_UPSERTED},
+     *         {@code false} altrimenti
+     */
     private static boolean isGameDefinitionEvent(String eventType) {
         return "GAME_DEFINITION_UPSERTED".equals(eventType);
     }
 
+    /**
+     * Verifica se il tipo di evento indicato corrisponde a un evento di
+     * torneo pianificato.
+     *
+     * @param eventType il tipo di evento da valutare (può essere {@code null})
+     * @return {@code true} se l'evento è {@code TOURNAMENT_MATCH_SCHEDULED},
+     *         {@code false} altrimenti
+     */
     private static boolean isTournamentMatchEvent(String eventType) {
         return "TOURNAMENT_MATCH_SCHEDULED".equals(eventType);
     }
 
+    /**
+     * Verifica se il tipo di evento indicato corrisponde a un evento di
+     * riepilogo di torneo.
+     *
+     * @param eventType il tipo di evento da valutare (può essere {@code null})
+     * @return {@code true} se l'evento è {@code TOURNAMENT_SUMMARY_UPSERTED},
+     *         {@code false} altrimenti
+     */
     private static boolean isTournamentSummaryEvent(String eventType) {
         return "TOURNAMENT_SUMMARY_UPSERTED".equals(eventType);
     }
 
+    /**
+     * Verifica se il tipo di evento indicato corrisponde a un evento di
+     * classifica di torneo.
+     *
+     * @param eventType il tipo di evento da valutare (può essere {@code null})
+     * @return {@code true} se l'evento è {@code TOURNAMENT_STANDINGS_UPSERTED},
+     *         {@code false} altrimenti
+     */
     private static boolean isTournamentStandingsEvent(String eventType) {
         return "TOURNAMENT_STANDINGS_UPSERTED".equals(eventType);
     }
 
+    /**
+     * Verifica se il tipo di evento indicato corrisponde a un evento di
+     * partecipanti di torneo.
+     *
+     * @param eventType il tipo di evento da valutare (può essere {@code null})
+     * @return {@code true} se l'evento è {@code TOURNAMENT_PARTICIPANTS_UPSERTED},
+     *         {@code false} altrimenti
+     */
     private static boolean isTournamentParticipantsEvent(String eventType) {
         return "TOURNAMENT_PARTICIPANTS_UPSERTED".equals(eventType);
     }
 
+    /**
+     * Verifica se il tipo di evento indicato corrisponde a un evento di
+     * registro dei Local Server.
+     *
+     * @param eventType il tipo di evento da valutare (può essere {@code null})
+     * @return {@code true} se l'evento è {@code LOCAL_SERVER_REGISTRY_UPSERTED},
+     *         {@code false} altrimenti
+     */
     private static boolean isLocalServerRegistryEvent(String eventType) {
         return "LOCAL_SERVER_REGISTRY_UPSERTED".equals(eventType);
     }
 
+    /**
+     * Verifica se il tipo di evento indicato corrisponde a un evento di
+     * membri di squadra di torneo.
+     *
+     * @param eventType il tipo di evento da valutare (può essere {@code null})
+     * @return {@code true} se l'evento è {@code TEAM_MEMBERS_UPSERTED},
+     *         {@code false} altrimenti
+     */
     private static boolean isTeamMembersEvent(String eventType) {
         return "TEAM_MEMBERS_UPSERTED".equals(eventType);
     }

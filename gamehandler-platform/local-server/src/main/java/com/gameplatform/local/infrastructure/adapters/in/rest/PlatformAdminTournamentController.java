@@ -49,6 +49,17 @@ public class PlatformAdminTournamentController {
     private final CurrentUserService currentUserService;
     private final String buildingId;
 
+    /**
+     * Costruisce il controller con i casi d'uso per la gestione del ciclo
+     * di vita dei tornei e il servizio per l'utente corrente.
+     *
+     * @param createUseCase caso d'uso per la creazione di un torneo
+     * @param lifecycleUseCase caso d'uso per le azioni sul ciclo di vita
+     * @param updateUseCase caso d'uso per l'aggiornamento di un torneo
+     * @param deleteUseCase caso d'uso per l'eliminazione di un torneo
+     * @param currentUserService servizio per la risoluzione dell'utente autenticato
+     * @param buildingId identificativo dell'edificio
+     */
     public PlatformAdminTournamentController(CreateTournamentRequestedUseCase createUseCase,
                                               TournamentLifecycleRequestedUseCase lifecycleUseCase,
                                               UpdateTournamentRequestedUseCase updateUseCase,
@@ -63,6 +74,13 @@ public class PlatformAdminTournamentController {
         this.buildingId = buildingId;
     }
 
+    /**
+     * Crea un nuovo torneo. La richiesta viene processata in modo asincrono
+     * tramite outbox.
+     *
+     * @param req i dati del torneo da creare
+     * @return una {@link ResponseEntity} con status 202 e il {@link AdminRequestDto}
+     */
     @PostMapping
     public ResponseEntity<AdminRequestDto> create(@RequestBody CreateTournamentRequestDto req) {
         Optional<UserId> currentUserId = currentUserService.getCurrentUserId();
@@ -77,6 +95,14 @@ public class PlatformAdminTournamentController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(result);
     }
 
+    /**
+     * Esegue un'azione sul ciclo di vita di un torneo (open, cancel, schedule).
+     *
+     * @param id l'identificativo del torneo
+     * @param action l'azione da eseguire ("open", "cancel", "schedule")
+     * @return una {@link ResponseEntity} con status 202 e il {@link AdminRequestDto}
+     * @throws IllegalArgumentException se l'azione non è supportata
+     */
     @PostMapping("/{id}/{action}")
     public ResponseEntity<AdminRequestDto> lifecycle(@PathVariable String id,
                                                       @PathVariable String action) {
@@ -106,6 +132,14 @@ public class PlatformAdminTournamentController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(result);
     }
 
+    /**
+     * Aggiorna un torneo esistente. La richiesta viene processata in modo
+     * asincrono tramite outbox.
+     *
+     * @param id l'identificativo del torneo
+     * @param req i dati aggiornati del torneo
+     * @return una {@link ResponseEntity} con status 202 e il {@link AdminRequestDto}
+     */
     @PutMapping("/{id}")
     public ResponseEntity<AdminRequestDto> update(@PathVariable String id,
                                                     @RequestBody UpdateTournamentRequestDto req) {
@@ -120,6 +154,13 @@ public class PlatformAdminTournamentController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(result);
     }
 
+    /**
+     * Elimina un torneo esistente. La richiesta viene processata in modo
+     * asincrono tramite outbox.
+     *
+     * @param id l'identificativo del torneo
+     * @return una {@link ResponseEntity} con status 202 e il {@link AdminRequestDto}
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<AdminRequestDto> delete(@PathVariable String id) {
         Optional<UserId> currentUserId = currentUserService.getCurrentUserId();

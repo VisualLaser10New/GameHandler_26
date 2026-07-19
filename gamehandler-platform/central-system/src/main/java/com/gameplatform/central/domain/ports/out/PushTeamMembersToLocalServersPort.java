@@ -6,25 +6,33 @@ import com.gameplatform.shared.dto.TeamMembersEventDto;
 import java.util.List;
 
 /**
- * Outbound port for pushing a batch of {@code TEAM_MEMBERS_UPSERTED} events
- * to a single Local Server's
- * {@code PUT /internal/tournaments/teams/members/sync} endpoint. Structural
- * twin of {@link PushTournamentParticipantsToLocalServersPort}.
+ * Porta di uscita per l'invio di un batch di eventi
+ * {@code TEAM_MEMBERS_UPSERTED} all'endpoint
+ * {@code PUT /internal/tournaments/teams/members/sync} di un singolo server
+ * locale. Gemello strutturale di
+ * {@link PushTournamentParticipantsToLocalServersPort}.
  *
- * <p>No ack / poison-isolation: the local upsert is a delete+insert snapshot
- * by {@code tournamentId}, so a transient transport failure just retries via
- * the outbox on the next scheduler tick.</p>
+ * <p>Non è previsto alcun contratto di ack o di isolamento dei messaggi
+ * avvelenati: l'upsert locale è uno snapshot di cancellazione e inserimento per
+ * {@code tournamentId}, pertanto un fallimento transitorio di trasporto viene
+ * semplicemente ritentato tramite l'outbox al ciclo successivo dello
+ * scheduler.</p>
  *
  * @throws com.gameplatform.central.domain.exception.TransientPushException
- *         on transient transport failure (caller retries via the outbox)
+ *         in caso di fallimento transitorio di trasporto (il chiamante ritenta tramite l'outbox)
+ * @see PushTournamentParticipantsToLocalServersPort
+ * @see TeamMembersEventDto
  */
 public interface PushTeamMembersToLocalServersPort {
 
     /**
-     * Pushes a batch of team-members upsert events to a single local server.
+     * Invia un batch di eventi di membri di squadra al server locale indicato.
      *
-     * @param events the team-members DTO batch to push
-     * @param server the single target active local server
+     * @param events il batch di DTO dei membri di squadra da inviare; non deve essere {@code null}
+     * @param server il singolo server locale attivo di destinazione; non deve essere {@code null}
+     * @throws IllegalArgumentException in caso di parametri {@code null}
+     * @throws com.gameplatform.central.domain.exception.TransientPushException
+     *         in caso di fallimento transitorio di trasporto
      */
     void push(List<TeamMembersEventDto> events, RegisteredLocalServer server);
 }

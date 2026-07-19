@@ -37,6 +37,11 @@ public class SyncSchedulerService {
         this.batchSize = batchSize;
     }
 
+    /**
+     * Esegue la sincronizzazione con il sistema centrale. Recupera un
+     * batch di eventi PENDING, tenta l'invio in batch; se fallisce,
+     * ripiega sull'invio per-evento con retry individuale.
+     */
     @Scheduled(fixedDelayString = "${app.sync-interval-ms:300000}")
     public void syncWithCentral() {
         List<OutboxEvent> batch = outboxEventRepository.findPendingLimit(batchSize);

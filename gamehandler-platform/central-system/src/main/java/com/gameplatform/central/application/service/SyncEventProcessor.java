@@ -299,6 +299,22 @@ public class SyncEventProcessor {
 
     // ── private: processEvent body copied verbatim from existing SyncReceiverService ──
 
+    /**
+     * Smista un singolo evento di sincronizzazione al gestore appropriato in
+     * base al suo tipo.
+     *
+     * <p>Supporta eventi di sessione (completata/abortita), prenotazione,
+     * registrazione utente, completamento match di torneo e le richieste
+     * amministrative di torneo/ruolo. Un tipo non riconosciuto viene marcato
+     * come processato senza aggiornare le statistiche (con log di warning).</p>
+     *
+     * @param buildingId l'edificio origine dell'evento (non deve essere {@code null})
+     * @param eventDto l'evento di outbox da processare (non deve essere {@code null})
+     * @return {@code true} se l'evento è stato gestito, {@code false} in caso di
+     *         payload malformato che ne richiede solo il marking
+     * @throws JsonProcessingException se il payload non può essere deserializzato
+     * @see #handleTournamentMatchCompleted(BuildingId, com.gameplatform.shared.dto.TournamentMatchResultDto)
+     */
     private boolean processEvent(BuildingId buildingId, OutboxEventDto eventDto) throws JsonProcessingException {
         JsonNode payloadNode = objectMapper.readTree(eventDto.payload());
 
@@ -709,6 +725,14 @@ public class SyncEventProcessor {
     }
 
     @Nullable
+    /**
+     * Estrae il tipo di gioco e il periodo (giorno UTC) dal nodo payload.
+     *
+     * @param payloadNode il nodo JSON del payload (non deve essere {@code null})
+     * @param eventId l'identificativo dell'evento, per la diagnostica
+     * @return l'oggetto contenente tipo di gioco e periodo, o {@code null} se
+     *         il tipo di gioco è mancante o non valido
+     */
     private ParsedGameTypePeriod parseGameTypePeriod(JsonNode payloadNode, String eventId) {
         GameType gameType = parseGameType(payloadNode, eventId);
         if (gameType == null) {
@@ -722,6 +746,18 @@ public class SyncEventProcessor {
 
     private record ParsedGameTypePeriod(GameType gameType, LocalDate periodStart) {}
 
+    /**
+     * Estrae la durata in secondi della sessione dal payload, gestendo i
+     * campi {@code durationSeconds} e {@code resultJson.durationSeconds}/
+     * {@code resultJson.duration_s}.
+     *
+     * @param payloadNode il nodo JSON del payload (non deve essere {@code null})
+     * @param eventId l'identificativo dell'evento, per la diagnostica
+     * @return un {@link Optional} contenente la durata in secondi, o vuoto se
+     *         non presente o non numerica (in tal caso viene assunta 0)
+     * @throws JsonProcessingException se il sotto-albero {@code resultJson} non
+     *         è un JSON valido
+     */
     private Optional<Integer> extractDuration(JsonNode payloadNode, String eventId) throws JsonProcessingException {
         if (payloadNode.has("durationSeconds")) {
             JsonNode n = payloadNode.get("durationSeconds");
@@ -757,6 +793,13 @@ public class SyncEventProcessor {
         return Optional.empty();
     }
 
+    /**
+     * Verifica se il nodo JSON rappresenta un intero utilizzabile come durata.
+     *
+     * @param n il nodo JSON da valutare (può essere {@code null})
+     * @return {@code true} se il nodo è un numero non nullo convertibile in
+     *         {@code int}, {@code false} altrimenti
+     */
     private static boolean isUsableInt(JsonNode n) {
         return n != null && !n.isNull() && n.isNumber() && n.canConvertToInt();
     }
@@ -793,6 +836,13 @@ public class SyncEventProcessor {
                 buildingId, gameType, sessionId, participants, winnerId, winCondition, endedAt);
     }
 
+    /**
+     * Estrae la lista degli id partecipanti dal nodo payload.
+     *
+     * @param payloadNode il nodo JSON del payload (non deve essere {@code null})
+     * @return la lista degli id partecipanti non vuoti; lista vuota se il campo
+     *         è assente, nullo, non array o vuoto
+     */
     private static List<String> parseParticipants(JsonNode payloadNode) {
         if (!payloadNode.has("participants")) {
             return List.of();
@@ -813,6 +863,14 @@ public class SyncEventProcessor {
         return participants;
     }
 
+    /**
+     * Estrae la condizione di vittoria dal nodo payload.
+     *
+     * @param payloadNode il nodo JSON del payload (non deve essere {@code null})
+     * @param eventId l'identificativo dell'evento, per la diagnostica
+     * @return la condizione di vittoria, o {@code null} se assente, vuota o non
+     *         riconosciuta
+     */
     private WinCondition parseWinCondition(JsonNode payloadNode, String eventId) {
         if (!payloadNode.has("winCondition") || payloadNode.get("winCondition").isNull()) {
             return null;

@@ -14,13 +14,13 @@ import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 
 /**
- * JavaFX view for user authentication (PIANO §7.C line 728).
+ * Vista JavaFX per l'autenticazione dell'utente.
  * <p>
- * Submits a {@link LoginRequestDto} to {@code POST /api/auth/login}
- * through the centralised {@link ApiClient}; on success it then calls
- * {@code GET /api/auth/me} and stores the returned {@link UserInfoDto}
- * enriched payload (token, username, roles, buildings) back into
- * {@link HttpClientHelper} so the role-aware navbar can rebuild.
+ * Invia una richiesta {@link LoginRequestDto} a {@code POST /api/auth/login}
+ * tramite {@link ApiClient}; in caso di successo chiama {@code GET /api/auth/me}
+ * e memorizza il payload {@link UserInfoDto} (token, username, ruoli, edifici)
+ * in {@link HttpClientHelper} per consentire alla navbar di ricostruirsi
+ * in base ai ruoli.
  */
 public class LoginView {
     private final VBox root;
@@ -33,6 +33,12 @@ public class LoginView {
     private Runnable onNavigateToSignup;
     private final String usernameFieldStyle;
 
+    /**
+     * Costruisce la vista di login.
+     * <p>
+     * Inizializza i campi per username e password, il pulsante di login,
+     * il link per la registrazione e l'etichetta per gli errori.
+     */
     public LoginView() {
         usernameFieldStyle = "-fx-background-color: #333; -fx-text-fill: #eee; -fx-prompt-text-fill: #888; -fx-padding: 8; -fx-background-radius: 4";
         root = new VBox(12);
@@ -70,23 +76,43 @@ public class LoginView {
         });
     }
 
+    /**
+     * Restituisce il nodo radice JavaFX per questa vista.
+     *
+     * @return il nodo {@link Parent} radice
+     */
     public Parent getView() {
         return root;
     }
 
+    /**
+     * Registra il callback per il login riuscito.
+     *
+     * @param callback l'azione da eseguire dopo il login; può essere null
+     */
     public void setOnLoginSuccess(Runnable callback) {
         this.onLoginSuccess = callback;
     }
 
+    /**
+     * Registra il callback per la navigazione alla vista di registrazione.
+     *
+     * @param callback l'azione da eseguire per navigare al signup; può essere null
+     */
     public void setOnNavigateToSignup(Runnable callback) {
         this.onNavigateToSignup = callback;
     }
 
     /**
-     * Validates the form, sends {@code POST /api/auth/login} via {@link ApiClient}
-     * and, on 200, sends {@code GET /api/auth/me} to resolve the enriched
-     * {@link UserInfoDto} (roles + buildings). Every step is async; UI
-     * mutations are marshalled onto the JavaFX Application Thread.
+     * Esegue il login con le credenziali inserite.
+     * <p>
+     * Valida che username e password non siano vuoti, invia una POST
+     * asincrona a {@code /api/auth/login} e, in caso di successo,
+     * recupera i dati utente arricchiti tramite {@code GET /api/auth/me}.
+     * Ogni mutazione dell'interfaccia avviene sul thread JavaFX Application.
+     *
+     * @throws AuthenticationException se le credenziali non sono valide
+     * @throws ServerUnavailableException se il server non è raggiungibile
      */
     public void performLogin() {
         String username = usernameField.getText().strip();
@@ -139,6 +165,12 @@ public class LoginView {
                 }); return null; });
     }
 
+    /**
+     * Resetta il form di login allo stato iniziale.
+     * <p>
+     * Pulisce i campi username e password e reimposta l'etichetta
+     * di errore al colore e testo predefiniti.
+     */
     public void reset() {
         usernameField.clear();
         passwordField.clear();

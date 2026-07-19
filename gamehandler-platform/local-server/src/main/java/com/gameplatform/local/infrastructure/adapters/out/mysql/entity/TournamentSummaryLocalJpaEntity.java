@@ -60,9 +60,28 @@ public class TournamentSummaryLocalJpaEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /**
+     * Costruttore predefinito richiesto da JPA.
+     */
     public TournamentSummaryLocalJpaEntity() {
     }
 
+    /**
+     * Costruisce un nuovo riepilogo torneo locale con tutti i campi.
+     *
+     * @param tournamentId      identificativo del torneo
+     * @param name              nome del torneo
+     * @param gameType          tipo di gioco
+     * @param teamBased         indica se il torneo è a squadre
+     * @param teamSize          dimensione delle squadre
+     * @param status            stato del torneo
+     * @param startsAt          data/hora di inizio (può essere {@code null})
+     * @param endsAt            data/hora di fine (può essere {@code null})
+     * @param buildingIdsJson   JSON contenente gli ID degli edifici coinvolti
+     * @param participantsCount numero di partecipanti
+     * @param deleted           flag di eliminazione logica (sempre {@code false} in archivio)
+     * @param updatedAt         istante dell'ultimo aggiornamento
+     */
     public TournamentSummaryLocalJpaEntity(String tournamentId, String name, String gameType, Boolean teamBased,
                                            Integer teamSize, String status, Instant startsAt, Instant endsAt,
                                            String buildingIdsJson, Integer participantsCount, Boolean deleted,
@@ -81,98 +100,218 @@ public class TournamentSummaryLocalJpaEntity {
         this.updatedAt = updatedAt;
     }
 
+    /**
+     * Restituisce l'identificativo del torneo.
+     *
+     * @return tournamentId
+     */
     public String getTournamentId() {
         return tournamentId;
     }
 
+    /**
+     * Imposta l'identificativo del torneo.
+     *
+     * @param tournamentId nuovo identificativo torneo
+     */
     public void setTournamentId(String tournamentId) {
         this.tournamentId = tournamentId;
     }
 
+    /**
+     * Restituisce il nome del torneo.
+     *
+     * @return name
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * Imposta il nome del torneo.
+     *
+     * @param name nuovo nome
+     */
     public void setName(String name) {
         this.name = name;
     }
 
+    /**
+     * Restituisce il tipo di gioco del torneo.
+     *
+     * @return gameType
+     */
     public String getGameType() {
         return gameType;
     }
 
+    /**
+     * Imposta il tipo di gioco del torneo.
+     *
+     * @param gameType nuovo tipo di gioco
+     */
     public void setGameType(String gameType) {
         this.gameType = gameType;
     }
 
+    /**
+     * Indica se il torneo è a squadre.
+     *
+     * @return {@code true} se è a squadre
+     */
     public Boolean getTeamBased() {
         return teamBased;
     }
 
+    /**
+     * Imposta se il torneo è a squadre.
+     *
+     * @param teamBased {@code true} per indicare torneo a squadre
+     */
     public void setTeamBased(Boolean teamBased) {
         this.teamBased = teamBased;
     }
 
+    /**
+     * Restituisce la dimensione delle squadre.
+     *
+     * @return teamSize
+     */
     public Integer getTeamSize() {
         return teamSize;
     }
 
+    /**
+     * Imposta la dimensione delle squadre.
+     *
+     * @param teamSize nuova dimensione squadre
+     */
     public void setTeamSize(Integer teamSize) {
         this.teamSize = teamSize;
     }
 
+    /**
+     * Restituisce lo stato del torneo.
+     *
+     * @return status
+     */
     public String getStatus() {
         return status;
     }
 
+    /**
+     * Imposta lo stato del torneo.
+     *
+     * @param status nuovo stato
+     */
     public void setStatus(String status) {
         this.status = status;
     }
 
+    /**
+     * Restituisce la data/hora di inizio del torneo.
+     *
+     * @return startsAt (può essere {@code null})
+     */
     public Instant getStartsAt() {
         return startsAt;
     }
 
+    /**
+     * Imposta la data/hora di inizio del torneo.
+     *
+     * @param startsAt nuova data/hora inizio
+     */
     public void setStartsAt(Instant startsAt) {
         this.startsAt = startsAt;
     }
 
+    /**
+     * Restituisce la data/hora di fine del torneo.
+     *
+     * @return endsAt (può essere {@code null})
+     */
     public Instant getEndsAt() {
         return endsAt;
     }
 
+    /**
+     * Imposta la data/hora di fine del torneo.
+     *
+     * @param endsAt nuova data/hora fine
+     */
     public void setEndsAt(Instant endsAt) {
         this.endsAt = endsAt;
     }
 
+    /**
+     * Restituisce il JSON contenente gli ID degli edifici coinvolti.
+     *
+     * @return buildingIdsJson (può essere {@code null})
+     */
     public String getBuildingIdsJson() {
         return buildingIdsJson;
     }
 
+    /**
+     * Imposta il JSON contenente gli ID degli edifici coinvolti.
+     *
+     * @param buildingIdsJson nuovo JSON edifici
+     */
     public void setBuildingIdsJson(String buildingIdsJson) {
         this.buildingIdsJson = buildingIdsJson;
     }
 
+    /**
+     * Restituisce il numero di partecipanti al torneo.
+     *
+     * @return participantsCount
+     */
     public Integer getParticipantsCount() {
         return participantsCount;
     }
 
+    /**
+     * Imposta il numero di partecipanti.
+     *
+     * @param participantsCount nuovo numero partecipanti
+     */
     public void setParticipantsCount(Integer participantsCount) {
         this.participantsCount = participantsCount;
     }
 
+    /**
+     * Indica se il torneo è stato eliminato logicamente.
+     *
+     * @return {@code true} se eliminato (sempre {@code false} in archivio)
+     */
     public Boolean getDeleted() {
         return deleted;
     }
 
+    /**
+     * Imposta il flag di eliminazione logica.
+     *
+     * @param deleted {@code true} per marcare come eliminato
+     */
     public void setDeleted(Boolean deleted) {
         this.deleted = deleted;
     }
 
+    /**
+     * Restituisce l'istante dell'ultimo aggiornamento.
+     *
+     * @return updatedAt
+     */
     public Instant getUpdatedAt() {
         return updatedAt;
     }
 
+    /**
+     * Imposta l'istante dell'ultimo aggiornamento.
+     *
+     * @param updatedAt nuovo istante di aggiornamento
+     */
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
     }

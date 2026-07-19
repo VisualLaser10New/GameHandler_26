@@ -9,9 +9,31 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Mapper senza stato (null-safe) tra il modello di dominio centrale {@link User}
+ * e l'entità persistente {@link UserJpaEntity}.
+ * <p>
+ * Esposto come bean Spring {@code @Component}, si occupa della conversione
+ * della lista di ruoli da/verso una rappresentazione CSV nella colonna
+ * {@code roles} dell'entità.
+ *
+ * @see User
+ * @see UserJpaEntity
+ */
 @Component
 public class UserMapper {
 
+    /**
+     * Converte un'entità persistente {@link UserJpaEntity} nel corrispondente
+     * modello di dominio {@link User}.
+     * <p>
+     * La colonna {@code roles} viene suddivisa in una lista di stringhe separandola
+     * tramite virgola; se {@code null} o vuota restituisce una lista vuota.
+     *
+     * @param entity l'entità persistente di origine; se {@code null} restituisce {@code null}
+     * @return il modello di dominio {@link User} o {@code null} se l'entità è {@code null}
+     * @see #toEntity(User)
+     */
     public User toDomain(UserJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -32,6 +54,16 @@ public class UserMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link User} nell'entità persistente
+     * {@link UserJpaEntity} da persistere.
+     * <p>
+     * La lista dei ruoli viene concatenata in una stringa CSV.
+     *
+     * @param domain il modello di dominio di origine; se {@code null} restituisce {@code null}
+     * @return l'entità persistente {@link UserJpaEntity} o {@code null} se il dominio è {@code null}
+     * @see #toDomain(UserJpaEntity)
+     */
     public UserJpaEntity toEntity(User domain) {
         if (domain == null) {
             return null;

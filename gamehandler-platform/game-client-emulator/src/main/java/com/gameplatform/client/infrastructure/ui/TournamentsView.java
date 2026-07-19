@@ -38,21 +38,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
- * Tournaments view (PIANO §7.C line 738-740).
+ * Vista master-detail per la gestione dei tornei.
  * <p>
- * Combines four panels in a master-detail layout:
+ * Combina quattro pannelli in un layout master-detail:
  * <ol>
- *   <li><b>Summary list</b> (left) — polls {@code GET /api/tournaments}
- *       and renders {@link TournamentSummaryDto} rows.</li>
- *   <li><b>Detail</b> (centre) — {@code GET /api/tournaments/{id}}
- *       returns the aggregated {@link TournamentDetailDto}; each
- *       sub-resource endpoint ({@code /standings}, {@code /matches},
- *       {@code /participants}) is also demonstrated through the flow.</li>
- *   <li><b>Registration panel</b> — {@code POST /api/tournaments/{id}/participants}
- *       opens a row in {@code admin_requests_local} with
- *       {@code status=PENDING}; the user is then redirected to
- *       {@code VIEW_ADMIN_REQUESTS} for polling.</li>
- *   <li><b>"My matches" panel</b> — {@code GET /api/players/tournaments/me/matches}
+ *   <li><b>Elenco riepilogativo</b> (sinistra) — {@code GET /api/tournaments}
+ *       con righe {@link TournamentSummaryDto}.</li>
+ *   <li><b>Dettaglio</b> (centro) — {@code GET /api/tournaments/{id}}
+ *       con classifiche, partite e partecipanti.</li>
+ *   <li><b>Registrazione</b> — {@code POST /api/tournaments/{id}/participants}
+ *       con reindirizzamento a {@code VIEW_ADMIN_REQUESTS} per il polling.</li>
+ *   <li><b>"My matches"</b> — {@code GET /api/players/tournaments/me/matches}
  *       + {@code POST /api/players/tournaments/matches/{matchId}/start}.</li>
  * </ol>
  */
@@ -81,11 +77,22 @@ public class TournamentsView {
     private Consumer<String> onNavigate;   // accepts a VIEW_* constant
     private MatchStartedHandler onMatchStarted;
 
+    /**
+     * Costruisce la vista tornei con flusso predefinito.
+     */
     public TournamentsView() {
         this(PlayerTournamentFlow::new);
     }
 
-    /** Test hook — accepts a factory so subclasses can stub the flow. */
+    /**
+     * Costruisce la vista tornei con una factory per il flusso.
+     * <p>
+     * Hook di test che accetta una factory per consentire alle
+     * sottoclassi di sostituire il flusso con una implementazione
+     * simulata.
+     *
+     * @param flowFactory la factory per creare il {@link PlayerTournamentFlow}; non null
+     */
     public TournamentsView(java.util.function.Supplier<PlayerTournamentFlow> flowFactory) {
         this.flow = flowFactory.get();
         VBox content = new VBox(10);
@@ -217,11 +224,21 @@ public class TournamentsView {
         root.setStyle("-fx-padding: 0; -fx-background-color: #1e1e1e;");
     }
 
+    /**
+     * Restituisce il nodo radice JavaFX per questa vista.
+     *
+     * @return il nodo {@link Parent} radice
+     */
     public Parent getView() {
         return root;
     }
 
-    /** Registers the navigation callback invoked when "View My Requests" is requested. */
+    /**
+     * Registra il callback di navigazione per la vista delle richieste admin.
+     *
+     * @param onNavigate l'azione da eseguire con il nome della vista di
+     *                   destinazione; può essere null
+     */
     public void setOnNavigate(Consumer<String> onNavigate) {
         this.onNavigate = onNavigate;
     }
@@ -249,12 +266,22 @@ public class TournamentsView {
         this.onMatchStarted = handler;
     }
 
+    /**
+     * Ricarica l'elenco dei tornei.
+     */
     public void refresh() {
         loadTournaments();
     }
 
     // ───────────────────────────── summary list ──────────────────────────
 
+    /**
+     * Carica l'elenco dei tornei dal server.
+     * <p>
+     * Effettua una chiamata asincrona per ottenere la lista dei tornei,
+     * aggiorna la visualizzazione e l'indicatore di obsolescenza.
+     * In caso di errore mostra un pannello di errore con pulsante Retry.
+     */
     private void loadTournaments() {
         loading.show();
         statusLabel.setText("Loading tournaments...");
@@ -270,6 +297,13 @@ public class TournamentsView {
                 .exceptionally(ex -> errorWithRetry(this::loadTournaments, ex));
     }
 
+    /**
+     * Calcola il timestamp di aggiornamento più recente tra i tornei.
+     *
+     * @param list la lista dei tornei; può essere null o vuota
+     * @return il {@link Instant} più recente, o null se la lista è
+     *         nulla o vuota
+     */
     private static Instant computeMaxUpdatedAt(List<TournamentSummaryDto> list) {
         if (list == null || list.isEmpty()) return null;
         return list.stream()
@@ -281,6 +315,14 @@ public class TournamentsView {
 
     // ───────────────────────────── detail drill-down ─────────────────────
 
+    /**
+     * Mostra il dettaglio di un torneo selezionato.
+     * <p>
+     * Effettua una chiamata asincrona per ottenere il dettaglio completo
+     * del torneo, incluse classifiche, partite e partecipanti.
+     *
+     * @param tournamentId l'identificativo del torneo; non null
+     */
     private void showTournament(String tournamentId) {
         loading.show();
         detailHeader.setText("Detail: " + tournamentId);
@@ -292,6 +334,15 @@ public class TournamentsView {
                 .exceptionally(this::error);
     }
 
+    /**
+     * Renderizza il dettaglio di un torneo nelle liste corrispondenti.
+     * <p>
+     * Aggiorna le liste delle classifiche, delle partite e dei partecipanti
+     * con i dati del torneo. Se il dettaglio è null o non ha riepilogo,
+     * pulisce tutte le liste e mostra un messaggio informativo.
+     *
+     * @param detail il DTO del dettaglio torneo; può essere null
+     */
     @SuppressWarnings("unchecked")
     private void renderDetail(TournamentDetailDto detail) {
         if (detail == null || detail.summary() == null) {
@@ -318,6 +369,16 @@ public class TournamentsView {
         updateRegisterButtons(s, detail.participants());
     }
 
+    /**
+     * Aggiorna lo stato dei pulsanti di registrazione in base al torneo selezionato.
+     * <p>
+     * Abilita o disabilita i pulsanti di registrazione individuale e di
+     * squadra in base allo stato del torneo, al tipo (individuale o a squadre)
+     * e all'eventuale registrazione già effettuata dall'utente corrente.
+     *
+     * @param s            il riepilogo del torneo; se null disabilita entrambi i pulsanti
+     * @param participants la lista dei partecipanti; può essere null
+     */
     private void updateRegisterButtons(TournamentSummaryDto s,
                                        List<TournamentParticipantViewDto> participants) {
         if (s == null) {
@@ -354,6 +415,12 @@ public class TournamentsView {
 
     // ───────────────────────────── registration ──────────────────────────
 
+    /**
+     * Registra l'utente corrente al torneo selezionato.
+     * <p>
+     * Invia una richiesta di registrazione individuale asincrona.
+     * In caso di successo reindirizza alla vista delle richieste admin.
+     */
     private void registerSelf() {
         TournamentSummaryDto sel = summaryList.getSelectionModel().getSelectedItem();
         if (sel == null) {
@@ -376,6 +443,13 @@ public class TournamentsView {
                 .exceptionally(this::error);
     }
 
+    /**
+     * Registra una squadra al torneo selezionato.
+     * <p>
+     * Mostra un dialogo per l'inserimento del nome della squadra e
+     * invia una richiesta di registrazione asincrona. In caso di
+     * successo reindirizza alla vista delle richieste admin.
+     */
     private void registerTeam() {
         TournamentSummaryDto sel = summaryList.getSelectionModel().getSelectedItem();
         if (sel == null) {
@@ -403,6 +477,13 @@ public class TournamentsView {
 
     // ───────────────────────────── my matches + start ────────────────────
 
+    /**
+     * Carica le partite del torneo dell'utente corrente.
+     * <p>
+     * Recupera le partite dell'utente e, in parallelo, i nomi dei
+     * partecipanti per i tornei in corso per arricchire la visualizzazione
+     * con i nomi leggibili.
+     */
     @SuppressWarnings("unchecked")
     private void loadMyMatches() {
         loading.show();
@@ -498,6 +579,12 @@ public class TournamentsView {
                 .exceptionally(this::matchStartError);
     }
 
+    /**
+     * Costruisce una lista di partecipanti di fallback da un match del torneo.
+     *
+     * @param sel il match del torneo; non null
+     * @return una lista con i partecipanti A e B, escludendo valori null o vuoti
+     */
     private static List<String> buildFallbackParticipants(TournamentMatchDto sel) {
         List<String> ps = new ArrayList<>(2);
         if (sel.participantA() != null && !sel.participantA().isBlank()) ps.add(sel.participantA());
@@ -507,12 +594,28 @@ public class TournamentsView {
 
     // ───────────────────────────── helpers ───────────────────────────────
 
+    /**
+     * Restituisce il nome visualizzabile di un partecipante.
+     * <p>
+     * Cerca il nome nella cache locale {@code participantNamesById}.
+     * Se non trovato o l'ID è nullo/vuoto, restituisce "BYE".
+     *
+     * @param participantId l'ID del partecipante; può essere null o vuoto
+     * @return il nome visualizzabile, o "BYE" se non disponibile
+     */
     private String displayName(String participantId) {
         if (participantId == null || participantId.isBlank()) return "BYE";
         String name = participantNamesById.get(participantId);
         return name != null ? name : participantId;
     }
 
+    /**
+     * Crea un pannello con titolo e lista.
+     *
+     * @param headerText il testo del titolo; non null
+     * @param lv         la {@link ListView} da includere; non null
+     * @return una {@link VBox} contenente titolo e lista
+     */
     private static VBox titledPane(String headerText, ListView<?> lv) {
         Label h = new Label(headerText);
         h.setStyle("-fx-text-fill: #3498db; -fx-font-weight: bold;");
@@ -522,6 +625,16 @@ public class TournamentsView {
         return box;
     }
 
+    /**
+     * Gestisce un errore asincrono generico delle chiamate API.
+     * <p>
+     * Nasconde l'indicatore di caricamento, risale la catena delle
+     * eccezioni fino alla causa radice e aggiorna l'etichetta di
+     * stato con il messaggio di errore.
+     *
+     * @param ex l'eccezione da gestire; può essere null
+     * @return sempre null
+     */
     private Void error(Throwable ex) {
         loading.hide();
         Throwable t = ex;

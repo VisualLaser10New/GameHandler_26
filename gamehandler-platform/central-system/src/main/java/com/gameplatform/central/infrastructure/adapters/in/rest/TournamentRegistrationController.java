@@ -40,6 +40,14 @@ public class TournamentRegistrationController {
     private final ListTournamentParticipantsUseCase listUseCase;
     private final CurrentUserService currentUserService;
 
+    /**
+     * Costruisce il controller iniettando i casi d'uso e il servizio utente corrente.
+     *
+     * @param registerUseCase   caso d'uso per registrare un partecipante, non {@code null}
+     * @param unregisterUseCase caso d'uso per annullare una registrazione, non {@code null}
+     * @param listUseCase       caso d'uso per elencare i partecipanti, non {@code null}
+     * @param currentUserService servizio per la risoluzione dell'utente autenticato, non {@code null}
+     */
     public TournamentRegistrationController(RegisterTournamentParticipantUseCase registerUseCase,
                                             UnregisterTournamentParticipantUseCase unregisterUseCase,
                                             ListTournamentParticipantsUseCase listUseCase,
@@ -50,6 +58,22 @@ public class TournamentRegistrationController {
         this.currentUserService = currentUserService;
     }
 
+    /**
+     * Registra un partecipante al torneo identificato dall'identificativo fornito.
+     *
+     * <p>L'operazione richiede il ruolo {@code PLAYER} o {@code PLATFORM_ADMIN}. Il capitano
+     * corrisponde all'utente autenticato e deve essere contenuto nella lista dei membri del team.</p>
+     *
+     * @param id      identificativo del torneo a cui iscriversi, non {@code null} né vuoto
+     * @param request dto di richiesta con nome del team e membri, validato tramite {@code @Valid}; non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e il {@link TournamentParticipantDto} registrato
+     * @throws InvalidTournamentException se l'utente autenticato non è risolvibile, o i dati non sono validi (mappato a {@code 400})
+     * @throws com.gameplatform.central.domain.exception.TournamentNotFoundException se il torneo non esiste (mappato a {@code 404})
+     * @throws com.gameplatform.central.domain.exception.TournamentRegistrationClosedException se l'iscrizione è chiusa (mappato a {@code 409})
+     * @throws com.gameplatform.central.domain.exception.DuplicateTournamentParticipantException se il partecipante è già registrato (mappato a {@code 409})
+     * @throws jakarta.validation.ValidationException se il body non supera i vincoli di validazione (mappato a {@code 400})
+     * @see GlobalExceptionHandler
+     */
     @PostMapping
     @PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<TournamentParticipantDto> register(@PathVariable String id,
@@ -59,6 +83,17 @@ public class TournamentRegistrationController {
         return ResponseEntity.ok(registerUseCase.register(new TournamentId(id), captainId, request.teamName(), request.teamMembers()));
     }
 
+    /**
+     * Annulla la registrazione dell'utente autenticato al torneo indicato.
+     *
+     * <p>L'operazione richiede il ruolo {@code PLAYER} o {@code PLATFORM_ADMIN}.</p>
+     *
+     * @param id identificativo del torneo da cui annullare l'iscrizione, non {@code null} né vuoto
+     * @return {@link ResponseEntity} con stato {@code 204 No Content} e corpo vuoto
+     * @throws InvalidTournamentException se l'utente autenticato non è risolvibile (mappato a {@code 400})
+     * @throws com.gameplatform.central.domain.exception.TournamentNotFoundException se il torneo non esiste (mappato a {@code 404})
+     * @see GlobalExceptionHandler
+     */
     @DeleteMapping
     @PreAuthorize("hasRole('PLAYER') or hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<Void> unregister(@PathVariable String id) {
@@ -68,6 +103,17 @@ public class TournamentRegistrationController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Restituisce l'elenco dei partecipanti al torneo identificato dall'identificativo fornito.
+     *
+     * <p>L'operazione è disponibile a qualsiasi principal autenticato.</p>
+     *
+     * @param id identificativo del torneo di cui elencare i partecipanti, non {@code null} né vuoto
+     * @return {@link ResponseEntity} con stato {@code 200 OK} e la lista di {@link TournamentParticipantDto};
+     *         la lista è vuota se non vi sono partecipanti registrati
+     * @throws com.gameplatform.central.domain.exception.TournamentNotFoundException se il torneo non esiste (mappato a {@code 404})
+     * @see GlobalExceptionHandler
+     */
     @GetMapping
     public ResponseEntity<List<TournamentParticipantDto>> list(@PathVariable String id) {
         return ResponseEntity.ok(listUseCase.listParticipants(new TournamentId(id)));

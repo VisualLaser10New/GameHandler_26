@@ -25,10 +25,23 @@ public class InternalTeamMembersController {
 
     private final TeamMembersLocalSyncService syncService;
 
+    /**
+     * Costruisce il controller con il servizio di sincronizzazione dei
+     * membri del team.
+     *
+     * @param syncService servizio per l'applicazione degli eventi dei membri del team
+     */
     public InternalTeamMembersController(TeamMembersLocalSyncService syncService) {
         this.syncService = syncService;
     }
 
+    /**
+     * Riceve un batch di eventi di membri del team replicati dal sistema
+     * centrale e li applica al database locale.
+     *
+     * @param events la lista degli eventi dei membri del team
+     * @return una {@link ResponseEntity} con status 200
+     */
     @PutMapping("/sync")
     public ResponseEntity<Void> syncTeamMembers(@RequestBody List<TeamMembersEventDto> events) {
         syncService.applyEvents(events);

@@ -93,6 +93,14 @@ public class TournamentStandingsService implements GetTournamentStandingsUseCase
                 clock, null, null);
     }
 
+    /**
+     * Restituisce la classifica ordinata di un torneo.
+     *
+     * @param tournamentId l'id del torneo di cui leggere la classifica
+     *        (può essere {@code null})
+     * @return la lista dei DTO di classifica ordinati per punti, vittorie e id;
+     *         lista vuota (mai {@code null}) se il torneo è {@code null}
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TournamentStandingDto> getStandings(TournamentId tournamentId) {
@@ -105,6 +113,13 @@ public class TournamentStandingsService implements GetTournamentStandingsUseCase
      * {@code points desc, wins desc, participantId asc}. Shared by
      * {@link #getStandings(TournamentId)} (read path) and the
      * {@code TOURNAMENT_STANDINGS_UPSERTED} outbox emit (replication path).
+     */
+    /**
+     * Costruisce lo snapshot ordinato della classifica risolvendo i nomi
+     * visualizzati dei partecipanti.
+     *
+     * @param tournamentId l'id del torneo (può essere {@code null})
+     * @return la lista dei DTO ordinata; lista vuota se il torneo è {@code null}
      */
     private List<TournamentStandingDto> buildStandingsSnapshot(TournamentId tournamentId) {
         if (tournamentId == null) {

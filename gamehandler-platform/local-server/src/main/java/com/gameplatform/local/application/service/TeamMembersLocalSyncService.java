@@ -12,22 +12,19 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * Receives {@code TEAM_MEMBERS_UPSERTED} events replicated from the Central
- * via outbox (BUG-TEAM-3) and applies them idempotently to the
- * {@code team_members_local} table. The event carries a full per-tournament
- * team→user membership snapshot; the sync service replaces the local
- * projection atomically (delete by {@code tournamentId} + insert of every
- * team→user entry of the snapshot) so that re-delivery of the same event
- * yields the same end state. The fresh {@code team_members_local} rows back
- * the {@code myMatches} JPQL EXISTS subquery on
- * {@code TournamentMatchLocalJpaRepository.findByParticipantAndStatus}, so
- * the PLAYER sees the match of any team they belong to.
+ * Riceve eventi {@code TEAM_MEMBERS_UPSERTED} replicati dal Central
+ * tramite outbox e li applica idempotentemente alla tabella
+ * {@code team_members_local}. L'evento trasporta uno snapshot completo
+ * delle appartenenze team→utente per torneo; il servizio sostituisce
+ * la proiezione locale atomicamente (delete by tournamentId + insert
+ * di ogni entry). Le righe aggiornate alimentano la subquery EXISTS
+ * per il {@code myMatches} del giocatore.
  *
- * <p>Structural twin of {@code TournamentParticipantsLocalSyncService} minus
- * the {@code markCompletedIfRequested} hook: the admin-request closure for
- * the registration use case is driven by the parallel
- * {@code TOURNAMENT_PARTICIPANTS_UPSERTED} return event, so this event never
- * drives an {@code admin_requests_local} state transition.</p>
+ * <p>Non gestisce {@code markCompletedIfRequested}: la chiusura della
+ * richiesta admin per la registrazione e' guidata dall'evento di ritorno
+ * {@code TOURNAMENT_PARTICIPANTS_UPSERTED} separato.</p>
+ *
+ * @see TeamMembersLocalRepository
  */
 @Service
 @Transactional
@@ -39,10 +36,23 @@ public class TeamMembersLocalSyncService {
 
     private final TeamMembersLocalRepository teamMembersLocalRepository;
 
+    /**
+     * Costruisce il servizio con il repository delle membership squadra.
+     *
+     * @param teamMembersLocalRepository il repository per l'accesso alle
+     *                                   membership squadra locali (non null)
+     */
     public TeamMembersLocalSyncService(TeamMembersLocalRepository teamMembersLocalRepository) {
         this.teamMembersLocalRepository = teamMembersLocalRepository;
     }
 
+    /**
+     * Applica una lista di eventi di membership squadra alla tabella
+     * locale. Per ogni evento TEAM_MEMBERS_UPSERTED, sostituisce
+     * atomicamente la proiezione locale (delete + insert).
+     *
+     * @param events la lista di eventi da applicare (puo' essere null)
+     */
     public void applyEvents(List<TeamMembersEventDto> events) {
         if (events == null) {
             return;

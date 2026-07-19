@@ -13,26 +13,31 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * CORS configuration for the central-system.
+ * Configurazione CORS per il central-system.
  *
- * <p>Allowed origins are read from the {@code cors.allowed-origins} property
- * (comma-separated list, default: {@code http://localhost:3000}).  When the
- * property is set to the literal {@code *} (wildcard) the filter allows all
- * origins but <strong>without credentials</strong>, in compliance with the
- * CORS specification (credentials + wildcard origin is forbidden by browsers).
- * When specific origins are listed, credentials are enabled.</p>
+ * <p>Definisce la sorgente di configurazione CORS applicata a tutte le richieste
+ * in ingresso. Le origini consentite sono lette dalla proprietà
+ * {@code cors.allowed-origins} (lista separata da virgole, valore predefinito
+ * {@code http://localhost:3000}). Quando la proprietà assume il valore letterale
+ * {@code *} (wildcard) il filtro ammette qualsiasi origine ma <strong>senza
+ * credenziali</strong>, in conformità alla specifica CORS (l'uso combinato di
+ * credenziali e origine jolly è vietato dai browser). Quando sono elencate origini
+ * esplicite, le credenziali vengono abilitate.</p>
  *
- * <h3>Property example</h3>
+ * <h3>Esempio di proprietà</h3>
  * <pre>
- * # single origin
+ * # singola origine
  * cors.allowed-origins=http://localhost:3000
  *
- * # multiple origins
+ * # origini multiple
  * cors.allowed-origins=https://app.example.com,https://admin.example.com
  *
- * # allow-all (no credentials)
+ * # tutte le origini (senza credenziali)
  * cors.allowed-origins=*
  * </pre>
+ *
+ * @see org.springframework.web.cors.CorsConfigurationSource
+ * @see org.springframework.web.cors.UrlBasedCorsConfigurationSource
  */
 @Configuration
 public class CorsConfig {
@@ -45,10 +50,27 @@ public class CorsConfig {
      */
     private final String allowedOriginsRaw;
 
+    /**
+     * Costruisce una nuova configurazione CORS.
+     *
+     * @param allowedOriginsRaw stringa contenente le origini consentite separate da virgola,
+     *                          oppure {@code "*"} per abilitare tutte le origini; valorizzata
+     *                          dalla proprietà {@code cors.allowed-origins}
+     */
     public CorsConfig(@Value("${cors.allowed-origins:http://localhost:3000}") String allowedOriginsRaw) {
         this.allowedOriginsRaw = allowedOriginsRaw;
     }
 
+    /**
+     * Crea e restituisce la sorgente di configurazione CORS applicata a tutte le route.
+     *
+     * <p>Se la proprietà {@code cors.allowed-origins} è impostata a {@code "*"}, la
+     * configurazione abilita tutte le origini ma disabilita le credenziali, in conformità
+     * con la specifica CORS. Altrimenti, le origini esplicite vengono configurate con
+     * supporto per le credenziali.</p>
+     *
+     * @return la sorgente di configurazione CORS registrata per tutte le route ({@code /**})
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

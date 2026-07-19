@@ -10,31 +10,39 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 
 /**
- * Resolves the authenticated principal's {@link UserId} from the Spring
- * Security context (FASE 3, PIANO &sect;2.4 &mdash; "claim userId dal JWT").
+ * Service che recupera l'utente correntemente autenticato dal contesto di
+ * sicurezza di Spring Security e ne espone l'identità e i ruoli.
  *
- * <p>The Central {@code JwtAuthenticationFilter} populates the
- * {@link Authentication} principal with the JWT <em>subject</em> (the
- * username), discarding the parsed claims &mdash; so the {@code userId} is
- * recovered by resolving the username through {@link UserRepository#findByUsername},
- * exactly mirroring the established {@code LocalAdminBuildingAuthorizationManager}
- * pattern (A3 &mdash; no JWT {@code buildings} claim; resolve via the table).
- * This is a security {@code @Component} (not a REST adapter), so it may depend
- * on the {@code ports/out} {@link UserRepository}.</p>
+ * <p>Si appoggia a {@link UserRepository} per risolvere l'identificativo
+ * dell'utente a partire dal nome utente presente nel principale di
+ * autenticazione.</p>
+ *
+ * @see UserRepository
+ * @see JwtAuthenticationFilter
  */
 @Component
 public class CurrentUserService {
 
     private final UserRepository userRepository;
 
+    /**
+     * Costruisce un {@code CurrentUserService} con il repository utenti
+     * necessario per la risoluzione dell'identità.
+     *
+     * @param userRepository il repository per la ricerca degli utenti,
+     *                       non nullo
+     */
     public CurrentUserService(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
 
     /**
-     * @return the authenticated user's id, or {@link Optional#empty()} if no
-     *         authenticated principal is present or the username does not match
-     *         a known user
+     * Restituisce l'identificativo dell'utente correntemente autenticato.
+     *
+     * @return un {@link Optional} contenente l'{@link UserId} dell'utente
+     *         autenticato, oppure {@link Optional#empty()} se non è presente
+     *         alcuna autenticazione valida o se il nome utente non corrisponde
+     *         a un utente noto
      */
     public Optional<UserId> getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -49,9 +57,15 @@ public class CurrentUserService {
     }
 
     /**
-     * @return {@code true} iff the authenticated principal carries the
-     *         {@code ROLE_<role>} authority (the {@code role} argument is given
-     *         without the {@code ROLE_} prefix, e.g. {@code "PLATFORM_ADMIN"})
+     * Verifica se l'utente correntemente autenticato possiede un determinato
+     * ruolo.
+     *
+     * @param role il nome del ruolo da verificare, con o senza il prefisso
+     *             {@code ROLE_} (es. {@code "PLATFORM_ADMIN"} o
+     *             {@code "ROLE_PLATFORM_ADMIN"})
+     * @return {@code true} se l'utente autenticato possiede l'autorità
+     *         corrispondente al ruolo specificato, {@code false} altrimenti
+     *         o se non è presente alcuna autenticazione
      */
     public boolean hasRole(String role) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();

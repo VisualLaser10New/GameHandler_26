@@ -25,6 +25,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Servizio per la consultazione delle statistiche di gioco locali.
+ * Implementa i casi d'uso di statistiche globali per tipo di gioco,
+ * statistiche per building, sessioni attive e statistiche per giocatore.
+ * Le statistiche per giocatore (FASE 3) considerano solo le sessioni
+ * COMPLETATE, allineandosi con il read-model central
+ * {@code player_match_facts}.
+ *
+ * @see GetStatisticsUseCase
+ * @see GetBuildingStatisticsUseCase
+ * @see GetPlayerStatisticsUseCase
+ * @see ListBuildingActiveSessionsUseCase
+ * @see GameSessionRepository
+ * @see GameRepository
+ * @see ReservationRepository
+ */
 @Service
 @Transactional(readOnly = true)
 public class StatisticsService implements GetStatisticsUseCase, ListBuildingActiveSessionsUseCase, GetBuildingStatisticsUseCase, GetPlayerStatisticsUseCase {
@@ -42,6 +58,14 @@ public class StatisticsService implements GetStatisticsUseCase, ListBuildingActi
         this.reservationRepository = reservationRepository;
     }
 
+    /**
+     * Calcola le statistiche globali per un tipo di gioco, includendo
+     * il conteggio delle prenotazioni e la ricostruzione delle
+     * statistiche dalle sessioni completate.
+     *
+     * @param gameType il tipo di gioco per cui calcolare le statistiche
+     * @return le statistiche calcolate
+     */
     @Override
     public LocalStatistics getStatistics(GameType gameType) {
         // Compute total reservations count for all game machines of this type
@@ -65,11 +89,22 @@ public class StatisticsService implements GetStatisticsUseCase, ListBuildingActi
         return stats;
     }
 
+    /**
+     * Restituisce tutte le sessioni di gioco attive (stato IN_PROGRESS).
+     *
+     * @return la lista delle sessioni attive
+     */
     @Override
     public List<GameSession> getActiveSessions() {
         return gameSessionRepository.findByStatus(GameStatus.IN_PROGRESS);
     }
 
+    /**
+     * Restituisce le sessioni di gioco attive per un determinato building.
+     *
+     * @param buildingId l'identificativo del building
+     * @return la lista delle sessioni attive nel building
+     */
     @Override
     public List<GameSession> getActiveSessionsByBuilding(BuildingId buildingId) {
         return gameSessionRepository.findByBuildingId(buildingId).stream()
@@ -77,6 +112,14 @@ public class StatisticsService implements GetStatisticsUseCase, ListBuildingActi
                 .toList();
     }
 
+    /**
+     * Calcola le statistiche per un tipo di gioco limitate a un
+     * building specifico.
+     *
+     * @param gameType   il tipo di gioco
+     * @param buildingId l'identificativo del building
+     * @return le statistiche calcolate per il building
+     */
     @Override
     public LocalStatistics getStatisticsForBuilding(GameType gameType, BuildingId buildingId) {
         List<Game> gamesOfType = gameRepository.findByBuildingId(buildingId).stream()
@@ -101,17 +144,15 @@ public class StatisticsService implements GetStatisticsUseCase, ListBuildingActi
     }
 
     /**
-     * FASE 3 — on-demand per-player statistics derived from the local
-     * {@code game_sessions}+{@code session_participants} tables (PIANO &sect;2.5).
+     * Calcola le statistiche on-demand per un giocatore dalle sessioni
+     * COMPLETATE locali. Vengono conteggiate solo le sessioni completate
+     * naturalmente (corrispondenti al read-model central
+     * {@code player_match_facts}). Un utente senza partite restituisce
+     * una lista vuota.
      *
-     * <p>Only sessions that reached a natural {@code COMPLETED} state are
-     * counted as "played": this matches the Central {@code player_match_facts}
-     * read-model, which is populated solely from {@code GAME_SESSION_COMPLETED}
-     * outbox events (the Local {@code GameSessionService.end} emits those only
-     * for sessions that were not already aborted). A single {@code endedAt} is
-     * the latest {@code ended_at} among the player's completed sessions for the
-     * game type. A user who has played no matches yields an <em>empty</em>
-     * list (not an exception).</p>
+     * @param userId l'identificativo dell'utente (non null)
+     * @return la lista delle statistiche per tipo di gioco
+     * @throws IllegalArgumentException se userId e' null
      */
     @Override
     public List<PlayerStatisticsDto> getPlayerStatistics(UserId userId) {
@@ -145,6 +186,11 @@ public class StatisticsService implements GetStatisticsUseCase, ListBuildingActi
                 .toList();
     }
 
+    /**
+     * Aggregatore interno per le statistiche per tipo di gioco.
+     * Mantiene il conteggio delle partite giocate, di quelle vinte
+     * e il timestamp dell'ultima partita per un dato {@link GameType}.
+     */
     private static final class PerGameType {
         int matchesPlayed;
         int matchesWon;

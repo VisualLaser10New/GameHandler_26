@@ -25,6 +25,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * Controller REST per l'autenticazione e la registrazione degli utenti locali.
+ * Espone gli endpoint di login, signup e recupero delle informazioni
+ * dell'utente corrente arricchite con ruoli e edifici associati.
+ *
+ * @see AuthenticateLocalUserUseCase
+ * @see RegisterLocalUserUseCase
+ */
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -34,6 +42,14 @@ public class AuthController {
     private final UserRepository userRepository;
     private final LocalAdminBuildingLocalRepository localAdminBuildingLocalRepository;
 
+    /**
+     * Costruisce il controller con i casi d'uso e i repository necessari.
+     *
+     * @param authenticateLocalUserUseCase caso d'uso per l'autenticazione
+     * @param registerLocalUserUseCase caso d'uso per la registrazione
+     * @param userRepository repository degli utenti replicati
+     * @param localAdminBuildingLocalRepository repository delle associazioni admin-edificio
+     */
     public AuthController(AuthenticateLocalUserUseCase authenticateLocalUserUseCase,
                           RegisterLocalUserUseCase registerLocalUserUseCase,
                           UserRepository userRepository,
@@ -44,12 +60,24 @@ public class AuthController {
         this.localAdminBuildingLocalRepository = localAdminBuildingLocalRepository;
     }
 
+    /**
+     * Autentica un utente locale con username e password.
+     *
+     * @param req la richiesta contenente username e password
+     * @return una {@link ResponseEntity} contenente il {@link LoginResponseDto}
+     */
     @PostMapping("/login")
     public ResponseEntity<LoginResponseDto> login(@RequestBody LoginRequestDto req) {
         LoginResponseDto response = authenticateLocalUserUseCase.authenticate(req.username(), req.password());
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Registra un nuovo utente locale.
+     *
+     * @param req la richiesta contenente username, password ed email
+     * @return una {@link ResponseEntity} con status 201 e il {@link SignupResponseDto}
+     */
     @PostMapping("/signup")
     public ResponseEntity<SignupResponseDto> signup(@RequestBody SignupRequestDto req) {
         LocalSignupUser user = registerLocalUserUseCase.register(req.username(), req.password(), req.email());

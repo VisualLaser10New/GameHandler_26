@@ -23,5 +23,14 @@ import java.util.List;
  * idempotency-key check is needed.</p>
  */
 public interface ScheduleTournamentMatchesUseCase {
+
+    /**
+     * Genera il tabellone a eliminazione diretta del primo turno per un torneo in registrazione aperta.
+     *
+     * @param tournamentId l'identificativo del torneo da schedulare; non deve essere {@code null}
+     * @return la lista di {@link TournamentMatchDto} rappresentante gli incontri schedulati
+     * @throws com.gameplatform.shared.domain.exception.TournamentNotFoundException se il torneo non esiste
+     * @throws com.gameplatform.shared.domain.exception.InvalidTournamentStateException se il torneo non è in stato {@code OPEN_REGISTRATION} o è già in corso
+     */
     List<TournamentMatchDto> schedule(TournamentId tournamentId);
 }

@@ -7,24 +7,29 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Read-model projection of a single completed game session for the
- * {@code GET /api/players/me/matches/history} Local player endpoint
- * (PIANO §7.B). Excludes the {@code GameResult} detail blob and the
- * raw {@code participants} list of {@link GameSessionDto}; the Local
- * endpoint applies a {@code status == COMPLETED} Java filter on
- * {@code GameSessionRepository.findByParticipant} results and projects
- * each session into this view.
+ * Proiezione in sola lettura di una singola sessione di gioco completata,
+ * restituita dall'endpoint {@code GET /api/players/me/matches/history} per il
+ * giocatore locale. Esclude il dettaglio {@code GameResult} e la lista grezza
+ * dei {@code participants} di {@link GameSessionDto}; l'endpoint locale applica
+ * un filtro {@code status == COMPLETED} sui risultati di
+ * {@code GameSessionRepository.findByParticipant} e proietta ciascuna sessione
+ * in questa vista.
  *
- * @param sessionId         the game session id
- * @param gameType          the game type
- * @param startedAt         the session start instant
- * @param endedAt           the session end instant (nullable only if the
- *                          session is somehow returned without an end)
- * @param durationSeconds   the effective play duration in seconds
- * @param winnerId          the winner user id (nullable for team-based
- *                          sessions where the winner is a {@code TeamId})
- * @param winCondition      the win condition
- * @param participants      the list of participant user ids
+ * @param sessionId         identificativo della sessione di gioco; non è nullo
+ * @param gameType          tipologia di gioco giocata; non è nulla
+ * @param startedAt         istante di avvio della sessione; non è nullo
+ * @param endedAt           istante di conclusione della sessione; è nullo solo
+ *                         se la sessione viene restituita senza una fine
+ * @param durationSeconds   durata effettiva di gioco espressa in secondi; è
+ *                         maggiore o uguale a 0
+ * @param winnerId          identificativo dell'utente vincitore; è nullo per le
+ *                         sessioni a squadre in cui il vincitore è un
+ *                         {@code TeamId}
+ * @param winCondition      condizione di vittoria applicata; non è nulla
+ * @param participants      lista degli identificativi degli utenti partecipanti;
+ *                         non è nulla e può essere vuota
+ *
+ * @see GameSessionDto
  */
 public record PlayerMatchDto(
         String sessionId,

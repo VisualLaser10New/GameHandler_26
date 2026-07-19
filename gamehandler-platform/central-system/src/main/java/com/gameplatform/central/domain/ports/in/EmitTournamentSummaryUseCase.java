@@ -19,8 +19,24 @@ import com.gameplatform.shared.domain.model.TournamentId;
  * ctor of {@code TournamentService}).</p>
  */
 public interface EmitTournamentSummaryUseCase {
+
+    /**
+     * Emette un evento outbox di riepilogo del torneo con lo snapshot corrente.
+     *
+     * @param tournamentId l'identificativo del torneo di cui emettere il riepilogo; non deve essere {@code null}
+     * @param originatingRequestId l'identificativo della richiesta origine per la tracciabilità; può essere {@code null} nel caso di chiamata diretta
+     * @throws com.gameplatform.shared.domain.exception.TournamentNotFoundException se il torneo non esiste
+     * @see #emitSummary(TournamentId)
+     */
     void emitSummary(TournamentId tournamentId, String originatingRequestId);
 
+    /**
+     * Emette un evento outbox di riepilogo del torneo senza identificativo di origine.
+     *
+     * @param tournamentId l'identificativo del torneo di cui emettere il riepilogo; non deve essere {@code null}
+     * @throws com.gameplatform.shared.domain.exception.TournamentNotFoundException se il torneo non esiste
+     * @see #emitSummary(TournamentId, String)
+     */
     default void emitSummary(TournamentId tournamentId) {
         emitSummary(tournamentId, null);
     }

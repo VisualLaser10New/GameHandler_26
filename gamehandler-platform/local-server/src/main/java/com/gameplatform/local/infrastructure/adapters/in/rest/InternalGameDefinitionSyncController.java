@@ -25,10 +25,23 @@ public class InternalGameDefinitionSyncController {
 
     private final GameDefinitionSyncService gameDefinitionSyncService;
 
+    /**
+     * Costruisce il controller con il servizio di sincronizzazione delle
+     * definizioni di gioco.
+     *
+     * @param gameDefinitionSyncService servizio per l'applicazione degli eventi di definizione
+     */
     public InternalGameDefinitionSyncController(GameDefinitionSyncService gameDefinitionSyncService) {
         this.gameDefinitionSyncService = gameDefinitionSyncService;
     }
 
+    /**
+     * Riceve un batch di eventi di definizione di gioco replicati dal
+     * sistema centrale e li applica al database locale.
+     *
+     * @param events la lista degli eventi di definizione di gioco
+     * @return una {@link ResponseEntity} con status 200
+     */
     @PutMapping("/sync")
     public ResponseEntity<Void> syncGameDefinitions(@RequestBody List<GameDefinitionEventDto> events) {
         gameDefinitionSyncService.applyEvents(events);

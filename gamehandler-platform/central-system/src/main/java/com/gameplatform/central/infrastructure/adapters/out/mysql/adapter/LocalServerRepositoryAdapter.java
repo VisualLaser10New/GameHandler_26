@@ -25,6 +25,19 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Adattatore JPA per il port {@link LocalServerRegistryPort}.
+ *
+ * <p>Implementa le operazioni di persistenza dei server locali registrati
+ * utilizzando il repository JPA {@link LocalServerJpaRepository}. Gestisce
+ * la registrazione, l'aggiornamento del {@code lastSeenAt}, l'attivazione
+ * e disattivazione dei server, nonché la scrittura degli eventi di
+ * registrazione nell'outbox per la propagazione verso gli altri sistemi.</p>
+ *
+ * @see LocalServerRegistryPort
+ * @see LocalServerJpaRepository
+ * @see RegisteredLocalServerJpaEntity
+ */
 @Component
 public class LocalServerRepositoryAdapter implements LocalServerRegistryPort {
 
@@ -61,6 +74,12 @@ public class LocalServerRepositoryAdapter implements LocalServerRegistryPort {
         this(jpaRepository, lateRegistrationCatchUpService, null, null, null);
     }
 
+    /**
+     * Restituisce l'elenco di tutti i server locali attualmente attivi.
+     *
+     * @return la lista dei server locali attivi; lista vuota se non ve ne sono
+     * @see LocalServerJpaRepository#findByIsActiveTrue
+     */
     @Override
     public List<RegisteredLocalServer> getActiveLocalServers() {
         return jpaRepository.findByIsActiveTrue().stream()
@@ -73,6 +92,13 @@ public class LocalServerRepositoryAdapter implements LocalServerRegistryPort {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Registra o aggiorna un server locale e, se necessario, ne avvia il recupero
+     * degli eventi non ancora replicati.
+     *
+     * @param server il server locale da registrare; se {@code null} o privo di {@code buildingId} il metodo non effettua alcuna operazione
+     * @throws DataIntegrityViolationException se l'inserimento fallisce per violazione di vincoli (gestita internamente in caso di race condition)
+     */
     @Override
     @Transactional
     public void register(RegisteredLocalServer server) {
@@ -141,6 +167,13 @@ public class LocalServerRepositoryAdapter implements LocalServerRegistryPort {
         }
     }
 
+    /**
+     * Aggiorna il timestamp dell'ultimo contatto ricevuto per il server locale indicato.
+     *
+     * @param buildingId  l'identificativo dell'edificio del server; se {@code null} il metodo non effettua alcuna operazione
+     * @param lastSeenAt  il nuovo timestamp di ultimo contatto; se {@code null} il metodo non effettua alcuna operazione
+     * @see LocalServerJpaRepository#findById
+     */
     @Override
     @Transactional
     public void updateLastSeenAt(BuildingId buildingId, Instant lastSeenAt) {
@@ -153,6 +186,12 @@ public class LocalServerRepositoryAdapter implements LocalServerRegistryPort {
         });
     }
 
+    /**
+     * Restituisce l'elenco di tutti i server locali ordinati per ultimo contatto decrescente.
+     *
+     * @return la lista di tutti i server locali; lista vuota se non ve ne sono
+     * @see LocalServerJpaRepository#findAllByOrderByLastSeenAtDesc
+     */
     @Override
     public List<RegisteredLocalServer> findAll() {
         return jpaRepository.findAllByOrderByLastSeenAtDesc().stream()
@@ -165,6 +204,12 @@ public class LocalServerRepositoryAdapter implements LocalServerRegistryPort {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Disattiva il server locale associato all'edificio indicato.
+     *
+     * @param buildingId l'identificativo dell'edificio del server da disattivare; se {@code null} il metodo non effettua alcuna operazione
+     * @see LocalServerJpaRepository#deactivateByBuildingId
+     */
     @Override
     @Transactional
     public void deactivate(BuildingId buildingId) {

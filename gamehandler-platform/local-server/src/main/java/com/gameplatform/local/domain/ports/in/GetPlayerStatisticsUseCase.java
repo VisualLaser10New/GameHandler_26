@@ -6,13 +6,19 @@ import com.gameplatform.shared.dto.PlayerStatisticsDto;
 import java.util.List;
 
 /**
- * Read use case for a player's personal statistics computed on-demand from the
- * Local {@code game_sessions}+{@code session_participants} tables (FASE 3,
- * PIANO &sect;2.5). The Local side is an offline-capable replica of the Central
- * read-model: no extra sync is required, the figures are recomputed at request
- * time. A user who has played no matches yields an <em>empty</em> list (not an
- * exception).
+ * Use case per la lettura delle statistiche personali di un giocatore.
+ * Le statistiche vengono calcolate su richiesta a partire dalle tabelle
+ * locali delle sessioni di gioco e dei partecipanti. Un utente che non
+ * ha disputato partite riceve una lista vuota, non un'eccezione.
+ *
+ * @see com.gameplatform.shared.dto.PlayerStatisticsDto
  */
 public interface GetPlayerStatisticsUseCase {
+    /**
+     * Restituisce le statistiche di gioco per l'utente specificato.
+     *
+     * @param userId identificativo dell'utente di cui calcolare le statistiche
+     * @return lista dei DTO con le statistiche del giocatore
+     */
     List<PlayerStatisticsDto> getPlayerStatistics(UserId userId);
 }

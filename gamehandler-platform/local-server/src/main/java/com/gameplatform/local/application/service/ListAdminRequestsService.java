@@ -12,10 +12,13 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Read use case (PIANO §7.B): returns the admin-request rows owned by
- * the given acting user, or a single one by {@code requestId}. The
- * {@code actingUserId == principal} filter is enforced by the
- * controller to prevent cross-user reads.
+ * Caso d'uso in lettura (PIANO §7.B): restituisce le righe di richieste
+ * admin appartenenti a un determinato utente agente, o una singola
+ * richiesta per {@code requestId}. Il filtro {@code actingUserId == principal}
+ * e' applicato dal controller per impedire letture cross-utente.
+ *
+ * @see ListAdminRequestsUseCase
+ * @see AdminRequestRepository
  */
 @Service
 @Transactional(readOnly = true)
@@ -23,10 +26,21 @@ public class ListAdminRequestsService implements ListAdminRequestsUseCase {
 
     private final AdminRequestRepository adminRequestRepository;
 
+    /**
+     * Costruisce il servizio con il repository delle richieste admin.
+     *
+     * @param adminRequestRepository il repository per l'accesso alle richieste admin (non null)
+     */
     public ListAdminRequestsService(AdminRequestRepository adminRequestRepository) {
         this.adminRequestRepository = adminRequestRepository;
     }
 
+    /**
+     * Restituisce tutte le richieste admin per un determinato utente agente.
+     *
+     * @param actingUserId l'identificativo dell'utente agente
+     * @return la lista delle richieste admin (vuota se actingUserId e' null o blank)
+     */
     @Override
     public List<AdminRequestDto> listByActingUser(String actingUserId) {
         if (actingUserId == null || actingUserId.isBlank()) {
@@ -37,6 +51,12 @@ public class ListAdminRequestsService implements ListAdminRequestsUseCase {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Restituisce una singola richiesta admin per requestId.
+     *
+     * @param requestId l'identificativo della richiesta
+     * @return un Optional contenente la richiesta, o vuoto se non trovata o requestId e' blank
+     */
     @Override
     public Optional<AdminRequestDto> findByRequestId(String requestId) {
         if (requestId == null || requestId.isBlank()) {
@@ -45,6 +65,13 @@ public class ListAdminRequestsService implements ListAdminRequestsUseCase {
         return adminRequestRepository.findByRequestId(requestId).map(ListAdminRequestsService::toDto);
     }
 
+    /**
+     * Converte un {@link AdminRequestLocal} nel corrispondente
+     * {@link AdminRequestDto}.
+     *
+     * @param request l'entita' del modello di dominio (non null)
+     * @return il DTO con tutti i campi mappati uno-a-uno
+     */
     private static AdminRequestDto toDto(AdminRequestLocal request) {
         return new AdminRequestDto(
                 request.getRequestId(),

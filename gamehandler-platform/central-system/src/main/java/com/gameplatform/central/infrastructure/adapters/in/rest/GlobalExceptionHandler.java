@@ -57,8 +57,14 @@ public class GlobalExceptionHandler {
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Handles constraint violations produced by {@code @Valid} on request bodies.
-     * Returns one combined message listing all failing fields.
+     * Gestisce le violazioni di vincoli di validazione prodotte da {@code @Valid} sui corpi delle richieste.
+     *
+     * <p>Restituisce uno stato {@code 400 Bad Request} con un messaggio combinato che elenca
+     * tutti i campi non validi e la relativa motivazione.</p>
+     *
+     * @param ex eccezione contenente il risultato del binding e gli errori di campo, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 400 Bad Request} e una mappa con la chiave
+     *         {@code error} contenente il dettaglio degli errori di validazione
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidationErrors(MethodArgumentNotValidException ex) {
@@ -72,8 +78,12 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles {@link IllegalArgumentException} thrown when e.g. an invalid
-     * enum value is supplied as a request parameter.
+     * Gestisce {@link IllegalArgumentException} lanciata, ad esempio, quando viene fornito
+     * un valore non valido (come un enum) come parametro di richiesta.
+     *
+     * @param ex eccezione contenente il messaggio descrittivo dell'errore, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 400 Bad Request} e una mappa con la chiave
+     *         {@code error} contenente il messaggio dell'eccezione
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
@@ -84,8 +94,12 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles {@link InvalidGameDefinitionException} thrown when an upsert
-     * request carries an invalid (null) game definition.
+     * Gestisce {@link InvalidGameDefinitionException} lanciata quando una richiesta di upsert
+     * trasporta una definizione di gioco non valida.
+     *
+     * @param ex eccezione contenente il messaggio descrittivo dell'errore, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 400 Bad Request} e una mappa con la chiave
+     *         {@code error} contenente il messaggio dell'eccezione
      */
     @ExceptionHandler(InvalidGameDefinitionException.class)
     public ResponseEntity<Map<String, String>> handleInvalidGameDefinition(InvalidGameDefinitionException ex) {
@@ -96,8 +110,12 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles {@link InvalidTournamentException} thrown when a tournament
-     * upsert request carries invalid data (FASE 4).
+     * Gestisce {@link InvalidTournamentException} lanciata quando una richiesta di upsert
+     * di un torneo trasporta dati non validi.
+     *
+     * @param ex eccezione contenente il messaggio descrittivo dell'errore, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 400 Bad Request} e una mappa con la chiave
+     *         {@code error} contenente il messaggio dell'eccezione
      */
     @ExceptionHandler(InvalidTournamentException.class)
     public ResponseEntity<Map<String, String>> handleInvalidTournament(InvalidTournamentException ex) {
@@ -108,8 +126,12 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles {@link InvalidTournamentStateException} thrown when a tournament
-     * operation is attempted while in an incompatible state (FASE 4).
+     * Gestisce {@link InvalidTournamentStateException} lanciata quando un'operazione su un torneo
+     * viene tentata in uno stato incompatibile.
+     *
+     * @param ex eccezione contenente il messaggio descrittivo dell'errore, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 400 Bad Request} e una mappa con la chiave
+     *         {@code error} contenente il messaggio dell'eccezione
      */
     @ExceptionHandler(InvalidTournamentStateException.class)
     public ResponseEntity<Map<String, String>> handleInvalidTournamentState(InvalidTournamentStateException ex) {
@@ -123,6 +145,13 @@ public class GlobalExceptionHandler {
     // 401 Unauthorized
     // ──────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Gestisce {@link InvalidCredentialsException} lanciata in caso di credenziali non valide.
+     *
+     * @param ex eccezione contenente il messaggio descrittivo dell'errore, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 401 Unauthorized} e una mappa con la chiave
+     *         {@code error} contenente il messaggio dell'eccezione
+     */
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<Map<String, String>> handleInvalidCredentials(InvalidCredentialsException ex) {
         log.debug("Authentication failure: {}", ex.getMessage());
@@ -135,6 +164,13 @@ public class GlobalExceptionHandler {
     // 404 Not Found
     // ──────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Gestisce {@link UserNotFoundException} lanciata quando l'utente richiesto non esiste.
+     *
+     * @param ex eccezione contenente il messaggio descrittivo dell'errore, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 404 Not Found} e una mappa con la chiave
+     *         {@code error} contenente il messaggio dell'eccezione
+     */
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleUserNotFound(UserNotFoundException ex) {
         log.debug("User not found: {}", ex.getMessage());
@@ -144,8 +180,12 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles {@link GameDefinitionNotFoundException} thrown when a requested
-     * game definition does not exist in the central Source-of-Truth.
+     * Gestisce {@link GameDefinitionNotFoundException} lanciata quando una definizione di gioco
+     * richiesta non esiste nel sistema centrale di riferimento.
+     *
+     * @param ex eccezione contenente il messaggio descrittivo dell'errore, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 404 Not Found} e una mappa con la chiave
+     *         {@code error} contenente il messaggio dell'eccezione
      */
     @ExceptionHandler(GameDefinitionNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleGameDefinitionNotFound(GameDefinitionNotFoundException ex) {
@@ -156,8 +196,12 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles {@link TournamentNotFoundException} thrown when a requested
-     * tournament does not exist in the central Source-of-Truth (FASE 4).
+     * Gestisce {@link TournamentNotFoundException} lanciata quando un torneo richiesto
+     * non esiste nel sistema centrale di riferimento.
+     *
+     * @param ex eccezione contenente il messaggio descrittivo dell'errore, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 404 Not Found} e una mappa con la chiave
+     *         {@code error} contenente il messaggio dell'eccezione
      */
     @ExceptionHandler(TournamentNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleTournamentNotFound(TournamentNotFoundException ex) {
@@ -172,9 +216,12 @@ public class GlobalExceptionHandler {
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Handles {@link PlayerStatisticsAccessDeniedException} thrown when a
-     * caller requests another player's statistics without being a
-     * {@code PLATFORM_ADMIN} or the player themselves (FASE 3).
+     * Gestisce {@link PlayerStatisticsAccessDeniedException} lanciata quando un chiamante
+     * richiede le statistiche di un altro giocatore senza disporre dei permessi necessari.
+     *
+     * @param ex eccezione contenente il messaggio descrittivo dell'errore, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 403 Forbidden} e una mappa con la chiave
+     *         {@code error} contenente il messaggio dell'eccezione
      */
     @ExceptionHandler(PlayerStatisticsAccessDeniedException.class)
     public ResponseEntity<Map<String, String>> handlePlayerStatisticsAccessDenied(PlayerStatisticsAccessDeniedException ex) {
@@ -188,6 +235,14 @@ public class GlobalExceptionHandler {
     // 409 Conflict
     // ──────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Gestisce {@link UserAlreadyExistsException} lanciata quando si tenta di registrare
+     * un utente già esistente.
+     *
+     * @param ex eccezione contenente il messaggio descrittivo dell'errore, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 409 Conflict} e una mappa con la chiave
+     *         {@code error} contenente il messaggio dell'eccezione
+     */
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<Map<String, String>> handleUserAlreadyExists(UserAlreadyExistsException ex) {
         log.debug("User already exists: {}", ex.getMessage());
@@ -197,8 +252,12 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles {@link TournamentRegistrationClosedException} thrown when a
-     * registration is attempted on a tournament that is no longer open (FASE 4).
+     * Gestisce {@link TournamentRegistrationClosedException} lanciata quando si tenta di
+     * registrarsi a un torneo la cui iscrizione non è più aperta.
+     *
+     * @param ex eccezione contenente il messaggio descrittivo dell'errore, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 409 Conflict} e una mappa con la chiave
+     *         {@code error} contenente il messaggio dell'eccezione
      */
     @ExceptionHandler(TournamentRegistrationClosedException.class)
     public ResponseEntity<Map<String, String>> handleTournamentRegistrationClosed(TournamentRegistrationClosedException ex) {
@@ -209,8 +268,12 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles {@link DuplicateTournamentParticipantException} thrown when a
-     * player attempts to register for a tournament more than once (FASE 4).
+     * Gestisce {@link DuplicateTournamentParticipantException} lanciata quando un giocatore
+     * tenta di registrarsi più di una volta allo stesso torneo.
+     *
+     * @param ex eccezione contenente il messaggio descrittivo dell'errore, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 409 Conflict} e una mappa con la chiave
+     *         {@code error} contenente il messaggio dell'eccezione
      */
     @ExceptionHandler(DuplicateTournamentParticipantException.class)
     public ResponseEntity<Map<String, String>> handleDuplicateTournamentParticipant(DuplicateTournamentParticipantException ex) {
@@ -224,6 +287,14 @@ public class GlobalExceptionHandler {
     // 429 Too Many Requests
     // ──────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Gestisce {@link RateLimitExceededException} lanciata quando è stato superato il limite
+     * di richieste consentito per un determinato client.
+     *
+     * @param ex eccezione contenente il messaggio descrittivo dell'errore, non {@code null}
+     * @return {@link ResponseEntity} con stato {@code 429 Too Many Requests} e una mappa con la
+     *         chiave {@code error} contenente il messaggio dell'eccezione
+     */
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<Map<String, String>> handleRateLimitExceeded(RateLimitExceededException ex) {
         log.warn("Rate limit exceeded: {}", ex.getMessage());

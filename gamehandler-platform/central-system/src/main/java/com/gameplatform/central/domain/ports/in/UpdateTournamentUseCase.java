@@ -16,6 +16,19 @@ import java.util.List;
  * idempotency tracking.</p>
  */
 public interface UpdateTournamentUseCase {
+
+    /**
+     * Aggiorna i campi modificabili di un torneo ancora in stato {@code DRAFT}.
+     *
+     * @param tournamentId l'identificativo del torneo da aggiornare; non deve essere {@code null}
+     * @param name il nuovo nome del torneo; non deve essere {@code null} né vuoto
+     * @param startsAt la nuova data di inizio del torneo; può essere {@code null} per lasciarla non definita
+     * @param buildingIds la lista degli identificativi delle strutture associate; non deve essere {@code null}; se vuota il torneo non è associato ad alcuna struttura
+     * @param originatingRequestId l'identificativo della richiesta origine per la tracciabilità; può essere {@code null} nel caso di chiamata REST diretta
+     * @return il {@link TournamentDto} rappresentante il torneo aggiornato
+     * @throws com.gameplatform.shared.domain.exception.TournamentNotFoundException se il torneo non esiste
+     * @throws com.gameplatform.shared.domain.exception.InvalidTournamentStateException se il torneo non è in stato {@code DRAFT}
+     */
     TournamentDto update(TournamentId tournamentId, String name, Instant startsAt,
                          List<String> buildingIds, String originatingRequestId);
 }

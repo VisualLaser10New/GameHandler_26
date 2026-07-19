@@ -20,6 +20,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 
+/**
+ * Servizio di orchestrazione del ciclo di vita di una partita.
+ * Gestisce l'avvio, la pausa, la ripresa e l'arresto di una partita,
+ * coordinandosi con il server locale tramite publisher MQTT e aggiornando
+ * lo stato del monitor di connessione.
+ */
 public class GameOrchestrationService {
     private static final Logger log = LoggerFactory.getLogger(GameOrchestrationService.class);
     private static final long SESSION_CONFIRM_TIMEOUT_SECONDS = 10;
@@ -34,6 +40,13 @@ public class GameOrchestrationService {
     private final ConcurrentHashMap<String, CompletableFuture<GameSessionId>> pendingStarts =
             new ConcurrentHashMap<>();
 
+    /**
+     * Costruisce un nuovo orchestratore di partite.
+     *
+     * @param sessionPublisher  il publisher MQTT per gli eventi di sessione, non null
+     * @param connectionMonitor il monitor di connessione da notificare, non null
+     * @param gameId            l'identificativo del gioco gestito, non null
+     */
     public GameOrchestrationService(SessionPublisher sessionPublisher,
                                     ConnectionMonitorService connectionMonitor,
                                     String gameId) {
@@ -42,6 +55,17 @@ public class GameOrchestrationService {
         this.gameId = gameId;
     }
 
+    /**
+     * Avvia una nuova partita del tipo specificato con i partecipanti indicati.
+     * Pubblica una richiesta di avvio sessione, attende la conferma dal server,
+     * crea il dominio di gioco e notifica il monitor di connessione.
+     *
+     * @param type         il tipo di gioco da avviare, non null
+     * @param participants la lista dei partecipanti alla partita, non null
+     * @throws IllegalStateException se una partita è già in corso
+     * @throws RuntimeException      se la conferma della sessione non arriva entro il timeout o
+     *                               se si verifica un errore durante l'attesa
+     */
     public void startGame(GameType type, List<String> participants) {
         if (currentGame != null) {
             throw new IllegalStateException("A game is already in progress. Stop it first.");
@@ -95,6 +119,15 @@ public class GameOrchestrationService {
         log.info("Game {} started successfully (sessionId: {})", type, confirmedSessionId.value());
     }
 
+    /**
+     * Arresta la partita in corso con il motivo specificato e pubblica l'evento di fine sessione.
+     * Se nessuna partita è in corso, registra un avviso e non esegue alcuna operazione.
+     *
+     * @param reason       il motivo dell'arresto, non null
+     * @param winnerId     l'identificativo del vincitore, può essere null in caso di pareggio o interruzione
+     * @param winCondition la condizione di vittoria, non null
+     * @param resultData   dati aggiuntivi sul risultato, può essere null
+     */
     public void stopGame(StopReason reason, String winnerId, WinCondition winCondition, String resultData) {
         if (currentGame == null) {
             log.warn("stopGame called but no game is currently running");
@@ -113,17 +146,22 @@ public class GameOrchestrationService {
         currentParticipants = null;
     }
 
+    /**
+     * Arresta la partita in corso con il motivo specificato, utilizzando valori predefiniti
+     * per vincitore (null), condizione di vittoria ({@link WinCondition#DRAW}) e dati risultato (null).
+     *
+     * @param reason il motivo dell'arresto, non null
+     * @see #stopGame(StopReason, String, WinCondition, String)
+     */
     public void stopGame(StopReason reason) {
         stopGame(reason, null, WinCondition.DRAW, null);
     }
 
     /**
-     * Clears all internal game state without publishing an MQTT
-     * session/end event. Used when the <em>remote</em> player ends
-     * the match: the local client must release its state so a new
-     * game can be started later, but must NOT re-publish the end
-     * event (which would cause an echo loop or double-processing
-     * on the server).
+     * Azzera lo stato interno della partita senza pubblicare eventi MQTT di fine sessione.
+     * Utilizzato quando il giocatore remoto termina l'incontro: il client locale deve
+     * rilasciare lo stato per consentire l'avvio di una nuova partita, senza ripubblicare
+     * l'evento di fine (che causerebbe un ciclo di eco o doppia elaborazione sul server).
      */
     public void forceClear() {
         log.info("Force-clearing game state (remote end). Session was: {}",
@@ -135,6 +173,10 @@ public class GameOrchestrationService {
         pendingStarts.clear();
     }
 
+    /**
+     * Mette in pausa la partita in corso.
+     * Se nessuna partita è attiva, registra un avviso e non esegue alcuna operazione.
+     */
     public void pauseGame() {
         if (currentGame == null) {
             log.warn("pauseGame called but no game is currently running");
@@ -143,6 +185,10 @@ public class GameOrchestrationService {
         currentGame.pause();
     }
 
+    /**
+     * Riprende la partita precedentemente messa in pausa.
+     * Se nessuna partita è attiva, registra un avviso e non esegue alcuna operazione.
+     */
     public void resumeGame() {
         if (currentGame == null) {
             log.warn("resumeGame called but no game is currently running");
@@ -151,6 +197,15 @@ public class GameOrchestrationService {
         currentGame.resume();
     }
 
+    /**
+     * Gestisce la conferma di avvio sessione ricevuta dal server.
+     * Deserializza il payload, estrae l'identificativo della sessione e completa
+     * la richiesta pendente di avvio partita. Se il payload non contiene un
+     * identificativo valido, ignora la conferma. In caso di errore di deserializzazione,
+     * completa eccezionalmente la richiesta pendente.
+     *
+     * @param payload i dati binari della conferma, non null
+     */
     public void onSessionStartConfirmed(byte[] payload) {
         try {
             SessionStartPayload startPayload = MqttPayloadSerializer.deserialize(payload, SessionStartPayload.class);
@@ -178,14 +233,29 @@ public class GameOrchestrationService {
         }
     }
 
+    /**
+     * Restituisce il modello del dominio di gioco della partita corrente.
+     *
+     * @return l'istanza del gioco corrente, o null se nessuna partita è in corso
+     */
     public GameLifecycle getCurrentGame() {
         return currentGame;
     }
 
+    /**
+     * Restituisce l'identificativo della sessione di gioco corrente.
+     *
+     * @return l'identificativo della sessione, o null se nessuna partita è in corso
+     */
     public GameSessionId getCurrentSessionId() {
         return currentSessionId;
     }
 
+    /**
+     * Verifica se una partita è attualmente in corso.
+     *
+     * @return true se una partita è attiva, false altrimenti
+     */
     public boolean isGameInProgress() {
         return currentGame != null;
     }

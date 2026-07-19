@@ -13,23 +13,47 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Spring Data JPA repository for {@link PlayerStatisticsJpaEntity}.
+ * Repository JPA per l'accesso ai dati delle statistiche dei giocatori.
+ * <p>
+ * Fornisce metodi per interrogare le statistiche individuali per utente e tipo
+ * di gioco. Il metodo {@link #findByUserIdAndGameTypeForUpdate} acquisisce un
+ * blocco pessimistico di scrittura per serializzare proiezioni concorrenti
+ * sullo stesso giocatore e tipo di gioco, garantendo l'atomicit&agrave;
+ * dell'incremento di partite giocate e vinte.
+ * </p>
  *
- * <p>{@link #findByUserIdAndGameTypeForUpdate} acquires a
- * {@link LockModeType#PESSIMISTIC_WRITE pessimistic write lock}, mirroring the
- * {@code aggregated_statistics} {@code findBy...WithLock} pattern
- * ({@code StatisticsJpaRepository}). The lock serialises concurrent
- * {@code GAME_SESSION_COMPLETED} projections for the same (user, gameType) so
- * the {@code matches_played}/{@code matches_won} increment is atomic (FASE 3,
- * PIANO &sect;2.4 / protocol &sect;2.C thread-safety mandate).</p>
+ * @see PlayerStatisticsJpaEntity
+ * @see PlayerStatisticsId
+ * @see StatisticsJpaRepository
  */
 @Repository
 public interface PlayerStatisticsJpaRepository extends JpaRepository<PlayerStatisticsJpaEntity, PlayerStatisticsId> {
 
+    /**
+     * Restituisce tutte le statistiche associate all'identificativo utente specificato.
+     *
+     * @param userId l'identificativo dell'utente (non null)
+     * @return una lista di statistiche del giocatore, vuota se l'utente non ha statistiche registrate
+     */
     List<PlayerStatisticsJpaEntity> findByUserId(String userId);
 
+    /**
+     * Restituisce le statistiche dell'utente per il tipo di gioco specificato, se presenti.
+     *
+     * @param userId   l'identificativo dell'utente (non null)
+     * @param gameType il tipo di gioco (non null)
+     * @return un {@code Optional} contenente le statistiche se trovate, vuoto altrimenti
+     */
     Optional<PlayerStatisticsJpaEntity> findByUserIdAndGameType(String userId, String gameType);
 
+    /**
+     * Restituisce le statistiche dell'utente per il tipo di gioco specificato, acquisendo
+     * un blocco pessimistico di scrittura per prevenire aggiornamenti concorrenti.
+     *
+     * @param userId   l'identificativo dell'utente (non null)
+     * @param gameType il tipo di gioco (non null)
+     * @return un {@code Optional} contenente le statistiche con blocco pessimistico se trovate, vuoto altrimenti
+     */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM PlayerStatisticsJpaEntity s WHERE s.userId = :userId AND s.gameType = :gameType")
     Optional<PlayerStatisticsJpaEntity> findByUserIdAndGameTypeForUpdate(

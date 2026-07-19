@@ -23,10 +23,24 @@ public class GameDefinitionLocalMapper {
 
     private final ObjectMapper objectMapper;
 
+    /**
+     * Costruisce il mapper con l'ObjectMapper per la serializzazione JSON.
+     *
+     * @param objectMapper il mapper JSON per serializzazione/deserializzazione (non null)
+     */
     public GameDefinitionLocalMapper(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * Converte un'entità JPA {@link GameDefinitionLocalJpaEntity} nel corrispondente
+     * modello di dominio {@link GameDefinitionLocal}. Deserializza il campo JSON
+     * {@code registrationRules} da stringa a {@link Map}.
+     *
+     * @param entity l'entità JPA da convertire, può essere {@code null}
+     * @return il modello di dominio, oppure {@code null} se l'input è {@code null}
+     * @throws RuntimeException in caso di errore di deserializzazione JSON
+     */
     public GameDefinitionLocal toDomain(GameDefinitionLocalJpaEntity entity) {
         if (entity == null) {
             return null;
@@ -53,6 +67,15 @@ public class GameDefinitionLocalMapper {
         );
     }
 
+    /**
+     * Converte un modello di dominio {@link GameDefinitionLocal} nella corrispondente
+     * entità JPA {@link GameDefinitionLocalJpaEntity}. Serializza il campo
+     * {@code registrationRules} da {@link Map} a stringa JSON.
+     *
+     * @param domain il modello di dominio da convertire, può essere {@code null}
+     * @return l'entità JPA, oppure {@code null} se l'input è {@code null}
+     * @throws RuntimeException in caso di errore di serializzazione JSON
+     */
     public GameDefinitionLocalJpaEntity toEntity(GameDefinitionLocal domain) {
         if (domain == null) {
             return null;

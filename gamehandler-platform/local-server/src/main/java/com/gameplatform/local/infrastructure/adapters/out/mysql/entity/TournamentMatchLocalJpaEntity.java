@@ -47,9 +47,26 @@ public class TournamentMatchLocalJpaEntity {
     @Column(name = "scheduled_at")
     private Instant scheduledAt;
 
+    /**
+     * Costruttore predefinito richiesto da JPA.
+     */
     public TournamentMatchLocalJpaEntity() {
     }
 
+    /**
+     * Costruisce un nuovo incontro torneo locale con tutti i campi.
+     *
+     * @param id              identificatore univoco dell'incontro
+     * @param tournamentId    identificativo del torneo
+     * @param round           numero del round
+     * @param bracketPosition posizione nel bracket
+     * @param participantA    identificativo del primo partecipante
+     * @param participantB    identificativo del secondo partecipante (può essere {@code null})
+     * @param gameType        tipo di gioco dell'incontro
+     * @param gameId          identificativo della postazione gioco (può essere {@code null})
+     * @param status          stato dell'incontro
+     * @param scheduledAt     data/hora programmata (può essere {@code null})
+     */
     public TournamentMatchLocalJpaEntity(String id, String tournamentId, Integer round, Integer bracketPosition,
                                          String participantA, String participantB, String gameType,
                                          String gameId, String status, Instant scheduledAt) {
@@ -65,82 +82,182 @@ public class TournamentMatchLocalJpaEntity {
         this.scheduledAt = scheduledAt;
     }
 
+    /**
+     * Restituisce l'identificatore univoco dell'incontro.
+     *
+     * @return id
+     */
     public String getId() {
         return id;
     }
 
+    /**
+     * Imposta l'identificatore univoco dell'incontro.
+     *
+     * @param id nuovo identificatore
+     */
     public void setId(String id) {
         this.id = id;
     }
 
+    /**
+     * Restituisce l'identificativo del torneo.
+     *
+     * @return tournamentId
+     */
     public String getTournamentId() {
         return tournamentId;
     }
 
+    /**
+     * Imposta l'identificativo del torneo.
+     *
+     * @param tournamentId nuovo identificativo torneo
+     */
     public void setTournamentId(String tournamentId) {
         this.tournamentId = tournamentId;
     }
 
+    /**
+     * Restituisce il numero del round.
+     *
+     * @return round
+     */
     public Integer getRound() {
         return round;
     }
 
+    /**
+     * Imposta il numero del round.
+     *
+     * @param round nuovo numero round
+     */
     public void setRound(Integer round) {
         this.round = round;
     }
 
+    /**
+     * Restituisce la posizione nel bracket.
+     *
+     * @return bracketPosition
+     */
     public Integer getBracketPosition() {
         return bracketPosition;
     }
 
+    /**
+     * Imposta la posizione nel bracket.
+     *
+     * @param bracketPosition nuova posizione bracket
+     */
     public void setBracketPosition(Integer bracketPosition) {
         this.bracketPosition = bracketPosition;
     }
 
+    /**
+     * Restituisce l'identificativo del primo partecipante.
+     *
+     * @return participantA
+     */
     public String getParticipantA() {
         return participantA;
     }
 
+    /**
+     * Imposta l'identificativo del primo partecipante.
+     *
+     * @param participantA nuovo identificativo primo partecipante
+     */
     public void setParticipantA(String participantA) {
         this.participantA = participantA;
     }
 
+    /**
+     * Restituisce l'identificativo del secondo partecipante.
+     *
+     * @return participantB (può essere {@code null})
+     */
     public String getParticipantB() {
         return participantB;
     }
 
+    /**
+     * Imposta l'identificativo del secondo partecipante.
+     *
+     * @param participantB nuovo identificativo secondo partecipante
+     */
     public void setParticipantB(String participantB) {
         this.participantB = participantB;
     }
 
+    /**
+     * Restituisce il tipo di gioco dell'incontro.
+     *
+     * @return gameType
+     */
     public String getGameType() {
         return gameType;
     }
 
+    /**
+     * Imposta il tipo di gioco dell'incontro.
+     *
+     * @param gameType nuovo tipo di gioco
+     */
     public void setGameType(String gameType) {
         this.gameType = gameType;
     }
 
+    /**
+     * Restituisce l'identificativo della postazione gioco associata.
+     *
+     * @return gameId (può essere {@code null})
+     */
     public String getGameId() {
         return gameId;
     }
 
+    /**
+     * Imposta l'identificativo della postazione gioco.
+     *
+     * @param gameId nuovo identificativo postazione
+     */
     public void setGameId(String gameId) {
         this.gameId = gameId;
     }
 
+    /**
+     * Restituisce lo stato dell'incontro.
+     *
+     * @return status
+     */
     public String getStatus() {
         return status;
     }
 
+    /**
+     * Imposta lo stato dell'incontro.
+     *
+     * @param status nuovo stato
+     */
     public void setStatus(String status) {
         this.status = status;
     }
 
+    /**
+     * Restituisce la data/hora programmata dell'incontro.
+     *
+     * @return scheduledAt (può essere {@code null})
+     */
     public Instant getScheduledAt() {
         return scheduledAt;
     }
 
+    /**
+     * Imposta la data/hora programmata dell'incontro.
+     *
+     * @param scheduledAt nuova data/hora programmata
+     */
     public void setScheduledAt(Instant scheduledAt) {
         this.scheduledAt = scheduledAt;
     }

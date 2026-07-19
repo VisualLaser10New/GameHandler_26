@@ -16,10 +16,13 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Receives {@code TOURNAMENT_MATCH_SCHEDULED} events replicated from the
- * Central via outbox and applies them idempotently to the
- * {@code tournament_matches_local} table. Mirror of
- * {@link GameDefinitionSyncService}; idempotency is by PK {@code matchId}.
+ * Riceve eventi {@code TOURNAMENT_MATCH_SCHEDULED} replicati dal Central
+ * tramite outbox e li applica idempotentemente alla tabella
+ * {@code tournament_matches_local}. L'idempotenza e' garantita dalla
+ * chiave primaria {@code matchId} (upsert).
+ *
+ * @see TournamentMatchLocalRepository
+ * @see GameDefinitionSyncService
  */
 @Service
 @Transactional
@@ -38,6 +41,13 @@ public class TournamentMatchLocalSyncService {
         this.clock = clock;
     }
 
+    /**
+     * Applica una lista di eventi di match torneo alla tabella locale.
+     * Ogni evento TOURNAMENT_MATCH_SCHEDULED viene upsertato per matchId
+     * con validazione dei campi obbligatori.
+     *
+     * @param events la lista di eventi da applicare (puo' essere null)
+     */
     public void applyEvents(List<TournamentMatchScheduledDto> events) {
         if (events == null) {
             return;

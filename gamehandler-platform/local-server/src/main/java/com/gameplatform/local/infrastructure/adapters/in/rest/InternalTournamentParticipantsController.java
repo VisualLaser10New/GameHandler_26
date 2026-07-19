@@ -25,10 +25,23 @@ public class InternalTournamentParticipantsController {
 
     private final TournamentParticipantsLocalSyncService syncService;
 
+    /**
+     * Costruisce il controller con il servizio di sincronizzazione dei
+     * partecipanti ai tornei.
+     *
+     * @param syncService servizio per l'applicazione degli eventi dei partecipanti
+     */
     public InternalTournamentParticipantsController(TournamentParticipantsLocalSyncService syncService) {
         this.syncService = syncService;
     }
 
+    /**
+     * Riceve un batch di eventi di partecipanti ai tornei replicati dal
+     * sistema centrale e li applica al database locale.
+     *
+     * @param events la lista degli eventi dei partecipanti
+     * @return una {@link ResponseEntity} con status 200
+     */
     @PutMapping("/sync")
     public ResponseEntity<Void> syncTournamentParticipants(@RequestBody List<TournamentParticipantsEventDto> events) {
         syncService.applyEvents(events);
