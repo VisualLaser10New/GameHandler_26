@@ -1,0 +1,46 @@
+@startuml
+autonumber
+participant "Local Server" as Local
+participant "Local DB (Outbox)" as DB
+participant "Central System" as Central
+participant "Central DB" as CDB
+
+note over Local, Central : Local generates events during offline operation
+Local -> DB : Write events to outbox_events (PENDING)
+note right of DB : Types: USER_REGISTERED, USER_UPDATED,<br/>RESERVATION_CREATED, RESERVATION_CANCELLED,<br/>GAME_SESSION_COMPLETED, GAME_SESSION_ABORTED,<br/>TOURNAMENT_PARTICIPANT_REGISTERED, etc.
+
+note over Local, Central : Every 5 minutes: SyncSchedulerService
+Local -> Local : SyncSchedulerService.syncWithCentral()
+Local -> DB : SELECT * FROM outbox_events WHERE status='PENDING' ORDER BY created_at LIMIT 100
+DB --> Local : List<OutboxEvent>
+
+alt Events pending
+    Local -> Central : POST /internal/sync/receive (SyncPayloadDto: buildingId, events[]) [API Key]
+    Central -> Central : SyncReceiverService.receive(payload)
+    loop For each event
+        Central -> Central : SyncEventProcessor.processOne(event)
+        alt USER_REGISTERED / USER_UPDATED
+            Central -> CDB : Upsert User in central users table
+        else RESERVATION_CREATED / CANCELLED
+            Central -> CDB : Update reservation statistics
+        else GAME_SESSION_COMPLETED
+            Central -> CDB : Update AggregatedStatistics (mergeWith)
+            Central -> CDB : Project PlayerStatistics (PlayerStatisticsProjectionService)
+            Central -> CDB : Write PlayerMatchFact
+        else TOURNAMENT_* events
+            Central -> CDB : Update Tournament, TournamentMatch, TournamentStanding
+        end
+        Central -> CDB : INSERT INTO processed_events (event_id, processed_at)
+    end
+    Central --> Local : 200 OK
+    Local -> DB : UPDATE outbox_events SET status='SENT', sent_at=now() WHERE id IN (...)
+else No pending events
+    Local -> Local : Skip sync, wait next cycle
+end
+
+note over Local, Central : Idempotency via processed_events table
+Central -> Central : Before processing, check processed_events
+alt Already processed
+    Central -> Central : Skip (idempotent)
+end
+@enduml

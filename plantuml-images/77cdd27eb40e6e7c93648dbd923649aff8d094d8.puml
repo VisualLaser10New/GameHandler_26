@@ -1,0 +1,23 @@
+@startuml
+
+actor PLATFORM_ADMIN as "Platform Admin"
+actor GameClient as "Game Client"
+actor LocalServer as "Local Server"
+actor CentralSystem as "Central System"
+(Crea torneo individuale/squadre) as UC12
+(Apri/chiudi registrazioni torneo) as UC13
+(Genera bracket eliminazione diretta) as UC14
+(Programma match su edifici) as UC15
+(Registra risultato match) as UC16
+(Aggiorna classifica torneo) as UC17
+PLATFORM_ADMIN --> UC12
+PLATFORM_ADMIN --> UC13
+PLATFORM_ADMIN --> UC14
+PLATFORM_ADMIN --> UC15
+CentralSystem --> UC12
+CentralSystem --> UC13
+CentralSystem --> UC14
+CentralSystem --> UC15
+CentralSystem --> UC16
+CentralSystem --> UC17
+@enduml

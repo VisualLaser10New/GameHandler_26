@@ -1,0 +1,10 @@
+@startuml
+
+actor ESP32 as "ESP32/Board"
+actor LocalServer as "Local Server"
+(Invia evento sensore via HTTP/MQTT) as UC30
+(Processa evento punteggio/mossa/turno) as UC31
+ESP32 --> UC30
+LocalServer --> UC30
+LocalServer --> UC31
+@enduml

@@ -1,0 +1,16 @@
+@startuml
+
+actor GameClient as "Game Client"
+actor LocalServer as "Local Server"
+actor MqttBroker as "MQTT Broker"
+(Heartbeat periodico endpoint) as UC8
+(Rilevamento endpoint non raggiungibile) as UC9
+(Chiusura automatica sessione orfana) as UC10
+(Recupero sessioni al riavvio server) as UC11
+GameClient --> UC8
+LocalServer --> UC8
+LocalServer --> UC9
+LocalServer --> UC10
+LocalServer --> UC11
+MqttBroker --> UC8
+@enduml

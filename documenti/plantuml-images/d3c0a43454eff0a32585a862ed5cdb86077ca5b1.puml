@@ -1,0 +1,37 @@
+@startuml
+autonumber
+participant "ESP32 / Game Board" as ESP32
+participant "Local Server" as Local
+participant "Local DB" as DB
+participant "MQTT Broker" as MQTT
+participant "Game Client" as Client
+
+note over ESP32, Local : HTTP Sensor Events (REST)
+ESP32 -> Local : POST /api/devices/events (gameId, eventType, payload)
+Local -> Local : Validate gameId exists, game IN_USE
+Local -> DB : Persist sensor event (game_sensor_events table)
+Local -> MQTT : Publish session/move or session/score or session/turn
+MQTT -> Client : Broadcast to subscribed clients
+Local --> ESP32 : 200 OK
+
+note over ESP32, Local : MQTT Sensor Events (Alternative)
+ESP32 -> MQTT : Publish building/{bId}/game/{gId}/session/score (QoS 1)
+MQTT -> Local : Receive on session/score topic
+Local -> Local : Parse payload, validate game session
+Local -> DB : Update GameSession (if score affects result)
+Local -> MQTT : Broadcast score to clients
+MQTT -> Client : Receive real-time score update
+
+note over ESP32, Local : Game-specific events
+alt Foosball: goal scored
+    ESP32 -> Local : POST /api/devices/events (type=SCORE, team=HOME, points=1)
+    Local -> DB : Increment score in session
+else Chess: move made
+    ESP32 -> MQTT : session/move (from, to, piece)
+    Local -> Client : Broadcast move to opponent
+else Slot Machine: spin result
+    ESP32 -> Local : POST /api/devices/events (type=RESULT, outcome=WIN/JACKPOT)
+    Local -> Local : Auto-complete session with SlotResult
+    Local -> MQTT : session/end with result
+end
+@enduml

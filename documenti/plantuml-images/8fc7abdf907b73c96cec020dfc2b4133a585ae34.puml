@@ -1,0 +1,64 @@
+@startuml
+skinparam class {
+  backgroundColor White
+  arrowColor Black
+}
+class JwtTokenProvider {
+    +String generateTokenWithExpiry(User, Instant)
+    +JwtClaims parseToken(String)
+}
+class JwtAuthenticationFilter
+class InternalApiKeyFilter
+class CurrentUserService
+class LocalAdminBuildingAuthorizationManager
+class MqttPublisher {
+    +publish(String, String, int, boolean)
+}
+class GameStatePublisher {
+    +publishState(GameId, GameMachineStatus)
+    +publishSessionStart(GameSessionDto)
+    +publishSessionEnd(GameSessionDto)
+}
+class AlertPublisher {
+    +publishAlert(String, String)
+}
+class MqttMessageHandler {
+    +handle(String, String)
+}
+class SessionStartHandler {
+    +handle(SessionStartPayload)
+}
+class SessionPauseHandler {
+    +handle(SessionPausePayload)
+}
+class SessionResumeHandler {
+    +handle(SessionResumePayload)
+}
+class SessionEndHandler {
+    +handle(SessionEndPayload)
+}
+class HeartbeatHandler {
+    +handle(HeartbeatPayload)
+}
+class CentralSystemRestAdapter {
+    +syncUsers(List~UserSyncDto~)
+    +syncTournamentSummaries(List~TournamentSummaryEventDto~)
+    +syncGameDefinitions(List~GameDefinitionEventDto~)
+}
+class RegisterLocalServerAdapter {
+    +register(BuildingId, String)
+}
+
+JwtAuthenticationFilter ..> JwtTokenProvider : uses
+InternalApiKeyFilter ..> CurrentUserService : uses
+MqttMessageHandler ..> SessionStartHandler : delegates
+MqttMessageHandler ..> SessionPauseHandler : delegates
+MqttMessageHandler ..> SessionResumeHandler : delegates
+MqttMessageHandler ..> SessionEndHandler : delegates
+MqttMessageHandler ..> HeartbeatHandler : delegates
+MqttMessageHandler ..> MqttPublisher : uses
+
+CentralSystemRestAdapter ..> PushUserToCentralPort : implements
+CentralSystemRestAdapter ..> PushTournamentSummaryToCentralPort : implements
+RegisterLocalServerAdapter ..> PushUserToCentralPort : implements
+@enduml

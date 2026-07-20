@@ -1,0 +1,68 @@
+@startuml
+autonumber
+actor Player as "PLAYER"
+participant "Game Client (JavaFX)" as Client
+participant "Local Server" as Local
+participant "Local DB" as DB
+participant "MQTT Broker" as MQTT
+
+note over Player, Local : 1. Login (HTTPS REST)
+Player -> Client : Enter credentials
+Client -> Local : POST /api/auth/login
+Local -> DB : Find user in replicated_users
+DB --> Local : User (with password hash)
+Local -> Local : Verify BCrypt password
+Local -> Local : Sign JWT (local RSA key)
+Local --> Client : 200 OK + JWT
+Client --> Player : Login success
+
+note over Player, Local : 2. Reservation (HTTPS REST)
+Player -> Client : Select available game
+Client -> Local : POST /api/reservations (JWT, gameId, timeSlot)
+Local -> DB : Create Reservation (PENDING)
+Local -> DB : Update Game status = RESERVED
+Local -> DB : Write RESERVATION_CREATED to outbox_events
+Local --> Client : 201 Created (ReservationDto)
+Local -> MQTT : Publish state: RESERVED (retained)
+MQTT --> Client : Notify state change
+Client --> Player : Show reservation confirmed
+
+note over Player, Local : 3. Session Start (MQTT)
+Player -> Client : Press "Start Game"
+Client -> MQTT : Publish session/start (sessionId, participants)
+MQTT -> Local : Receive on session/start topic
+Local -> DB : Create GameSession (IN_PROGRESS)
+Local -> DB : Update Game status = IN_USE
+Local -> DB : Write GAME_SESSION_STARTED to outbox_events
+Local -> MQTT : Publish state: IN_USE (retained)
+Local -> MQTT : Broadcast session/start to participants
+MQTT --> Client : Receive state + session start
+Client --> Player : Game UI active
+
+note over Player, Local : 4. Pause/Resume (MQTT)
+Player -> Client : Press "Pause"
+Client -> MQTT : Publish session/pause
+MQTT -> Local : Receive
+Local -> DB : Update session status = PAUSED
+Local -> MQTT : Broadcast session/pause
+MQTT --> Client : Notify pause
+
+Player -> Client : Press "Resume"
+Client -> MQTT : Publish session/resume
+MQTT -> Local : Receive
+Local -> DB : Update session status = IN_PROGRESS
+Local -> MQTT : Broadcast session/resume
+MQTT --> Client : Notify resume
+
+note over Player, Local : 5. Session End (MQTT)
+Player -> Client : Game finished, enter result
+Client -> MQTT : Publish session/end (winner, score, winCondition)
+MQTT -> Local : Receive
+Local -> DB : Complete GameSession (COMPLETED)
+Local -> DB : Update Game status = AVAILABLE
+Local -> DB : Write GAME_SESSION_COMPLETED to outbox_events (with participants, winner, winCondition)
+Local -> MQTT : Publish state: AVAILABLE (retained)
+Local -> MQTT : Broadcast session/end (result)
+MQTT --> Client : Receive final state + result
+Client --> Player : Show match result
+@enduml

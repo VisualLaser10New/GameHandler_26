@@ -1,0 +1,19 @@
+@startuml
+
+actor PLAYER as "Player"
+actor GameClient as "Game Client"
+actor LocalServer as "Local Server"
+actor CentralSystem as "Central System"
+actor PLATFORM_ADMIN as "Platform Admin"
+(Login utente online/offline) as UC5
+(Registrazione nuovo utente online/offline) as UC6
+(Replica utenti Central - Local) as UC7
+PLAYER --> UC5
+PLAYER --> UC6
+GameClient --> UC5
+LocalServer --> UC5
+LocalServer --> UC6
+LocalServer --> UC7
+CentralSystem --> UC7
+PLATFORM_ADMIN --> UC7
+@enduml

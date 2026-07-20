@@ -1,0 +1,54 @@
+@startuml
+package "boardgame-platform (Parent POM)" as Parent {
+  package "shared (shared modules - NO framework deps)" as Shared {
+    component "shared-domain\ncom.gameplatform.shared.domain\n  - model (Value Objects, Enums, Entities)\n  - security (Role)\n  - game (GameFactory, GameLifecycle)\n  - result (GameResult + subtypes)\n  - events (DomainEvent + subtypes)" as SD
+    component "shared-dto\ncom.gameplatform.shared.dto\n  - Request/Response DTOs\n  - Event DTOs (outbox payloads)\n  - Sync DTOs" as SDto
+    component "shared-mqtt\ncom.gameplatform.shared.mqtt\n  - MqttConfig\n  - MqttClient\n  - Message serialization" as SMqtt
+  }
+
+  package "central-system (Spring Boot microservice)" as Central {
+    component "domain\ncom.gameplatform.central.domain\n  - model (User, GameDefinition, Tournament,\n  - Team, TournamentParticipant, TournamentMatch,\n  - TournamentStanding, PlayerStatistics,\n  - PlayerMatchFact, AggregatedStatistics,\n  - RegisteredLocalServer, ProcessedEvent,\n  - ReplicationProgress, LocalAdminBuilding,\n  - FailedLoginAttempt)\n  - ports.in (Use Cases)\n  - ports.out (Repository Ports, External Ports)\n  - exception (Domain Exceptions)" as CDomain
+    component "application\ncom.gameplatform.central.application\n  - service (UserService, AuthService,\n  - TournamentService, TournamentRegistrationService,\n  - TournamentBracketService, GameDefinitionService,\n  - SyncReceiverService, SyncEventProcessor,\n  - PlayerStatisticsService, PlayerStatisticsProjectionService,\n  - StatisticsService, LocalAdminBuildingService,\n  - UserReplicationSchedulerService,\n  - LateRegistrationCatchUpService,\n  - TournamentStandingsService,\n  - GameSessionCompletedPlayerStatisticsProjectionService)" as CApp
+    component "infrastructure\ncom.gameplatform.central.infrastructure\n  - adapters.in.rest (Controllers:\n  - AuthController, UserController,\n  - TournamentController, TournamentRegistrationController,\n  - GameAdminController, StatisticsController,\n  - PlayerStatisticsController, AdminServerController,\n  - SyncController, LocalAdminController)\n  - adapters.in.mqtt (N/A - Central no MQTT)\n  - adapters.out.mysql (JPA Entities, Repositories,\n  - Mappers, Repository Adapters)\n  - adapters.out.rest (LocalRestAdapter,\n  - LocalServerUserCountRestAdapter,\n  - LocalMetadataRestAdapter,\n  - LocalGameDefinitionRestAdapter)\n  - config (SecurityConfig, JwtConfig, TlsConfig,\n  - SchedulerConfig, CorsConfig)\n  - security (JwtTokenProvider, JwtAuthenticationFilter,\n  - InternalApiKeyFilter, CurrentUserService,\n  - PasswordEncoderConfig)" as CInfra
+  }
+
+  package "local-server (Spring Boot microservice - per building)" as Local {
+    component "domain\ncom.gameplatform.local.domain\n  - model (User, Game, GameSession, Reservation,\n  - TournamentSummaryLocal, TournamentMatchLocal,\n  - TournamentStandingLocal, TournamentParticipantLocal,\n  - LocalStatistics, GameDefinitionLocal,\n  - RegisteredLocalServerLocal, LocalAdminBuilding,\n  - OutboxEvent, LocalSignupUser, AdminRequestLocal,\n  - DeadLetterEvent)\n  - ports.in (Use Cases:\n  - ManageGameCatalogUseCase, ListBuildingGamesUseCase,\n  - ListBuildingActiveSessionsUseCase,\n  - GetBuildingStatisticsUseCase,\n  - GetPlayerStatisticsUseCase,\n  - RegisterLocalServerUseCase, etc.)\n  - ports.out (Repository Ports,\n  - External Ports: PushUserToCentralPort,\n  - PushTournamentSummaryToCentralPort,\n  - GameDefinitionLocalRepository,\n  - LocalAdminBuildingLocalRepository)\n  - exception (Domain Exceptions)" as LDomain
+    component "application\ncom.gameplatform.local.application\n  - service (GameSessionService, GameStateService,\n  - ReservationService, SessionRecoveryService,\n  - StatisticsService, LocalAuthService,\n  - LocalSignupService, UserSyncService,\n  - GameCatalogService, GameDefinitionSyncService,\n  - SyncSchedulerService, OutboxPurgeService,\n  - HealthCheckService, LobbyExpirationService,\n  - SessionAbortHelper, TournamentLifecycleRequestedService,\n  - CreateTournamentRequestedService,\n  - UpdateTournamentRequestedService,\n  - DeleteTournamentRequestedService,\n  - TournamentMatchLocalSyncService,\n  - TournamentParticipantsLocalSyncService,\n  - TournamentStandingsLocalSyncService,\n  - TournamentSummarySyncService,\n  - RegisterTournamentParticipantRequestedService,\n  - UpsertGameDefinitionRequestedService,\n  - LocalServerRegistrationService,\n  - AdminRequestTimeoutService)" as LApp
+    component "infrastructure\ncom.gameplatform.local.infrastructure\n  - adapters.in.rest (Controllers:\n  - AuthController, GameController,\n  - GameSessionController, ReservationController,\n  - StatisticsController, PlayerStatisticsController,\n  - AdminLocalController, InternalMetadataController,\n  - InternalGameDefinitionSyncController,\n  - InternalTournamentController,\n  - PlayerTournamentController,\n  - LocalAdminController)\n  - adapters.in.mqtt (MqttMessageHandler,\n  - SessionStartHandler, SessionPauseHandler,\n  - SessionResumeHandler, SessionEndHandler,\n  - LobbyCreateHandler, LobbyJoinHandler,\n  - LobbyStartHandler, LobbyCancelHandler,\n  - HeartbeatHandler, MoveHandler, ScoreHandler,\n  - TurnHandler, DeviceRegisterHandler)\n  - adapters.out.mysql (JPA Entities, Repositories,\n  - Mappers, Repository Adapters)\n  - adapters.out.rest (CentralSystemRestAdapter,\n  - RegisterLocalServerAdapter)\n  - adapters.out.mqtt (MqttPublisher,\n  - GameStatePublisher, AlertPublisher)\n  - config (MqttConfig, JwtConfig, SecurityConfig,\n  - SchedulerConfig, TlsConfig, JacksonConfig)\n  - security (JwtTokenProvider, JwtTokenValidator,\n  - JwtAuthenticationFilter, InternalApiKeyFilter,\n  - CurrentUserService, LocalAdminBuildingAuthorizationManager)" as LInfra
+  }
+
+  package "game-client-emulator (JavaFX Desktop App)" as Client {
+    component "application\ncom.gameplatform.client\n  - service (AuthService, GameService,\n  - SessionService, ReservationService,\n  - TournamentService, StatisticsService,\n  - AdminService)" as ClApp
+    component "infrastructure\ncom.gameplatform.client.infrastructure\n  - ui (MainView, NavbarController,\n  - GameView, SessionView, TournamentView,\n  - StatisticsView, AdminView, LoginView,\n  - RegistrationView)\n  - mqtt (MqttConnectionManager,\n  - MqttMessageRouter, GameClientMqttHandler)\n  - rest (RestClient, ApiEndpoints)\n  - security (ClientJwtTokenManager)" as ClInfra
+  }
+
+  package "e2e-tests" as E2E {
+    component "Integration Tests\n  - MultiBuildingEndToEndIT\n  - ContractTestBase\n  - MessageContractIT" as E2EComp
+  }
+
+  package "infrastructure (Docker, DB init scripts)" as Infra {
+    component "mysql-central/init.sql\nmysql-local/init.sql\nmysql-local/init-building-2.sql\nmysql-local/init-building-3.sql\ndocker-compose.yml\ndocker-compose.multi.yml" as InfraComp
+  }
+}
+
+SD -.-> SDto : used by
+SD -.-> LDomain : used by
+SD -.-> ClApp : used by
+SDto -.-> CApp : used by
+SDto -.-> LApp : used by
+SDto -.-> ClApp : used by
+SMqtt -.-> LInfra : used by
+SMqtt -.-> ClInfra : used by
+
+CDomain -.-> CApp : defines ports
+CApp -.-> CInfra : implements ports
+LDomain -.-> LApp : defines ports
+LApp -.-> LInfra : implements ports
+ClApp -.-> ClInfra : uses
+
+CInfra -.-> LInfra : "REST /internal/**\nAPI Key auth"
+LInfra -.-> CInfra : "REST /internal/**\nAPI Key auth"
+LInfra -.-> ClInfra : MQTT
+ClInfra -.-> LInfra : MQTT
+@enduml

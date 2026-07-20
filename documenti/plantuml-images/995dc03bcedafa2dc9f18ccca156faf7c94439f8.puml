@@ -1,0 +1,111 @@
+@startuml
+skinparam class {
+  backgroundColor White
+  arrowColor Black
+}
+class UserId {
+    +String value
+    +UserId(String)
+}
+class GameId {
+    +String id
+    +GameId(String)
+}
+class BuildingId {
+    +String id
+    +BuildingId(String)
+}
+class GameSessionId {
+    +String value
+    +GameSessionId(String)
+}
+class ReservationId {
+    +String value
+    +ReservationId(String)
+}
+class TournamentId {
+    +String value
+    +TournamentId(String)
+}
+class TournamentMatchId {
+    +String value
+    +TournamentMatchId(String)
+}
+class TeamId {
+    +String value
+    +TeamId(String)
+}
+enum GameType {
+    CHESS
+    FOOSBALL
+    DARTS
+    MONOPOLY
+    RISK
+    SLOT_MACHINE
+    ROULETTE
+}
+enum GameStatus {
+    WAITING
+    IN_PROGRESS
+    PAUSED
+    COMPLETED
+    ABORTED
+}
+enum GameMachineStatus {
+    AVAILABLE
+    RESERVED
+    IN_USE
+    MAINTENANCE
+    LOBBY
+}
+enum ReservationStatus {
+    PENDING
+    CONFIRMED
+    CANCELLED
+    EXPIRED
+}
+enum TournamentStatus {
+    DRAFT
+    OPEN_REGISTRATION
+    IN_PROGRESS
+    COMPLETED
+    CANCELLED
+}
+enum TournamentFormat {
+    SINGLE_ELIMINATION
+    ROUND_ROBIN
+}
+enum TournamentMatchStatus {
+    SCHEDULED
+    IN_PROGRESS
+    COMPLETED
+    ABANDONED
+    BYE
+}
+enum WinCondition {
+    WIN
+    DRAW
+    ABANDONED
+    TIMEOUT
+    TEAM_VICTORY
+}
+enum StopReason {
+    COMPLETED
+    ABORTED
+    TIMEOUT
+}
+enum Role {
+    PLAYER
+    LOCAL_ADMIN
+    GAME_ADMIN
+    PLATFORM_ADMIN
+    +Role of(String)
+    +Set~Role~ parse(String)
+    +List~String~ toAuthorityNames(String)
+}
+enum OutboxEventStatus {
+    PENDING
+    SENT
+    FAILED
+}
+@enduml

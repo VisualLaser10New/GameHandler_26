@@ -1,0 +1,35 @@
+@startuml
+autonumber
+actor Player as "PLAYER"
+participant "Game Client" as Client
+participant "Local Server" as Local
+participant "Local DB" as DB
+participant "Central System" as Central
+
+note over Player, Central : ONLINE: Normal registration
+Player -> Client : Fill signup form
+Client -> Central : POST /api/auth/signup (HTTPS)
+Central -> Central : Create User, write USER_REGISTERED to outbox
+Central -> Local : PUT /internal/users/sync (UserSyncDto) [API Key]
+Local -> DB : Insert into replicated_users
+Local --> Central : 200 OK
+Central --> Client : 201 Created (SignupResponseDto)
+Client --> Player : Account created
+
+note over Player, Local : OFFLINE: Local registration
+Player -> Client : Fill signup form (Local offline)
+Client -> Local : POST /api/auth/signup (HTTPS)
+Local -> DB : Create User in local users table
+Local -> DB : Write USER_REGISTERED to outbox_events
+Local -> Local : Sign JWT (local RSA key)
+Local --> Client : 201 Created + JWT
+Client --> Player : Account created (works offline)
+
+note over Local, Central : LATER: Sync when Central comes online
+Local -> Local : SyncSchedulerService runs every 5 min
+Local -> Central : POST /internal/sync/receive (SyncPayloadDto: USER_REGISTERED) [API Key]
+Central -> Central : Process event, create User in central DB
+Central -> Central : Write PROCESSED_EVENT
+Central --> Local : 200 OK
+Local -> DB : Mark outbox events as SENT
+@enduml

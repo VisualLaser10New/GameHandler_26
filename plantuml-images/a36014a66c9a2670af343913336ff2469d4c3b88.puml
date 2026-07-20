@@ -1,0 +1,16 @@
+@startuml
+
+actor LocalServer as "Local Server"
+actor CentralSystem as "Central System"
+(Accumula eventi in outbox offline) as UC18
+(Ping periodico Central System) as UC19
+(Invia payload eventi pending) as UC20
+(Processa eventi e aggiorna statistiche globali) as UC21
+(Marca eventi come inviati idempotenza) as UC22
+LocalServer --> UC18
+LocalServer --> UC19
+LocalServer --> UC20
+LocalServer --> UC21
+CentralSystem --> UC21
+CentralSystem --> UC22
+@enduml

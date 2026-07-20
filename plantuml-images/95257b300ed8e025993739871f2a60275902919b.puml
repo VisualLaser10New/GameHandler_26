@@ -1,0 +1,693 @@
+@startuml
+skinparam class {
+  backgroundColor White
+  arrowColor Black
+}
+
+namespace shared_domain_model {
+  class UserId {
+    +String value
+    +UserId(String)
+  }
+  class GameId {
+    +String id
+    +GameId(String)
+  }
+  class BuildingId {
+    +String id
+    +BuildingId(String)
+  }
+  class GameSessionId {
+    +String value
+    +GameSessionId(String)
+  }
+  class ReservationId {
+    +String value
+    +ReservationId(String)
+  }
+  class TournamentId {
+    +String value
+    +TournamentId(String)
+  }
+  class TournamentMatchId {
+    +String value
+    +TournamentMatchId(String)
+  }
+  class TeamId {
+    +String value
+    +TeamId(String)
+  }
+
+  enum GameType {
+    CHESS
+    FOOSBALL
+    DARTS
+    MONOPOLY
+    RISK
+    SLOT_MACHINE
+    ROULETTE
+  }
+  enum GameStatus {
+    WAITING
+    IN_PROGRESS
+    PAUSED
+    COMPLETED
+    ABORTED
+  }
+  enum GameMachineStatus {
+    AVAILABLE
+    RESERVED
+    IN_USE
+    MAINTENANCE
+    LOBBY
+  }
+  enum ReservationStatus {
+    PENDING
+    CONFIRMED
+    CANCELLED
+    EXPIRED
+  }
+  enum TournamentStatus {
+    DRAFT
+    OPEN_REGISTRATION
+    IN_PROGRESS
+    COMPLETED
+    CANCELLED
+  }
+  enum TournamentFormat {
+    SINGLE_ELIMINATION
+    ROUND_ROBIN
+  }
+  enum TournamentMatchStatus {
+    SCHEDULED
+    IN_PROGRESS
+    COMPLETED
+    ABANDONED
+    BYE
+  }
+  enum WinCondition {
+    WIN
+    DRAW
+    ABANDONED
+    TIMEOUT
+    TEAM_VICTORY
+  }
+  enum StopReason {
+    COMPLETED
+    ABORTED
+    TIMEOUT
+  }
+  enum Role {
+    PLAYER
+    LOCAL_ADMIN
+    GAME_ADMIN
+    PLATFORM_ADMIN
+    +of(String) Role
+    +parse(String) Set~Role~
+    +toAuthorityNames(String) List~String~
+  }
+}
+
+namespace shared_domain_result {
+  abstract class GameResult {
+    +UserId winnerId
+    +WinCondition winCondition
+    +getWinnerId() UserId
+    +getWinCondition() WinCondition
+  }
+  class ChessResult {
+    +UserId winnerId
+    +WinCondition winCondition
+  }
+  class FoosballResult {
+    +UserId winnerId
+    +WinCondition winCondition
+    +int scoreTeamA
+    +int scoreTeamB
+  }
+  class DartsResult {
+    +UserId winnerId
+    +WinCondition winCondition
+    +int score
+  }
+  class MonopolyResult {
+    +UserId winnerId
+    +WinCondition winCondition
+    +int finalWealth
+  }
+  class RiskResult {
+    +UserId winnerId
+    +WinCondition winCondition
+    +int territoriesControlled
+  }
+  class SlotResult {
+    +UserId winnerId
+    +WinCondition winCondition
+    +int payout
+  }
+  class RouletteResult {
+    +UserId winnerId
+    +WinCondition winCondition
+    +int winnings
+  }
+  class TeamResult {
+    +TeamId winnerTeamId
+    +WinCondition winCondition
+    +int scoreTeamA
+    +int scoreTeamB
+  }
+}
+
+GameResult <|-- ChessResult
+GameResult <|-- FoosballResult
+GameResult <|-- DartsResult
+GameResult <|-- MonopolyResult
+GameResult <|-- RiskResult
+GameResult <|-- SlotResult
+GameResult <|-- RouletteResult
+GameResult <|-- TeamResult
+
+namespace shared_domain_events {
+  abstract class DomainEvent {
+    +String eventId
+    +Instant occurredAt
+  }
+  class UserRegisteredEvent {
+    +UserId userId
+    +String username
+    +List~String~ roles
+  }
+  class UserUpdatedEvent {
+    +UserId userId
+    +String username
+    +String email
+    +List~String~ roles
+  }
+  class GameStateChangedEvent {
+    +GameId gameId
+    +GameMachineStatus newStatus
+  }
+  class GameSessionCompletedEvent {
+    +GameSessionId sessionId
+    +GameId gameId
+    +GameType gameType
+    +BuildingId buildingId
+    +List~UserId~ participants
+    +UserId winnerId
+    +WinCondition winCondition
+    +Instant endedAt
+  }
+  class ReservationCreatedEvent {
+    +ReservationId reservationId
+    +GameId gameId
+    +UserId userId
+    +Instant startTime
+    +Instant endTime
+  }
+  class ReservationCancelledEvent {
+    +ReservationId reservationId
+    +GameId gameId
+    +UserId userId
+  }
+  class StatisticsUpdatedEvent {
+    +BuildingId buildingId
+    +GameType gameType
+    +int totalSessions
+    +double avgDuration
+    +int totalReservations
+  }
+  class TournamentCreatedEvent {
+    +TournamentId tournamentId
+    +String name
+    +GameType gameType
+    +boolean teamBased
+  }
+  class TournamentRegistrationOpenedEvent {
+    +TournamentId tournamentId
+  }
+  class TournamentMatchScheduledEvent {
+    +TournamentMatchId matchId
+    +TournamentId tournamentId
+    +int round
+    +String participantA
+    +String participantB
+    +GameType gameType
+  }
+  class TournamentMatchCompletedEvent {
+    +TournamentMatchId matchId
+    +TournamentId tournamentId
+    +String winner
+    +String resultData
+  }
+  class TournamentCompletedEvent {
+    +TournamentId tournamentId
+    +String winner
+  }
+}
+
+DomainEvent <|-- UserRegisteredEvent
+DomainEvent <|-- UserUpdatedEvent
+DomainEvent <|-- GameStateChangedEvent
+DomainEvent <|-- GameSessionCompletedEvent
+DomainEvent <|-- ReservationCreatedEvent
+DomainEvent <|-- ReservationCancelledEvent
+DomainEvent <|-- StatisticsUpdatedEvent
+DomainEvent <|-- TournamentCreatedEvent
+DomainEvent <|-- TournamentRegistrationOpenedEvent
+DomainEvent <|-- TournamentMatchScheduledEvent
+DomainEvent <|-- TournamentMatchCompletedEvent
+DomainEvent <|-- TournamentCompletedEvent
+
+namespace local_domain_model {
+  class User {
+    +UserId userId
+    +String username
+    +String passwordHash
+    +String email
+    +List~String~ roles
+    +Instant eventTime
+    +Instant updatedAt
+  }
+  class LocalSignupUser {
+    +UserId userId
+    +String username
+    +String passwordHash
+    +String email
+    +List~String~ roles
+    +Instant createdAt
+  }
+  class Game {
+    +GameId id
+    +GameType gameType
+    +String name
+    +BuildingId buildingId
+    +GameMachineStatus status
+    +long version
+    +reserve()
+    +startUse()
+    +release()
+    +setMaintenance()
+    +setLobby()
+    +rename(String)
+  }
+  class GameSession {
+    +GameSessionId id
+    +GameId gameId
+    +GameType gameType
+    +BuildingId buildingId
+    +GameStatus status
+    +Instant startedAt
+    +Instant endedAt
+    +Integer durationSeconds
+    +UserId winnerId
+    +WinCondition winCondition
+    +GameResult result
+    +List~UserId~ participants
+    +Instant pausedAt
+    +int accumulatedPausedSeconds
+    +long version
+    +TournamentMatchId tournamentMatchId
+    +TournamentId tournamentId
+    +complete(GameResult, Instant)
+    +abort(StopReason, Instant)
+    +cancelLobby(Instant)
+    +pause(Instant)
+    +resume(Instant)
+    +calculateDuration()
+    +addParticipant(UserId)
+    +removeParticipant(UserId)
+  }
+  class Reservation {
+    +ReservationId id
+    +GameId gameId
+    +UserId userId
+    +ReservationStatus status
+    +Instant startTime
+    +Instant endTime
+    +Instant createdAt
+    +long version
+    +confirm()
+    +cancel()
+    +expire()
+    +canBeCancelled(Clock) boolean
+  }
+  class TournamentSummaryLocal {
+    +TournamentId tournamentId
+    +String name
+    +GameType gameType
+    +boolean teamBased
+    +int teamSize
+    +TournamentStatus status
+    +Instant startsAt
+    +Instant endsAt
+    +List~String~ buildingIds
+    +int participantsCount
+    +boolean deleted
+    +Instant updatedAt
+  }
+  class TournamentMatchLocal {
+    +TournamentMatchId id
+    +TournamentId tournamentId
+    +int round
+    +int bracketPosition
+    +String participantA
+    +String participantB
+    +GameType gameType
+    +String gameId
+    +TournamentMatchStatus status
+    +Instant scheduledAt
+    +withStatus(TournamentMatchStatus) TournamentMatchLocal
+  }
+  class TournamentStandingLocal {
+    +TournamentId tournamentId
+    +String participantId
+    +int wins
+    +int losses
+    +int points
+    +Integer rank
+  }
+  class TournamentParticipantLocal {
+    +TournamentId tournamentId
+    +String participantId
+    +boolean isTeam
+    +String displayName
+    +Instant registeredAt
+  }
+  class LocalStatistics {
+    +GameType gameType
+    +int totalSessions
+    +double avgDuration
+    +int totalReservations
+    +Map~String, Double~ winRateByUser
+    +recalculate(List~GameSession~)
+  }
+  class GameDefinitionLocal {
+    +GameType gameType
+    +String name
+    +int minPlayers
+    +int maxPlayers
+    +boolean teamAllowed
+    +Map~String, Object~ registrationRules
+    +Instant updatedAt
+  }
+  class RegisteredLocalServerLocal {
+    +BuildingId buildingId
+    +String baseUrl
+    +Instant lastSeenAt
+    +boolean active
+    +Instant updatedAt
+  }
+  class LocalAdminBuilding {
+    +UserId userId
+    +BuildingId buildingId
+    +Instant assignedAt
+  }
+  class OutboxEvent {
+    +String id
+    +String eventType
+    +String payload
+    +String status
+    +Instant createdAt
+    +Instant sentAt
+    +int retryCount
+    +markAsSent(Instant)
+    +incrementRetry()
+    +markAsFailed()
+    +hasFailed() boolean
+  }
+  enum OutboxEventStatus {
+    PENDING
+    SENT
+    FAILED
+  }
+  class AdminRequestLocal {
+    +String id
+    +UserId userId
+    +String requestType
+    +String payload
+    +AdminRequestStatus status
+    +Instant createdAt
+  }
+  enum AdminRequestStatus {
+    PENDING
+    APPROVED
+    REJECTED
+  }
+  class DeadLetterEvent {
+    +String id
+    +String originalEventId
+    +String eventType
+    +String payload
+    +String errorMessage
+    +Instant failedAt
+    +int retryCount
+  }
+}
+
+namespace central_domain_model {
+  class User {
+    +UserId id
+    +String username
+    +String passwordHash
+    +String email
+    +List~String~ roles
+    +Instant createdAt
+    +changePassword(String)
+    +updateRoles(List~String~)
+  }
+  class GameDefinition {
+    +GameType gameType
+    +String name
+    +int minPlayers
+    +int maxPlayers
+    +boolean teamAllowed
+    +Map~String, Object~ registrationRules
+    +Instant createdAt
+    +Instant updatedAt
+  }
+  class Tournament {
+    +TournamentId tournamentId
+    +String name
+    +GameType gameType
+    +boolean teamBased
+    +int teamSize
+    +TournamentFormat format
+    +TournamentStatus status
+    +Instant startsAt
+    +Instant endsAt
+    +UserId createdBy
+    +Instant createdAt
+    +openRegistration() Tournament
+    +cancel() Tournament
+    +startProgress() Tournament
+    +complete(Instant) Tournament
+    +update(String, Instant) Tournament
+  }
+  class Team {
+    +TeamId teamId
+    +TournamentId tournamentId
+    +String name
+    +List~UserId~ members
+    +Instant createdAt
+  }
+  class TournamentParticipant {
+    +TournamentId tournamentId
+    +String participantId
+    +boolean isTeam
+    +String displayName
+    +Instant registeredAt
+  }
+  class TournamentMatch {
+    +TournamentMatchId matchId
+    +TournamentId tournamentId
+    +int round
+    +int bracketPosition
+    +String participantA
+    +String participantB
+    +String buildingId
+    +String gameId
+    +String sessionId
+    +String winner
+    +TournamentMatchStatus status
+    +Instant scheduledAt
+    +Instant playedAt
+    +String resultData
+  }
+  class TournamentStanding {
+    +TournamentId tournamentId
+    +String participantId
+    +int wins
+    +int losses
+    +int points
+    +Integer rank
+  }
+  class PlayerStatistics {
+    +UserId userId
+    +GameType gameType
+    +int matchesPlayed
+    +int matchesWon
+    +Instant lastPlayedAt
+    +mergeIncrement(boolean, Instant) PlayerStatistics
+  }
+  class PlayerMatchFact {
+    +String sessionId
+    +UserId userId
+    +BuildingId buildingId
+    +GameType gameType
+    +String tournamentId
+    +boolean won
+    +WinCondition winCondition
+    +Instant endedAt
+  }
+  class AggregatedStatistics {
+    +String id
+    +BuildingId buildingId
+    +GameType gameType
+    +LocalDate periodStart
+    +LocalDate periodEnd
+    +int totalSessions
+    +int avgDurationSeconds
+    +int totalReservations
+    +int totalAbortedSessions
+    +Map~String, Object~ data
+    +mergeWith(AggregatedStatistics)
+  }
+  class RegisteredLocalServer {
+    +BuildingId buildingId
+    +String baseUrl
+    +Instant lastSeenAt
+    +boolean isActive
+    +updateLastSeen(Instant)
+    +setActive(boolean)
+  }
+  class ProcessedEvent {
+    +String eventId
+    +Instant processedAt
+  }
+  class ReplicationProgress {
+    +String eventId
+    +String serverId
+  }
+  class LocalAdminBuilding {
+    +UserId userId
+    +BuildingId buildingId
+    +Instant assignedAt
+  }
+  class FailedLoginAttempt {
+    +String username
+    +Instant attemptedAt
+    +boolean success
+  }
+}
+
+GameSession --> UserId : gameId
+GameSession --> UserId : buildingId
+GameSession --> UserId : participants
+GameSession --> GameSessionId : id
+GameSession --> GameType : gameType
+GameSession --> GameStatus : status
+GameSession --> WinCondition : winCondition
+GameSession --> GameResult : result
+GameSession --> UserId : winnerId
+GameSession --> TournamentMatchId : tournamentMatchId
+GameSession --> TournamentId : tournamentId
+
+Reservation --> GameId : gameId
+Reservation --> UserId : userId
+Reservation --> ReservationStatus : status
+Reservation --> ReservationId : id
+
+Game --> GameId : id
+Game --> GameType : gameType
+Game --> BuildingId : buildingId
+Game --> GameMachineStatus : status
+
+TournamentSummaryLocal --> TournamentId : tournamentId
+TournamentSummaryLocal --> GameType : gameType
+TournamentSummaryLocal --> TournamentStatus : status
+
+TournamentMatchLocal --> TournamentMatchId : id
+TournamentMatchLocal --> TournamentId : tournamentId
+TournamentMatchLocal --> GameType : gameType
+TournamentMatchLocal --> TournamentMatchStatus : status
+
+TournamentParticipantLocal --> TournamentId : tournamentId
+
+LocalStatistics --> GameType : gameType
+LocalStatistics --> GameSession : recalculate(sessions)
+
+GameDefinitionLocal --> GameType : gameType
+
+RegisteredLocalServerLocal --> BuildingId : buildingId
+
+LocalAdminBuilding --> UserId : userId
+LocalAdminBuilding --> BuildingId : buildingId
+
+OutboxEvent --> OutboxEventStatus : status
+
+User --> UserId : id
+
+GameDefinition --> GameType : gameType
+
+Tournament --> TournamentId : tournamentId
+Tournament --> GameType : gameType
+Tournament --> TournamentFormat : format
+Tournament --> TournamentStatus : status
+Tournament --> UserId : createdBy
+
+Team --> TeamId : teamId
+Team --> TournamentId : tournamentId
+Team --> UserId : members
+
+TournamentParticipant --> TournamentId : tournamentId
+
+TournamentMatch --> TournamentMatchId : matchId
+TournamentMatch --> TournamentId : tournamentId
+TournamentMatch --> TournamentMatchStatus : status
+
+TournamentStanding --> TournamentId : tournamentId
+
+PlayerStatistics --> UserId : userId
+PlayerStatistics --> GameType : gameType
+
+AggregatedStatistics --> BuildingId : buildingId
+AggregatedStatistics --> GameType : gameType
+
+RegisteredLocalServer --> BuildingId : buildingId
+
+LocalAdminBuilding --> UserId : userId
+LocalAdminBuilding --> BuildingId : buildingId
+
+ProcessedEvent ..> String : eventId
+
+ReplicationProgress ..> String : eventId
+ReplicationProgress ..> String : serverId
+
+Reservation ..> UserId : "1 userId"
+Reservation ..> GameId : "1 gameId"
+
+GameSession ..> UserId : "1 winnerId"
+GameSession ..> GameId : "1 gameId"
+GameSession ..> BuildingId : "1 buildingId"
+GameSession ..> GameSessionId : "1 id"
+GameSession ..> TournamentMatchId : "0..1 tournamentMatchId"
+GameSession ..> TournamentId : "0..1 tournamentId"
+
+Game ..> UserId : "1 buildingId"
+Game ..> GameId : "1 id"
+
+TournamentMatchLocal ..> GameId : "1 gameId"
+TournamentMatchLocal ..> TournamentId : "1 tournamentId"
+
+TournamentParticipantLocal ..> TournamentId : "1 tournamentId"
+TournamentStandingLocal ..> TournamentId : "1 tournamentId"
+
+LocalStatistics ..> GameType : "1 gameType"
+
+GameDefinitionLocal ..> GameType : "1 gameType"
+
+RegisteredLocalServerLocal ..> BuildingId : "1 buildingId"
+
+LocalAdminBuilding ..> UserId : "1 userId"
+LocalAdminBuilding ..> BuildingId : "1 buildingId"
+@enduml

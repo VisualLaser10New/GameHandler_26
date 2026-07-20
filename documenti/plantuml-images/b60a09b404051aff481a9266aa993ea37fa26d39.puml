@@ -1,0 +1,52 @@
+@startuml
+skinparam class {
+  backgroundColor White
+  arrowColor Black
+}
+interface UserRepository {
+    +Optional~User~ findById(UserId)
+    +Optional~User~ findByUsername(String)
+    +save(User)
+}
+interface TournamentRepository {
+    +Optional~Tournament~ findById(TournamentId)
+    +save(Tournament)
+}
+interface GameRepository {
+    +Optional~Game~ findById(GameId)
+    +List~Game~ findByBuildingId(BuildingId)
+    +save(Game)
+    +deleteById(GameId)
+}
+interface GameSessionRepository {
+    +Optional~GameSession~ findById(GameSessionId)
+    +Optional~GameSession~ findActiveByGameId(GameId)
+    +List~GameSession~ findByParticipant(UserId)
+    +save(GameSession)
+}
+interface ReservationRepository {
+    +Optional~Reservation~ findById(ReservationId)
+    +Optional~Reservation~ findByUserIdAndGameId(UserId, GameId)
+    +List~Reservation~ findPendingByGameId(GameId)
+    +save(Reservation)
+}
+interface OutboxEventRepository {
+    +List~OutboxEvent~ findPending()
+    +save(OutboxEvent)
+}
+interface PushUserToCentralPort {
+    +pushUsers(List~UserSyncDto~, String)
+}
+interface PushTournamentSummaryToCentralPort {
+    +pushTournamentSummaries(List~TournamentSummaryEventDto~, String)
+}
+interface GameDefinitionLocalRepository {
+    +Optional~GameDefinitionLocal~ findByGameType(GameType)
+    +save(GameDefinitionLocal)
+}
+interface LocalAdminBuildingLocalRepository {
+    +List~LocalAdminBuilding~ findByUserId(UserId)
+    +save(LocalAdminBuilding)
+    +deleteByUserIdAndBuildingId(UserId, BuildingId)
+}
+@enduml

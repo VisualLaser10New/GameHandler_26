@@ -1,0 +1,17 @@
+@startuml
+
+actor PLAYER as "Player"
+actor LOCAL_ADMIN as "Local Admin"
+actor GAME_ADMIN as "Game Admin"
+actor PLATFORM_ADMIN as "Platform Admin"
+(Visualizza statistiche personali Player) as UC23
+(Visualizza stato giochi locale Local Admin) as UC24
+(Visualizza definizioni giochi Game Admin) as UC25
+(Visualizza statistiche globali Platform Admin) as UC26
+PLAYER --> UC23
+LOCAL_ADMIN --> UC24
+LOCAL_ADMIN --> UC25
+GAME_ADMIN --> UC27
+GAME_ADMIN --> UC28
+PLATFORM_ADMIN --> UC26
+@enduml

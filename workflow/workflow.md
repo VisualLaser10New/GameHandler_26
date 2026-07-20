@@ -920,4 +920,5 @@
 ### 9.2 Passi finali
 - [x] test dei tornei
 - [x] test di tutti i sistemi @Tizzycek, @Caste00
-- [ ] scrivere il documento relazione
+- [x] javadoc
+- [x] scrivere il documento relazione

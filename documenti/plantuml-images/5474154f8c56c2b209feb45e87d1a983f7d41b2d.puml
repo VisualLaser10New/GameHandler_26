@@ -1,0 +1,63 @@
+@startuml
+skinparam class {
+  backgroundColor White
+  arrowColor Black
+}
+
+abstract class GameResult {
+  +UserId winnerId
+  +WinCondition winCondition
+  +getWinnerId() UserId
+  +getWinCondition() WinCondition
+}
+class ChessResult {
+  +UserId winnerId
+  +WinCondition winCondition
+}
+class FoosballResult {
+  +UserId winnerId
+  +WinCondition winCondition
+  +int scoreTeamA
+  +int scoreTeamB
+}
+class DartsResult {
+  +UserId winnerId
+  +WinCondition winCondition
+  +int score
+}
+class MonopolyResult {
+  +UserId winnerId
+  +WinCondition winCondition
+  +int finalWealth
+}
+class RiskResult {
+  +UserId winnerId
+  +WinCondition winCondition
+  +int territoriesControlled
+}
+class SlotResult {
+  +UserId winnerId
+  +WinCondition winCondition
+  +int payout
+}
+class RouletteResult {
+  +UserId winnerId
+  +WinCondition winCondition
+  +int winnings
+}
+class TeamResult {
+  +TeamId winnerTeamId
+  +WinCondition winCondition
+  +int scoreTeamA
+  +int scoreTeamB
+}
+
+GameResult <|-- ChessResult
+GameResult <|-- FoosballResult
+GameResult <|-- DartsResult
+GameResult <|-- MonopolyResult
+GameResult <|-- RiskResult
+GameResult <|-- SlotResult
+GameResult <|-- RouletteResult
+GameResult <|-- TeamResult
+@enduml

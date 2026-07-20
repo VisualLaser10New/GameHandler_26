@@ -1,0 +1,167 @@
+@startuml
+skinparam class {
+  backgroundColor White
+  arrowColor Black
+}
+class LocalUser {
+    -UserId userId
+    -String username
+    -String passwordHash
+    -String email
+    -List~String~ roles
+    -Instant eventTime
+    -Instant updatedAt
+}
+class Game {
+    -GameId id
+    -GameType gameType
+    -String name
+    -BuildingId buildingId
+    -GameMachineStatus status
+    -long version
+    +reserve()
+    +startUse()
+    +release()
+    +setMaintenance()
+    +setLobby()
+    +rename(String)
+}
+class GameSession {
+    -GameSessionId id
+    -GameId gameId
+    -GameType gameType
+    -BuildingId buildingId
+    -GameStatus status
+    -Instant startedAt
+    -Instant endedAt
+    -Integer durationSeconds
+    -UserId winnerId
+    -WinCondition winCondition
+    -GameResult result
+    -List~UserId~ participants
+    -Instant pausedAt
+    -int accumulatedPausedSeconds
+    -long version
+    -TournamentMatchId tournamentMatchId
+    -TournamentId tournamentId
+    +complete(GameResult, Instant)
+    +abort(StopReason, Instant)
+    +cancelLobby(Instant)
+    +pause(Instant)
+    +resume(Instant)
+    +calculateDuration()
+    +addParticipant(UserId)
+    +removeParticipant(UserId)
+}
+class Reservation {
+    -ReservationId id
+    -GameId gameId
+    -UserId userId
+    -ReservationStatus status
+    -Instant startTime
+    -Instant endTime
+    -Instant createdAt
+    -long version
+    +canBeCancelled(Clock) boolean
+    +confirm()
+    +cancel()
+    +expire()
+}
+class TournamentSummaryLocal {
+    -TournamentId tournamentId
+    -String name
+    -GameType gameType
+    -boolean teamBased
+    -int teamSize
+    -TournamentStatus status
+    -Instant startsAt
+    -Instant endsAt
+    -List~String~ buildingIds
+    -int participantsCount
+    -boolean deleted
+    -Instant updatedAt
+}
+class TournamentMatchLocal {
+    -TournamentMatchId id
+    -TournamentId tournamentId
+    -int round
+    -int bracketPosition
+    -String participantA
+    -String participantB
+    -GameType gameType
+    -String gameId
+    -TournamentMatchStatus status
+    -Instant scheduledAt
+    +TournamentMatchLocal withStatus(TournamentMatchStatus)
+}
+class LocalStatistics {
+    -GameType gameType
+    -int totalSessions
+    -double avgDuration
+    -int totalReservations
+    -Map~String,Double~ winRateByUser
+    +recalculate(List~GameSession~)
+}
+class GameDefinitionLocal {
+    -GameType gameType
+    -String name
+    -int minPlayers
+    -int maxPlayers
+    -boolean teamAllowed
+    -Map~String,Object~ registrationRules
+    -Instant updatedAt
+}
+class OutboxEvent {
+    -String id
+    -String eventType
+    -String payload
+    -String status
+    -Instant createdAt
+    -Instant sentAt
+    -int retryCount
+    +markAsSent(Instant)
+    +incrementRetry()
+    +markAsFailed()
+    +hasFailed() boolean
+}
+class RegisteredLocalServerLocal {
+    -BuildingId buildingId
+    -String baseUrl
+    -Instant lastSeenAt
+    -boolean active
+    -Instant updatedAt
+}
+
+UserId <|-- LocalUser
+GameId <|-- Game
+GameType <|-- Game
+BuildingId <|-- Game
+GameMachineStatus <|-- Game
+GameSessionId <|-- GameSession
+GameId <|-- GameSession
+GameType <|-- GameSession
+BuildingId <|-- GameSession
+GameStatus <|-- GameSession
+WinCondition <|-- GameSession
+GameResult <|-- GameSession
+UserId <|-- GameSession
+TournamentMatchId <|-- GameSession
+TournamentId <|-- GameSession
+ReservationId <|-- Reservation
+GameId <|-- Reservation
+UserId <|-- Reservation
+ReservationStatus <|-- Reservation
+TournamentId <|-- TournamentSummaryLocal
+GameType <|-- TournamentSummaryLocal
+TournamentStatus <|-- TournamentSummaryLocal
+TournamentMatchId <|-- TournamentMatchLocal
+TournamentId <|-- TournamentMatchLocal
+GameType <|-- TournamentMatchLocal
+TournamentMatchStatus <|-- TournamentMatchLocal
+GameType <|-- LocalStatistics
+GameType <|-- GameDefinitionLocal
+OutboxEventStatus <|-- OutboxEvent
+BuildingId <|-- RegisteredLocalServerLocal
+UserId <|-- LocalAdminBuilding
+BuildingId <|-- LocalAdminBuilding
+@enduml

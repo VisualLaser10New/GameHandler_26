@@ -1,0 +1,13 @@
+@startuml
+
+actor GAME_ADMIN as "Game Admin"
+actor CentralSystem as "Central System"
+(Definisci nuovo tipo gioco) as UC27
+(Configura regole registrazione partite) as UC28
+(Replica definizioni Central - Local) as UC29
+GAME_ADMIN --> UC27
+GAME_ADMIN --> UC28
+CentralSystem --> UC27
+CentralSystem --> UC28
+CentralSystem --> UC29
+@enduml

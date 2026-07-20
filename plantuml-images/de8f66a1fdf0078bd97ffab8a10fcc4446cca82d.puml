@@ -1,0 +1,79 @@
+@startuml
+autonumber
+actor Admin as "PLATFORM_ADMIN"
+participant "Game Client" as Client
+participant "Central System" as Central
+participant "Central DB" as DB
+participant "Local Server(s)" as Local
+participant "MQTT Broker" as MQTT
+
+note over Admin, Central : 1. Create Tournament (HTTPS REST)
+Admin -> Client : Fill tournament form (name, game, buildings, format, team size)
+Client -> Central : POST /api/admin/tournaments (JWT)
+Central -> Central : Validate: min 2 buildings, game exists
+Central -> DB : Insert Tournament (DRAFT)
+Central -> DB : Insert tournament_buildings rows
+Central -> DB : Write TOURNAMENT_CREATED to outbox
+Central --> Client : 201 Created (TournamentDto)
+Client --> Admin : Tournament created
+
+note over Admin, Central : 2. Open Registration
+Admin -> Client : Press "Open Registration"
+Client -> Central : POST /api/admin/tournaments/{id}/open
+Central -> Central : Tournament.openRegistration() [DRAFT -> OPEN_REGISTRATION]
+Central -> DB : Update Tournament status
+Central -> DB : Write TOURNAMENT_REGISTRATION_OPENED to outbox
+Central --> Client : 200 OK
+Central -> Local : PUT /internal/metadata/sync (TOURNAMENT_SUMMARY_UPSERTED)
+Local -> Local : Upsert TournamentSummaryLocal
+Local --> Central : 200 OK
+
+note over Player, Central : 3. Player Registration
+Player -> Client : View tournaments, press "Register"
+Client -> Central : POST /api/tournaments/{id}/participants (JWT)
+Central -> Central : Validate registration open, capacity
+Central -> DB : Insert TournamentParticipant (individual or team)
+Central -> DB : Write TOURNAMENT_PARTICIPANT_REGISTERED to outbox
+Central --> Client : 201 Created
+Central -> Local : PUT /internal/metadata/sync (TOURNAMENT_PARTICIPANTS_UPSERTED)
+Local -> Local : Upsert TournamentParticipantLocal
+Local --> Central : 200 OK
+
+note over Admin, Central : 4. Schedule Matches (Bracket Generation)
+Admin -> Client : Press "Schedule Matches"
+Client -> Central : POST /api/admin/tournaments/{id}/schedule
+Central -> Central : TournamentBracketService.generateBracket()
+Central -> DB : Insert TournamentMatch rows (SCHEDULED)
+Central -> DB : Write TOURNAMENT_MATCH_SCHEDULED to outbox
+Central --> Client : 200 OK (ScheduleTournamentMatchesDto)
+Central -> Local : PUT /internal/metadata/sync (TOURNAMENT_MATCH_SCHEDULED)
+Local -> Local : Insert TournamentMatchLocal
+Local -> MQTT : Publish state: LOBBY for assigned games
+MQTT --> Client : Notify lobby creation
+
+note over Player, Local : 5. Match Play (on Local Server)
+Player -> Client : Join lobby / Start match
+Client -> MQTT : session/lobby/join then session/lobby/start
+MQTT -> Local : Receive
+Local -> DB : GameSession with tournamentMatchId + tournamentId
+Local -> MQTT : Broadcast session/start
+Local -> DB : Write GAME_SESSION_STARTED to outbox
+
+Player -> Client : Play game, end with result
+Client -> MQTT : session/end (winner, score)
+MQTT -> Local : Receive
+Local -> DB : Complete GameSession
+Local -> DB : Write GAME_SESSION_COMPLETED (with tournamentMatchId)
+Local -> MQTT : Publish state: AVAILABLE
+
+note over Local, Central : 6. Sync Match Result to Central
+Local -> Central : POST /internal/sync/receive (GAME_SESSION_COMPLETED + TOURNAMENT_MATCH_COMPLETED)
+Central -> Central : SyncEventProcessor processes
+Central -> Central : Update TournamentMatch status = COMPLETED
+Central -> Central : Update TournamentStanding (wins/losses/points)
+Central -> Central : Check if tournament complete
+Central -> DB : Write TOURNAMENT_MATCH_COMPLETED, TOURNAMENT_COMPLETED to outbox
+Central --> Local : 200 OK
+Central -> Local : PUT /internal/metadata/sync (TOURNAMENT_MATCH_COMPLETED, TOURNAMENT_STANDINGS_UPSERTED)
+Local -> Local : Update TournamentMatchLocal, TournamentStandingLocal
+@enduml

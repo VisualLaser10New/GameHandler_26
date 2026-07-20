@@ -1,0 +1,49 @@
+@startuml
+autonumber
+participant "Local Server" as Local
+participant "Local DB" as DB
+participant "MQTT Broker" as MQTT
+participant "Game Client" as Client
+participant "Alert Topic" as Alert
+
+note over Local, Client : Normal Heartbeat (Client-initiated)
+loop Every 30 seconds (Client)
+    Client -> MQTT : Publish heartbeat (gameId, timestamp)
+    MQTT -> Local : Receive on heartbeat topic
+    Local -> DB : registerHeartbeat(gameId, timestamp)
+    Local -> MQTT : Publish heartbeat/ack (PONG)
+end
+
+note over Local, Client : Server-Initiated Health Check (every 5 min)
+loop Every 5 minutes (Local Scheduler)
+    Local -> MQTT : Publish PING on heartbeat topic
+    MQTT -> Client : Receive PING
+    Client -> MQTT : Publish PONG on heartbeat/ack
+    MQTT -> Local : Receive PONG
+    Local -> DB : registerHeartbeat(gameId, timestamp)
+end
+
+note over Local, DB : Missed Heartbeats Detection
+Local -> DB : Find games with IN_USE status
+Local -> DB : Check lastHeartbeatAt for each
+alt 3 consecutive missed (15 min)
+    Local -> DB : Abort GameSession (ABORTED, TIMEOUT)
+    Local -> DB : Update Game status = AVAILABLE
+    Local -> DB : Write GAME_SESSION_COMPLETED (ABORTED) to outbox
+    Local -> MQTT : Publish state: AVAILABLE (retained)
+    Local -> MQTT : Publish to alerts topic (client unreachable)
+    MQTT --> Alert : Alert received
+end
+
+note over Local, DB : Crash Recovery (on startup)
+Local -> DB : Find sessions with status IN_PROGRESS or PAUSED
+Local -> MQTT : Ping each game machine (PING on heartbeat)
+alt No response within 30 seconds
+    Local -> DB : Abort session (ABORTED)
+    Local -> DB : Update Game status = AVAILABLE
+    Local -> DB : Write GAME_SESSION_COMPLETED to outbox
+    Local -> MQTT : Publish state: AVAILABLE
+else Response received
+    Local -> Local : Session confirmed active, keep running
+end
+@enduml

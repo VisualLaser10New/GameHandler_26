@@ -1,0 +1,95 @@
+@startuml
+skinparam class {
+  backgroundColor White
+  arrowColor Black
+}
+
+abstract class DomainEvent {
+  +String eventId
+  +Instant occurredAt
+}
+class UserRegisteredEvent {
+  +UserId userId
+  +String username
+  +List~String~ roles
+}
+class UserUpdatedEvent {
+  +UserId userId
+  +String username
+  +String email
+  +List~String~ roles
+}
+class GameStateChangedEvent {
+  +GameId gameId
+  +GameMachineStatus newStatus
+}
+class GameSessionCompletedEvent {
+  +GameSessionId sessionId
+  +GameId gameId
+  +GameType gameType
+  +BuildingId buildingId
+  +List~UserId~ participants
+  +UserId winnerId
+  +WinCondition winCondition
+  +Instant endedAt
+}
+class ReservationCreatedEvent {
+  +ReservationId reservationId
+  +GameId gameId
+  +UserId userId
+  +Instant startTime
+  +Instant endTime
+}
+class ReservationCancelledEvent {
+  +ReservationId reservationId
+  +GameId gameId
+  +UserId userId
+}
+class StatisticsUpdatedEvent {
+  +BuildingId buildingId
+  +GameType gameType
+  +int totalSessions
+  +double avgDuration
+  +int totalReservations
+}
+class TournamentCreatedEvent {
+  +TournamentId tournamentId
+  +String name
+  +GameType gameType
+  +boolean teamBased
+}
+class TournamentRegistrationOpenedEvent {
+  +TournamentId tournamentId
+}
+class TournamentMatchScheduledEvent {
+  +TournamentMatchId matchId
+  +TournamentId tournamentId
+  +int round
+  +String participantA
+  +String participantB
+  +GameType gameType
+}
+class TournamentMatchCompletedEvent {
+  +TournamentMatchId matchId
+  +TournamentId tournamentId
+  +String winner
+  +String resultData
+}
+class TournamentCompletedEvent {
+  +TournamentId tournamentId
+  +String winner
+}
+
+DomainEvent <|-- UserRegisteredEvent
+DomainEvent <|-- UserUpdatedEvent
+DomainEvent <|-- GameStateChangedEvent
+DomainEvent <|-- GameSessionCompletedEvent
+DomainEvent <|-- ReservationCreatedEvent
+DomainEvent <|-- ReservationCancelledEvent
+DomainEvent <|-- StatisticsUpdatedEvent
+DomainEvent <|-- TournamentCreatedEvent
+DomainEvent <|-- TournamentRegistrationOpenedEvent
+DomainEvent <|-- TournamentMatchScheduledEvent
+DomainEvent <|-- TournamentMatchCompletedEvent
+DomainEvent <|-- TournamentCompletedEvent
+@enduml

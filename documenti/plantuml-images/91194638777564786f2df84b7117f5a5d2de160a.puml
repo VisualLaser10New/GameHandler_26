@@ -1,0 +1,84 @@
+@startuml
+skinparam class {
+  backgroundColor White
+  arrowColor Black
+}
+class GameSessionService {
+    +GameSession start(GameId, UserId, GameType, BuildingId, List~UserId~, Instant)
+    +GameSession start(GameId, UserId, GameType, BuildingId, List~UserId~, Instant, TournamentMatchId, TournamentId)
+    +pause(GameSessionId, UserId, Instant)
+    +resume(GameSessionId, UserId, Instant)
+    +end(GameSessionId, UserId, GameResult, Instant)
+    +abort(GameSessionId, UserId, StopReason, Instant)
+}
+class GameStateService {
+    +GameStateDto getGameState(GameId)
+    +List~GameStateDto~ getBuildingGames(BuildingId)
+    +List~GameSessionDto~ getActiveSessions(BuildingId)
+}
+class ReservationService {
+    +ReservationDto create(CreateReservationRequestDto)
+    +confirm(ReservationId, UserId)
+    +cancel(ReservationId, UserId)
+    +expirePending(Clock)
+}
+class StatisticsService {
+    +LocalStatistics getStatistics(BuildingId, GameType)
+    +PlayerStatisticsDto getPlayerStatistics(UserId, GameType)
+    +List~GameSessionDto~ getActiveSessions(BuildingId)
+    +BuildingStatisticsDto getBuildingStatistics(BuildingId)
+}
+class LocalAuthService {
+    +LoginResponseDto authenticate(LoginRequestDto)
+}
+class LocalSignupService {
+    +SignupResponseDto register(SignupRequestDto)
+}
+class UserSyncService {
+    +syncUsers(List~UserSyncDto~)
+}
+class GameCatalogService {
+    +GameDto createGame(CreateGameRequestDto)
+    +GameDto updateGame(GameId, UpdateGameRequestDto)
+    +deleteGame(GameId)
+    +List~GameDto~ getGames(BuildingId)
+}
+class SyncSchedulerService {
+    +syncWithCentral()
+}
+class SessionRecoveryService {
+    +recoverSessions()
+}
+class TournamentLifecycleRequestedService {
+    +handleTournamentCreated(TournamentSummaryEventDto)
+    +handleTournamentUpdated(TournamentSummaryEventDto)
+    +handleTournamentDeleted(TournamentSummaryEventDto)
+}
+class TournamentMatchLocalSyncService {
+    +handleMatchScheduled(TournamentMatchScheduledDto)
+    +handleMatchCompleted(TournamentMatchResultDto)
+}
+
+GameSessionService ..> GameSessionRepository : uses
+GameSessionService ..> GameRepository : uses
+GameSessionService ..> GameDefinitionLocalRepository : uses
+GameSessionService ..> OutboxEventRepository : uses
+GameStateService ..> GameRepository : uses
+GameStateService ..> GameSessionRepository : uses
+ReservationService ..> ReservationRepository : uses
+ReservationService ..> GameRepository : uses
+ReservationService ..> OutboxEventRepository : uses
+StatisticsService ..> GameSessionRepository : uses
+StatisticsService ..> ReservationRepository : uses
+LocalAuthService ..> UserRepository : uses
+LocalSignupService ..> UserRepository : uses
+UserSyncService ..> UserRepository : uses
+GameCatalogService ..> GameRepository : uses
+GameCatalogService ..> OutboxEventRepository : uses
+SyncSchedulerService ..> OutboxEventRepository : uses
+SyncSchedulerService ..> CentralSystemRestAdapter : uses
+SessionRecoveryService ..> GameSessionRepository : uses
+SessionRecoveryService ..> MqttPublisher : uses
+TournamentLifecycleRequestedService ..> TournamentSummaryLocalRepository : uses
+TournamentMatchLocalSyncService ..> TournamentMatchLocalRepository : uses
+@enduml

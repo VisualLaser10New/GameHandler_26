@@ -1,0 +1,620 @@
+@startuml
+skinparam class {
+  backgroundColor White
+  arrowColor Black
+}
+
+class UserId {
+    +String value
+    +UserId(String)
+}
+class GameId {
+    +String id
+    +GameId(String)
+}
+class BuildingId {
+    +String id
+    +BuildingId(String)
+}
+class GameSessionId {
+    +String value
+    +GameSessionId(String)
+}
+class ReservationId {
+    +String value
+    +ReservationId(String)
+}
+class TournamentId {
+    +String value
+    +TournamentId(String)
+}
+class TournamentMatchId {
+    +String value
+    +TournamentMatchId(String)
+}
+class TeamId {
+    +String value
+    +TeamId(String)
+}
+enum GameType {
+    CHESS
+    FOOSBALL
+    DARTS
+    MONOPOLY
+    RISK
+    SLOT_MACHINE
+    ROULETTE
+}
+enum GameStatus {
+    WAITING
+    IN_PROGRESS
+    PAUSED
+    COMPLETED
+    ABORTED
+}
+enum GameMachineStatus {
+    AVAILABLE
+    RESERVED
+    IN_USE
+    MAINTENANCE
+    LOBBY
+}
+enum ReservationStatus {
+    PENDING
+    CONFIRMED
+    CANCELLED
+    EXPIRED
+}
+enum TournamentStatus {
+    DRAFT
+    OPEN_REGISTRATION
+    IN_PROGRESS
+    COMPLETED
+    CANCELLED
+}
+enum TournamentFormat {
+    SINGLE_ELIMINATION
+    ROUND_ROBIN
+}
+enum TournamentMatchStatus {
+    SCHEDULED
+    IN_PROGRESS
+    COMPLETED
+    ABANDONED
+    BYE
+}
+enum WinCondition {
+    WIN
+    DRAW
+    ABANDONED
+    TIMEOUT
+    TEAM_VICTORY
+}
+enum StopReason {
+    COMPLETED
+    ABORTED
+    TIMEOUT
+}
+enum Role {
+    PLAYER
+    LOCAL_ADMIN
+    GAME_ADMIN
+    PLATFORM_ADMIN
+    +Role of(String)
+    +Set~Role~ parse(String)
+    +List~String~ toAuthorityNames(String)
+}
+
+class CentralUser {
+    -UserId id
+    -String username
+    -String passwordHash
+    -String email
+    -List~String~ roles
+    -Instant createdAt
+    +changePassword(String)
+    +updateRoles(List~String~)
+}
+class GameDefinition {
+    -GameType gameType
+    -String name
+    -int minPlayers
+    -int maxPlayers
+    -boolean teamAllowed
+    -Map~String,Object~ registrationRules
+    -Instant createdAt
+    -Instant updatedAt
+}
+class Tournament {
+    -TournamentId tournamentId
+    -String name
+    -GameType gameType
+    -boolean teamBased
+    -int teamSize
+    -TournamentFormat format
+    -TournamentStatus status
+    -Instant startsAt
+    -Instant endsAt
+    -UserId createdBy
+    -Instant createdAt
+    +Tournament openRegistration()
+    +Tournament cancel()
+    +Tournament startProgress()
+    +Tournament complete(Instant)
+    +Tournament update(String, Instant)
+}
+class Team {
+    -TeamId teamId
+    -TournamentId tournamentId
+    -String name
+    -List~UserId~ members
+    -Instant createdAt
+}
+class TournamentParticipant {
+    -TournamentId tournamentId
+    -String participantId
+    -boolean isTeam
+    -String displayName
+    -Instant registeredAt
+}
+class TournamentMatch {
+    -TournamentMatchId matchId
+    -TournamentId tournamentId
+    -int round
+    -int bracketPosition
+    -String participantA
+    -String participantB
+    -String buildingId
+    -String gameId
+    -String sessionId
+    -String winner
+    -TournamentMatchStatus status
+    -Instant scheduledAt
+    -Instant playedAt
+    -String resultData
+}
+class TournamentStanding {
+    -TournamentId tournamentId
+    -String participantId
+    -int wins
+    -int losses
+    -int points
+    -Integer rank
+}
+class PlayerStatistics {
+    -UserId userId
+    -GameType gameType
+    -int matchesPlayed
+    -int matchesWon
+    -Instant lastPlayedAt
+    +PlayerStatistics mergeIncrement(boolean, Instant)
+}
+class PlayerMatchFact {
+    -String sessionId
+    -UserId userId
+    -BuildingId buildingId
+    -GameType gameType
+    -String tournamentId
+    -boolean won
+    -WinCondition winCondition
+    -Instant endedAt
+}
+class AggregatedStatistics {
+    -String id
+    -BuildingId buildingId
+    -GameType gameType
+    -LocalDate periodStart
+    -LocalDate periodEnd
+    -int totalSessions
+    -int avgDurationSeconds
+    -int totalReservations
+    -int totalAbortedSessions
+    -Map~String,Object~ data
+    +mergeWith(AggregatedStatistics)
+}
+class RegisteredLocalServer {
+    -BuildingId buildingId
+    -String baseUrl
+    -Instant lastSeenAt
+    -boolean isActive
+    +updateLastSeen(Instant)
+    +setActive(boolean)
+}
+class ProcessedEvent {
+    -String eventId
+    -Instant processedAt
+}
+class ReplicationProgress {
+    +String eventId
+    +String serverId
+}
+class LocalAdminBuilding {
+    -UserId userId
+    -BuildingId buildingId
+    -Instant assignedAt
+}
+class FailedLoginAttempt {
+    -String username
+    -Instant attemptedAt
+    -boolean success
+}
+
+class LocalUser {
+    -UserId userId
+    -String username
+    -String passwordHash
+    -String email
+    -List~String~ roles
+    -Instant eventTime
+    -Instant updatedAt
+}
+class Game {
+    -GameId id
+    -GameType gameType
+    -String name
+    -BuildingId buildingId
+    -GameMachineStatus status
+    -long version
+    +reserve()
+    +startUse()
+    +release()
+    +setMaintenance()
+    +setLobby()
+    +rename(String)
+}
+class GameSession {
+    -GameSessionId id
+    -GameId gameId
+    -GameType gameType
+    -BuildingId buildingId
+    -GameStatus status
+    -Instant startedAt
+    -Instant endedAt
+    -Integer durationSeconds
+    -UserId winnerId
+    -WinCondition winCondition
+    -GameResult result
+    -List~UserId~ participants
+    -Instant pausedAt
+    -int accumulatedPausedSeconds
+    -long version
+    -TournamentMatchId tournamentMatchId
+    -TournamentId tournamentId
+    +complete(GameResult, Instant)
+    +abort(StopReason, Instant)
+    +cancelLobby(Instant)
+    +pause(Instant)
+    +resume(Instant)
+    +calculateDuration()
+    +addParticipant(UserId)
+    +removeParticipant(UserId)
+}
+class Reservation {
+    -ReservationId id
+    -GameId gameId
+    -UserId userId
+    -ReservationStatus status
+    -Instant startTime
+    -Instant endTime
+    -Instant createdAt
+    -long version
+    +canBeCancelled(Clock) boolean
+    +confirm()
+    +cancel()
+    +expire()
+}
+class TournamentSummaryLocal {
+    -TournamentId tournamentId
+    -String name
+    -GameType gameType
+    -boolean teamBased
+    -int teamSize
+    -TournamentStatus status
+    -Instant startsAt
+    -Instant endsAt
+    -List~String~ buildingIds
+    -int participantsCount
+    -boolean deleted
+    -Instant updatedAt
+}
+class TournamentMatchLocal {
+    -TournamentMatchId id
+    -TournamentId tournamentId
+    -int round
+    -int bracketPosition
+    -String participantA
+    -String participantB
+    -GameType gameType
+    -String gameId
+    -TournamentMatchStatus status
+    -Instant scheduledAt
+    +TournamentMatchLocal withStatus(TournamentMatchStatus)
+}
+class LocalStatistics {
+    -GameType gameType
+    -int totalSessions
+    -double avgDuration
+    -int totalReservations
+    -Map~String,Double~ winRateByUser
+    +recalculate(List~GameSession~)
+}
+class GameDefinitionLocal {
+    -GameType gameType
+    -String name
+    -int minPlayers
+    -int maxPlayers
+    -boolean teamAllowed
+    -Map~String,Object~ registrationRules
+    -Instant updatedAt
+}
+class OutboxEvent {
+    -String id
+    -String eventType
+    -String payload
+    -String status
+    -Instant createdAt
+    -Instant sentAt
+    -int retryCount
+    +markAsSent(Instant)
+    +incrementRetry()
+    +markAsFailed()
+    +hasFailed() boolean
+}
+enum OutboxEventStatus {
+    PENDING
+    SENT
+    FAILED
+}
+class RegisteredLocalServerLocal {
+    -BuildingId buildingId
+    -String baseUrl
+    -Instant lastSeenAt
+    -boolean active
+    -Instant updatedAt
+}
+
+interface UserRepository {
+    +Optional~User~ findById(UserId)
+    +Optional~User~ findByUsername(String)
+    +save(User)
+}
+interface TournamentRepository {
+    +Optional~Tournament~ findById(TournamentId)
+    +save(Tournament)
+}
+interface GameRepository {
+    +Optional~Game~ findById(GameId)
+    +List~Game~ findByBuildingId(BuildingId)
+    +save(Game)
+    +deleteById(GameId)
+}
+interface GameSessionRepository {
+    +Optional~GameSession~ findById(GameSessionId)
+    +Optional~GameSession~ findActiveByGameId(GameId)
+    +List~GameSession~ findByParticipant(UserId)
+    +save(GameSession)
+}
+interface ReservationRepository {
+    +Optional~Reservation~ findById(ReservationId)
+    +Optional~Reservation~ findByUserIdAndGameId(UserId, GameId)
+    +List~Reservation~ findPendingByGameId(GameId)
+    +save(Reservation)
+}
+interface OutboxEventRepository {
+    +List~OutboxEvent~ findPending()
+    +save(OutboxEvent)
+}
+interface PushUserToCentralPort {
+    +pushUsers(List~UserSyncDto~, String)
+}
+interface PushTournamentSummaryToCentralPort {
+    +pushTournamentSummaries(List~TournamentSummaryEventDto~, String)
+}
+interface GameDefinitionLocalRepository {
+    +Optional~GameDefinitionLocal~ findByGameType(GameType)
+    +save(GameDefinitionLocal)
+}
+interface LocalAdminBuildingLocalRepository {
+    +List~LocalAdminBuilding~ findByUserId(UserId)
+    +save(LocalAdminBuilding)
+    +deleteByUserIdAndBuildingId(UserId, BuildingId)
+}
+
+class GameSessionService {
+    +GameSession start(GameId, UserId, GameType, BuildingId, List~UserId~, Instant)
+    +GameSession start(GameId, UserId, GameType, BuildingId, List~UserId~, Instant, TournamentMatchId, TournamentId)
+    +pause(GameSessionId, UserId, Instant)
+    +resume(GameSessionId, UserId, Instant)
+    +end(GameSessionId, UserId, GameResult, Instant)
+    +abort(GameSessionId, UserId, StopReason, Instant)
+}
+class GameStateService {
+    +GameStateDto getGameState(GameId)
+    +List~GameStateDto~ getBuildingGames(BuildingId)
+    +List~GameSessionDto~ getActiveSessions(BuildingId)
+}
+class ReservationService {
+    +ReservationDto create(CreateReservationRequestDto)
+    +confirm(ReservationId, UserId)
+    +cancel(ReservationId, UserId)
+    +expirePending(Clock)
+}
+class StatisticsService {
+    +LocalStatistics getStatistics(BuildingId, GameType)
+    +PlayerStatisticsDto getPlayerStatistics(UserId, GameType)
+    +List~GameSessionDto~ getActiveSessions(BuildingId)
+    +BuildingStatisticsDto getBuildingStatistics(BuildingId)
+}
+class LocalAuthService {
+    +LoginResponseDto authenticate(LoginRequestDto)
+}
+class LocalSignupService {
+    +SignupResponseDto register(SignupRequestDto)
+}
+class UserSyncService {
+    +syncUsers(List~UserSyncDto~)
+}
+class GameCatalogService {
+    +GameDto createGame(CreateGameRequestDto)
+    +GameDto updateGame(GameId, UpdateGameRequestDto)
+    +deleteGame(GameId)
+    +List~GameDto~ getGames(BuildingId)
+}
+class SyncSchedulerService {
+    +syncWithCentral()
+}
+class SessionRecoveryService {
+    +recoverSessions()
+}
+class TournamentLifecycleRequestedService {
+    +handleTournamentCreated(TournamentSummaryEventDto)
+    +handleTournamentUpdated(TournamentSummaryEventDto)
+    +handleTournamentDeleted(TournamentSummaryEventDto)
+}
+class TournamentMatchLocalSyncService {
+    +handleMatchScheduled(TournamentMatchScheduledDto)
+    +handleMatchCompleted(TournamentMatchResultDto)
+}
+
+class JwtTokenProvider {
+    +String generateTokenWithExpiry(User, Instant)
+    +JwtClaims parseToken(String)
+}
+class JwtAuthenticationFilter
+class InternalApiKeyFilter
+class CurrentUserService
+class LocalAdminBuildingAuthorizationManager
+class MqttPublisher {
+    +publish(String, String, int, boolean)
+}
+class GameStatePublisher {
+    +publishState(GameId, GameMachineStatus)
+    +publishSessionStart(GameSessionDto)
+    +publishSessionEnd(GameSessionDto)
+}
+class AlertPublisher {
+    +publishAlert(String, String)
+}
+class MqttMessageHandler {
+    +handle(String, String)
+}
+class SessionStartHandler {
+    +handle(SessionStartPayload)
+}
+class SessionPauseHandler {
+    +handle(SessionPausePayload)
+}
+class SessionResumeHandler {
+    +handle(SessionResumePayload)
+}
+class SessionEndHandler {
+    +handle(SessionEndPayload)
+}
+class HeartbeatHandler {
+    +handle(HeartbeatPayload)
+}
+class CentralSystemRestAdapter {
+    +syncUsers(List~UserSyncDto~)
+    +syncTournamentSummaries(List~TournamentSummaryEventDto~)
+    +syncGameDefinitions(List~GameDefinitionEventDto~)
+}
+class RegisterLocalServerAdapter {
+    +register(BuildingId, String)
+}
+
+UserId <|-- CentralUser
+GameType <|-- GameDefinition
+TournamentId <|-- Tournament
+GameType <|-- Tournament
+TournamentFormat <|-- Tournament
+TournamentStatus <|-- Tournament
+UserId <|-- Tournament
+TeamId <|-- Team
+TournamentId <|-- Team
+UserId <|-- Team
+TournamentId <|-- TournamentParticipant
+TournamentMatchId <|-- TournamentMatch
+TournamentId <|-- TournamentMatch
+TournamentMatchStatus <|-- TournamentMatch
+TournamentId <|-- TournamentStanding
+UserId <|-- PlayerStatistics
+GameType <|-- PlayerStatistics
+UserId <|-- PlayerMatchFact
+BuildingId <|-- PlayerMatchFact
+GameType <|-- PlayerMatchFact
+WinCondition <|-- PlayerMatchFact
+BuildingId <|-- AggregatedStatistics
+GameType <|-- AggregatedStatistics
+BuildingId <|-- RegisteredLocalServer
+UserId <|-- LocalAdminBuilding
+BuildingId <|-- LocalAdminBuilding
+
+UserId <|-- LocalUser
+GameId <|-- Game
+GameType <|-- Game
+BuildingId <|-- Game
+GameMachineStatus <|-- Game
+GameSessionId <|-- GameSession
+GameId <|-- GameSession
+GameType <|-- GameSession
+BuildingId <|-- GameSession
+GameStatus <|-- GameSession
+WinCondition <|-- GameSession
+GameResult <|-- GameSession
+UserId <|-- GameSession
+TournamentMatchId <|-- GameSession
+TournamentId <|-- GameSession
+ReservationId <|-- Reservation
+GameId <|-- Reservation
+UserId <|-- Reservation
+ReservationStatus <|-- Reservation
+TournamentId <|-- TournamentSummaryLocal
+GameType <|-- TournamentSummaryLocal
+TournamentStatus <|-- TournamentSummaryLocal
+TournamentMatchId <|-- TournamentMatchLocal
+TournamentId <|-- TournamentMatchLocal
+GameType <|-- TournamentMatchLocal
+TournamentMatchStatus <|-- TournamentMatchLocal
+GameType <|-- LocalStatistics
+GameType <|-- GameDefinitionLocal
+OutboxEventStatus <|-- OutboxEvent
+BuildingId <|-- RegisteredLocalServerLocal
+UserId <|-- LocalAdminBuilding
+BuildingId <|-- LocalAdminBuilding
+
+GameSessionService ..> GameSessionRepository : uses
+GameSessionService ..> GameRepository : uses
+GameSessionService ..> GameDefinitionLocalRepository : uses
+GameSessionService ..> OutboxEventRepository : uses
+GameStateService ..> GameRepository : uses
+GameStateService ..> GameSessionRepository : uses
+ReservationService ..> ReservationRepository : uses
+ReservationService ..> GameRepository : uses
+ReservationService ..> OutboxEventRepository : uses
+StatisticsService ..> GameSessionRepository : uses
+StatisticsService ..> ReservationRepository : uses
+LocalAuthService ..> UserRepository : uses
+LocalSignupService ..> UserRepository : uses
+UserSyncService ..> UserRepository : uses
+GameCatalogService ..> GameRepository : uses
+GameCatalogService ..> OutboxEventRepository : uses
+SyncSchedulerService ..> OutboxEventRepository : uses
+SyncSchedulerService ..> CentralSystemRestAdapter : uses
+SessionRecoveryService ..> GameSessionRepository : uses
+SessionRecoveryService ..> MqttPublisher : uses
+TournamentLifecycleRequestedService ..> TournamentSummaryLocalRepository : uses
+TournamentMatchLocalSyncService ..> TournamentMatchLocalRepository : uses
+
+JwtAuthenticationFilter ..> JwtTokenProvider : uses
+InternalApiKeyFilter ..> CurrentUserService : uses
+MqttMessageHandler ..> SessionStartHandler : delegates
+MqttMessageHandler ..> SessionPauseHandler : delegates
+MqttMessageHandler ..> SessionResumeHandler : delegates
+MqttMessageHandler ..> SessionEndHandler : delegates
+MqttMessageHandler ..> HeartbeatHandler : delegates
+MqttMessageHandler ..> MqttPublisher : uses
+
+CentralSystemRestAdapter ..> PushUserToCentralPort : implements
+CentralSystemRestAdapter ..> PushTournamentSummaryToCentralPort : implements
+RegisterLocalServerAdapter ..> PushUserToCentralPort : implements
+@enduml
