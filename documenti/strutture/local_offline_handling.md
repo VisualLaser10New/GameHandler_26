@@ -6,7 +6,7 @@ Questo documento presenta un'analisi approfondita della capacità del sistema di
 
 ## 1. Riepilogo Esecutivo
 
-- **Indipendenza Offline:** Sì, il server locale è pienamente in grado di funzionare in modo indipendente e gestire i client quando è disconnesso dal server centrale. Le azioni principali come registrazione utente, login utente, creazione/cancellazione prenotazioni, gestione sessioni di gioco e ripristino all'avvio vengono eseguite sul database locale e sul broker MQTT locale.
+- **Indipendenza Offline:** Il server locale è pienamente in grado di funzionare in modo indipendente e gestire i client quando è disconnesso dal server centrale. Le azioni principali come registrazione utente, login utente, creazione/cancellazione prenotazioni, gestione sessioni di gioco e ripristino all'avvio vengono eseguite sul database locale e sul broker MQTT locale.
 - **Modello di Sincronizzazione (Outbox Pattern):** Il sistema utilizza un **outbox pattern** sia sul server locale che sul server centrale. Le azioni eseguite offline generano eventi pendenti in una tabella outbox del database.
 - **Riconciliazione Bi-Direzionale:**
     - **Locale -> Centrale:** Sincronizza gli utenti creati localmente, le sessioni di gioco completate e gli storici delle prenotazioni verso il sistema centrale per aggiornare i repository centrali e le statistiche aggregate.

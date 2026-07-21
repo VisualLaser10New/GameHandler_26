@@ -149,7 +149,7 @@ Metodo costruttore: `MqttTopics.sessionTurn/Move/Score(buildingId, gameId)`
 ### 4.5 Heartbeat
 
 | Topic | Direzione | QoS | Retained | Descrizione |
-|---|---|---|---|---|---|
+|---|---|---|---|---|
 | `building/{bId}/game/{gId}/heartbeat` | Client ↔ Server | 0/1 | No | Heartbeat client-initiated (request, QoS 0) o server-initiated (PING, QoS 1) |
 | `building/{bId}/game/{gId}/heartbeat/ack` | Client ↔ Server | 0/1 | No | ACK heartbeat: server → client per client-initiated (QoS 1), client → server per PING (QoS 0) |
 

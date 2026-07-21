@@ -11,7 +11,7 @@ date: 07/19/2026
 Progetto del corso di PISSIR, anno 2025/26
 
 ## 1. DESCRIZIONE DEL PROGETTO
-### Obbiettivo
+### Obiettivo
 L'obiettivo del progetto è la realizzazione di una piattaforma distribuita per la gestione di giochi da tavolo e da bar, che permetta la creazione di tornei e di raccogliere e analizzare dati sullo svolgimento delle partite tramite l'utilizzo di sensori.
 
 Questo avviene perchè ogni gioco ha dei sensori che rilevano gli input significativi (i gol in un calcetto ad esempio), questi vengono convertiti dalla board sul gioco (ad esempio un ESP32) in chiamate http e mqtt al broker o al server locale. 

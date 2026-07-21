@@ -52,7 +52,7 @@ Il **Game Client (JavaFX)** comunica **esclusivamente** con il Local Server del 
 ## 2. Sicurezza, Autenticazione e Autorizzazione
 
 ### 2.1 Trust Domain separati (JWT non interscambiabili)
-- Ogni nodo possiede la **propria coppia di chiavi RSA** (privata/pubblica). Il Central firma i propri JWT; il Local Server firma i propri JWT locali. I JWT **non sono intercambiabili**.
+- Ogni nodo possiede la **propria coppia di chiavi RSA** (privata/pubblica). Il Central system firma i propri JWT; il Local Server firma i propri JWT locali. I JWT **non sono intercambiabili**.
 - **Claims JWT:** `{ sub: username, userId, roles: [...], exp: timestamp }`. (Nota: il claim è `sub` = username, NON `buildingId`; è presente anche `userId`.)
 - Mapping claim → Spring authority via `Role.toAuthorityNames` → `ROLE_PLAYER`, `ROLE_LOCAL_ADMIN`, `ROLE_GAME_ADMIN`, `ROLE_PLATFORM_ADMIN`. I letterali legacy (`USER`/`ADMIN`/`ROLE_USER`/`ROLE_ADMIN`) sono rinormalizzati ai canonici.
 
