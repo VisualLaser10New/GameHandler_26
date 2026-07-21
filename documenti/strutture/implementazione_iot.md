@@ -1199,10 +1199,3 @@ In questa sezione si elenca, area per area, cosa esiste oggi nel codice (con rif
 | **Comunicazione cross-tier** | MQTT over TLS + topic `building/{bid}/game/{gid}/...` (`MqttTopics.java:6-66`) + outbox sync | OK strutturalmente; eventuali topic aliases MQTT 5; WebSocket listener su Mosquitto per client web/mobile (`README.md:301`: assente) |
 
 **Conclusione architetturale**: il sistema è già disegnato in modo "device-agnostic" al livello trasporto (MQTT + mTLS + topic `building/{bid}/game/{gid}/...` + outbox sync). L'integrazione con veri tavoli IoT **non richiede di rifare il domain model della lobby o della sessione**, ma richiede di: (1) scrivere il firmware C/C++ mancante; (2) introdurre autenticazione NFC con risoluzione `card_uid→userId` lato server; (3) capovolgere il trust model (il tavolo dice "badge X appoggiato" e non "io sono user Y"); (4) aggiungere un registry dispositivi separato dal game catalog, ACL MQTT per building, e prenotazione tavoli per match di torneo. I concetti di lobby, building, game machine e tournament match sono già sufficientemente astratti da ospitare i dispositivi fisici come ulteriori "client emulator" con un'origine di identità diversa.
-
----
-
-*Fine documento implementazione_reale.md*
-*Vedere [DESIGN.md](../DESIGN.md) per l'architettura del sistema.*
-*Vedere [REQUIREMENTS.md](../REQUIREMENTS.md) per i requisiti verificabili.*
-*Vedere [VISION.md](../VISION.md) per il contesto strategico del progetto.*

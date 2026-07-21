@@ -807,56 +807,30 @@ Le statististiche che vengono mostrate dipendono da l'utente che ha fatto l'acce
 ![platform_admin_dashboard.jpeg](schermate-client/platform_admin_dashboard.jpeg)
 
 ### Componenti accessori
-Come già accennato è necessario autenticarsi, è inoltre presente un sistema di prenotazione.
+Come già accennato è necessario autenticarsi.
 
 ## 5. FASI DI LAVORO
 ### 5.1 Specifica 
 Come già detto l'applicazione è una piattaforma software per la gestione di sale giochi da tavolo/bar disposte in più edifici fisici.
 
 ### Casi d'uso
-1) __Prenotazione e gioco__ un giocatore autenticato prenota una postazione di gioco libera nel proprio edificio; se la prenotazione non viene utilizzata entro l'orario previsto la macchina viene rilasciata automaticamente. Il giocatore avvia poi la sessione dal client, può metterla in pausa e riprenderla, e alla fine invia il risultato della partita (vincitore, punteggio, esito).
 
-2) __Login e registrazione offline__ un utente si autentica o crea un nuovo account anche quando il Local Server del proprio edificio è isolato dal Central System, grazie alla replica locale delle credenziali e alla firma dei token JWT con una chiave del Local Server stesso.
+1) __Login e registrazione offline__ un utente si autentica o crea un nuovo account anche quando il Local Server del proprio edificio è isolato dal Central System, grazie alla replica locale delle credenziali e alla firma dei token JWT con una chiave del Local Server stesso.
 
-3) __Monitoraggio degli endpoint e recupero da crash__ il Local Server verifica periodicamente che le postazioni di gioco connesse siano raggiungibili; se una postazione non risponde per più cicli consecutivi, o se il server si riavvia dopo un crash con sessioni rimaste appese, la partita in corso viene chiusa automaticamente e la macchina torna disponibile.
+2) __Monitoraggio degli endpoint e recupero da crash__ il Local Server verifica periodicamente che le postazioni di gioco connesse siano raggiungibili; se una postazione non risponde per più cicli consecutivi, o se il server si riavvia dopo un crash con sessioni rimaste appese, la partita in corso viene chiusa automaticamente e la macchina torna disponibile.
 
-4) __Creazione e gestione di un torneo__ un Platform Admin crea un torneo (individuale o a squadre) su almeno due edifici per uno stesso gioco; i giocatori si iscrivono in autonomia durante la fase di registrazione aperta, viene generato un bracket ad eliminazione diretta e i risultati dei singoli match aggiornano automaticamente il bracket e la classifica.
+3) __Creazione e gestione di un torneo__ un Platform Admin crea un torneo (individuale o a squadre) su almeno due edifici per uno stesso gioco; i giocatori si iscrivono in autonomia durante la fase di registrazione aperta, viene generato un bracket ad eliminazione diretta e i risultati dei singoli match aggiornano automaticamente il bracket e la classifica.
 
-5) __Sincronizzazione locale-centrale__ tutti gli eventi generati mentre il Local Server è offline (prenotazioni, sessioni di gioco, iscrizioni) vengono accumulati in una coda locale e inviati in blocco al Central System non appena la connettività torna disponibile.
+4) __Sincronizzazione locale-centrale__ tutti gli eventi generati mentre il Local Server è offline (prenotazioni, sessioni di gioco, iscrizioni) vengono accumulati in una coda locale e inviati in blocco al Central System non appena la connettività torna disponibile.
 
-6) __Consultazione statistiche per ruolo__ ogni tipologia di utente visualizza dati differenti: il player le proprie partite e statistiche personali, il local admin lo stato dei giochi e le statistiche del proprio locale, il game admin l'anagrafica dei giochi definiti, il platform admin le statistiche aggregate dell'intera piattaforma.
+5) __Consultazione statistiche per ruolo__ ogni tipologia di utente visualizza dati differenti: il player le proprie partite e statistiche personali, il local admin lo stato dei giochi e le statistiche del proprio locale, il game admin l'anagrafica dei giochi definiti, il platform admin le statistiche aggregate dell'intera piattaforma.
 
-7) __Definizione di nuove tipologie di gioco__ un Game Admin definisce nuovi tipi di gioco e le relative regole di registrazione delle partite, incluse eventuali varianti a giocatore singolo basate su esito casuale (es. slot machine, roulette).
+6) __Definizione di nuove tipologie di gioco__ un Game Admin definisce nuovi tipi di gioco e le relative regole di registrazione delle partite, incluse eventuali varianti a giocatore singolo basate su esito casuale (es. slot machine, roulette).
 
-8) __Acquisizione eventi dai sensori di gioco__ i sensori posizionati su ciascun gioco fisico (gestiti ad esempio da una board ESP32) rilevano gli eventi significativi della partita e li inviano al Local Server tramite chiamate HTTP e MQTT.
+7) __Acquisizione eventi dai sensori di gioco__ i sensori posizionati su ciascun gioco fisico (gestiti ad esempio da una board ESP32) rilevano gli eventi significativi della partita e li inviano al Local Server tramite chiamate HTTP e MQTT.
 
 
 ### Diagramma UML dei Casi d'Uso
-
-#### Prenotazione e Gioco
-
-```puml
-@startuml
-actor PLAYER as "Player"
-actor GameClient as "Game Client"
-actor MqttBroker as "MQTT Broker"
-(Prenota postazione di gioco) as UC1
-(Avvia sessione di gioco) as UC2
-(Metti in pausa/riprendi sessione) as UC3
-(Termina sessione con risultato) as UC4
-PLAYER --> UC1
-PLAYER --> UC2
-PLAYER --> UC3
-PLAYER --> UC4
-GameClient --> UC1
-GameClient --> UC2
-GameClient --> UC3
-GameClient --> UC4
-MqttBroker --> UC2
-MqttBroker --> UC3
-MqttBroker --> UC4
-@enduml
-```
 
 #### Login e Registrazione Offline
 
@@ -1755,80 +1729,8 @@ RegisterLocalServerAdapter ..> PushUserToCentralPort : implements
 
 ### Diagrammi di Sequenza
 
-#### 1. Prenotazione e Gioco (Reservation & Game Session)
 
-```puml
-@startuml
-autonumber
-actor Player as "PLAYER"
-participant "Game Client (JavaFX)" as Client
-participant "Local Server" as Local
-participant "Local DB" as DB
-participant "MQTT Broker" as MQTT
-
-note over Player, Local : 1. Login (HTTPS REST)
-Player -> Client : Enter credentials
-Client -> Local : POST /api/auth/login
-Local -> DB : Find user in replicated_users
-DB --> Local : User (with password hash)
-Local -> Local : Verify BCrypt password
-Local -> Local : Sign JWT (local RSA key)
-Local --> Client : 200 OK + JWT
-Client --> Player : Login success
-
-note over Player, Local : 2. Reservation (HTTPS REST)
-Player -> Client : Select available game
-Client -> Local : POST /api/reservations (JWT, gameId, timeSlot)
-Local -> DB : Create Reservation (PENDING)
-Local -> DB : Update Game status = RESERVED
-Local -> DB : Write RESERVATION_CREATED to outbox_events
-Local --> Client : 201 Created (ReservationDto)
-Local -> MQTT : Publish state: RESERVED (retained)
-MQTT --> Client : Notify state change
-Client --> Player : Show reservation confirmed
-
-note over Player, Local : 3. Session Start (MQTT)
-Player -> Client : Press "Start Game"
-Client -> MQTT : Publish session/start (sessionId, participants)
-MQTT -> Local : Receive on session/start topic
-Local -> DB : Create GameSession (IN_PROGRESS)
-Local -> DB : Update Game status = IN_USE
-Local -> DB : Write GAME_SESSION_STARTED to outbox_events
-Local -> MQTT : Publish state: IN_USE (retained)
-Local -> MQTT : Broadcast session/start to participants
-MQTT --> Client : Receive state + session start
-Client --> Player : Game UI active
-
-note over Player, Local : 4. Pause/Resume (MQTT)
-Player -> Client : Press "Pause"
-Client -> MQTT : Publish session/pause
-MQTT -> Local : Receive
-Local -> DB : Update session status = PAUSED
-Local -> MQTT : Broadcast session/pause
-MQTT --> Client : Notify pause
-
-Player -> Client : Press "Resume"
-Client -> MQTT : Publish session/resume
-MQTT -> Local : Receive
-Local -> DB : Update session status = IN_PROGRESS
-Local -> MQTT : Broadcast session/resume
-MQTT --> Client : Notify resume
-
-note over Player, Local : 5. Session End (MQTT)
-Player -> Client : Game finished, enter result
-Client -> MQTT : Publish session/end (winner, score, winCondition)
-MQTT -> Local : Receive
-Local -> DB : Complete GameSession (COMPLETED)
-Local -> DB : Update Game status = AVAILABLE
-Local -> DB : Write GAME_SESSION_COMPLETED to outbox_events (with participants, winner, winCondition)
-Local -> MQTT : Publish state: AVAILABLE (retained)
-Local -> MQTT : Broadcast session/end (result)
-MQTT --> Client : Receive final state + result
-Client --> Player : Show match result
-@enduml
-```
-
-#### 2. Login e Registrazione Offline (Offline Authentication)
+#### Login e Registrazione Offline (Offline Authentication)
 
 ```puml
 @startuml
@@ -1868,7 +1770,7 @@ Local -> DB : Mark outbox events as SENT
 @enduml
 ```
 
-#### 3. Monitoraggio Endpoint e Recupero da Crash (Health Check & Crash Recovery)
+#### Monitoraggio Endpoint e Recupero da Crash (Health Check & Crash Recovery)
 
 ```puml
 @startuml
@@ -1922,7 +1824,7 @@ end
 @enduml
 ```
 
-#### 4. Creazione e Gestione Torneo (Tournament Management)
+#### Creazione e Gestione Torneo (Tournament Management)
 
 ```puml
 @startuml
@@ -2006,7 +1908,7 @@ Local -> Local : Update TournamentMatchLocal, TournamentStandingLocal
 @enduml
 ```
 
-#### 5. Sincronizzazione Locale-Centrale (Local-Central Sync / Outbox Pattern)
+#### Sincronizzazione Locale-Centrale (Local-Central Sync / Outbox Pattern)
 
 ```puml
 @startuml
@@ -2057,7 +1959,7 @@ end
 @enduml
 ```
 
-#### 6. Acquisizione Eventi dai Sensori (ESP32 / Sensor Integration)
+#### Acquisizione Eventi dai Sensori (ESP32 / Sensor Integration)
 
 ```puml
 @startuml
@@ -2108,6 +2010,8 @@ La documentazione completa di ogni endpoint è consultabile nel documento [repor
 
 #### TOPIC MQTT
 Tutti i topic seguono lo schema gerarchico `building/{buildingId}/game/{gameId}/{action}`, ad eccezione di `alerts` che è a livello di edificio (`building/{buildingId}/alerts`, senza `gameId`).
+La documentazione completa di ogni topic è consultabile nel documento [report_mqtt.md](strutture/report_mqtt.md)
+
 
 | Topic                                                      | Publisher                   | Subscriber                 | QoS / Retained      | Descrizione                                                                                      |
 |------------------------------------------------------------|-----------------------------|----------------------------|---------------------|--------------------------------------------------------------------------------------------------|

@@ -1,6 +1,5 @@
 # Gestione dei Tornei
 
-> Riferimenti al codice con `file:riga` reali. Ogni claim è verificato contro il codice.
 
 ## 1. Visione d'insieme
 

@@ -1,4 +1,4 @@
-# architettura_classi.md — Modello RBAC a 4 ruoli (FASE 0)
+# Architettura delle classi
 
 > **Documento:** Architettura delle classi — modello dei ruoli utente
 > **Versione:** 1.0

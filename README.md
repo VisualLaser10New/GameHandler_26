@@ -177,7 +177,7 @@ Per uno scenario manuale più dettagliato con verifiche SQL/DB, vedere §8.5.
 
 ---
 
-## 4. Ambiente di Produzione (Per l'Esame e la Consegna)
+## 4. Ambiente di Produzione
 
 Mentre l'approccio di §3 è perfetto per lo *sviluppo*, in fase di esame o consegna il progetto va eseguito in un solo click, senza dover aprire IntelliJ o configurare Java.
 

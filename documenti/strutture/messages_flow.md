@@ -1,133 +1,133 @@
-# Message Flows in the Distributed Game Platform
+# Flussi di Messaggi nella Piattaforma di Gioco Distribuita
 
-This document describes the flow of messages, protocols, authentication, and database updates across the three tiers of the distributed system:
-1. **Game Client** (JavaFX Desktop Emulator)
-2. **Local Server** (Edge Node installed in each building)
-3. **Central System** (Cloud-based Hub)
+Questo documento descrive il flusso di messaggi, protocolli, autenticazione e aggiornamenti del database attraverso i tre livelli del sistema distribuito:
+1. **Game Client** (Emulatore Desktop JavaFX)
+2. **Local Server** (Nodo Edge installato in ogni edificio)
+3. **Central System** (Hub basato su cloud)
 
 ---
 
-## Sequence Diagram
+## Diagramma di Sequenza
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Client as Game Client (JavaFX)
-    participant Local as Local Server (Edge Node)
+    participant Local as Local Server (Nodo Edge)
     participant Central as Central System (Hub)
 
-    Note over Client, Local: 1. Bootstrapping & Enrollment (HTTPS)
+    Note over Client, Local: 1. Avvio & Registrazione (HTTPS)
     Client->>Local: POST /api/devices/register (CSR)
-    Local-->>Client: Returns enrolled X.509 Certificate
+    Local-->>Client: Restituisce certificato X.509 registrato
 
-    Note over Local, Central: 2. Local Server Setup (HTTPS + ApiKey)
+    Note over Local, Central: 2. Configurazione Local Server (HTTPS + ApiKey)
     Local->>Central: POST /internal/servers/register (buildingId, baseUrl)
-    Central-->>Local: 200 OK (Registered in DB)
+    Central-->>Local: 200 OK (Registrato nel DB)
 
-    Note over Central, Local: 3. User Replication (HTTPS + ApiKey)
+    Note over Central, Local: 3. Replica Utenti (HTTPS + ApiKey)
     Central->>Local: PUT /internal/users/sync (List<UserSyncDto>)
-    Local-->>Central: 200 OK (Persisted in replicated_users)
+    Local-->>Central: 200 OK (Persistito in replicated_users)
 
-    Note over Client, Local: 4. Offline/Local Authentication (HTTPS)
+    Note over Client, Local: 4. Autenticazione Locale/Offline (HTTPS)
     Client->>Local: POST /api/auth/login (username, password)
-    Local-->>Client: Returns local JWT (signed with local RSA private key)
+    Local-->>Client: Restituisce JWT locale (firmato con chiave privata RSA locale)
 
-    Note over Client, Local: 5. Game Reservation (HTTPS & MQTT)
+    Note over Client, Local: 5. Prenotazione Gioco (HTTPS & MQTT)
     Client->>Local: POST /api/reservations (JWT)
-    Local-->>Client: 201 Created (Status: RESERVED)
-    Local-)Client: MQTT: building/{bId}/game/{gId}/state (Status: RESERVED)
-    Note over Local: DB: Saves reservation & writes RESERVATION_CREATED to Outbox
+    Local-->>Client: 201 Created (Stato: RESERVED)
+    Local-)Client: MQTT: building/{bId}/game/{gId}/state (Stato: RESERVED)
+    Note over Local: DB: Salva prenotazione e scrive RESERVATION_CREATED nell'Outbox
 
-    Note over Client, Local: 6. Game Session Initiation (MQTT)
-    Client->>Local: MQTT Publish: session/start (sessionId, gameType, participants)
-    Local->>Client: MQTT Publish: state (Status: IN_USE)
-    Local->>Client: MQTT Broadcast: session/start (sessionId, etc. to other clients)
+    Note over Client, Local: 6. Avvio Sessione di Gioco (MQTT)
+    Client->>Local: Pubblicazione MQTT: session/start (sessionId, gameType, participants)
+    Local->>Client: Pubblicazione MQTT: state (Stato: IN_USE)
+    Local->>Client: Broadcast MQTT: session/start (sessionId, ecc. agli altri client)
 
-    Note over Client, Local: 7. Heartbeat Check (MQTT)
-    alt Client-Initiated Heartbeat
-        Client->>Local: MQTT Publish: heartbeat (gameId, timestamp)
-        Local->>Client: MQTT Publish: heartbeat/ack (gameId, timestamp)
-    else Server-Initiated Ping (every 5 min)
-        Local->>Client: MQTT Publish: heartbeat (PING)
-        Client->>Local: MQTT Publish: heartbeat/ack (PONG)
+    Note over Client, Local: 7. Controllo Heartbeat (MQTT)
+    alt Heartbeat avviato dal Client
+        Client->>Local: Pubblicazione MQTT: heartbeat (gameId, timestamp)
+        Local->>Client: Pubblicazione MQTT: heartbeat/ack (gameId, timestamp)
+    else Ping avviato dal Server (ogni 5 min)
+        Local->>Client: Pubblicazione MQTT: heartbeat (PING)
+        Client->>Local: Pubblicazione MQTT: heartbeat/ack (PONG)
     end
-    Note over Local: If 3 cycles missed (15 min) -> Aborts session, publishes Alert & updates State to AVAILABLE
+    Note over Local: Se 3 cicli persi (15 min) -> Termina sessione, pubblica Alert e aggiorna Stato a AVAILABLE
 
-    Note over Client, Local: 8. Game Session Pause/Resume (MQTT)
-    Client->>Local: MQTT Publish: session/pause or session/resume
-    Local->>Client: MQTT Broadcast: session/pause or session/resume
+    Note over Client, Local: 8. Pausa/Ripresa Sessione di Gioco (MQTT)
+    Client->>Local: Pubblicazione MQTT: session/pause o session/resume
+    Local->>Client: Broadcast MQTT: session/pause o session/resume
 
-    Note over Client, Local: 9. Game Session Closing (MQTT)
-    Client->>Local: MQTT Publish: session/end (sessionId, winnerId, score, winCondition)
-    Local->>Client: MQTT Publish: state (Status: AVAILABLE)
-    Local->>Client: MQTT Broadcast: session/end (result data)
-    Note over Local: DB: Completes session & writes GAME_SESSION_COMPLETED to Outbox
+    Note over Client, Local: 9. Chiusura Sessione di Gioco (MQTT)
+    Client->>Local: Pubblicazione MQTT: session/end (sessionId, winnerId, score, winCondition)
+    Local->>Client: Pubblicazione MQTT: state (Stato: AVAILABLE)
+    Local->>Client: Broadcast MQTT: session/end (dati risultato)
+    Note over Local: DB: Completa sessione e scrive GAME_SESSION_COMPLETED nell'Outbox
 
-    Note over Local, Central: 10. Outbox Data Synchronization (HTTPS + ApiKey)
+    Note over Local, Central: 10. Sincronizzazione Dati Outbox (HTTPS + ApiKey)
     Local->>Central: POST /internal/sync/receive (SyncPayloadDto: buildingId, events)
-    Central->>Central: Processes events, aggregates statistics, records processedEvent
+    Central->>Central: Elabora eventi, aggrega statistiche, registra processedEvent
     Central-->>Local: 200 OK
-    Note over Local: DB: Marks outbox events as SENT
+    Note over Local: DB: Marca gli eventi outbox come SENT
 ```
 
 ---
 
-## Detailed Step Explanations
+## Spiegazioni Dettagliate dei Passaggi
 
-### 1. Bootstrapping & Device Enrollment
-* **Direction:** Client &rarr; Local Server
-* **Protocol:** HTTPS REST
-* **Details:** The Game Client sends a Certificate Signing Request (CSR) to `/api/devices/register` to establish a secure client identity. The Local Server enrolls the device and returns the X.509 client certificate which is used for subsequent MQTT over TLS (MQTTS) mutual authentication.
+### 1. Avvio e Registrazione Dispositivo
+* **Direzione:** Client &rarr; Local Server
+* **Protocollo:** HTTPS REST
+* **Dettagli:** Il Game Client invia una Certificate Signing Request (CSR) a `/api/devices/register` per stabilire un'identità client sicura. Il Local Server registra il dispositivo e restituisce il certificato client X.509 che viene utilizzato per la successiva autenticazione reciproca MQTT su TLS (MQTTS).
 
-### 2. Local Server Setup (Self-Registration)
-* **Direction:** Local Server &rarr; Central System
-* **Protocol:** HTTPS REST
-* **Auth:** Shared API Key (`X-Internal-Api-Key` header)
-* **Details:** During startup, the Local Server sends a registration payload (containing its `buildingId` and `baseUrl`) to `POST /internal/servers/register` on the Central System. The Central System persists this registration in its database (`local_servers` table).
+### 2. Configurazione Local Server (Auto-Registrazione)
+* **Direzione:** Local Server &rarr; Central System
+* **Protocollo:** HTTPS REST
+* **Auth:** Chiave API Condivisa (header `X-Internal-Api-Key`)
+* **Dettagli:** Durante l'avvio, il Local Server invia un payload di registrazione (contenente il suo `buildingId` e `baseUrl`) a `POST /internal/servers/register` sul Central System. Il Central System persiste questa registrazione nel suo database (tabella `local_servers`).
 
-### 3. User Sync (Central to Local Replication)
-* **Direction:** Central System &rarr; Local Server
-* **Protocol:** HTTPS REST
-* **Auth:** Shared API Key (`X-Internal-Api-Key` header)
-* **Details:** The Central System scheduler pulls pending user creation/update events from its outbox. It sends a user batch to the registered Local Server's `/internal/users/sync` endpoint via HTTP PUT. The Local Server persists the user details and password hashes in `replicated_users` to enable **offline login**.
+### 3. Sincronizzazione Utenti (Replica dal Centrale al Locale)
+* **Direzione:** Central System &rarr; Local Server
+* **Protocollo:** HTTPS REST
+* **Auth:** Chiave API Condivisa (header `X-Internal-Api-Key`)
+* **Dettagli:** Lo scheduler del Central System preleva gli eventi di creazione/aggiornamento utente in sospeso dal suo outbox. Invia un batch di utenti all'endpoint `/internal/users/sync` del Local Server registrato tramite HTTP PUT. Il Local Server persiste i dettagli dell'utente e gli hash delle password in `replicated_users` per abilitare il **login offline**.
 
-### 4. Local Authentication
-* **Direction:** Client &rarr; Local Server
-* **Protocol:** HTTPS REST
-* **Details:** The user enters credentials at the client. The client calls `POST /api/auth/login`. The Local Server checks BCrypt hash validity locally (meaning it works even if offline). Upon success, the Local Server signs a JWT using its own local private key and returns it.
+### 4. Autenticazione Locale
+* **Direzione:** Client &rarr; Local Server
+* **Protocollo:** HTTPS REST
+* **Dettagli:** L'utente inserisce le credenziali nel client. Il client chiama `POST /api/auth/login`. Il Local Server verifica localmente la validità dell'hash BCrypt (questo significa che funziona anche se offline). In caso di successo, il Local Server firma un JWT utilizzando la propria chiave privata locale e lo restituisce.
 
-### 5. Game Reservation
-* **Direction:** Client &rarr; Local Server
-* **Protocol:** HTTPS REST (Request) & MQTTS (Notification)
-* **Auth:** local JWT bearer token
-* **Details:** The client requests a slot by calling `POST /api/reservations`. The Local Server creates the reservation in the database and changes the machine state to `RESERVED`.
-    * The Local Server publishes the state change to the topic `building/{buildingId}/game/{gameId}/state`.
-    * An outbox event of type `RESERVATION_CREATED` is persisted to sync this action to the Central System.
+### 5. Prenotazione Gioco
+* **Direzione:** Client &rarr; Local Server
+* **Protocollo:** HTTPS REST (Richiesta) e MQTTS (Notifica)
+* **Auth:** Token JWT locale (bearer)
+* **Dettagli:** Il client richiede uno slot chiamando `POST /api/reservations`. Il Local Server crea la prenotazione nel database e cambia lo stato della macchina in `RESERVED`.
+  * Il Local Server pubblica il cambiamento di stato sul topic `building/{buildingId}/game/{gameId}/state`.
+  * Un evento outbox di tipo `RESERVATION_CREATED` viene persistito per sincronizzare questa azione con il Central System.
 
-### 6. Game Session Initiation
-* **Direction:** Client &rarr; Local Server
-* **Protocol:** MQTTS
-* **Details:** The client starts the game session by publishing a `SessionStartPayload` to `building/{buildingId}/game/{gameId}/session/start`. The Local Server listens to this topic, transitions the game machine status to `IN_USE` and session status to `IN_PROGRESS` in the database, and broadcasts the status changes back to all clients.
+### 6. Avvio Sessione di Gioco
+* **Direzione:** Client &rarr; Local Server
+* **Protocollo:** MQTTS
+* **Dettagli:** Il client avvia la sessione di gioco pubblicando un `SessionStartPayload` su `building/{buildingId}/game/{gameId}/session/start`. Il Local Server ascolta questo topic, porta la macchina di gioco allo stato `IN_USE` e lo stato della sessione a `IN_PROGRESS` nel database, e trasmette in broadcast i cambiamenti di stato a tutti i client.
 
-### 7. Heartbeat Check
-* **Direction:** Bi-directional (MQTTS)
-* **Details:**
-    * **Client-Initiated (Normal):** The client regularly publishes heartbeats to `building/{buildingId}/game/{gameId}/heartbeat`. The server records contact (`registerHeartbeat`) and sends an ACK (`heartbeat/ack`).
-    * **Server-Initiated (Health check):** Every 5 minutes, the Local Server performs a health check. It broadcasts a `PING` on `building/{buildingId}/game/{gameId}/heartbeat`. The client responds with `PONG` on `heartbeat/ack`.
-    * If a client fails to respond for 3 consecutive cycles (15 minutes), the server aborts the session, sets the game machine to `AVAILABLE`, logs a `GAME_SESSION_COMPLETED` outbox event, and publishes an alert to `building/{buildingId}/alerts`.
+### 7. Controllo Heartbeat
+* **Direzione:** Bidirezionale (MQTTS)
+* **Dettagli:**
+  * **Iniziato dal Client (Normale):** Il client pubblica regolarmente heartbeat su `building/{buildingId}/game/{gameId}/heartbeat`. Il server registra il contatto (`registerHeartbeat`) e invia un ACK (`heartbeat/ack`).
+  * **Iniziato dal Server (Health check):** Ogni 5 minuti, il Local Server esegue un health check. Trasmette in broadcast un `PING` su `building/{buildingId}/game/{gameId}/heartbeat`. Il client risponde con `PONG` su `heartbeat/ack`.
+  * Se un client non risponde per 3 cicli consecutivi (15 minuti), il server termina la sessione, imposta la macchina di gioco su `AVAILABLE`, registra un evento outbox `GAME_SESSION_COMPLETED`, e pubblica un alert su `building/{buildingId}/alerts`.
 
-### 8. Game Session Pause/Resume
-* **Direction:** Client &rarr; Local Server
-* **Protocol:** MQTTS
-* **Details:** The client publishes `SessionPausePayload` to `building/{buildingId}/game/{gameId}/session/pause` or `SessionResumePayload` to `building/{buildingId}/game/{gameId}/session/resume`. The Local Server updates the session status in the database and broadcasts the event to keep all building interfaces synchronized.
+### 8. Pausa/Ripresa Sessione di Gioco
+* **Direzione:** Client &rarr; Local Server
+* **Protocollo:** MQTTS
+* **Dettagli:** Il client pubblica un `SessionPausePayload` su `building/{buildingId}/game/{gameId}/session/pause` o un `SessionResumePayload` su `building/{buildingId}/game/{gameId}/session/resume`. Il Local Server aggiorna lo stato della sessione nel database e trasmette in broadcast l'evento per mantenere sincronizzate tutte le interfacce dell'edificio.
 
-### 9. Game Session Closing (End Session)
-* **Direction:** Client &rarr; Local Server
-* **Protocol:** MQTTS
-* **Details:** Once the game is completed, the client publishes a `SessionEndPayload` containing the winner, score, and condition to `building/{buildingId}/game/{gameId}/session/end`. The Local Server marks the session as `COMPLETED`, transitions the game machine to `AVAILABLE`, broadcasts the result, and writes a `GAME_SESSION_COMPLETED` event into its `outbox_events` table.
+### 9. Chiusura Sessione di Gioco (Fine Sessione)
+* **Direzione:** Client &rarr; Local Server
+* **Protocollo:** MQTTS
+* **Dettagli:** Una volta che il gioco è completato, il client pubblica un `SessionEndPayload` contenente il vincitore, il punteggio e la condizione su `building/{buildingId}/game/{gameId}/session/end`. Il Local Server marca la sessione come `COMPLETED`, porta la macchina di gioco su `AVAILABLE`, trasmette in broadcast il risultato, e scrive un evento `GAME_SESSION_COMPLETED` nella sua tabella `outbox_events`.
 
-### 10. Outbox Data Synchronization
-* **Direction:** Local Server &rarr; Central System
-* **Protocol:** HTTPS REST
-* **Auth:** Shared API Key (`X-Internal-Api-Key` header)
-* **Details:** The Local Server's `SyncSchedulerService` regularly polls pending events (reservations, session completions, alerts). It packs them into a `SyncPayloadDto` and calls `POST /internal/sync/receive` on the Central System. The Central System parses the events, updates global aggregated statistics (scoped by `BuildingId` and `GameType`), logs each event as processed to prevent duplicates, and returns `200 OK`. The Local Server then marks these events as `SENT` locally.
+### 10. Sincronizzazione Dati Outbox
+* **Direzione:** Local Server &rarr; Central System
+* **Protocollo:** HTTPS REST
+* **Auth:** Chiave API Condivisa (header `X-Internal-Api-Key`)
+* **Dettagli:** Il `SyncSchedulerService` del Local Server interroga regolarmente gli eventi in sospeso (prenotazioni, completamenti sessioni, alert). Li impacchetta in un `SyncPayloadDto` e chiama `POST /internal/sync/receive` sul Central System. Il Central System analizza gli eventi, aggiorna le statistiche aggregate globali (con scope per `BuildingId` e `GameType`), registra ogni evento come elaborato per prevenire duplicati, e restituisce `200 OK`. Il Local Server marca quindi questi eventi come `SENT` localmente.
